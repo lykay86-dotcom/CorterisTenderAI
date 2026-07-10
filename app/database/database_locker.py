@@ -1,75 +1,60 @@
-"""
-AIBOS Security
-Commit #42
-File: app/database/database_locker.py
-
-Closes SQLAlchemy sessions and releases SQLite locks before
-backup/restore operations.
-"""
+"""Освобождение SQLAlchemy-сессий и SQLite-файлов перед восстановлением."""
 
 from __future__ import annotations
 
 import gc
 import logging
 import time
-from typing import Callable
+from collections.abc import Callable
 
+from sqlalchemy import Engine
 from sqlalchemy.orm import close_all_sessions
 
 logger = logging.getLogger(__name__)
 
 
 class DatabaseLocker:
-    """Utility for safely releasing database resources."""
+    """Закрывает сессии и освобождает пул соединений SQLAlchemy."""
 
     def __init__(
         self,
-        engine_factory: Callable,
+        engine_factory: Callable[[], Engine],
+        *,
         retries: int = 5,
-        delay: float = 0.25,
+        delay: float = 0.2,
     ) -> None:
         self._engine_factory = engine_factory
         self._retries = retries
         self._delay = delay
 
     def release(self) -> None:
-        """Close all sessions and dispose engine."""
-        logger.info("Releasing database resources...")
-
+        """Закрывает ORM-сессии и освобождает соединения Engine."""
         try:
             close_all_sessions()
         except Exception:
-            logger.exception("Unable to close SQLAlchemy sessions")
+            logger.exception("Не удалось закрыть все SQLAlchemy-сессии")
 
-        last_error = None
-
+        last_error: Exception | None = None
         for attempt in range(1, self._retries + 1):
             try:
                 engine = self._engine_factory()
-                engine.dispose()
+                engine.dispose(close=True)
                 gc.collect()
-                time.sleep(self._delay)
-                logger.info("Database released.")
+                if self._delay:
+                    time.sleep(self._delay)
+                logger.info("Соединения с базой данных освобождены")
                 return
             except Exception as exc:
                 last_error = exc
                 logger.warning(
-                    "Dispose failed (%d/%d): %s",
+                    "Освобождение Engine: попытка %d/%d: %s",
                     attempt,
                     self._retries,
                     exc,
                 )
                 gc.collect()
-                time.sleep(self._delay)
+                if self._delay:
+                    time.sleep(self._delay)
 
-        if last_error:
+        if last_error is not None:
             raise last_error
-
-    def restart(self):
-        """
-        Recreate SQLAlchemy engine after restore.
-        """
-        self.release()
-        engine = self._engine_factory()
-        engine.dispose()
-        return engine
