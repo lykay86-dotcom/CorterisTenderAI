@@ -1,0 +1,30 @@
+AIBOS Security / Corteris Tender AI 1.2.1
+Database Reliability Release
+
+Compilation: PASSED
+Automated tests: 50 passed
+Legacy SQLite migration: PASSED
+Schema version: 3
+Migration history: PASSED
+UUID conversion: PASSED
+Foreign key preservation: PASSED
+Automatic pre-migration backup: PASSED
+Backup SHA-256 metadata: PASSED
+Backup verification: PASSED
+Backup rotation: PASSED
+Restore with safety backup: PASSED
+Database diagnostics: PASSED
+SQLite integrity_check: OK
+SQLite WAL: OK
+Foreign keys: ON
+Database maintenance: PASSED
+Database export: PASSED
+UI source compilation: PASSED
+UUID tender selection in UI: FIXED
+
+Validated migration scenario:
+- Old INTEGER tender/document/analysis IDs
+- Existing tender and related records preserved
+- Schema upgraded from 0 to 3
+- migration_history contains success record
+- Diagnostics report healthy

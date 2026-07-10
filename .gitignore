@@ -1,0 +1,25 @@
+# Created by pytest automatically.
+@'
+.venv/
+venv/
+env/
+build/
+dist/
+installer/output/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.tmp
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+'@ | Out-File -Encoding utf8 .gitignore

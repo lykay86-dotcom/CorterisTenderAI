@@ -1,0 +1,83 @@
+[
+  {
+    "supplier": "Поставщик А",
+    "brand": "DemoCam",
+    "model": "DC-4MP-40",
+    "unit_price": 12000.0,
+    "currency": "RUB",
+    "vat_included": true,
+    "vat_percent": 22.0,
+    "delivery_cost": 1500.0,
+    "discount_percent": 5.0,
+    "minimum_order_qty": 1.0,
+    "stock": 50.0,
+    "lead_time_days": 3,
+    "warranty_months": 36,
+    "official_supply": true,
+    "source": "Демонстрационный прайс",
+    "source_url": "",
+    "article": "DC440",
+    "category": "Видеонаблюдение",
+    "characteristics": {
+      "разрешение": "4 Мп",
+      "ИК": "40 м",
+      "PoE": "IEEE 802.3af"
+    },
+    "certificate_available": true,
+    "checked_at": "2026-07-10T12:11:53+00:00"
+  },
+  {
+    "supplier": "Поставщик Б",
+    "brand": "DemoCam",
+    "model": "DC-4MP-30",
+    "unit_price": 10500.0,
+    "currency": "RUB",
+    "vat_included": true,
+    "vat_percent": 22.0,
+    "delivery_cost": 2500.0,
+    "discount_percent": 0.0,
+    "minimum_order_qty": 1.0,
+    "stock": 100.0,
+    "lead_time_days": 2,
+    "warranty_months": 24,
+    "official_supply": false,
+    "source": "Демонстрационный прайс",
+    "source_url": "",
+    "article": "DC430",
+    "category": "Видеонаблюдение",
+    "characteristics": {
+      "разрешение": "4 Мп",
+      "ИК": "30 м",
+      "PoE": "IEEE 802.3af"
+    },
+    "certificate_available": true,
+    "checked_at": "2026-07-10T12:11:53+00:00"
+  },
+  {
+    "supplier": "Поставщик В",
+    "brand": "SecureVision",
+    "model": "SV-4MP-50",
+    "unit_price": 13500.0,
+    "currency": "RUB",
+    "vat_included": false,
+    "vat_percent": 22.0,
+    "delivery_cost": 0.0,
+    "discount_percent": 7.0,
+    "minimum_order_qty": 10.0,
+    "stock": 20.0,
+    "lead_time_days": 7,
+    "warranty_months": 60,
+    "official_supply": true,
+    "source": "Демонстрационный прайс",
+    "source_url": "",
+    "article": "SV450",
+    "category": "Видеонаблюдение",
+    "characteristics": {
+      "разрешение": "4 Мп",
+      "ИК": "50 м",
+      "PoE": "IEEE 802.3at"
+    },
+    "certificate_available": true,
+    "checked_at": "2026-07-10T12:11:53+00:00"
+  }
+]

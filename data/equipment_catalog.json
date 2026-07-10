@@ -1,0 +1,50 @@
+[
+  {
+    "category": "IP-камеры",
+    "brand": "TRASSIR",
+    "model": "TR-D2B5",
+    "article": "TR-D2B5",
+    "supplier": "Демо-поставщик",
+    "purchase_price": 12500.0,
+    "retail_price": 16900.0,
+    "stock": 10.0,
+    "lead_time_days": 3,
+    "warranty_months": 36,
+    "country": "Россия",
+    "passport_url": "",
+    "certificate_path": "",
+    "characteristics": null
+  },
+  {
+    "category": "СКУД",
+    "brand": "PERCo",
+    "model": "CL15",
+    "article": "CL15",
+    "supplier": "Демо-поставщик",
+    "purchase_price": 18000.0,
+    "retail_price": 23500.0,
+    "stock": 4.0,
+    "lead_time_days": 7,
+    "warranty_months": 24,
+    "country": "Россия",
+    "passport_url": "",
+    "certificate_path": "",
+    "characteristics": null
+  },
+  {
+    "category": "Шлагбаумы",
+    "brand": "DoorHan",
+    "model": "Barrier-PRO-5000",
+    "article": "BP5000",
+    "supplier": "Демо-поставщик",
+    "purchase_price": 89000.0,
+    "retail_price": 119000.0,
+    "stock": 2.0,
+    "lead_time_days": 14,
+    "warranty_months": 24,
+    "country": "Россия",
+    "passport_url": "",
+    "certificate_path": "",
+    "characteristics": null
+  }
+]
