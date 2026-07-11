@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-from PySide6.QtCore import QItemSelection, Qt, QUrl, Signal
+from PySide6.QtCore import QItemSelection, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.workflow_auto_backup import WorkflowAutoBackupService
 from app.core.workflow_backup import WorkflowBackupService
 from app.reporting.workflow_excel import WorkflowExcelExporter
 from app.reporting.workflow_excel_import import WorkflowExcelImporter
@@ -43,6 +44,9 @@ from app.repositories.business_metrics import (
     BusinessRecordKind,
     BusinessStatus,
     BusinessWorkflowRecord,
+)
+from app.ui.business_workflow.backup_settings_dialog import (
+    WorkflowBackupSettingsDialog,
 )
 from app.ui.business_workflow.dialogs import BusinessRecordDialog
 from app.ui.business_workflow.import_dialog import (
@@ -94,6 +98,9 @@ class BusinessWorkflowPage(QWidget):
             WorkflowExcelTemplateService | None
         ) = None,
         backup_service: WorkflowBackupService | None = None,
+        auto_backup_service: (
+            WorkflowAutoBackupService | None
+        ) = None,
         initial_kind: BusinessRecordKind | str | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
@@ -107,6 +114,13 @@ class BusinessWorkflowPage(QWidget):
             excel_template_service or WorkflowExcelTemplateService()
         )
         self.backup_service = backup_service or WorkflowBackupService()
+        self.auto_backup_service = (
+            auto_backup_service
+            or WorkflowAutoBackupService.for_repository(
+                self.repository,
+                backup_service=self.backup_service,
+            )
+        )
         self._theme = ThemeName(theme)
         self._initial_kind = (
             BusinessRecordKind(initial_kind)
@@ -130,6 +144,17 @@ class BusinessWorkflowPage(QWidget):
 
         self.apply_theme(self._theme)
         self.refresh()
+
+        self._auto_backup_timer = QTimer(self)
+        self._auto_backup_timer.setInterval(15 * 60 * 1000)
+        self._auto_backup_timer.timeout.connect(
+            self._check_automatic_backup
+        )
+        self._auto_backup_timer.start()
+        self.workflow_changed.connect(
+            self._check_automatic_backup
+        )
+        QTimer.singleShot(0, self._check_automatic_backup)
 
     def _build_header(self, root: QVBoxLayout) -> None:
         header = QHBoxLayout()
@@ -209,6 +234,19 @@ class BusinessWorkflowPage(QWidget):
         )
         self.restore_backup_action.triggered.connect(
             self._restore_workflow_backup
+        )
+        self.data_menu.addSeparator()
+        self.auto_backup_settings_action = self.data_menu.addAction(
+            "Настроить автокопирование…"
+        )
+        self.auto_backup_settings_action.triggered.connect(
+            self._configure_automatic_backup
+        )
+        self.run_auto_backup_action = self.data_menu.addAction(
+            "Создать автокопию сейчас"
+        )
+        self.run_auto_backup_action.triggered.connect(
+            self._run_automatic_backup_now
         )
         self.data_button.setMenu(self.data_menu)
 
@@ -975,6 +1013,100 @@ class BusinessWorkflowPage(QWidget):
                 and BusinessStatus.BLOCKED in transitions
             )
         )
+
+    def _configure_automatic_backup(self) -> None:
+        current = self.auto_backup_service.load_settings()
+        dialog = WorkflowBackupSettingsDialog(
+            current,
+            default_directory=self.auto_backup_service.backup_directory(
+                self.repository,
+                current,
+            ),
+            auto_backup_service=self.auto_backup_service,
+            theme=self._theme,
+            parent=self,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+
+        values = dialog.settings()
+        try:
+            saved = self.auto_backup_service.update_preferences(
+                enabled=values.enabled,
+                interval_hours=values.interval_hours,
+                retention_count=values.retention_count,
+                directory=values.directory,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка сохранения настроек",
+                str(exc),
+            )
+            return
+
+        if saved.enabled:
+            next_run = self.auto_backup_service.next_run_at(saved)
+            next_text = (
+                next_run.strftime("%d.%m.%Y %H:%M")
+                if next_run is not None
+                else "при следующей проверке"
+            )
+            message = (
+                f"Интервал: {saved.interval_hours} ч.; "
+                f"хранить: {saved.retention_count}; "
+                f"следующая копия: {next_text}."
+            )
+        else:
+            message = "Автоматическое резервное копирование отключено."
+
+        self.status_banner.show_status(
+            title="Настройки автокопирования сохранены",
+            message=message,
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=6500,
+        )
+
+    def _run_automatic_backup_now(self) -> None:
+        self._check_automatic_backup(force=True, show_success=True)
+
+    def _check_automatic_backup(
+        self,
+        *,
+        force: bool = False,
+        show_success: bool = False,
+    ) -> None:
+        try:
+            result = self.auto_backup_service.run_if_due(
+                self.repository,
+                force=force,
+            )
+        except Exception as exc:
+            self.status_banner.show_status(
+                title="Ошибка автоматической резервной копии",
+                message=str(exc),
+                tone=StatusTone.WARNING,
+                auto_hide_ms=8000,
+            )
+            return
+
+        if not result.executed or result.backup is None:
+            return
+
+        if show_success or force:
+            removed_text = (
+                f"; удалено старых: {len(result.removed_paths)}"
+                if result.removed_paths
+                else ""
+            )
+            self.status_banner.show_status(
+                title="Автоматическая копия создана",
+                message=(
+                    f"Файл: {result.backup.path}{removed_text}."
+                ),
+                tone=StatusTone.SUCCESS,
+                auto_hide_ms=7000,
+            )
 
     def _create_workflow_backup(self) -> None:
         timestamp = datetime.now()

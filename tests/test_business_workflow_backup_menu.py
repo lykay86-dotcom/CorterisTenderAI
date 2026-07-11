@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
+from app.core.workflow_auto_backup import WorkflowAutoBackupService
 from app.core.workflow_backup import WorkflowBackupService
 from app.repositories.business_metrics import BusinessMetricsRepository
 from app.ui.pages.business_workflow_page import BusinessWorkflowPage
@@ -26,6 +27,9 @@ def test_workflow_page_exposes_backup_and_restore_actions(
             tmp_path / "workflow.json"
         ),
         backup_service=WorkflowBackupService(),
+        auto_backup_service=WorkflowAutoBackupService(
+            tmp_path / "auto_backup_settings.json"
+        ),
     )
 
     assert page.data_button.text().endswith("Данные")
@@ -35,4 +39,9 @@ def test_workflow_page_exposes_backup_and_restore_actions(
     ] == [
         "Создать резервную копию…",
         "Восстановить из копии…",
+        "",
+        "Настроить автокопирование…",
+        "Создать автокопию сейчас",
     ]
+    assert page._auto_backup_timer.isActive()
+    assert page._auto_backup_timer.interval() == 15 * 60 * 1000
