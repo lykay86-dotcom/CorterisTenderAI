@@ -45,6 +45,7 @@ class TenderDocumentsDialog(QDialog):
     """Show local tender files and request background downloads."""
 
     download_requested = Signal(object, bool)
+    analysis_requested = Signal(str)
 
     def __init__(
         self,
@@ -193,6 +194,15 @@ class TenderDocumentsDialog(QDialog):
             )
         )
 
+        self.analysis_button = QPushButton(
+            "Анализировать требования",
+            self,
+        )
+        self.analysis_button.setObjectName("PrimaryActionButton")
+        self.analysis_button.clicked.connect(
+            lambda: self.analysis_requested.emit(self.registry_key)
+        )
+
         self.open_file_button = QPushButton(
             "Открыть файл",
             self,
@@ -219,6 +229,7 @@ class TenderDocumentsDialog(QDialog):
 
         actions.addWidget(self.download_button)
         actions.addWidget(self.force_download_button)
+        actions.addWidget(self.analysis_button)
         actions.addWidget(self.open_file_button)
         actions.addWidget(self.open_folder_button)
         actions.addWidget(self.refresh_button)
@@ -415,6 +426,11 @@ class TenderDocumentsDialog(QDialog):
             and document is not None
             and document.available_locally
         )
+        has_local_documents = (
+            not self._download_busy
+            and any(item.available_locally for item in self._documents)
+        )
+        self.analysis_button.setEnabled(has_local_documents)
         self.open_file_button.setEnabled(available)
         self.open_folder_button.setEnabled(not self._download_busy)
 

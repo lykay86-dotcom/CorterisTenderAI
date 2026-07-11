@@ -5,15 +5,31 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
+from PySide6.QtCore import (
+    QObject,
+    QRunnable,
+    QThreadPool,
+    Qt,
+    Signal,
+    Slot,
+)
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QMainWindow, QMenu, QWidget
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QMenu,
+    QToolBar,
+    QWidget,
+)
 
 from app.tenders.document_storage import (
     TenderDocumentDownloadResult,
     TenderDocumentDownloadService,
 )
 from app.tenders.models import UnifiedTender
+from app.tenders.requirement_analysis import (
+    TenderRequirementAnalysis,
+    TenderRequirementAnalysisService,
+)
 from app.tenders.search_profile_runner import (
     TenderSearchProfileRun,
     TenderSearchProfileRunner,
@@ -25,6 +41,9 @@ from app.tenders.search_runtime import (
 )
 from app.ui.tender_documents_dialog import TenderDocumentsDialog
 from app.ui.tender_registry_dialog import TenderRegistryDialog
+from app.ui.tender_requirement_analysis_dialog import (
+    TenderRequirementAnalysisDialog,
+)
 from app.ui.tender_search_profiles_dialog import (
     TenderSearchProfilesDialog,
 )
@@ -113,6 +132,43 @@ class _TenderDocumentWorker(QRunnable):
         )
 
 
+class _AnalysisWorkerSignals(QObject):
+    succeeded = Signal(str, object)
+    failed = Signal(str, str, str)
+
+
+class _TenderRequirementAnalysisWorker(QRunnable):
+    def __init__(
+        self,
+        service: TenderRequirementAnalysisService,
+        registry_key: str,
+        *,
+        force_extraction: bool,
+    ) -> None:
+        super().__init__()
+        self.service = service
+        self.registry_key = registry_key.strip()
+        self.force_extraction = bool(force_extraction)
+        self.signals = _AnalysisWorkerSignals()
+        self.setAutoDelete(True)
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = self.service.analyze(
+                self.registry_key,
+                force_extraction=self.force_extraction,
+            )
+        except Exception as exc:
+            self.signals.failed.emit(
+                self.registry_key,
+                type(exc).__name__,
+                str(exc),
+            )
+            return
+        self.signals.succeeded.emit(self.registry_key, result)
+
+
 class TenderSearchUiController(QObject):
     """Install tender search in the main window and run it off-thread."""
 
@@ -122,6 +178,9 @@ class TenderSearchUiController(QObject):
     document_download_started = Signal(str)
     document_download_finished = Signal(str, object)
     document_download_failed = Signal(str, str)
+    analysis_started = Signal(str)
+    analysis_finished = Signal(str, object)
+    analysis_failed = Signal(str, str)
 
     def __init__(
         self,
@@ -151,10 +210,19 @@ class TenderSearchUiController(QObject):
             str,
             _TenderDocumentWorker,
         ] = {}
+        self._analysis_dialogs: dict[
+            str,
+            TenderRequirementAnalysisDialog,
+        ] = {}
+        self._analysis_workers: dict[
+            str,
+            _TenderRequirementAnalysisWorker,
+        ] = {}
         # PySide6 can release a QMenu wrapper created by QMenuBar.addMenu()
         # when no Python-side strong reference is retained, especially with
         # the offscreen test platform. Keep the menu alive with the controller.
         self._tender_menu: QMenu | None = None
+        self._tender_toolbar: QToolBar | None = None
 
         self.action = QAction(
             "Профили и поиск тендеров…",
@@ -201,6 +269,12 @@ class TenderSearchUiController(QObject):
     def document_dialogs(self) -> tuple[TenderDocumentsDialog, ...]:
         return tuple(self._document_dialogs.values())
 
+    @property
+    def analysis_dialogs(
+        self,
+    ) -> tuple[TenderRequirementAnalysisDialog, ...]:
+        return tuple(self._analysis_dialogs.values())
+
     def install_on_main_window(
         self,
         main_window: QWidget,
@@ -218,6 +292,21 @@ class TenderSearchUiController(QObject):
                 menu.addAction(self.action)
             if self.registry_action not in menu.actions():
                 menu.addAction(self.registry_action)
+
+            toolbar = self._find_or_create_tender_toolbar(
+                main_window
+            )
+            self._tender_toolbar = toolbar
+            setattr(
+                main_window,
+                "_tender_search_toolbar",
+                toolbar,
+            )
+            if self.action not in toolbar.actions():
+                toolbar.addAction(self.action)
+            if self.registry_action not in toolbar.actions():
+                toolbar.addAction(self.registry_action)
+            toolbar.setVisible(True)
         else:
             # Fallback for a QWidget-based shell: shortcuts still work.
             if self.action not in main_window.actions():
@@ -279,6 +368,9 @@ class TenderSearchUiController(QObject):
             )
             self._registry_dialog.documents_requested.connect(
                 self.open_registry_documents
+            )
+            self._registry_dialog.analysis_requested.connect(
+                self.open_requirement_analysis
             )
 
         self._registry_dialog.refresh_records()
@@ -421,6 +513,9 @@ class TenderSearchUiController(QObject):
             dialog.download_requested.connect(
                 self.download_tender_documents
             )
+            dialog.analysis_requested.connect(
+                self.open_requirement_analysis
+            )
             dialog.finished.connect(
                 lambda _result, key=registry_key, current=dialog: (
                     self._forget_document_dialog(key, current)
@@ -510,6 +605,12 @@ class TenderSearchUiController(QObject):
         if self._registry_dialog is not None:
             self._registry_dialog.refresh_records()
 
+        analysis_dialog = self._analysis_dialogs.get(registry_key)
+        if analysis_dialog is not None:
+            analysis_dialog.set_status(
+                "Документация обновлена. Запустите анализ повторно."
+            )
+
         self.document_download_finished.emit(
             registry_key,
             result,
@@ -533,6 +634,134 @@ class TenderSearchUiController(QObject):
             registry_key,
             rendered,
         )
+
+    @Slot(str)
+    def open_requirement_analysis(self, registry_key: str) -> None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return
+
+        service = self.runtime.requirement_analysis_service
+        if service is None:
+            self._set_analysis_status(
+                "Сервис анализа требований недоступен."
+            )
+            return
+
+        dialog = self._analysis_dialogs.get(normalized)
+        if dialog is None:
+            parent = self.parent()
+            parent_widget = (
+                parent if isinstance(parent, QWidget) else None
+            )
+            latest = service.latest(normalized)
+            dialog = TenderRequirementAnalysisDialog(
+                normalized,
+                analysis=latest,
+                theme=self._theme,
+                parent=parent_widget,
+            )
+            dialog.analysis_requested.connect(
+                self.run_requirement_analysis
+            )
+            dialog.finished.connect(
+                lambda _result, key=normalized, current=dialog: (
+                    self._forget_analysis_dialog(key, current)
+                )
+            )
+            self._analysis_dialogs[normalized] = dialog
+        else:
+            latest = service.latest(normalized)
+            if latest is not None:
+                dialog.set_analysis(latest)
+
+        dialog.open()
+        dialog.raise_()
+        dialog.activateWindow()
+        self.run_requirement_analysis(normalized, False)
+
+    @Slot(str, bool)
+    def run_requirement_analysis(
+        self,
+        registry_key: str,
+        force_extraction: bool = False,
+    ) -> None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return
+        service = self.runtime.requirement_analysis_service
+        if service is None:
+            self._set_analysis_status(
+                "Сервис анализа требований недоступен."
+            )
+            return
+
+        dialog = self._analysis_dialogs.get(normalized)
+        if normalized in self._analysis_workers:
+            if dialog is not None:
+                dialog.set_status(
+                    "Анализ этой закупки уже выполняется."
+                )
+            return
+
+        worker = _TenderRequirementAnalysisWorker(
+            service,
+            normalized,
+            force_extraction=force_extraction,
+        )
+        worker.signals.succeeded.connect(
+            self._on_requirement_analysis_succeeded
+        )
+        worker.signals.failed.connect(
+            self._on_requirement_analysis_failed
+        )
+        self._analysis_workers[normalized] = worker
+
+        if dialog is not None:
+            dialog.set_analysis_busy(
+                True,
+                message=(
+                    "Повторное извлечение текста и анализ выполняются…"
+                    if force_extraction
+                    else "Анализ требований выполняется в фоне…"
+                ),
+            )
+
+        self.analysis_started.emit(normalized)
+        self._thread_pool.start(worker)
+
+    @Slot(str, object)
+    def _on_requirement_analysis_succeeded(
+        self,
+        registry_key: str,
+        result: object,
+    ) -> None:
+        self._analysis_workers.pop(registry_key, None)
+        dialog = self._analysis_dialogs.get(registry_key)
+        if isinstance(result, TenderRequirementAnalysis):
+            if dialog is not None:
+                dialog.set_analysis(result)
+            self.analysis_finished.emit(registry_key, result)
+            return
+
+        message = "Сервис вернул неподдерживаемый результат анализа."
+        if dialog is not None:
+            dialog.set_analysis_error(message)
+        self.analysis_failed.emit(registry_key, message)
+
+    @Slot(str, str, str)
+    def _on_requirement_analysis_failed(
+        self,
+        registry_key: str,
+        error_type: str,
+        message: str,
+    ) -> None:
+        self._analysis_workers.pop(registry_key, None)
+        rendered = message or error_type
+        dialog = self._analysis_dialogs.get(registry_key)
+        if dialog is not None:
+            dialog.set_analysis_error(rendered)
+        self.analysis_failed.emit(registry_key, rendered)
 
     @Slot(str, str, str)
     def _on_search_failed(
@@ -576,6 +805,27 @@ class TenderSearchUiController(QObject):
                 error=True,
             )
 
+    def _set_analysis_status(self, message: str) -> None:
+        if self._registry_dialog is not None:
+            self._registry_dialog.set_status(
+                message,
+                error=True,
+            )
+        elif self._profiles_dialog is not None:
+            self._profiles_dialog.set_status(
+                message,
+                error=True,
+            )
+
+    def _forget_analysis_dialog(
+        self,
+        registry_key: str,
+        dialog: TenderRequirementAnalysisDialog,
+    ) -> None:
+        current = self._analysis_dialogs.get(registry_key)
+        if current is dialog:
+            self._analysis_dialogs.pop(registry_key, None)
+
     def _forget_document_dialog(
         self,
         registry_key: str,
@@ -613,6 +863,31 @@ class TenderSearchUiController(QObject):
         menu = menu_bar.addMenu("Тендеры")
         menu.setObjectName("tendersMenu")
         return menu
+
+    @staticmethod
+    def _find_or_create_tender_toolbar(
+        main_window: QMainWindow,
+    ) -> QToolBar:
+        existing = main_window.findChild(
+            QToolBar,
+            "tenderSearchToolBar",
+        )
+        if existing is not None:
+            existing.setVisible(True)
+            return existing
+
+        toolbar = QToolBar("Тендеры", main_window)
+        toolbar.setObjectName("tenderSearchToolBar")
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
+        toolbar.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextOnly
+        )
+        main_window.addToolBar(
+            Qt.ToolBarArea.TopToolBarArea,
+            toolbar,
+        )
+        return toolbar
 
 
 __all__ = ["TenderSearchUiController"]

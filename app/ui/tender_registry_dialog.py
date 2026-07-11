@@ -48,6 +48,7 @@ class TenderRegistryDialog(QDialog):
 
     profiles_requested = Signal()
     documents_requested = Signal(str)
+    analysis_requested = Signal(str)
 
     def __init__(
         self,
@@ -200,6 +201,15 @@ class TenderRegistryDialog(QDialog):
             self._open_selected_source
         )
 
+        self.analysis_button = QPushButton(
+            "Анализ требований",
+            self,
+        )
+        self.analysis_button.setObjectName("PrimaryActionButton")
+        self.analysis_button.clicked.connect(
+            self._request_selected_analysis
+        )
+
         self.documents_button = QPushButton(
             "Скачать документацию",
             self,
@@ -231,6 +241,7 @@ class TenderRegistryDialog(QDialog):
         )
 
         action_row.addWidget(self.open_source_button)
+        action_row.addWidget(self.analysis_button)
         action_row.addWidget(self.documents_button)
         action_row.addWidget(self.archive_button)
         action_row.addWidget(self.refresh_button)
@@ -511,6 +522,7 @@ class TenderRegistryDialog(QDialog):
             )
             self.history_table.setRowCount(0)
             self.open_source_button.setEnabled(False)
+            self.analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
             self.archive_button.setEnabled(False)
 
@@ -524,11 +536,13 @@ class TenderRegistryDialog(QDialog):
         record = self.selected_record()
         if record is None:
             self.open_source_button.setEnabled(False)
+            self.analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
             self.archive_button.setEnabled(False)
             return
 
         self.open_source_button.setEnabled(bool(record.source_url))
+        self.analysis_button.setEnabled(True)
         self.documents_button.setEnabled(True)
         self.archive_button.setEnabled(True)
         self.archive_button.setText(
@@ -631,6 +645,12 @@ class TenderRegistryDialog(QDialog):
             )
         )
         self.refresh_records()
+
+    def _request_selected_analysis(self) -> None:
+        record = self.selected_record()
+        if record is None:
+            return
+        self.analysis_requested.emit(record.registry_key)
 
     def _request_selected_documents(self) -> None:
         record = self.selected_record()
