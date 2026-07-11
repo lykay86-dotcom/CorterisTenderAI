@@ -16,6 +16,11 @@ from PySide6.QtCore import (
     Slot,
 )
 
+from app.repositories.business_metrics import (
+    BusinessActivity,
+    BusinessMetricsRepository,
+    BusinessMetricsSnapshot,
+)
 from app.repositories.tenders import TenderRepository
 from app.ui.dashboard.activity_feed import (
     ActivityEntry,
@@ -30,9 +35,16 @@ from app.ui.viewmodels.dashboard_viewmodel import (
 
 
 class TenderRepositoryLike(Protocol):
-    """Minimum repository contract required by DashboardController."""
+    """Minimum tender repository contract required by the controller."""
 
     def list(self) -> Sequence[Any]:
+        ...
+
+
+class BusinessMetricsRepositoryLike(Protocol):
+    """Minimum business workflow repository contract."""
+
+    def summary(self) -> BusinessMetricsSnapshot:
         ...
 
 
@@ -82,6 +94,7 @@ class DashboardSnapshotBuilder:
         entities: Iterable[Any],
         *,
         now: datetime | None = None,
+        business: BusinessMetricsSnapshot | None = None,
     ) -> DashboardSnapshot:
         loaded_at = now or datetime.now()
         rows = list(entities)
@@ -120,15 +133,35 @@ class DashboardSnapshotBuilder:
             for entity in rows
             if self._requires_attention(entity, today)
         ]
-        proposal_count = sum(
-            self._status_contains(entity, self.PROPOSAL_STATUS_WORDS)
-            for entity in rows
+        proposal_count = (
+            business.proposals_in_work
+            if business is not None
+            else 0
         )
-        project_count = sum(
-            self._status_contains(entity, self.PROJECT_STATUS_WORDS)
-            for entity in rows
+        estimate_count = (
+            business.estimates_in_work
+            if business is not None
+            else 0
         )
-        profit, profit_sources = self._potential_profit(rows)
+        project_count = (
+            business.active_projects
+            if business is not None
+            else 0
+        )
+
+        analysis_profit, analysis_sources = self._potential_profit(rows)
+        if business is not None and business.profit_sources > 0:
+            profit = business.potential_profit
+            profit_sources = business.profit_sources
+        else:
+            profit = analysis_profit
+            profit_sources = analysis_sources
+
+        business_attention = (
+            business.attention
+            if business is not None
+            else 0
+        )
 
         kpis = self._build_kpis(
             profit=profit,
@@ -136,8 +169,9 @@ class DashboardSnapshotBuilder:
             new_today=new_today,
             recommended=len(recommended),
             proposals=proposal_count,
+            estimates=estimate_count,
             projects=project_count,
-            attention=len(attention),
+            attention=len(attention) + business_attention,
         )
         recommendations = self._build_recommendations(
             rows,
@@ -147,6 +181,22 @@ class DashboardSnapshotBuilder:
             sorted_rows,
             loaded_at=loaded_at,
         )
+        if business is not None and business.recent_activities:
+            activities = tuple(
+                sorted(
+                    [
+                        *activities,
+                        *(
+                            self._business_activity(item)
+                            for item in business.recent_activities
+                        ),
+                    ],
+                    key=lambda item: (
+                        item.timestamp or datetime.min
+                    ),
+                    reverse=True,
+                )[:8]
+            )
 
         return DashboardSnapshot(
             kpis=kpis,
@@ -165,6 +215,7 @@ class DashboardSnapshotBuilder:
         new_today: int,
         recommended: int,
         proposals: int,
+        estimates: int,
         projects: int,
         attention: int,
     ) -> tuple[DashboardKpi, ...]:
@@ -203,11 +254,15 @@ class DashboardSnapshotBuilder:
                 title="КП в работе",
                 value=str(proposals),
                 trend=(
-                    "По статусам тендеров"
-                    if proposals
-                    else "Активные КП не найдены"
+                    f"Смет в работе: {estimates}"
+                    if proposals or estimates
+                    else "КП и сметы в работе не найдены"
                 ),
-                tone="warning" if proposals else "default",
+                tone=(
+                    "warning"
+                    if proposals or estimates
+                    else "default"
+                ),
                 icon_text="КП",
             ),
             DashboardKpi(
@@ -347,6 +402,28 @@ class DashboardSnapshotBuilder:
             )
 
         return tuple(activities)
+
+    @staticmethod
+    def _business_activity(
+        item: BusinessActivity,
+    ) -> ActivityEntry:
+        tone = {
+            "success": ActivityTone.SUCCESS,
+            "warning": ActivityTone.WARNING,
+            "danger": ActivityTone.DANGER,
+            "info": ActivityTone.INFO,
+            "neutral": ActivityTone.NEUTRAL,
+        }.get(item.tone, ActivityTone.NEUTRAL)
+        return ActivityEntry(
+            key=item.key,
+            title=item.title,
+            description=item.description,
+            timestamp=item.timestamp,
+            tone=tone,
+            icon_text="₽",
+            action_text="Открыть",
+            action_key=item.action_key,
+        )
 
     def _to_recent_tender(self, entity: Any) -> RecentTender:
         score = self._score(entity)
@@ -556,6 +633,7 @@ class DashboardController(QObject):
         page: Any,
         *,
         repository: TenderRepositoryLike | None = None,
+        business_repository: BusinessMetricsRepositoryLike | None = None,
         clock: Callable[[], datetime] = datetime.now,
         auto_refresh_ms: int = DEFAULT_AUTO_REFRESH_MS,
         parent: QObject | None = None,
@@ -564,6 +642,9 @@ class DashboardController(QObject):
 
         self.page = page
         self.repository = repository or TenderRepository()
+        self.business_repository = (
+            business_repository or BusinessMetricsRepository()
+        )
         self.clock = clock
         self.builder = DashboardSnapshotBuilder()
 
@@ -645,6 +726,7 @@ class DashboardController(QObject):
         self.refresh_started.emit()
 
         repository = self.repository
+        business_repository = self.business_repository
         builder = self.builder
         clock = self.clock
 
@@ -659,9 +741,11 @@ class DashboardController(QObject):
             else:
                 entities = repository.list()
 
+            business = business_repository.summary()
             return builder.build(
                 entities,
                 now=clock(),
+                business=business,
             )
 
         thread = QThread(self)
@@ -797,5 +881,6 @@ __all__ = [
     "DashboardRefreshWorker",
     "DashboardSnapshot",
     "DashboardSnapshotBuilder",
+    "BusinessMetricsRepositoryLike",
     "TenderRepositoryLike",
 ]
