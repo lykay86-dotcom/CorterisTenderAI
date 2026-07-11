@@ -14,6 +14,7 @@ from app.tenders.search_profile_repository import (
     TenderSearchProfileRepository,
 )
 from app.tenders.search_profile_runner import TenderSearchProfileRunner
+from app.tenders.tender_registry import TenderRegistryRepository
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +27,7 @@ class TenderSearchRuntime:
     engine: TenderSearchEngine
     search_service: CorterisTenderSearchService
     runner: TenderSearchProfileRunner
+    tender_registry: TenderRegistryRepository | None = None
 
 
 def create_tender_search_runtime(
@@ -57,7 +59,15 @@ def create_tender_search_runtime(
         timeout_seconds=timeout_seconds,
     )
     search_service = CorterisTenderSearchService(engine)
-    runner = TenderSearchProfileRunner(repository, search_service)
+    tender_registry = TenderRegistryRepository(
+        data_path / "tender_registry.sqlite3"
+    )
+    tender_registry.initialize()
+    runner = TenderSearchProfileRunner(
+        repository,
+        search_service,
+        tender_registry,
+    )
 
     return TenderSearchRuntime(
         data_directory=data_path,
@@ -66,6 +76,7 @@ def create_tender_search_runtime(
         engine=engine,
         search_service=search_service,
         runner=runner,
+        tender_registry=tender_registry,
     )
 
 
