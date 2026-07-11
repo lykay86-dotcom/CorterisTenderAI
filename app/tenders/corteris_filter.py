@@ -608,9 +608,108 @@ def normalize_text(value: str) -> str:
 
 
 def _contains_phrase(text: str, phrase: str) -> bool:
+    """Match normalized phrases with lightweight Russian inflection support."""
     if not text or not phrase:
         return False
-    return f" {phrase} " in f" {text} "
+
+    text_tokens = text.split()
+    phrase_tokens = phrase.split()
+    if not text_tokens or not phrase_tokens:
+        return False
+    if len(phrase_tokens) > len(text_tokens):
+        return False
+
+    window_size = len(phrase_tokens)
+    for start in range(len(text_tokens) - window_size + 1):
+        window = text_tokens[start : start + window_size]
+        if all(
+            _tokens_match(text_token, phrase_token)
+            for text_token, phrase_token in zip(
+                window,
+                phrase_tokens,
+                strict=True,
+            )
+        ):
+            return True
+    return False
+
+
+_RUSSIAN_SUFFIXES = tuple(
+    sorted(
+        {
+            "иями",
+            "ями",
+            "ами",
+            "его",
+            "ого",
+            "ему",
+            "ому",
+            "ими",
+            "ыми",
+            "ией",
+            "ией",
+            "иям",
+            "иях",
+            "ием",
+            "ью",
+            "ей",
+            "ий",
+            "ый",
+            "ой",
+            "ая",
+            "яя",
+            "ое",
+            "ее",
+            "ие",
+            "ые",
+            "ую",
+            "юю",
+            "ов",
+            "ев",
+            "ам",
+            "ям",
+            "ах",
+            "ях",
+            "ия",
+            "ья",
+            "ию",
+            "а",
+            "я",
+            "ы",
+            "и",
+            "у",
+            "ю",
+            "е",
+            "о",
+        },
+        key=len,
+        reverse=True,
+    )
+)
+
+
+def _tokens_match(text_token: str, phrase_token: str) -> bool:
+    if text_token == phrase_token:
+        return True
+
+    # Short abbreviations such as ОПС, АПС, NVR, VMS and LPR
+    # are matched exactly to avoid accidental partial matches.
+    if min(len(text_token), len(phrase_token)) <= 3:
+        return False
+
+    return _russian_stem(text_token) == _russian_stem(phrase_token)
+
+
+def _russian_stem(token: str) -> str:
+    if not re.fullmatch(r"[а-я]+", token):
+        return token
+
+    for suffix in _RUSSIAN_SUFFIXES:
+        if token.endswith(suffix):
+            stem = token[: -len(suffix)]
+            if len(stem) >= 4:
+                return stem
+    return token
 
 
 def _matched_terms(
