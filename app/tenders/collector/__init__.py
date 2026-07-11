@@ -78,6 +78,15 @@ from app.tenders.collector.cancellation import (
     CollectorCancellationToken,
     CollectorCancelledError,
 )
+from app.tenders.collector.eis_checkpoint import (
+    EisCheckpointCoordinator,
+    EisCheckpointPolicy,
+    EisPreparedQuery,
+)
+from app.tenders.collector.async_provider_factory import (
+    create_default_async_providers,
+    create_default_collector_service,
+)
 from app.tenders.collector.health_monitor import (
     ProviderCircuitOpenError,
     ProviderHealthMonitor,
@@ -156,6 +165,9 @@ __all__ = [
     "CollectorNetworkSettings",
     "CollectorProviderBaseline",
     "DailyRateLimitExceeded",
+    "EisCheckpointCoordinator",
+    "EisCheckpointPolicy",
+    "EisPreparedQuery",
     "LegacySyncProviderAdapter",
     "ProviderCircuitOpenError",
     "ProviderHealthMonitor",
@@ -167,6 +179,8 @@ __all__ = [
     "RateLimitSnapshot",
     "build_collector_baseline",
     "create_collector_network_runtime",
+    "create_default_async_providers",
+    "create_default_collector_service",
     "default_collector_network_settings",
     "parse_retry_after",
     "sanitize_url",

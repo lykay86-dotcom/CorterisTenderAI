@@ -516,6 +516,156 @@ class EisHtmlParser:
             )
 
 
+def build_eis_search_url(
+    query: TenderSearchQuery,
+    config: EisProviderConfig | None = None,
+) -> tuple[str, int]:
+    """Build the public EIS search URL shared by sync and async adapters."""
+
+    effective = config or EisProviderConfig()
+    rounded_page_size = min(
+        effective.supported_page_sizes,
+        key=lambda size: (
+            size < query.page_size,
+            abs(size - query.page_size),
+            size,
+        ),
+    )
+    larger = [
+        size
+        for size in effective.supported_page_sizes
+        if size >= query.page_size
+    ]
+    if larger:
+        rounded_page_size = min(larger)
+
+    keywords = " ".join(
+        keyword.strip()
+        for keyword in query.keywords
+        if keyword.strip()
+    )
+    morphology = "off" if query.extra.get("exact_search") else "on"
+    params: list[tuple[str, str]] = [
+        ("searchString", keywords),
+        ("morphology", morphology),
+        ("search-filter", "Дате размещения"),
+        ("pageNumber", str(query.page)),
+        ("sortDirection", "false"),
+        ("recordsPerPage", f"_{rounded_page_size}"),
+        ("showLotsInfoHidden", "false"),
+        ("sortBy", "UPDATE_DATE"),
+        ("af", "on"),
+        ("ca", "on"),
+        ("pc", "on"),
+        ("pa", "on"),
+        ("currencyIdGeneral", "-1"),
+    ]
+
+    requested_laws = {
+        law.casefold().replace("ё", "е")
+        for law in query.laws
+    }
+    if not requested_laws or any("44" in law for law in requested_laws):
+        params.append(("fz44", "on"))
+    if not requested_laws or any("223" in law for law in requested_laws):
+        params.append(("fz223", "on"))
+
+    if query.date_from is not None:
+        params.append(
+            ("publishDateFrom", query.date_from.strftime("%d.%m.%Y"))
+        )
+    if query.date_to is not None:
+        params.append(
+            ("publishDateTo", query.date_to.strftime("%d.%m.%Y"))
+        )
+    if query.min_price is not None:
+        params.append(("priceFromGeneral", _format_number(query.min_price)))
+    if query.max_price is not None:
+        params.append(("priceToGeneral", _format_number(query.max_price)))
+
+    base = urljoin(effective.base_url, effective.search_path)
+    return f"{base}?{urlencode(params)}", rounded_page_size
+
+
+def matches_eis_query(
+    item: UnifiedTender,
+    query: TenderSearchQuery,
+) -> bool:
+    """Apply client-side filters to a normalized EIS search card."""
+
+    searchable = " ".join(
+        (
+            item.title,
+            item.description,
+            item.customer.name,
+            item.region,
+            item.law,
+        )
+    ).casefold()
+
+    if any(
+        keyword.strip().casefold() in searchable
+        for keyword in query.excluded_keywords
+        if keyword.strip()
+    ):
+        return False
+
+    if query.regions and item.region:
+        if not any(
+            region.strip().casefold() in item.region.casefold()
+            or item.region.casefold() in region.strip().casefold()
+            for region in query.regions
+            if region.strip()
+        ):
+            return False
+
+    if query.laws and item.law:
+        normalized_law = item.law.casefold()
+        if not any(
+            law.strip().casefold() in normalized_law
+            or normalized_law in law.strip().casefold()
+            for law in query.laws
+            if law.strip()
+        ):
+            return False
+
+    if item.price is not None:
+        amount = item.price.amount
+        if (
+            query.min_price is not None
+            and amount < Decimal(str(query.min_price))
+        ):
+            return False
+        if (
+            query.max_price is not None
+            and amount > Decimal(str(query.max_price))
+        ):
+            return False
+
+    if item.published_at is not None:
+        published_date = item.published_at.date()
+        if query.date_from is not None and published_date < query.date_from:
+            return False
+        if query.date_to is not None and published_date > query.date_to:
+            return False
+    return True
+
+
+def eis_documents_url(source_url: str) -> str:
+    """Return the public documents tab URL for a normalized EIS card."""
+
+    parsed = urlparse(source_url)
+    path = parsed.path
+    if path.endswith("/common-info.html"):
+        path = path[: -len("common-info.html")] + "documents.html"
+    elif path.endswith("/event-journal.html"):
+        path = path[: -len("event-journal.html")] + "documents.html"
+    elif not path.endswith("/documents.html"):
+        separator = "&" if parsed.query else "?"
+        return source_url + separator + "tab=documents"
+    return urlunparse(parsed._replace(path=path))
+
+
 class EisTenderProvider(TenderProvider):
     """Real connector for the official public EIS web interface."""
 
@@ -560,7 +710,10 @@ class EisTenderProvider(TenderProvider):
         self.parser = EisHtmlParser(base_url=self.config.base_url)
 
     def search(self, query: TenderSearchQuery) -> TenderSearchResult:
-        url, rounded_page_size = self.build_search_url(query)
+        url, rounded_page_size = build_eis_search_url(
+            query,
+            self.config,
+        )
         response = self._get(url)
         parsed = self.parser.parse_search(response.text())
 
@@ -583,7 +736,7 @@ class EisTenderProvider(TenderProvider):
         items = tuple(
             item
             for item in parsed.items
-            if self._matches_query(item, query)
+            if matches_eis_query(item, query)
         )[: query.page_size]
 
         return TenderSearchResult(
@@ -625,7 +778,7 @@ class EisTenderProvider(TenderProvider):
 
     def list_documents(self, external_id: str) -> Sequence[TenderDocument]:
         tender = self.get_tender(external_id)
-        documents_url = self._documents_url(tender.source_url)
+        documents_url = eis_documents_url(tender.source_url)
         response = self._get(documents_url)
         return self.parser.parse_documents(response.text())
 
@@ -681,69 +834,7 @@ class EisTenderProvider(TenderProvider):
         self,
         query: TenderSearchQuery,
     ) -> tuple[str, int]:
-        rounded_page_size = min(
-            self.config.supported_page_sizes,
-            key=lambda size: (
-                size < query.page_size,
-                abs(size - query.page_size),
-                size,
-            ),
-        )
-        # Prefer a size that can contain the requested page size.
-        larger = [
-            size
-            for size in self.config.supported_page_sizes
-            if size >= query.page_size
-        ]
-        if larger:
-            rounded_page_size = min(larger)
-
-        keywords = " ".join(
-            keyword.strip()
-            for keyword in query.keywords
-            if keyword.strip()
-        )
-        if query.extra.get("exact_search"):
-            morphology = "off"
-        else:
-            morphology = "on"
-
-        params: list[tuple[str, str]] = [
-            ("searchString", keywords),
-            ("morphology", morphology),
-            ("search-filter", "Дате размещения"),
-            ("pageNumber", str(query.page)),
-            ("sortDirection", "false"),
-            ("recordsPerPage", f"_{rounded_page_size}"),
-            ("showLotsInfoHidden", "false"),
-            ("sortBy", "UPDATE_DATE"),
-            ("af", "on"),
-            ("ca", "on"),
-            ("pc", "on"),
-            ("pa", "on"),
-            ("currencyIdGeneral", "-1"),
-        ]
-
-        requested_laws = {
-            law.casefold().replace("ё", "е")
-            for law in query.laws
-        }
-        if not requested_laws or any("44" in law for law in requested_laws):
-            params.append(("fz44", "on"))
-        if not requested_laws or any("223" in law for law in requested_laws):
-            params.append(("fz223", "on"))
-
-        if query.date_from is not None:
-            params.append(("publishDateFrom", query.date_from.strftime("%d.%m.%Y")))
-        if query.date_to is not None:
-            params.append(("publishDateTo", query.date_to.strftime("%d.%m.%Y")))
-        if query.min_price is not None:
-            params.append(("priceFromGeneral", _format_number(query.min_price)))
-        if query.max_price is not None:
-            params.append(("priceToGeneral", _format_number(query.max_price)))
-
-        base = urljoin(self.config.base_url, self.config.search_path)
-        return f"{base}?{urlencode(params)}", rounded_page_size
+        return build_eis_search_url(query, self.config)
 
     def _get(
         self,
@@ -787,70 +878,15 @@ class EisTenderProvider(TenderProvider):
         return response
 
     @staticmethod
-    def _matches_query(item: UnifiedTender, query: TenderSearchQuery) -> bool:
-        searchable = " ".join(
-            (
-                item.title,
-                item.description,
-                item.customer.name,
-                item.region,
-                item.law,
-            )
-        ).casefold()
-
-        if any(
-            keyword.strip().casefold() in searchable
-            for keyword in query.excluded_keywords
-            if keyword.strip()
-        ):
-            return False
-
-        if query.regions and item.region:
-            if not any(
-                region.strip().casefold() in item.region.casefold()
-                or item.region.casefold() in region.strip().casefold()
-                for region in query.regions
-                if region.strip()
-            ):
-                return False
-
-        if query.laws and item.law:
-            normalized_law = item.law.casefold()
-            if not any(
-                law.strip().casefold() in normalized_law
-                or normalized_law in law.strip().casefold()
-                for law in query.laws
-                if law.strip()
-            ):
-                return False
-
-        if item.price is not None:
-            amount = float(item.price.amount)
-            if query.min_price is not None and amount < query.min_price:
-                return False
-            if query.max_price is not None and amount > query.max_price:
-                return False
-
-        if item.published_at is not None:
-            published_date = item.published_at.date()
-            if query.date_from is not None and published_date < query.date_from:
-                return False
-            if query.date_to is not None and published_date > query.date_to:
-                return False
-        return True
+    def _matches_query(
+        item: UnifiedTender,
+        query: TenderSearchQuery,
+    ) -> bool:
+        return matches_eis_query(item, query)
 
     @staticmethod
     def _documents_url(source_url: str) -> str:
-        parsed = urlparse(source_url)
-        path = parsed.path
-        if path.endswith("/common-info.html"):
-            path = path[: -len("common-info.html")] + "documents.html"
-        elif path.endswith("/event-journal.html"):
-            path = path[: -len("event-journal.html")] + "documents.html"
-        elif not path.endswith("/documents.html"):
-            separator = "&" if parsed.query else "?"
-            return source_url + separator + "tab=documents"
-        return urlunparse(parsed._replace(path=path))
+        return eis_documents_url(source_url)
 
 
 def _clean_text(value: str) -> str:
@@ -993,4 +1029,7 @@ __all__ = [
     "EisParseResult",
     "EisProviderConfig",
     "EisTenderProvider",
+    "build_eis_search_url",
+    "eis_documents_url",
+    "matches_eis_query",
 ]
