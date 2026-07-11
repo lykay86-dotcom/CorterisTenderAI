@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -24,6 +25,10 @@ from app.ui.dashboard.activity_feed import (
 from app.ui.dashboard.ai_advisor import AiAdvisor
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.quick_actions import QuickActions
+from app.ui.dashboard.responsive import (
+    DashboardLayoutSpec,
+    dashboard_layout_for_width,
+)
 from app.ui.dashboard.section import DashboardSection
 from app.ui.dashboard.tender_feed import TenderFeed
 from app.ui.theme.colors import ThemeName, get_palette
@@ -68,6 +73,7 @@ class DashboardPage(QWidget):
         self.viewmodel = viewmodel or DashboardViewModel(self)
         self.advisor_viewmodel = advisor_viewmodel or AiAdvisorViewModel(self)
         self._themed_sections: list[DashboardSection] = []
+        self._layout_spec: DashboardLayoutSpec | None = None
 
         self.setObjectName("DashboardPage")
         self.setSizePolicy(
@@ -88,7 +94,7 @@ class DashboardPage(QWidget):
 
         self.canvas = QWidget(self.scroll)
         self.canvas.setObjectName("DashboardCanvas")
-        self.canvas.setMinimumWidth(900)
+        self.canvas.setMinimumWidth(0)
 
         self.main_layout = QVBoxLayout(self.canvas)
         self.main_layout.setContentsMargins(24, 22, 24, 28)
@@ -98,6 +104,7 @@ class DashboardPage(QWidget):
         self._build_kpi_zone()
         self._build_primary_zone()
         self._build_secondary_zone()
+        self._apply_responsive_layout(force=True)
 
         self.scroll.setWidget(self.canvas)
         root.addWidget(self.scroll)
@@ -133,16 +140,18 @@ class DashboardPage(QWidget):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
 
-        refresh = OutlineButton(
+        self.refresh_button = OutlineButton(
             "Обновить",
             icon_text="↻",
             theme=self._theme,
         )
-        refresh.clicked.connect(self.viewmodel.request_refresh)
+        self.refresh_button.clicked.connect(
+            self.viewmodel.request_refresh
+        )
 
         header.addLayout(title_column, 1)
         header.addWidget(self.updated_label)
-        header.addWidget(refresh)
+        header.addWidget(self.refresh_button)
         self.main_layout.addLayout(header)
 
     def _build_kpi_zone(self) -> None:
@@ -156,10 +165,10 @@ class DashboardPage(QWidget):
         self.main_layout.addWidget(self.kpi_center)
 
     def _build_primary_zone(self) -> None:
-        grid = QGridLayout()
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(16)
+        self.primary_grid = QGridLayout()
+        self.primary_grid.setContentsMargins(0, 0, 0, 0)
+        self.primary_grid.setHorizontalSpacing(16)
+        self.primary_grid.setVerticalSpacing(16)
 
         self.tender_section = self._section(
             "Последние тендеры",
@@ -182,32 +191,32 @@ class DashboardPage(QWidget):
         )
         self.ai_advisor.setMinimumHeight(360)
 
-        grid.addWidget(self.tender_section, 0, 0)
-        grid.addWidget(self.ai_advisor, 0, 1)
-        grid.setColumnStretch(0, 3)
-        grid.setColumnStretch(1, 2)
+        self.primary_grid.addWidget(self.tender_section, 0, 0)
+        self.primary_grid.addWidget(self.ai_advisor, 0, 1)
+        self.primary_grid.setColumnStretch(0, 3)
+        self.primary_grid.setColumnStretch(1, 2)
 
-        self.main_layout.addLayout(grid)
+        self.main_layout.addLayout(self.primary_grid)
 
     def _build_secondary_zone(self) -> None:
-        grid = QGridLayout()
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(16)
+        self.secondary_grid = QGridLayout()
+        self.secondary_grid.setContentsMargins(0, 0, 0, 0)
+        self.secondary_grid.setHorizontalSpacing(16)
+        self.secondary_grid.setVerticalSpacing(16)
 
-        quick = self._section(
+        self.quick_section = self._section(
             "Быстрые действия",
             subtitle="Частые операции без перехода по меню",
         )
         self.quick_actions = QuickActions(
             theme=self._theme,
             columns=2,
-            parent=quick,
+            parent=self.quick_section,
         )
         self.quick_actions.action_requested.connect(
             self._handle_quick_action
         )
-        quick.add_widget(self.quick_actions)
+        self.quick_section.add_widget(self.quick_actions)
 
         self.activity_section = self._section(
             "Лента событий",
@@ -225,13 +234,102 @@ class DashboardPage(QWidget):
         )
         self.activity_section.add_widget(self.activity_feed)
 
-        grid.addWidget(quick, 0, 0)
-        grid.addWidget(self.activity_section, 0, 1)
-        grid.setColumnStretch(0, 3)
-        grid.setColumnStretch(1, 2)
+        self.secondary_grid.addWidget(self.quick_section, 0, 0)
+        self.secondary_grid.addWidget(self.activity_section, 0, 1)
+        self.secondary_grid.setColumnStretch(0, 3)
+        self.secondary_grid.setColumnStretch(1, 2)
 
-        self.main_layout.addLayout(grid)
+        self.main_layout.addLayout(self.secondary_grid)
         self.main_layout.addStretch(1)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._apply_responsive_layout()
+
+    def set_refreshing(self, refreshing: bool) -> None:
+        """Toggle loading state for external refresh controllers."""
+        self.refresh_button.set_loading(bool(refreshing))
+        self.refresh_button.setEnabled(not refreshing)
+
+    def _apply_responsive_layout(self, *, force: bool = False) -> None:
+        viewport_width = self.scroll.viewport().width()
+        available_width = viewport_width if viewport_width > 0 else self.width()
+        spec = dashboard_layout_for_width(available_width)
+
+        if not force and spec == self._layout_spec:
+            return
+
+        self._layout_spec = spec
+        margin = spec.outer_margin
+        self.main_layout.setContentsMargins(
+            margin,
+            margin,
+            margin,
+            margin + 4,
+        )
+        self.main_layout.setSpacing(spec.section_spacing)
+
+        self.kpi_center.set_columns(spec.kpi_columns)
+        self.quick_actions.set_columns(spec.quick_action_columns)
+        self.ai_advisor.set_compact(spec.compact)
+
+        self.tender_feed.setMinimumHeight(spec.tender_min_height)
+        self.ai_advisor.setMinimumHeight(spec.advisor_min_height)
+        self.activity_feed.setMinimumHeight(spec.activity_min_height)
+
+        self.updated_label.setVisible(not spec.compact)
+        self.subtitle_label.setVisible(
+            spec.density.value not in {"narrow"}
+        )
+
+        self._reflow_grid(
+            self.primary_grid,
+            self.tender_section,
+            self.ai_advisor,
+            columns=spec.primary_columns,
+            spacing=spec.grid_spacing,
+            first_stretch=3,
+            second_stretch=2,
+        )
+        self._reflow_grid(
+            self.secondary_grid,
+            self.quick_section,
+            self.activity_section,
+            columns=spec.secondary_columns,
+            spacing=spec.grid_spacing,
+            first_stretch=3,
+            second_stretch=2,
+        )
+
+    @staticmethod
+    def _reflow_grid(
+        grid: QGridLayout,
+        first: QWidget,
+        second: QWidget,
+        *,
+        columns: int,
+        spacing: int,
+        first_stretch: int,
+        second_stretch: int,
+    ) -> None:
+        grid.removeWidget(first)
+        grid.removeWidget(second)
+        grid.setHorizontalSpacing(spacing)
+        grid.setVerticalSpacing(spacing)
+
+        for column in range(2):
+            grid.setColumnStretch(column, 0)
+
+        if columns <= 1:
+            grid.addWidget(first, 0, 0)
+            grid.addWidget(second, 1, 0)
+            grid.setColumnStretch(0, 1)
+            return
+
+        grid.addWidget(first, 0, 0)
+        grid.addWidget(second, 0, 1)
+        grid.setColumnStretch(0, first_stretch)
+        grid.setColumnStretch(1, second_stretch)
 
     def _section(
         self,

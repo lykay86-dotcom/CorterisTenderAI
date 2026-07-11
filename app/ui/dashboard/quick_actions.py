@@ -326,6 +326,20 @@ class QuickActions(QWidget):
         """Return action keys in visual order."""
         return tuple(action.key for action in self._actions)
 
+    @property
+    def columns(self) -> int:
+        return self._columns
+
+    def set_columns(self, columns: int) -> None:
+        """Change the grid column count without recreating tiles."""
+        if columns < 1:
+            raise ValueError("columns must be >= 1")
+        if columns == self._columns:
+            return
+
+        self._columns = columns
+        self._relayout()
+
     def set_badge(self, key: str, value: str) -> None:
         """Update a tile badge."""
         tile = self._tiles.get(key)
@@ -375,11 +389,22 @@ class QuickActions(QWidget):
             tile.clicked.connect(self.action_requested)
             self._tiles[spec.key] = tile
 
+        self._relayout()
+
+    def _relayout(self) -> None:
+        while self._layout.count():
+            self._layout.takeAt(0)
+
+        for index, tile in enumerate(self._tiles.values()):
             row, column = divmod(index, self._columns)
             self._layout.addWidget(tile, row, column)
 
-        for column in range(self._columns):
-            self._layout.setColumnStretch(column, 1)
+        max_columns = max(self._columns, len(self._tiles), 1)
+        for column in range(max_columns):
+            self._layout.setColumnStretch(
+                column,
+                1 if column < self._columns else 0,
+            )
 
 
 __all__ = [

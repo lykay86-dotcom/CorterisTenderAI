@@ -15,6 +15,11 @@ from app.ui.dashboard.quick_actions import (
     QuickActionTone,
     QuickActions,
 )
+from app.ui.dashboard.responsive import (
+    DashboardDensity,
+    DashboardLayoutSpec,
+    dashboard_layout_for_width,
+)
 from app.ui.dashboard.section import DashboardSection
 from app.ui.dashboard.tender_feed import (
     COLUMNS,
@@ -32,6 +37,8 @@ __all__ = [
     "AiStatus",
     "COLUMNS",
     "DEFAULT_QUICK_ACTIONS",
+    "DashboardDensity",
+    "DashboardLayoutSpec",
     "DashboardSection",
     "KpiCenter",
     "QuickActionSpec",
@@ -41,4 +48,5 @@ __all__ = [
     "TenderColumn",
     "TenderFeed",
     "TenderFeedModel",
+    "dashboard_layout_for_width",
 ]

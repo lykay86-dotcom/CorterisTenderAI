@@ -52,20 +52,31 @@ class KpiCenter(QWidget):
     def cards(self) -> dict[str, KpiCard]:
         return dict(self._cards)
 
+    @property
+    def columns(self) -> int:
+        return self._columns
+
+    def set_columns(self, columns: int) -> None:
+        """Change the number of columns without recreating cards."""
+        if columns < 1:
+            raise ValueError("columns must be >= 1")
+        if columns == self._columns:
+            return
+
+        self._columns = columns
+        self._relayout()
+
     def set_kpis(self, kpis: Iterable[DashboardKpi]) -> None:
         """Replace all KPI cards."""
         self._clear_layout()
         self._cards.clear()
         self._kpis = {kpi.key: kpi for kpi in kpis}
 
-        for index, kpi in enumerate(self._kpis.values()):
+        for kpi in self._kpis.values():
             card = self._create_card(kpi)
             self._cards[kpi.key] = card
-            row, column = divmod(index, self._columns)
-            self._layout.addWidget(card, row, column)
 
-        for column in range(self._columns):
-            self._layout.setColumnStretch(column, 1)
+        self._relayout()
 
     def update_kpi(self, kpi: DashboardKpi) -> None:
         """Update one KPI card or create it when missing."""
@@ -106,6 +117,21 @@ class KpiCenter(QWidget):
             lambda key=kpi.key: self.kpi_clicked.emit(key)
         )
         return card
+
+    def _relayout(self) -> None:
+        while self._layout.count():
+            self._layout.takeAt(0)
+
+        for index, card in enumerate(self._cards.values()):
+            row, column = divmod(index, self._columns)
+            self._layout.addWidget(card, row, column)
+
+        max_columns = max(self._columns, len(self._cards), 1)
+        for column in range(max_columns):
+            self._layout.setColumnStretch(
+                column,
+                1 if column < self._columns else 0,
+            )
 
     def _clear_layout(self) -> None:
         while self._layout.count():
