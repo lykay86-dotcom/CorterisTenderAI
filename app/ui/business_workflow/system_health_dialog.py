@@ -24,6 +24,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.diagnostic_support_bundle import (
+    DiagnosticSupportBundleService,
+)
 from app.core.system_health import (
     SystemHealthEvent,
     SystemHealthJournal,
@@ -55,6 +58,9 @@ class SystemHealthCenterDialog(QDialog):
         auto_backup_service: WorkflowAutoBackupService,
         backup_catalog_service: WorkflowBackupCatalogService,
         backup_directories: list[Path],
+        support_bundle_service: (
+            DiagnosticSupportBundleService | None
+        ) = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
@@ -67,6 +73,10 @@ class SystemHealthCenterDialog(QDialog):
         self.auto_backup_service = auto_backup_service
         self.backup_catalog_service = backup_catalog_service
         self.backup_directories = backup_directories
+        self.support_bundle_service = (
+            support_bundle_service
+            or DiagnosticSupportBundleService()
+        )
         self.snapshot: SystemHealthSnapshot | None = None
         self._theme = ThemeName(theme)
 
@@ -113,9 +123,18 @@ class SystemHealthCenterDialog(QDialog):
             self._request_backup_center
         )
 
+        self.support_bundle_button = QPushButton(
+            "Пакет диагностики…",
+            self,
+        )
+        self.support_bundle_button.clicked.connect(
+            self._export_support_bundle
+        )
+
         toolbar.addWidget(self.refresh_button)
         toolbar.addWidget(self.database_button)
         toolbar.addWidget(self.backup_button)
+        toolbar.addWidget(self.support_bundle_button)
         toolbar.addStretch(1)
 
         self.checked_label = QLabel("", self)
@@ -383,6 +402,71 @@ class SystemHealthCenterDialog(QDialog):
     def _request_backup_center(self) -> None:
         self.accept()
         self.backup_center_requested.emit()
+
+    def _export_support_bundle(self) -> None:
+        if self.snapshot is None:
+            self.refresh()
+        if self.snapshot is None:
+            return
+
+        default_name = (
+            "CORTERIS_diagnostic_support_"
+            f"{datetime.now():%Y%m%d_%H%M%S}.ctsupport"
+        )
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Создать пакет технической диагностики",
+            str(Path.home() / "Documents" / default_name),
+            (
+                "Пакет диагностики CORTERIS (*.ctsupport);;"
+                "ZIP-архив (*.zip)"
+            ),
+        )
+        if not filename:
+            return
+
+        try:
+            result = self.support_bundle_service.create_bundle(
+                filename,
+                repository=self.repository,
+                snapshot=self.snapshot,
+                journal=self.journal,
+                auto_backup_service=self.auto_backup_service,
+                backup_catalog_service=(
+                    self.backup_catalog_service
+                ),
+                backup_directories=self.backup_directories,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка создания пакета диагностики",
+                str(exc),
+            )
+            return
+
+        try:
+            self.journal.record(
+                severity=SystemHealthSeverity.SUCCESS,
+                component="support",
+                title="Создан пакет технической диагностики",
+                details=str(result.path),
+            )
+        except Exception:
+            pass
+
+        self.refresh()
+        QMessageBox.information(
+            self,
+            "Пакет диагностики создан",
+            (
+                f"Файл: {result.path}\n"
+                f"Размер: {result.size_bytes / 1024:.1f} КБ\n"
+                f"Файлов внутри: {result.file_count}\n\n"
+                "Пакет не содержит рабочую базу, документы КП, "
+                "сметы, проекты или содержимое резервных копий."
+            ),
+        )
 
     def _export_journal(self) -> None:
         default_name = (
