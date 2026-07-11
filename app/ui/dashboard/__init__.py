@@ -1,5 +1,6 @@
 """Dashboard-specific UI components."""
 
+from app.ui.dashboard.ai_advisor import AiAdvisor, AiStatus
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.section import DashboardSection
 from app.ui.dashboard.tender_feed import (
@@ -10,6 +11,8 @@ from app.ui.dashboard.tender_feed import (
 )
 
 __all__ = [
+    "AiAdvisor",
+    "AiStatus",
     "COLUMNS",
     "DashboardSection",
     "KpiCenter",
