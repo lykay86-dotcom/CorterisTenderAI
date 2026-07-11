@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from PySide6.QtCore import QItemSelection, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTableView,
     QVBoxLayout,
@@ -85,6 +87,7 @@ class BusinessWorkflowPage(QWidget):
             else None
         )
         self._selected_record: BusinessWorkflowRecord | None = None
+        self._content_orientation: Qt.Orientation | None = None
 
         self.setObjectName("BusinessWorkflowPage")
 
@@ -231,20 +234,24 @@ class BusinessWorkflowPage(QWidget):
         root.addWidget(bar)
 
     def _build_content(self, root: QVBoxLayout) -> None:
-        splitter = QSplitter(Qt.Orientation.Horizontal, self)
-        splitter.setObjectName("WorkflowSplitter")
-        splitter.setChildrenCollapsible(False)
+        self.splitter = QSplitter(
+            Qt.Orientation.Horizontal,
+            self,
+        )
+        self.splitter.setObjectName("WorkflowSplitter")
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setHandleWidth(10)
 
-        table_frame = QFrame(splitter)
-        table_frame.setObjectName("WorkflowTableFrame")
-        table_layout = QVBoxLayout(table_frame)
+        self.table_frame = QFrame(self.splitter)
+        self.table_frame.setObjectName("WorkflowTableFrame")
+        table_layout = QVBoxLayout(self.table_frame)
         table_layout.setContentsMargins(0, 0, 0, 0)
 
         self.model = WorkflowTableModel(parent=self)
         self.proxy = WorkflowFilterProxyModel(self)
         self.proxy.setSourceModel(self.model)
 
-        self.table = QTableView(table_frame)
+        self.table = QTableView(self.table_frame)
         self.table.setObjectName("WorkflowTable")
         self.table.setModel(self.proxy)
         self.table.setAlternatingRowColors(True)
@@ -292,73 +299,118 @@ class BusinessWorkflowPage(QWidget):
         )
         table_layout.addWidget(self.table)
 
-        self.detail_panel = self._build_detail_panel(splitter)
+        self.detail_panel = self._build_detail_panel(
+            self.splitter
+        )
 
-        splitter.addWidget(table_frame)
-        splitter.addWidget(self.detail_panel)
-        splitter.setStretchFactor(0, 4)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([900, 390])
-
-        root.addWidget(splitter, 1)
+        self.splitter.addWidget(self.table_frame)
+        self.splitter.addWidget(self.detail_panel)
+        root.addWidget(self.splitter, 1)
+        self._apply_content_orientation(self.width(), force=True)
 
     def _build_detail_panel(self, parent: QWidget) -> QFrame:
         panel = QFrame(parent)
         panel.setObjectName("WorkflowDetailPanel")
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(13)
+        panel.setMinimumWidth(460)
+        panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
-        title = QLabel("Карточка записи", panel)
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        self.detail_scroll = QScrollArea(panel)
+        self.detail_scroll.setObjectName("WorkflowDetailScroll")
+        self.detail_scroll.setWidgetResizable(True)
+        self.detail_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.detail_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        content = QWidget(self.detail_scroll)
+        content.setObjectName("WorkflowDetailContent")
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(22, 20, 22, 22)
+        layout.setSpacing(18)
+
+        title = QLabel("Карточка записи", content)
         title.setObjectName("WorkflowDetailTitle")
         layout.addWidget(title)
 
         self.empty_label = QLabel(
             "Выберите запись в таблице.",
-            panel,
+            content,
         )
         self.empty_label.setObjectName("WorkflowDetailEmpty")
         self.empty_label.setWordWrap(True)
         layout.addWidget(self.empty_label)
 
         self.detail_form = QFormLayout()
-        self.detail_form.setHorizontalSpacing(12)
-        self.detail_form.setVerticalSpacing(10)
+        self.detail_form.setContentsMargins(0, 2, 0, 2)
+        self.detail_form.setHorizontalSpacing(14)
+        self.detail_form.setVerticalSpacing(14)
+        self.detail_form.setRowWrapPolicy(
+            QFormLayout.RowWrapPolicy.WrapAllRows
+        )
+        self.detail_form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
+        self.detail_form.setLabelAlignment(
+            Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignBottom
+        )
+        self.detail_form.setFormAlignment(
+            Qt.AlignmentFlag.AlignTop
+        )
 
-        self.detail_kind = QLabel("—", panel)
-        self.detail_title = QLabel("—", panel)
-        self.detail_title.setWordWrap(True)
-        self.detail_tender = QLabel("—", panel)
-        self.detail_amount = QLabel("—", panel)
-        self.detail_profit = QLabel("—", panel)
-        self.detail_due = QLabel("—", panel)
-        self.detail_file = QLabel("—", panel)
-        self.detail_file.setWordWrap(True)
+        def detail_value() -> QLabel:
+            label = QLabel("—", content)
+            label.setObjectName("WorkflowDetailValue")
+            label.setWordWrap(True)
+            label.setMinimumHeight(38)
+            label.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.MinimumExpanding,
+            )
+            label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+            )
+            return label
 
-        self.detail_form.addRow("Тип:", self.detail_kind)
-        self.detail_form.addRow("Название:", self.detail_title)
-        self.detail_form.addRow("Тендер:", self.detail_tender)
-        self.detail_form.addRow("Сумма:", self.detail_amount)
-        self.detail_form.addRow("Прибыль:", self.detail_profit)
-        self.detail_form.addRow("Срок:", self.detail_due)
-        self.detail_form.addRow("Файл:", self.detail_file)
+        self.detail_kind = detail_value()
+        self.detail_title = detail_value()
+        self.detail_tender = detail_value()
+        self.detail_amount = detail_value()
+        self.detail_profit = detail_value()
+        self.detail_due = detail_value()
+        self.detail_file = detail_value()
+
+        self.detail_form.addRow("Тип", self.detail_kind)
+        self.detail_form.addRow("Название", self.detail_title)
+        self.detail_form.addRow("Тендер", self.detail_tender)
+        self.detail_form.addRow("Сумма", self.detail_amount)
+        self.detail_form.addRow("Прибыль", self.detail_profit)
+        self.detail_form.addRow("Срок", self.detail_due)
+        self.detail_form.addRow("Файл", self.detail_file)
         layout.addLayout(self.detail_form)
 
-        status_title = QLabel("Переход статуса", panel)
+        status_title = QLabel("Переход статуса", content)
         status_title.setObjectName("WorkflowStatusTitle")
         layout.addWidget(status_title)
 
-        self.transition_combo = QComboBox(panel)
+        self.transition_combo = QComboBox(content)
         self.transition_combo.setEnabled(False)
         layout.addWidget(self.transition_combo)
 
         action_row = QHBoxLayout()
-        action_row.setSpacing(8)
+        action_row.setSpacing(10)
 
         self.apply_status_button = PrimaryButton(
             "Применить",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.apply_status_button.clicked.connect(
             self._apply_selected_status
@@ -368,7 +420,7 @@ class BusinessWorkflowPage(QWidget):
         self.advance_button = OutlineButton(
             "Следующий этап",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.advance_button.clicked.connect(
             self._advance_selected
@@ -383,7 +435,7 @@ class BusinessWorkflowPage(QWidget):
             "Редактировать",
             icon_text="✎",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.edit_button.clicked.connect(self._edit_selected)
         self.edit_button.setEnabled(False)
@@ -391,7 +443,7 @@ class BusinessWorkflowPage(QWidget):
         self.open_file_button = SecondaryButton(
             "Открыть документ",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.open_file_button.clicked.connect(
             self._open_selected_file
@@ -401,7 +453,7 @@ class BusinessWorkflowPage(QWidget):
         self.open_tender_button = SecondaryButton(
             "Открыть тендер",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.open_tender_button.clicked.connect(
             self._open_selected_tender
@@ -411,7 +463,7 @@ class BusinessWorkflowPage(QWidget):
         self.block_button = DangerButton(
             "Заблокировать",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.block_button.clicked.connect(self._block_selected)
         self.block_button.setEnabled(False)
@@ -419,7 +471,7 @@ class BusinessWorkflowPage(QWidget):
         self.archive_button = DangerButton(
             "В архив",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.archive_button.clicked.connect(
             self._archive_selected
@@ -430,7 +482,7 @@ class BusinessWorkflowPage(QWidget):
             "Восстановить",
             icon_text="↺",
             theme=self._theme,
-            parent=panel,
+            parent=content,
         )
         self.restore_button.clicked.connect(
             self._restore_selected
@@ -445,7 +497,47 @@ class BusinessWorkflowPage(QWidget):
         layout.addWidget(self.archive_button)
         layout.addWidget(self.restore_button)
         layout.addStretch(1)
+
+        self.detail_scroll.setWidget(content)
+        outer.addWidget(self.detail_scroll)
         return panel
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._apply_content_orientation(event.size().width())
+
+    def _apply_content_orientation(
+        self,
+        width: int,
+        *,
+        force: bool = False,
+    ) -> None:
+        """Keep the record card readable at every practical window width."""
+        orientation = (
+            Qt.Orientation.Horizontal
+            if width >= 1320
+            else Qt.Orientation.Vertical
+        )
+        if not force and orientation == self._content_orientation:
+            return
+
+        self._content_orientation = orientation
+        self.splitter.setOrientation(orientation)
+
+        if orientation == Qt.Orientation.Horizontal:
+            self.detail_panel.setMinimumWidth(460)
+            self.detail_panel.setMinimumHeight(0)
+            self.table_frame.setMinimumHeight(0)
+            self.splitter.setStretchFactor(0, 3)
+            self.splitter.setStretchFactor(1, 2)
+            self.splitter.setSizes([860, 500])
+        else:
+            self.detail_panel.setMinimumWidth(0)
+            self.detail_panel.setMinimumHeight(330)
+            self.table_frame.setMinimumHeight(280)
+            self.splitter.setStretchFactor(0, 3)
+            self.splitter.setStretchFactor(1, 2)
+            self.splitter.setSizes([430, 390])
 
     @property
     def selected_record(self) -> BusinessWorkflowRecord | None:
@@ -543,6 +635,19 @@ class BusinessWorkflowPage(QWidget):
             QFrame#WorkflowDetailPanel QLabel {{
                 color: {palette.text_secondary};
                 {Typography.BODY_S.css()}
+            }}
+            QScrollArea#WorkflowDetailScroll,
+            QWidget#WorkflowDetailContent {{
+                background: transparent;
+                border: none;
+            }}
+            QLabel#WorkflowDetailValue {{
+                color: {palette.text_primary};
+                background-color: {palette.input_background};
+                border: 1px solid {palette.border_subtle};
+                border-radius: 8px;
+                padding: 9px 10px;
+                {Typography.BODY_M.css()}
             }}
             QLineEdit, QComboBox {{
                 min-height: 34px;
@@ -692,6 +797,9 @@ class BusinessWorkflowPage(QWidget):
         self.detail_profit.setText(self._money(record.profit))
         self.detail_due.setText(record.due_date or "—")
         self.detail_file.setText(record.file_path or "—")
+        self.detail_title.setToolTip(record.title)
+        self.detail_tender.setToolTip(record.tender_id or "")
+        self.detail_file.setToolTip(record.file_path or "")
 
         transitions = (
             ()
