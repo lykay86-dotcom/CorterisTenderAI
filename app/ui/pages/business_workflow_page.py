@@ -35,6 +35,7 @@ from app.ui.business_workflow.model import (
     KIND_LABELS,
     STATUS_LABELS,
     WORKFLOW_COLUMNS,
+    WorkflowArchiveMode,
     WorkflowFilterProxyModel,
     WorkflowRole,
     WorkflowStatusDelegate,
@@ -198,6 +199,23 @@ class BusinessWorkflowPage(QWidget):
             self._on_status_filter_changed
         )
 
+        self.archive_filter = QComboBox(bar)
+        self.archive_filter.addItem(
+            "Активные",
+            WorkflowArchiveMode.ACTIVE.value,
+        )
+        self.archive_filter.addItem(
+            "Архив",
+            WorkflowArchiveMode.ARCHIVED.value,
+        )
+        self.archive_filter.addItem(
+            "Все записи",
+            WorkflowArchiveMode.ALL.value,
+        )
+        self.archive_filter.currentIndexChanged.connect(
+            self._on_archive_filter_changed
+        )
+
         self.reset_button = SecondaryButton(
             "Сбросить",
             theme=self._theme,
@@ -208,6 +226,7 @@ class BusinessWorkflowPage(QWidget):
         layout.addWidget(self.search_edit, 1)
         layout.addWidget(self.kind_filter)
         layout.addWidget(self.status_filter)
+        layout.addWidget(self.archive_filter)
         layout.addWidget(self.reset_button)
         root.addWidget(bar)
 
@@ -397,10 +416,34 @@ class BusinessWorkflowPage(QWidget):
         self.block_button.clicked.connect(self._block_selected)
         self.block_button.setEnabled(False)
 
+        self.archive_button = DangerButton(
+            "В архив",
+            theme=self._theme,
+            parent=panel,
+        )
+        self.archive_button.clicked.connect(
+            self._archive_selected
+        )
+        self.archive_button.setEnabled(False)
+
+        self.restore_button = OutlineButton(
+            "Восстановить",
+            icon_text="↺",
+            theme=self._theme,
+            parent=panel,
+        )
+        self.restore_button.clicked.connect(
+            self._restore_selected
+        )
+        self.restore_button.setEnabled(False)
+        self.restore_button.hide()
+
         layout.addWidget(self.edit_button)
         layout.addWidget(self.open_file_button)
         layout.addWidget(self.open_tender_button)
         layout.addWidget(self.block_button)
+        layout.addWidget(self.archive_button)
+        layout.addWidget(self.restore_button)
         layout.addStretch(1)
         return panel
 
@@ -413,7 +456,9 @@ class BusinessWorkflowPage(QWidget):
         preferred_record_id: str | None = None,
     ) -> None:
         try:
-            records = self.repository.list_records()
+            records = self.repository.list_records(
+                include_archived=True
+            )
             summary = self.repository.summary(activity_limit=0)
         except Exception as exc:
             self.status_banner.show_status(
@@ -455,6 +500,8 @@ class BusinessWorkflowPage(QWidget):
             self.open_file_button,
             self.open_tender_button,
             self.block_button,
+            self.archive_button,
+            self.restore_button,
         ):
             button.set_theme(self._theme)
 
@@ -598,10 +645,17 @@ class BusinessWorkflowPage(QWidget):
         self.empty_label.setVisible(not visible)
         self.transition_combo.setEnabled(visible)
         self.apply_status_button.setEnabled(visible)
-        self.edit_button.setEnabled(visible)
+        is_archived = bool(record and record.is_archived)
+        self.edit_button.setEnabled(visible and not is_archived)
+        self.transition_combo.setEnabled(visible and not is_archived)
+        self.apply_status_button.setEnabled(visible and not is_archived)
         self.open_tender_button.setEnabled(
             bool(record and record.tender_id)
         )
+        self.archive_button.setVisible(not is_archived)
+        self.archive_button.setEnabled(visible and not is_archived)
+        self.restore_button.setVisible(is_archived)
+        self.restore_button.setEnabled(is_archived)
         self.open_file_button.setEnabled(
             bool(
                 record
@@ -624,6 +678,8 @@ class BusinessWorkflowPage(QWidget):
             self.transition_combo.clear()
             self.advance_button.setEnabled(False)
             self.block_button.setEnabled(False)
+            self.archive_button.setEnabled(False)
+            self.restore_button.setEnabled(False)
             return
 
         kind = BusinessRecordKind(record.kind)
@@ -637,7 +693,11 @@ class BusinessWorkflowPage(QWidget):
         self.detail_due.setText(record.due_date or "—")
         self.detail_file.setText(record.file_path or "—")
 
-        transitions = allowed_transitions(kind, status)
+        transitions = (
+            ()
+            if record.is_archived
+            else allowed_transitions(kind, status)
+        )
         self.transition_combo.clear()
         if transitions:
             for target in transitions:
@@ -655,8 +715,86 @@ class BusinessWorkflowPage(QWidget):
         self.advance_button.setEnabled(next_status is not None)
         self.apply_status_button.setEnabled(bool(transitions))
         self.block_button.setEnabled(
-            BusinessStatus.BLOCKED in transitions
+            (
+                not record.is_archived
+                and BusinessStatus.BLOCKED in transitions
+            )
         )
+
+    def _archive_selected(self) -> None:
+        record = self._selected_record
+        if record is None or record.is_archived:
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Переместить в архив?",
+            (
+                f"Запись «{record.title}» будет исключена из KPI "
+                "и активных бизнес-процессов. Данные сохранятся "
+                "и запись можно будет восстановить."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            archived = self.repository.archive_record(record.id)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка архивирования",
+                str(exc),
+            )
+            return
+
+        archive_index = self.archive_filter.findData(
+            WorkflowArchiveMode.ARCHIVED.value
+        )
+        if archive_index >= 0:
+            self.archive_filter.setCurrentIndex(archive_index)
+
+        self.status_banner.show_status(
+            title="Запись перемещена в архив",
+            message=archived.title,
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=3000,
+        )
+        self.refresh(preferred_record_id=archived.id)
+        self.workflow_changed.emit()
+
+    def _restore_selected(self) -> None:
+        record = self._selected_record
+        if record is None or not record.is_archived:
+            return
+
+        try:
+            restored = self.repository.restore_record(record.id)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка восстановления",
+                str(exc),
+            )
+            return
+
+        active_index = self.archive_filter.findData(
+            WorkflowArchiveMode.ACTIVE.value
+        )
+        if active_index >= 0:
+            self.archive_filter.setCurrentIndex(active_index)
+
+        self.status_banner.show_status(
+            title="Запись восстановлена",
+            message=restored.title,
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=3000,
+        )
+        self.refresh(preferred_record_id=restored.id)
+        self.workflow_changed.emit()
 
     def _edit_selected(self) -> None:
         record = self._selected_record
@@ -847,6 +985,14 @@ class BusinessWorkflowPage(QWidget):
         self.proxy.set_kind(value or None)
         self._select_first_visible()
 
+    def _on_archive_filter_changed(self) -> None:
+        value = str(
+            self.archive_filter.currentData()
+            or WorkflowArchiveMode.ACTIVE.value
+        )
+        self.proxy.set_archive_mode(value)
+        self._select_first_visible()
+
     def _on_status_filter_changed(self) -> None:
         value = self.status_filter.currentData()
         self.proxy.set_status(value or None)
@@ -856,6 +1002,7 @@ class BusinessWorkflowPage(QWidget):
         self.search_edit.clear()
         self.kind_filter.setCurrentIndex(0)
         self.status_filter.setCurrentIndex(0)
+        self.archive_filter.setCurrentIndex(0)
 
     def _restore_initial_filter(self) -> None:
         if self._initial_kind is None:

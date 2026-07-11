@@ -60,6 +60,11 @@ class BusinessWorkflowRecord:
     due_date: str = ""
     created_at: str = ""
     updated_at: str = ""
+    archived_at: str = ""
+
+    @property
+    def is_archived(self) -> bool:
+        return bool(self.archived_at.strip())
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,13 +124,26 @@ class BusinessMetricsRepository:
         self,
         *,
         kind: BusinessRecordKind | str | None = None,
+        include_archived: bool = False,
+        archived_only: bool = False,
     ) -> list[BusinessWorkflowRecord]:
+        """List records with explicit archive visibility control."""
         normalized_kind = (
             BusinessRecordKind(kind).value
             if kind is not None
             else None
         )
         records = self._read_records()
+
+        if archived_only:
+            records = [
+                record for record in records if record.is_archived
+            ]
+        elif not include_archived:
+            records = [
+                record for record in records if not record.is_archived
+            ]
+
         if normalized_kind is None:
             return records
         return [
@@ -276,6 +294,10 @@ class BusinessMetricsRepository:
             )
             if existing is None:
                 raise KeyError(record_id)
+            if existing.is_archived:
+                raise ValueError(
+                    "Архивную запись нужно сначала восстановить"
+                )
 
             next_title = (
                 existing.title
@@ -365,7 +387,65 @@ class BusinessMetricsRepository:
 
             if updated is None:
                 raise KeyError(record_id)
+            if updated.is_archived:
+                raise ValueError(
+                    "Нельзя изменять статус архивной записи"
+                )
 
+            self._write_records_unlocked(result)
+            return updated
+
+    def archive_record(
+        self,
+        record_id: str,
+    ) -> BusinessWorkflowRecord:
+        """Soft-delete a workflow record without losing its history."""
+        return self._set_archive_state(
+            record_id,
+            archived=True,
+        )
+
+    def restore_record(
+        self,
+        record_id: str,
+    ) -> BusinessWorkflowRecord:
+        """Restore a previously archived workflow record."""
+        return self._set_archive_state(
+            record_id,
+            archived=False,
+        )
+
+    def _set_archive_state(
+        self,
+        record_id: str,
+        *,
+        archived: bool,
+    ) -> BusinessWorkflowRecord:
+        with self._lock:
+            records = self._read_records_unlocked()
+            existing = next(
+                (
+                    record
+                    for record in records
+                    if record.id == record_id
+                ),
+                None,
+            )
+            if existing is None:
+                raise KeyError(record_id)
+
+            now = datetime.now().isoformat(timespec="seconds")
+            updated = BusinessWorkflowRecord(
+                **{
+                    **asdict(existing),
+                    "archived_at": now if archived else "",
+                    "updated_at": now,
+                }
+            )
+            result = [
+                updated if record.id == record_id else record
+                for record in records
+            ]
             self._write_records_unlocked(result)
             return updated
 
@@ -375,7 +455,11 @@ class BusinessMetricsRepository:
         today: date | None = None,
         activity_limit: int = 6,
     ) -> BusinessMetricsSnapshot:
-        records = self._read_records()
+        records = [
+            record
+            for record in self._read_records()
+            if not record.is_archived
+        ]
         current_date = today or date.today()
 
         proposals = [
@@ -456,6 +540,7 @@ class BusinessMetricsRepository:
                     if (
                         record.kind == normalized_kind
                         and record.tender_id == normalized_tender_id
+                        and not record.is_archived
                     )
                 ),
                 None,
@@ -474,6 +559,7 @@ class BusinessMetricsRepository:
                 due_date=due_date.strip(),
                 created_at=existing.created_at if existing else now,
                 updated_at=now,
+                archived_at=existing.archived_at if existing else "",
             )
 
             result = [

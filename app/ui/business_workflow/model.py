@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from typing import Any
 
 from PySide6.QtCore import (
@@ -209,11 +209,18 @@ def preferred_next_status(
     return options[0] if options else None
 
 
+class WorkflowArchiveMode(StrEnum):
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    ALL = "all"
+
+
 class WorkflowRole(IntEnum):
     RECORD = int(Qt.ItemDataRole.UserRole) + 1
     KIND = int(Qt.ItemDataRole.UserRole) + 2
     STATUS = int(Qt.ItemDataRole.UserRole) + 3
     SORT = int(Qt.ItemDataRole.UserRole) + 4
+    ARCHIVED = int(Qt.ItemDataRole.UserRole) + 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,6 +321,8 @@ class WorkflowTableModel(QAbstractTableModel):
             return status.value
         if role == WorkflowRole.SORT:
             return self._sort_value(record, column.key)
+        if role == WorkflowRole.ARCHIVED:
+            return record.is_archived
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return int(
@@ -334,7 +343,11 @@ class WorkflowTableModel(QAbstractTableModel):
             "kind": kind_label(kind),
             "title": record.title,
             "tender_id": record.tender_id or "—",
-            "status": status_label(status),
+            "status": (
+                f"Архив · {status_label(status)}"
+                if record.is_archived
+                else status_label(status)
+            ),
             "total": self._money(record.total),
             "profit": self._money(record.profit),
             "margin": (
@@ -405,6 +418,10 @@ class WorkflowTableModel(QAbstractTableModel):
             f"Тендер: {record.tender_id or 'не указан'}",
             f"Статус: {status_label(record.status)}",
         ]
+        if record.is_archived:
+            parts.append(
+                f"В архиве с: {record.archived_at or '—'}"
+            )
         if record.file_path:
             parts.append(f"Файл: {record.file_path}")
         return "\n".join(parts)
@@ -418,6 +435,7 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         self._search = ""
         self._kind = ""
         self._status = ""
+        self._archive_mode = WorkflowArchiveMode.ACTIVE
         self.setDynamicSortFilter(True)
         self.setSortRole(WorkflowRole.SORT)
 
@@ -445,6 +463,13 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
             if status not in {None, ""}
             else ""
         )
+        self._refresh_rows()
+
+    def set_archive_mode(
+        self,
+        mode: WorkflowArchiveMode | str,
+    ) -> None:
+        self._archive_mode = WorkflowArchiveMode(mode)
         self._refresh_rows()
 
     def _refresh_rows(self) -> None:
@@ -480,6 +505,17 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
 
         record = model.record_at(source_row)
         if record is None:
+            return False
+
+        if (
+            self._archive_mode == WorkflowArchiveMode.ACTIVE
+            and record.is_archived
+        ):
+            return False
+        if (
+            self._archive_mode == WorkflowArchiveMode.ARCHIVED
+            and not record.is_archived
+        ):
             return False
 
         if self._kind and record.kind != self._kind:
@@ -531,6 +567,7 @@ class WorkflowStatusDelegate(QStyledItemDelegate):
 
         text = str(index.data(Qt.ItemDataRole.DisplayRole) or "—")
         raw_status = str(index.data(WorkflowRole.STATUS) or "")
+        is_archived = bool(index.data(WorkflowRole.ARCHIVED))
         option_copy = QStyleOptionViewItem(option)
         self.initStyleOption(option_copy, index)
         option_copy.text = ""
@@ -548,7 +585,10 @@ class WorkflowStatusDelegate(QStyledItemDelegate):
         )
 
         palette = get_palette(self._theme)
-        color = {
+        color = (
+            palette.text_muted
+            if is_archived
+            else {
             BusinessStatus.COMPLETED.value: palette.success,
             BusinessStatus.ACCEPTED.value: palette.success,
             BusinessStatus.APPROVED.value: palette.success,
@@ -561,6 +601,7 @@ class WorkflowStatusDelegate(QStyledItemDelegate):
             BusinessStatus.BLOCKED.value: palette.danger,
             BusinessStatus.CANCELLED.value: palette.danger,
         }.get(raw_status, palette.neutral)
+        )
 
         accent = QColor(color)
         fill = QColor(accent)
@@ -600,6 +641,7 @@ __all__ = [
     "KIND_STATUSES",
     "STATUS_LABELS",
     "WORKFLOW_COLUMNS",
+    "WorkflowArchiveMode",
     "WorkflowColumn",
     "WorkflowFilterProxyModel",
     "WorkflowRole",
