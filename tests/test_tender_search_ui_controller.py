@@ -67,17 +67,18 @@ def test_controller_installs_tender_menu_action(tmp_path) -> None:
 
     action = controller.install_on_main_window(window)
 
-    menu = next(
-        item.menu()
-        for item in window.menuBar().actions()
-        if item.menu() is not None
-        and item.menu().objectName() == "tendersMenu"
-    )
+    # Do not obtain the menu through repeated QAction.menu() calls.
+    # On PySide6/Windows/offscreen those temporary wrappers may be
+    # invalidated even though the real QMenu is still owned by QMenuBar.
+    menu = controller._tender_menu
+
+    assert menu is not None
+    assert menu.objectName() == "tendersMenu"
+    assert menu.menuAction() in window.menuBar().actions()
     assert action in menu.actions()
     assert action.objectName() == "actionTenderSearchProfiles"
     assert window._tender_search_ui_controller is controller
     assert window._tender_search_menu is menu
-    assert controller._tender_menu is menu
 
     app.processEvents()
 
