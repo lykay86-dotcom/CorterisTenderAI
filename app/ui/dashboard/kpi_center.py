@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFocusEvent, QKeyEvent
 from PySide6.QtWidgets import QGridLayout, QSizePolicy, QWidget
 
+from app.ui.dashboard.data_state import DataState, DataStateKind
 from app.ui.theme.colors import ThemeName
 from app.ui.viewmodels.dashboard_viewmodel import DashboardKpi
 from app.ui.widgets.card import CardTone, KpiCard
@@ -68,6 +69,7 @@ class KpiCenter(QWidget):
         self._columns = columns
         self._cards: dict[str, KpiCard] = {}
         self._kpis: dict[str, DashboardKpi] = {}
+        self._data_state = DataState.ready()
 
         self.setObjectName("KpiCenter")
         self.setSizePolicy(
@@ -89,6 +91,18 @@ class KpiCenter(QWidget):
     @property
     def columns(self) -> int:
         return self._columns
+
+    @property
+    def data_state(self) -> DataState:
+        return self._data_state
+
+    def set_data_state(self, state: DataState) -> None:
+        """Render loading, empty, error or partial values."""
+        self._data_state = state
+        for key, kpi in self._kpis.items():
+            card = self._cards.get(key)
+            if card is not None:
+                self._render_card(card, kpi)
 
     def focus_first(self) -> None:
         """Move keyboard focus to the first KPI card."""
@@ -132,13 +146,7 @@ class KpiCenter(QWidget):
             self.set_kpis(self._kpis.values())
             return
 
-        card.title = kpi.title
-        card.value = kpi.value
-        card.icon_text = kpi.icon_text
-        card.set_trend(kpi.trend, self._tone(kpi.tone))
-        card.setAccessibleDescription(
-            f"{kpi.title}: {kpi.value}. {kpi.trend}"
-        )
+        self._render_card(card, kpi)
 
     def set_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)
@@ -162,7 +170,48 @@ class KpiCenter(QWidget):
         card.clicked.connect(
             lambda key=kpi.key: self.kpi_clicked.emit(key)
         )
+        self._render_card(card, kpi)
         return card
+
+    def _render_card(
+        self,
+        card: KpiCard,
+        kpi: DashboardKpi,
+    ) -> None:
+        state = self._data_state
+        title = kpi.title
+        value = kpi.value
+        trend = kpi.trend
+        tone = self._tone(kpi.tone)
+        enabled = True
+
+        if state.kind == DataStateKind.LOADING:
+            value = "…"
+            trend = "Обновление данных"
+            tone = CardTone.INFO
+            enabled = False
+        elif state.kind == DataStateKind.EMPTY:
+            value = "—"
+            trend = "Нет данных"
+            tone = CardTone.DEFAULT
+            enabled = False
+        elif state.kind == DataStateKind.ERROR:
+            value = "—"
+            trend = "Ошибка загрузки"
+            tone = CardTone.WARNING
+            enabled = False
+        elif state.kind == DataStateKind.PARTIAL:
+            trend = trend or "Частичные данные"
+            tone = CardTone.WARNING
+
+        card.title = title
+        card.value = value
+        card.icon_text = kpi.icon_text
+        card.set_trend(trend, tone)
+        card.setEnabled(enabled)
+        card.setAccessibleDescription(
+            f"{title}: {value}. {trend}"
+        )
 
     def _relayout(self) -> None:
         while self._layout.count():

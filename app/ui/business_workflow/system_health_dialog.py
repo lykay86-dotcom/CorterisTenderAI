@@ -47,6 +47,7 @@ class SystemHealthCenterDialog(QDialog):
 
     database_diagnostics_requested = Signal()
     backup_center_requested = Signal()
+    crash_reports_requested = Signal()
 
     def __init__(
         self,
@@ -123,6 +124,14 @@ class SystemHealthCenterDialog(QDialog):
             self._request_backup_center
         )
 
+        self.crash_reports_button = QPushButton(
+            "Crash-reports…",
+            self,
+        )
+        self.crash_reports_button.clicked.connect(
+            self._request_crash_reports
+        )
+
         self.support_bundle_button = QPushButton(
             "Пакет диагностики…",
             self,
@@ -134,6 +143,7 @@ class SystemHealthCenterDialog(QDialog):
         toolbar.addWidget(self.refresh_button)
         toolbar.addWidget(self.database_button)
         toolbar.addWidget(self.backup_button)
+        toolbar.addWidget(self.crash_reports_button)
         toolbar.addWidget(self.support_bundle_button)
         toolbar.addStretch(1)
 
@@ -402,6 +412,10 @@ class SystemHealthCenterDialog(QDialog):
     def _request_backup_center(self) -> None:
         self.accept()
         self.backup_center_requested.emit()
+
+    def _request_crash_reports(self) -> None:
+        self.accept()
+        self.crash_reports_requested.emit()
 
     def _export_support_bundle(self) -> None:
         if self.snapshot is None:

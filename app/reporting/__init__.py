@@ -27,3 +27,13 @@ __all__ += [
     "WorkflowImportResult",
     "WorkflowImportRow",
 ]
+
+from app.reporting.workflow_excel_template import (
+    WorkflowExcelTemplateService,
+    WorkflowTemplateCopyResult,
+)
+
+__all__ += [
+    "WorkflowExcelTemplateService",
+    "WorkflowTemplateCopyResult",
+]

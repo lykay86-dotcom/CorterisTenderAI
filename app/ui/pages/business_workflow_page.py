@@ -30,6 +30,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.crash_report_catalog import (
+    CrashReportCatalogService,
+)
+from app.core.crash_reporting import CrashReportService
 from app.core.diagnostic_support_bundle import (
     DiagnosticSupportBundleService,
 )
@@ -67,6 +71,9 @@ from app.ui.business_workflow.backup_center_dialog import (
 )
 from app.ui.business_workflow.backup_settings_dialog import (
     WorkflowBackupSettingsDialog,
+)
+from app.ui.crash_report_center_dialog import (
+    CrashReportCenterDialog,
 )
 from app.ui.business_workflow.database_recovery_dialog import (
     WorkflowDatabaseRecoveryAction,
@@ -134,6 +141,10 @@ class BusinessWorkflowPage(QWidget):
         database_health_service: (
             WorkflowDatabaseHealthService | None
         ) = None,
+        crash_report_service: CrashReportService | None = None,
+        crash_report_catalog_service: (
+            CrashReportCatalogService | None
+        ) = None,
         system_health_service: SystemHealthService | None = None,
         system_health_journal: SystemHealthJournal | None = None,
         system_health_monitor: SystemHealthMonitor | None = None,
@@ -162,6 +173,18 @@ class BusinessWorkflowPage(QWidget):
             or WorkflowDatabaseHealthService(
                 backup_service=self.backup_service,
                 catalog_service=self.backup_catalog_service,
+            )
+        )
+        self.crash_report_service = (
+            crash_report_service
+            or CrashReportService(
+                self.repository.path.parent / "crash_reports"
+            )
+        )
+        self.crash_report_catalog_service = (
+            crash_report_catalog_service
+            or CrashReportCatalogService(
+                self.crash_report_service
             )
         )
         self.system_health_service = (
@@ -1259,8 +1282,23 @@ class BusinessWorkflowPage(QWidget):
         dialog.backup_center_requested.connect(
             self._open_backup_center
         )
+        dialog.crash_reports_requested.connect(
+            self._open_crash_report_center
+        )
         dialog.exec()
         self._request_system_health_refresh()
+
+    def _open_crash_report_center(self) -> None:
+        dialog = CrashReportCenterDialog(
+            catalog_service=self.crash_report_catalog_service,
+            directories=[self.crash_report_service.directory],
+            support_bundle_provider=(
+                self.create_diagnostic_support_bundle
+            ),
+            theme=self._theme,
+            parent=self,
+        )
+        dialog.exec()
 
     def _database_backup_directories(self) -> list[Path]:
         settings = self.auto_backup_service.load_settings()

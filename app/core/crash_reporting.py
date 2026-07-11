@@ -46,6 +46,27 @@ class CrashReportInspection:
     errors: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class CrashReportDetails:
+    path: Path
+    crash_id: str
+    created_at: str
+    origin: str
+    thread_name: str
+    exception_type: str
+    exception_message: str
+    traceback_text: str
+    environment: dict[str, Any]
+    size_bytes: int
+
+    @property
+    def created_timestamp(self) -> datetime | None:
+        try:
+            return datetime.fromisoformat(self.created_at)
+        except (TypeError, ValueError):
+            return None
+
+
 class _CrashRedactor:
     EMAIL = re.compile(
         r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
@@ -457,6 +478,80 @@ class CrashReportService:
                 errors=(f"Не удалось прочитать crash-report: {exc}",),
             )
 
+    def read_report(
+        self,
+        source: str | Path,
+    ) -> CrashReportDetails:
+        """Read a verified crash report without extracting it to disk."""
+        path = Path(source).expanduser()
+        inspection = self.inspect_report(path)
+        if not inspection.valid:
+            raise ValueError(
+                "Crash-report не прошёл проверку:\n"
+                + "\n".join(
+                    f"• {error}"
+                    for error in inspection.errors
+                )
+            )
+
+        try:
+            with ZipFile(path, "r") as archive:
+                crash_payload = json.loads(
+                    archive.read("crash.json").decode("utf-8")
+                )
+                environment = json.loads(
+                    archive.read("environment.json").decode(
+                        "utf-8"
+                    )
+                )
+                traceback_text = archive.read(
+                    "traceback.txt"
+                ).decode("utf-8-sig", errors="replace")
+        except (
+            BadZipFile,
+            OSError,
+            KeyError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+        ) as exc:
+            raise ValueError(
+                f"Не удалось прочитать crash-report: {exc}"
+            ) from exc
+
+        if not isinstance(crash_payload, dict):
+            raise ValueError("crash.json должен быть объектом.")
+        if not isinstance(environment, dict):
+            environment = {}
+
+        return CrashReportDetails(
+            path=path,
+            crash_id=str(
+                crash_payload.get(
+                    "crash_id",
+                    inspection.crash_id,
+                )
+            ),
+            created_at=str(
+                crash_payload.get(
+                    "created_at",
+                    inspection.created_at,
+                )
+            ),
+            origin=str(crash_payload.get("origin", "")),
+            thread_name=str(
+                crash_payload.get("thread_name", "")
+            ),
+            exception_type=str(
+                crash_payload.get("exception_type", "")
+            ),
+            exception_message=str(
+                crash_payload.get("exception_message", "")
+            ),
+            traceback_text=traceback_text,
+            environment=environment,
+            size_bytes=path.stat().st_size,
+        )
+
     def _read_log_tail(
         self,
         redactor: _CrashRedactor,
@@ -708,6 +803,7 @@ class GlobalCrashHandler:
 
 
 __all__ = [
+    "CrashReportDetails",
     "CrashReportInspection",
     "CrashReportResult",
     "CrashReportService",

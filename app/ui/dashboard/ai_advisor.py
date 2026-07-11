@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.dashboard.data_state import DataState, DataStateKind
 from app.ui.theme.colors import (
     SemanticColor,
     ThemeName,
@@ -54,6 +55,7 @@ class AiAdvisor(QFrame):
         self._status = AiStatus.ONLINE
         self._action_key = ""
         self._compact = False
+        self._data_state = DataState.ready()
 
         self.setObjectName("AiAdvisor")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -286,6 +288,67 @@ class AiAdvisor(QFrame):
 
         self._root.addWidget(self.action_caption)
         self._root.addWidget(self.action_button)
+
+    @property
+    def data_state(self) -> DataState:
+        return self._data_state
+
+    def set_data_state(self, state: DataState) -> None:
+        """Render a unified Dashboard data state."""
+        previous = self._data_state
+        self._data_state = state
+
+        if state.kind == DataStateKind.READY:
+            self.set_busy(False)
+            if previous.kind in {
+                DataStateKind.LOADING,
+                DataStateKind.ERROR,
+                DataStateKind.PARTIAL,
+            }:
+                self.set_warning("")
+            return
+
+        if state.kind == DataStateKind.LOADING:
+            self.set_busy(
+                True,
+                state.title or "Обновление рекомендаций",
+            )
+            return
+
+        self.set_busy(False)
+
+        if state.kind == DataStateKind.EMPTY:
+            self.set_empty_state()
+            self.set_focus(
+                title=state.title
+                or "Запустите поиск тендеров, чтобы получить рекомендацию"
+            )
+            self.set_warning(state.message)
+            self.set_action(
+                text=state.action_text or "Найти тендеры",
+                action_key=state.action_key or "find_tenders",
+            )
+        elif state.kind == DataStateKind.ERROR:
+            self.set_status(AiStatus.OFFLINE)
+            self.set_focus(
+                title=state.title or "AI-рекомендации недоступны"
+            )
+            self.set_reasons([])
+            self.set_warning(state.message or "Повторите загрузку данных.")
+            self.set_action(
+                text=state.action_text or "Повторить",
+                action_key=state.action_key or "refresh_dashboard",
+            )
+        elif state.kind == DataStateKind.PARTIAL:
+            self.set_status(AiStatus.WARNING)
+            self.set_warning(
+                state.message or "Часть рекомендаций недоступна."
+            )
+            if state.has_action:
+                self.set_action(
+                    text=state.action_text,
+                    action_key=state.action_key,
+                )
 
     def set_compact(self, compact: bool) -> None:
         """Switch between normal and compact spacing."""
