@@ -7,7 +7,12 @@ from app.ui.dashboard.activity_feed import (
     ActivityTone,
 )
 from app.ui.dashboard.ai_advisor import AiAdvisor, AiStatus
-from app.ui.dashboard.kpi_center import KpiCenter
+from app.ui.dashboard.keyboard_navigation import (
+    DEFAULT_DASHBOARD_SHORTCUTS,
+    DashboardShortcutManager,
+    DashboardShortcutSpec,
+)
+from app.ui.dashboard.kpi_center import KeyboardKpiCard, KpiCenter
 from app.ui.dashboard.quick_actions import (
     DEFAULT_QUICK_ACTIONS,
     QuickActionSpec,
@@ -40,11 +45,15 @@ __all__ = [
     "AiAdvisor",
     "AiStatus",
     "COLUMNS",
+    "DEFAULT_DASHBOARD_SHORTCUTS",
     "DEFAULT_QUICK_ACTIONS",
     "DashboardDensity",
     "DashboardLayoutSpec",
     "DashboardSection",
+    "DashboardShortcutManager",
+    "DashboardShortcutSpec",
     "DashboardStatusBanner",
+    "KeyboardKpiCard",
     "KpiCenter",
     "QuickActionSpec",
     "QuickActionTile",

@@ -23,6 +23,9 @@ from app.ui.dashboard.activity_feed import (
     ActivityTone,
 )
 from app.ui.dashboard.ai_advisor import AiAdvisor
+from app.ui.dashboard.keyboard_navigation import (
+    DashboardShortcutManager,
+)
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.quick_actions import QuickActions
 from app.ui.dashboard.responsive import (
@@ -110,6 +113,7 @@ class DashboardPage(QWidget):
         self._build_primary_zone()
         self._build_secondary_zone()
         self._apply_responsive_layout(force=True)
+        self._build_keyboard_navigation()
 
         self.scroll.setWidget(self.canvas)
         root.addWidget(self.scroll)
@@ -256,6 +260,54 @@ class DashboardPage(QWidget):
 
         self.main_layout.addLayout(self.secondary_grid)
         self.main_layout.addStretch(1)
+
+    def _build_keyboard_navigation(self) -> None:
+        self.shortcut_manager = DashboardShortcutManager(self)
+        self.shortcut_manager.action_requested.connect(
+            self._handle_keyboard_action
+        )
+        self.setFocusProxy(self.refresh_button)
+        self._configure_tab_order()
+
+    def _configure_tab_order(self) -> None:
+        """Create a predictable top-to-bottom keyboard route."""
+        widgets: list[QWidget] = [self.refresh_button]
+        widgets.extend(self.kpi_center.cards.values())
+        widgets.append(self.tender_feed.table)
+        widgets.append(self.ai_advisor.action_button)
+        widgets.extend(self.quick_actions.tiles)
+        widgets.extend(self.activity_feed.items)
+
+        if not self.activity_feed.items:
+            widgets.append(self.activity_feed.scroll)
+
+        previous: QWidget | None = None
+        for widget in widgets:
+            if previous is not None:
+                QWidget.setTabOrder(previous, widget)
+            previous = widget
+
+    def _handle_keyboard_action(self, action_key: str) -> None:
+        if action_key in self.quick_actions.action_keys:
+            self.quick_actions.trigger(action_key)
+            return
+
+        if action_key == "refresh_dashboard":
+            self.viewmodel.request_refresh()
+        elif action_key == "focus_kpis":
+            self.kpi_center.focus_first()
+        elif action_key == "focus_tenders":
+            self.tender_feed.focus_table()
+        elif action_key == "focus_advisor":
+            self.ai_advisor.action_button.setFocus(
+                Qt.FocusReason.ShortcutFocusReason
+            )
+        elif action_key == "focus_quick_actions":
+            self.quick_actions.focus_first()
+        elif action_key == "focus_activity":
+            self.activity_feed.focus_first()
+        elif action_key == "dismiss_status":
+            self.status_banner.clear()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -666,6 +718,7 @@ class DashboardPage(QWidget):
         self.activity_section.set_badge(
             str(len(self.activity_feed.entries))
         )
+        self._configure_tab_order()
 
     def _handle_advisor_action(self, action_key: str) -> None:
         if action_key.startswith("open_tender:"):

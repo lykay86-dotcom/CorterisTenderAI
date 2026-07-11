@@ -8,7 +8,12 @@ from enum import StrEnum
 from typing import Iterable
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCursor, QMouseEvent
+from PySide6.QtGui import (
+    QCursor,
+    QFocusEvent,
+    QKeyEvent,
+    QMouseEvent,
+)
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -71,10 +76,12 @@ class ActivityFeedItem(QFrame):
 
         self.entry = entry
         self._theme = ThemeName(theme)
+        self._focused = False
 
         self.setObjectName("ActivityFeedItem")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAccessibleName(entry.title)
         self.setAccessibleDescription(entry.description)
 
@@ -151,12 +158,19 @@ class ActivityFeedItem(QFrame):
             ActivityTone.DANGER: palette.danger,
             ActivityTone.NEUTRAL: palette.text_secondary,
         }[self.entry.tone]
+        background = (
+            palette.hover_background
+            if self._focused
+            else palette.input_background
+        )
+        border = tone_color if self._focused else palette.border_subtle
+        border_width = 2 if self._focused else 1
 
         self.setStyleSheet(
             f"""
             QFrame#ActivityFeedItem {{
-                background-color: {palette.input_background};
-                border: 1px solid {palette.border_subtle};
+                background-color: {background};
+                border: {border_width}px solid {border};
                 border-radius: 10px;
             }}
             QFrame#ActivityFeedItem:hover {{
@@ -199,6 +213,27 @@ class ActivityFeedItem(QFrame):
             }}
             """
         )
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        self._focused = True
+        self.apply_theme(self._theme)
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        self._focused = False
+        self.apply_theme(self._theme)
+        super().focusOutEvent(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in {
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Space,
+        }:
+            self.activated.emit(self.entry.key)
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if (
@@ -246,6 +281,8 @@ class ActivityFeed(QWidget):
 
         self.scroll = QScrollArea(self)
         self.scroll.setObjectName("ActivityFeedScroll")
+        self.scroll.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.scroll.setAccessibleName("Лента событий")
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll.setHorizontalScrollBarPolicy(
@@ -280,6 +317,21 @@ class ActivityFeed(QWidget):
     @property
     def entries(self) -> tuple[ActivityEntry, ...]:
         return tuple(self._entries)
+
+    @property
+    def items(self) -> tuple[ActivityFeedItem, ...]:
+        return tuple(self._items)
+
+    def focus_first(self) -> None:
+        """Move keyboard focus to the newest event."""
+        if self._items:
+            self._items[0].setFocus(
+                Qt.FocusReason.ShortcutFocusReason
+            )
+        else:
+            self.scroll.setFocus(
+                Qt.FocusReason.ShortcutFocusReason
+            )
 
     def set_entries(self, entries: Iterable[ActivityEntry]) -> None:
         """Replace entries and render newest events first."""
@@ -351,6 +403,7 @@ class ActivityFeed(QWidget):
             self.empty_label.setMinimumHeight(140)
             self.items_layout.addWidget(self.empty_label)
         else:
+            previous: ActivityFeedItem | None = None
             for entry in self._entries:
                 item = ActivityFeedItem(
                     entry,
@@ -361,6 +414,9 @@ class ActivityFeed(QWidget):
                 item.action_requested.connect(self.action_requested)
                 self._items.append(item)
                 self.items_layout.addWidget(item)
+                if previous is not None:
+                    QWidget.setTabOrder(previous, item)
+                previous = item
 
         self.items_layout.addStretch(1)
         self.apply_theme(self._theme)

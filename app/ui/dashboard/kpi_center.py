@@ -4,12 +4,46 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFocusEvent, QKeyEvent
 from PySide6.QtWidgets import QGridLayout, QSizePolicy, QWidget
 
 from app.ui.theme.colors import ThemeName
 from app.ui.viewmodels.dashboard_viewmodel import DashboardKpi
 from app.ui.widgets.card import CardTone, KpiCard
+
+
+class KeyboardKpiCard(KpiCard):
+    """KPI card that supports keyboard focus and activation."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        self._keyboard_focused = False
+        super().__init__(*args, **kwargs)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        self._keyboard_focused = True
+        self._hovered = True
+        self._apply_theme()
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        self._keyboard_focused = False
+        self._hovered = False
+        self._pressed = False
+        self._apply_theme()
+        super().focusOutEvent(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in {
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Space,
+        }:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class KpiCenter(QWidget):
@@ -56,6 +90,18 @@ class KpiCenter(QWidget):
     def columns(self) -> int:
         return self._columns
 
+    def focus_first(self) -> None:
+        """Move keyboard focus to the first KPI card."""
+        first = next(iter(self._cards.values()), None)
+        if first is not None:
+            first.setFocus(Qt.FocusReason.ShortcutFocusReason)
+
+    def focus_key(self, key: str) -> None:
+        card = self._cards.get(key)
+        if card is None:
+            raise KeyError(key)
+        card.setFocus(Qt.FocusReason.ShortcutFocusReason)
+
     def set_columns(self, columns: int) -> None:
         """Change the number of columns without recreating cards."""
         if columns < 1:
@@ -100,7 +146,7 @@ class KpiCenter(QWidget):
             card.set_theme(self._theme)
 
     def _create_card(self, kpi: DashboardKpi) -> KpiCard:
-        card = KpiCard(
+        card = KeyboardKpiCard(
             kpi.title,
             kpi.value,
             trend=kpi.trend,
@@ -122,9 +168,16 @@ class KpiCenter(QWidget):
         while self._layout.count():
             self._layout.takeAt(0)
 
+        previous: KpiCard | None = None
         for index, card in enumerate(self._cards.values()):
             row, column = divmod(index, self._columns)
             self._layout.addWidget(card, row, column)
+            if previous is not None:
+                QWidget.setTabOrder(previous, card)
+            previous = card
+
+        if self._cards:
+            self.setFocusProxy(next(iter(self._cards.values())))
 
         max_columns = max(self._columns, len(self._cards), 1)
         for column in range(max_columns):
@@ -148,4 +201,4 @@ class KpiCenter(QWidget):
             return CardTone.DEFAULT
 
 
-__all__ = ["KpiCenter"]
+__all__ = ["KeyboardKpiCard", "KpiCenter"]

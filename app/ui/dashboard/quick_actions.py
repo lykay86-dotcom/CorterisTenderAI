@@ -7,7 +7,13 @@ from enum import StrEnum
 from typing import Iterable
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCursor, QEnterEvent, QMouseEvent
+from PySide6.QtGui import (
+    QCursor,
+    QEnterEvent,
+    QFocusEvent,
+    QKeyEvent,
+    QMouseEvent,
+)
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -98,10 +104,12 @@ class QuickActionTile(QFrame):
         self._theme = ThemeName(theme)
         self._hovered = False
         self._pressed = False
+        self._focused = False
 
         self.setObjectName("QuickActionTile")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Preferred,
@@ -198,6 +206,9 @@ class QuickActionTile(QFrame):
         if self._pressed:
             background = palette.selected_background
             border = accent
+        elif self._focused:
+            background = palette.hover_background
+            border = accent
         elif self._hovered:
             background = palette.hover_background
             border = accent
@@ -209,7 +220,7 @@ class QuickActionTile(QFrame):
             f"""
             QFrame#QuickActionTile {{
                 background-color: {background};
-                border: 1px solid {border};
+                border: {2 if self._focused else 1}px solid {border};
                 border-radius: 12px;
             }}
             QLabel {{
@@ -251,6 +262,28 @@ class QuickActionTile(QFrame):
             }}
             """
         )
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        self._focused = True
+        self.apply_theme(self._theme)
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        self._focused = False
+        self._pressed = False
+        self.apply_theme(self._theme)
+        super().focusOutEvent(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in {
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Space,
+        }:
+            self.clicked.emit(self.spec.key)
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def enterEvent(self, event: QEnterEvent) -> None:
         self._hovered = True
@@ -330,6 +363,17 @@ class QuickActions(QWidget):
     def columns(self) -> int:
         return self._columns
 
+    @property
+    def tiles(self) -> tuple[QuickActionTile, ...]:
+        return tuple(self._tiles.values())
+
+    def focus_first(self) -> None:
+        """Move keyboard focus to the first enabled action."""
+        for tile in self._tiles.values():
+            if tile.isEnabled():
+                tile.setFocus(Qt.FocusReason.ShortcutFocusReason)
+                return
+
     def set_columns(self, columns: int) -> None:
         """Change the grid column count without recreating tiles."""
         if columns < 1:
@@ -395,9 +439,16 @@ class QuickActions(QWidget):
         while self._layout.count():
             self._layout.takeAt(0)
 
+        previous: QuickActionTile | None = None
         for index, tile in enumerate(self._tiles.values()):
             row, column = divmod(index, self._columns)
             self._layout.addWidget(tile, row, column)
+            if previous is not None:
+                QWidget.setTabOrder(previous, tile)
+            previous = tile
+
+        if self._tiles:
+            self.setFocusProxy(next(iter(self._tiles.values())))
 
         max_columns = max(self._columns, len(self._tiles), 1)
         for column in range(max_columns):

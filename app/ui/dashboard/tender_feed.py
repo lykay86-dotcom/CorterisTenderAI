@@ -159,6 +159,11 @@ class TenderFeed(QWidget):
 
         self.table = QTableView(self)
         self.table.setObjectName("TenderFeedTable")
+        self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.table.setAccessibleName("Последние тендеры")
+        self.table.setAccessibleDescription(
+            "Стрелки меняют строку, Enter открывает тендер."
+        )
         self.table.setModel(TenderFeedModel(tenders, self.table))
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(
@@ -196,7 +201,7 @@ class TenderFeed(QWidget):
                 )
                 self.table.setColumnWidth(index, column.width)
 
-        self.table.doubleClicked.connect(self._open_selected)
+        self.table.activated.connect(self._open_selected)
         layout.addWidget(self.table)
 
         self.apply_theme(self._theme)
@@ -209,6 +214,14 @@ class TenderFeed(QWidget):
 
     def set_tenders(self, tenders: Sequence[RecentTender]) -> None:
         self.model.set_tenders(tenders)
+        if self.model.rowCount() > 0:
+            self.table.setCurrentIndex(self.model.index(0, 0))
+
+    def focus_table(self) -> None:
+        """Move focus to the tender table."""
+        if self.model.rowCount() > 0 and not self.table.currentIndex().isValid():
+            self.table.setCurrentIndex(self.model.index(0, 0))
+        self.table.setFocus(Qt.FocusReason.ShortcutFocusReason)
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)
