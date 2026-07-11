@@ -21,6 +21,10 @@ from app.ui.dashboard.responsive import (
     dashboard_layout_for_width,
 )
 from app.ui.dashboard.section import DashboardSection
+from app.ui.dashboard.status_banner import (
+    DashboardStatusBanner,
+    StatusTone,
+)
 from app.ui.dashboard.tender_feed import (
     COLUMNS,
     TenderColumn,
@@ -40,11 +44,13 @@ __all__ = [
     "DashboardDensity",
     "DashboardLayoutSpec",
     "DashboardSection",
+    "DashboardStatusBanner",
     "KpiCenter",
     "QuickActionSpec",
     "QuickActionTile",
     "QuickActionTone",
     "QuickActions",
+    "StatusTone",
     "TenderColumn",
     "TenderFeed",
     "TenderFeedModel",

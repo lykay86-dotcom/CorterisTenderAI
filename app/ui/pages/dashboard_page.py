@@ -30,6 +30,10 @@ from app.ui.dashboard.responsive import (
     dashboard_layout_for_width,
 )
 from app.ui.dashboard.section import DashboardSection
+from app.ui.dashboard.status_banner import (
+    DashboardStatusBanner,
+    StatusTone,
+)
 from app.ui.dashboard.tender_feed import TenderFeed
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
@@ -101,6 +105,7 @@ class DashboardPage(QWidget):
         self.main_layout.setSpacing(16)
 
         self._build_header()
+        self._build_status_zone()
         self._build_kpi_zone()
         self._build_primary_zone()
         self._build_secondary_zone()
@@ -153,6 +158,16 @@ class DashboardPage(QWidget):
         header.addWidget(self.updated_label)
         header.addWidget(self.refresh_button)
         self.main_layout.addLayout(header)
+
+    def _build_status_zone(self) -> None:
+        self.status_banner = DashboardStatusBanner(
+            theme=self._theme,
+            parent=self.canvas,
+        )
+        self.status_banner.action_requested.connect(
+            self._handle_status_action
+        )
+        self.main_layout.addWidget(self.status_banner)
 
     def _build_kpi_zone(self) -> None:
         self.kpi_center = KpiCenter(
@@ -247,9 +262,48 @@ class DashboardPage(QWidget):
         self._apply_responsive_layout()
 
     def set_refreshing(self, refreshing: bool) -> None:
-        """Toggle loading state for external refresh controllers."""
+        """Toggle refresh loading and provide visible status feedback."""
         self.refresh_button.set_loading(bool(refreshing))
         self.refresh_button.setEnabled(not refreshing)
+
+        if refreshing:
+            self.status_banner.show_status(
+                title="Обновление данных",
+                message="Получаем актуальные тендеры и показатели.",
+                tone=StatusTone.LOADING,
+                dismissible=False,
+            )
+        elif self.status_banner.tone == StatusTone.LOADING:
+            self.status_banner.show_status(
+                title="Данные обновлены",
+                message="Рабочий стол содержит актуальную информацию.",
+                tone=StatusTone.SUCCESS,
+                auto_hide_ms=2500,
+            )
+
+    def show_error(
+        self,
+        message: str,
+        *,
+        action_text: str = "",
+        action_key: str = "",
+    ) -> None:
+        """Show a recoverable Dashboard error."""
+        self.status_banner.show_status(
+            title="Не удалось выполнить операцию",
+            message=message,
+            tone=StatusTone.ERROR,
+            action_text=action_text,
+            action_key=action_key,
+        )
+
+    def show_warning(self, message: str) -> None:
+        """Show a non-blocking Dashboard warning."""
+        self.status_banner.show_status(
+            title="Требуется внимание",
+            message=message,
+            tone=StatusTone.WARNING,
+        )
 
     def _apply_responsive_layout(self, *, force: bool = False) -> None:
         viewport_width = self.scroll.viewport().width()
@@ -427,6 +481,7 @@ class DashboardPage(QWidget):
         self.ai_advisor.apply_theme(self._theme)
         self.quick_actions.apply_theme(self._theme)
         self.activity_feed.apply_theme(self._theme)
+        self.status_banner.apply_theme(self._theme)
         for section in self._themed_sections:
             section.apply_theme(self._theme)
         self._apply_page_theme()
@@ -558,6 +613,12 @@ class DashboardPage(QWidget):
                 icon_text=icon_text,
                 tone=tone,
             )
+            self.status_banner.show_status(
+                title=title,
+                message=description,
+                tone=StatusTone.INFO,
+                auto_hide_ms=3200,
+            )
 
         if action_key == "find_tenders":
             self.find_tenders_requested.emit()
@@ -567,6 +628,10 @@ class DashboardPage(QWidget):
             self.create_proposal_requested.emit()
         elif action_key == "create_estimate":
             self.create_estimate_requested.emit()
+
+    def _handle_status_action(self, action_key: str) -> None:
+        self.status_banner.clear()
+        self._handle_activity_action(action_key)
 
     def _handle_activity_action(self, action_key: str) -> None:
         if action_key.startswith("open_tender:"):
