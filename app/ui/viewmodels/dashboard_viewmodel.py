@@ -28,9 +28,12 @@ class RecentTender:
     number: str
     title: str
     customer: str
-    deadline: str
+    deadline: str = ""
     score: int | None = None
     recommendation: str = ""
+    nmck: str = ""
+    status: str = ""
+    platform: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +84,6 @@ class DashboardViewModel(QObject):
         return self._state
 
     def _load_initial_state(self) -> None:
-        """Create useful zero-state KPI cards before repository integration."""
         self._state.kpis = {
             "potential_profit": DashboardKpi(
                 key="potential_profit",

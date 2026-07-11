@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.dashboard.kpi_center import KpiCenter
+from app.ui.dashboard.tender_feed import TenderFeed
 from app.ui.dashboard.section import DashboardSection
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
@@ -153,16 +154,15 @@ class DashboardPage(QWidget):
             subtitle="Новые и недавно обновлённые закупки",
             badge="Тендеры",
         )
-        self.recent_list = QListWidget()
-        self.recent_list.setObjectName("RecentTenderList")
-        self.recent_list.setAlternatingRowColors(True)
-        self.recent_list.setMinimumHeight(260)
-        self.recent_list.itemDoubleClicked.connect(
-            lambda item: self.tender_open_requested.emit(
-                str(item.data(Qt.ItemDataRole.UserRole))
-            )
+        self.tender_feed = TenderFeed(
+            theme=self._theme,
+            parent=self.tender_section,
         )
-        self.tender_section.add_widget(self.recent_list)
+        self.tender_feed.setMinimumHeight(280)
+        self.tender_feed.tender_open_requested.connect(
+            self.tender_open_requested
+        )
+        self.tender_section.add_widget(self.tender_feed)
 
         self.ai_section = self._section(
             "AI Advisor",
@@ -292,28 +292,10 @@ class DashboardPage(QWidget):
         self._refresh_updated_label()
 
     def set_recent_tenders(self, tenders: list[RecentTender]) -> None:
-        self.recent_list.clear()
+        self.tender_feed.set_tenders(tenders)
         self.tender_section.set_badge(
             str(len(tenders)) if tenders else "Тендеры"
         )
-
-        if not tenders:
-            item = QListWidgetItem(
-                "Тендеры пока не добавлены. Нажмите «Найти тендеры»."
-            )
-            item.setFlags(Qt.ItemFlag.NoItemFlags)
-            self.recent_list.addItem(item)
-            return
-
-        for tender in tenders:
-            score = f" · {tender.score}/100" if tender.score is not None else ""
-            deadline = f" · до {tender.deadline}" if tender.deadline else ""
-            item = QListWidgetItem(
-                f"{tender.number} — {tender.title}\n"
-                f"{tender.customer}{deadline}{score}"
-            )
-            item.setData(Qt.ItemDataRole.UserRole, tender.number)
-            self.recent_list.addItem(item)
 
     def set_ai_recommendations(
         self,
@@ -365,6 +347,7 @@ class DashboardPage(QWidget):
     def set_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)
         self.kpi_center.set_theme(self._theme)
+        self.tender_feed.apply_theme(self._theme)
         for section in self._themed_sections:
             section.apply_theme(self._theme)
         self._apply_page_theme()
@@ -406,7 +389,6 @@ class DashboardPage(QWidget):
                 padding: 12px 0;
                 {Typography.BODY_M.css()}
             }}
-            QListWidget#RecentTenderList,
             QListWidget#AiRecommendationList {{
                 background-color: {palette.input_background};
                 color: {palette.text_primary};
@@ -416,12 +398,10 @@ class DashboardPage(QWidget):
                 outline: none;
                 {Typography.BODY_S.css()}
             }}
-            QListWidget#RecentTenderList::item,
             QListWidget#AiRecommendationList::item {{
                 border-bottom: 1px solid {palette.divider};
                 padding: 10px;
             }}
-            QListWidget#RecentTenderList::item:selected,
             QListWidget#AiRecommendationList::item:selected {{
                 background-color: {palette.selected_background};
                 color: {palette.text_primary};

@@ -2,5 +2,18 @@
 
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.section import DashboardSection
+from app.ui.dashboard.tender_feed import (
+    COLUMNS,
+    TenderColumn,
+    TenderFeed,
+    TenderFeedModel,
+)
 
-__all__ = ["DashboardSection", "KpiCenter"]
+__all__ = [
+    "COLUMNS",
+    "DashboardSection",
+    "KpiCenter",
+    "TenderColumn",
+    "TenderFeed",
+    "TenderFeedModel",
+]
