@@ -11,6 +11,7 @@ from PySide6.QtGui import QDesktopServices, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.reporting.workflow_excel import WorkflowExcelExporter
 from app.repositories.business_metrics import (
     BusinessAuditAction,
     BusinessAuditEvent,
@@ -77,6 +79,7 @@ class BusinessWorkflowPage(QWidget):
         self,
         *,
         repository: BusinessMetricsRepository | None = None,
+        excel_exporter: WorkflowExcelExporter | None = None,
         initial_kind: BusinessRecordKind | str | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
@@ -84,6 +87,7 @@ class BusinessWorkflowPage(QWidget):
         super().__init__(parent)
 
         self.repository = repository or BusinessMetricsRepository()
+        self.excel_exporter = excel_exporter or WorkflowExcelExporter()
         self._theme = ThemeName(theme)
         self._initial_kind = (
             BusinessRecordKind(initial_kind)
@@ -142,6 +146,14 @@ class BusinessWorkflowPage(QWidget):
         )
         self.refresh_button.clicked.connect(self.refresh)
 
+        self.export_button = OutlineButton(
+            "Экспорт Excel",
+            icon_text="⇩",
+            theme=self._theme,
+            parent=self,
+        )
+        self.export_button.clicked.connect(self._export_excel)
+
         self.create_button = PrimaryButton(
             "Новая запись",
             icon_text="+",
@@ -153,6 +165,7 @@ class BusinessWorkflowPage(QWidget):
         header.addLayout(titles, 1)
         header.addWidget(self.updated_label)
         header.addWidget(self.refresh_button)
+        header.addWidget(self.export_button)
         header.addWidget(self.create_button)
         root.addLayout(header)
 
@@ -614,6 +627,7 @@ class BusinessWorkflowPage(QWidget):
 
         for button in (
             self.refresh_button,
+            self.export_button,
             self.create_button,
             self.reset_button,
             self.apply_status_button,
@@ -882,6 +896,90 @@ class BusinessWorkflowPage(QWidget):
                 and BusinessStatus.BLOCKED in transitions
             )
         )
+
+    def _export_excel(self) -> None:
+        records = self._visible_records()
+        if not records:
+            QMessageBox.information(
+                self,
+                "Нет данных для экспорта",
+                "Текущий фильтр не содержит записей.",
+            )
+            return
+
+        timestamp = datetime.now()
+        default_name = (
+            "CORTERIS_Реестр_КП_смет_проектов_"
+            f"{timestamp:%Y%m%d_%H%M}.xlsx"
+        )
+        default_path = Path.home() / "Documents" / default_name
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Экспорт реестра и журнала в Excel",
+            str(default_path),
+            "Книга Excel (*.xlsx)",
+        )
+        if not filename:
+            return
+
+        target = Path(filename)
+        if target.suffix.lower() != ".xlsx":
+            target = target.with_suffix(".xlsx")
+
+        try:
+            events = [
+                event
+                for record in records
+                for event in self.repository.list_history(record.id)
+            ]
+            result = self.excel_exporter.export(
+                target,
+                records=records,
+                events=events,
+                filter_description=self._export_filter_description(),
+                exported_at=timestamp,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка экспорта",
+                str(exc),
+            )
+            return
+
+        self.status_banner.show_status(
+            title="Excel-файл сформирован",
+            message=(
+                f"Записей: {result.record_count}; "
+                f"событий: {result.event_count}. "
+                f"Файл: {result.path}"
+            ),
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=6000,
+        )
+
+    def _visible_records(self) -> list[BusinessWorkflowRecord]:
+        """Return records currently visible after all UI filters."""
+        records: list[BusinessWorkflowRecord] = []
+        for proxy_row in range(self.proxy.rowCount()):
+            proxy_index = self.proxy.index(proxy_row, 0)
+            source_index = self.proxy.mapToSource(proxy_index)
+            record = self.model.record_at(source_index.row())
+            if record is not None:
+                records.append(record)
+        return records
+
+    def _export_filter_description(self) -> str:
+        parts = [
+            f"Тип: {self.kind_filter.currentText()}",
+            f"Статус: {self.status_filter.currentText()}",
+            f"Архив: {self.archive_filter.currentText()}",
+        ]
+        search = self.search_edit.text().strip()
+        if search:
+            parts.append(f"Поиск: {search}")
+        return "; ".join(parts)
 
     def _load_history(self, record_id: str) -> None:
         try:
