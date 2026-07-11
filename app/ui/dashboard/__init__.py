@@ -1,5 +1,11 @@
 """Dashboard-specific UI components."""
 
+from app.ui.dashboard.activity_feed import (
+    ActivityEntry,
+    ActivityFeed,
+    ActivityFeedItem,
+    ActivityTone,
+)
 from app.ui.dashboard.ai_advisor import AiAdvisor, AiStatus
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.quick_actions import (
@@ -18,6 +24,10 @@ from app.ui.dashboard.tender_feed import (
 )
 
 __all__ = [
+    "ActivityEntry",
+    "ActivityFeed",
+    "ActivityFeedItem",
+    "ActivityTone",
     "AiAdvisor",
     "AiStatus",
     "COLUMNS",

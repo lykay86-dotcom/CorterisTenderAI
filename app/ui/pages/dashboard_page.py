@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
@@ -14,6 +16,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.dashboard.activity_feed import (
+    ActivityEntry,
+    ActivityFeed,
+    ActivityTone,
+)
 from app.ui.dashboard.ai_advisor import AiAdvisor
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.quick_actions import QuickActions
@@ -202,20 +209,24 @@ class DashboardPage(QWidget):
         )
         quick.add_widget(self.quick_actions)
 
-        activity = self._section(
+        self.activity_section = self._section(
             "Лента событий",
             subtitle="Последние действия и изменения системы",
             badge="Сегодня",
         )
-        self.activity_empty = QLabel(
-            "События появятся после работы с тендерами и документами."
+        self.activity_feed = ActivityFeed(
+            theme=self._theme,
+            max_entries=30,
+            parent=self.activity_section,
         )
-        self.activity_empty.setObjectName("DashboardEmptyText")
-        self.activity_empty.setWordWrap(True)
-        activity.add_widget(self.activity_empty)
+        self.activity_feed.setMinimumHeight(250)
+        self.activity_feed.action_requested.connect(
+            self._handle_activity_action
+        )
+        self.activity_section.add_widget(self.activity_feed)
 
         grid.addWidget(quick, 0, 0)
-        grid.addWidget(activity, 0, 1)
+        grid.addWidget(self.activity_section, 0, 1)
         grid.setColumnStretch(0, 3)
         grid.setColumnStretch(1, 2)
 
@@ -317,6 +328,7 @@ class DashboardPage(QWidget):
         self.tender_feed.apply_theme(self._theme)
         self.ai_advisor.apply_theme(self._theme)
         self.quick_actions.apply_theme(self._theme)
+        self.activity_feed.apply_theme(self._theme)
         for section in self._themed_sections:
             section.apply_theme(self._theme)
         self._apply_page_theme()
@@ -413,6 +425,42 @@ class DashboardPage(QWidget):
         )
 
     def _handle_quick_action(self, action_key: str) -> None:
+        activity_map = {
+            "find_tenders": (
+                "Запущен поиск тендеров",
+                "Система начала поиск новых закупок.",
+                "T",
+                ActivityTone.INFO,
+            ),
+            "analyze_documents": (
+                "Запущен AI-анализ",
+                "Документы переданы на проверку требований и рисков.",
+                "AI",
+                ActivityTone.INFO,
+            ),
+            "create_proposal": (
+                "Создание коммерческого предложения",
+                "Открыт модуль подготовки КП.",
+                "КП",
+                ActivityTone.SUCCESS,
+            ),
+            "create_estimate": (
+                "Создание сметы",
+                "Открыт расчёт оборудования, работ и прибыли.",
+                "₽",
+                ActivityTone.NEUTRAL,
+            ),
+        }
+        activity = activity_map.get(action_key)
+        if activity is not None:
+            title, description, icon_text, tone = activity
+            self.add_activity(
+                title=title,
+                description=description,
+                icon_text=icon_text,
+                tone=tone,
+            )
+
         if action_key == "find_tenders":
             self.find_tenders_requested.emit()
         elif action_key == "analyze_documents":
@@ -421,6 +469,40 @@ class DashboardPage(QWidget):
             self.create_proposal_requested.emit()
         elif action_key == "create_estimate":
             self.create_estimate_requested.emit()
+
+    def _handle_activity_action(self, action_key: str) -> None:
+        if action_key.startswith("open_tender:"):
+            tender_number = action_key.partition(":")[2]
+            if tender_number:
+                self.tender_open_requested.emit(tender_number)
+            return
+        self._handle_quick_action(action_key)
+
+    def add_activity(
+        self,
+        *,
+        title: str,
+        description: str = "",
+        icon_text: str = "•",
+        tone: ActivityTone = ActivityTone.NEUTRAL,
+        action_text: str = "",
+        action_key: str = "",
+        key: str = "",
+    ) -> None:
+        entry = ActivityEntry(
+            key=key or f"activity-{datetime.now().timestamp()}",
+            title=title,
+            description=description,
+            timestamp=datetime.now(),
+            tone=tone,
+            icon_text=icon_text,
+            action_text=action_text,
+            action_key=action_key,
+        )
+        self.activity_feed.add_entry(entry)
+        self.activity_section.set_badge(
+            str(len(self.activity_feed.entries))
+        )
 
     def _handle_advisor_action(self, action_key: str) -> None:
         if action_key.startswith("open_tender:"):
