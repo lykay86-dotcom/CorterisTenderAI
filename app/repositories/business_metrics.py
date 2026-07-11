@@ -215,6 +215,38 @@ class BusinessMetricsRepository:
             return events
         return events[: max(0, int(limit))]
 
+    def snapshot_payload(self) -> dict[str, Any]:
+        """Return an isolated JSON-compatible copy of the full store."""
+        with self._lock:
+            payload = self._read_payload_unlocked()
+            return json.loads(
+                json.dumps(payload, ensure_ascii=False)
+            )
+
+    def replace_payload(self, payload: dict[str, Any]) -> None:
+        """Atomically replace the store with a validated snapshot."""
+        if not isinstance(payload, dict):
+            raise TypeError(
+                "Снимок бизнес-процессов должен быть объектом"
+            )
+
+        with self._lock:
+            temporary = self.path.with_suffix(
+                self.path.suffix + ".restore.tmp"
+            )
+            try:
+                temporary.write_text(
+                    json.dumps(
+                        payload,
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+                temporary.replace(self.path)
+            finally:
+                temporary.unlink(missing_ok=True)
+
     def save_record(
         self,
         *,

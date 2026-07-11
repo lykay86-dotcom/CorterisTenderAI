@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QMenu,
     QListWidget,
     QListWidgetItem,
     QScrollArea,
@@ -29,8 +30,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.workflow_backup import WorkflowBackupService
 from app.reporting.workflow_excel import WorkflowExcelExporter
 from app.reporting.workflow_excel_import import WorkflowExcelImporter
+from app.reporting.workflow_excel_template import (
+    WorkflowExcelTemplateService,
+)
 from app.repositories.business_metrics import (
     BusinessAuditAction,
     BusinessAuditEvent,
@@ -85,6 +90,10 @@ class BusinessWorkflowPage(QWidget):
         repository: BusinessMetricsRepository | None = None,
         excel_exporter: WorkflowExcelExporter | None = None,
         excel_importer: WorkflowExcelImporter | None = None,
+        excel_template_service: (
+            WorkflowExcelTemplateService | None
+        ) = None,
+        backup_service: WorkflowBackupService | None = None,
         initial_kind: BusinessRecordKind | str | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
@@ -94,6 +103,10 @@ class BusinessWorkflowPage(QWidget):
         self.repository = repository or BusinessMetricsRepository()
         self.excel_exporter = excel_exporter or WorkflowExcelExporter()
         self.excel_importer = excel_importer or WorkflowExcelImporter()
+        self.excel_template_service = (
+            excel_template_service or WorkflowExcelTemplateService()
+        )
+        self.backup_service = backup_service or WorkflowBackupService()
         self._theme = ThemeName(theme)
         self._initial_kind = (
             BusinessRecordKind(initial_kind)
@@ -168,6 +181,37 @@ class BusinessWorkflowPage(QWidget):
         )
         self.import_button.clicked.connect(self._import_excel)
 
+        self.template_button = OutlineButton(
+            "Шаблон Excel",
+            icon_text="▤",
+            theme=self._theme,
+            parent=self,
+        )
+        self.template_button.clicked.connect(
+            self._save_excel_template
+        )
+
+        self.data_button = OutlineButton(
+            "Данные",
+            icon_text="⛁",
+            theme=self._theme,
+            parent=self,
+        )
+        self.data_menu = QMenu(self.data_button)
+        self.create_backup_action = self.data_menu.addAction(
+            "Создать резервную копию…"
+        )
+        self.create_backup_action.triggered.connect(
+            self._create_workflow_backup
+        )
+        self.restore_backup_action = self.data_menu.addAction(
+            "Восстановить из копии…"
+        )
+        self.restore_backup_action.triggered.connect(
+            self._restore_workflow_backup
+        )
+        self.data_button.setMenu(self.data_menu)
+
         self.create_button = PrimaryButton(
             "Новая запись",
             icon_text="+",
@@ -179,6 +223,8 @@ class BusinessWorkflowPage(QWidget):
         header.addLayout(titles, 1)
         header.addWidget(self.updated_label)
         header.addWidget(self.refresh_button)
+        header.addWidget(self.data_button)
+        header.addWidget(self.template_button)
         header.addWidget(self.import_button)
         header.addWidget(self.export_button)
         header.addWidget(self.create_button)
@@ -642,6 +688,8 @@ class BusinessWorkflowPage(QWidget):
 
         for button in (
             self.refresh_button,
+            self.data_button,
+            self.template_button,
             self.import_button,
             self.export_button,
             self.create_button,
@@ -751,6 +799,21 @@ class BusinessWorkflowPage(QWidget):
                 selection-background-color: {palette.selected_background};
                 selection-color: {palette.text_primary};
                 {Typography.BODY_S.css()}
+            }}
+            QMenu {{
+                color: {palette.text_primary};
+                background-color: {palette.elevated_background};
+                border: 1px solid {palette.border_default};
+                border-radius: 8px;
+                padding: 6px;
+                {Typography.BODY_S.css()}
+            }}
+            QMenu::item {{
+                border-radius: 6px;
+                padding: 8px 22px 8px 10px;
+            }}
+            QMenu::item:selected {{
+                background-color: {palette.selected_background};
             }}
             QHeaderView::section {{
                 color: {palette.text_secondary};
@@ -911,6 +974,165 @@ class BusinessWorkflowPage(QWidget):
                 not record.is_archived
                 and BusinessStatus.BLOCKED in transitions
             )
+        )
+
+    def _create_workflow_backup(self) -> None:
+        timestamp = datetime.now()
+        default_name = (
+            "CORTERIS_business_workflow_"
+            f"{timestamp:%Y%m%d_%H%M%S}.ctbackup"
+        )
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Создать резервную копию бизнес-процессов",
+            str(Path.home() / "Documents" / default_name),
+            (
+                "Резервная копия CORTERIS (*.ctbackup);;"
+                "ZIP-архив (*.zip)"
+            ),
+        )
+        if not filename:
+            return
+
+        try:
+            result = self.backup_service.create_backup(
+                self.repository,
+                filename,
+                created_at=timestamp,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка резервного копирования",
+                str(exc),
+            )
+            return
+
+        self.status_banner.show_status(
+            title="Резервная копия создана",
+            message=(
+                f"Записей: {result.inspection.record_count}; "
+                f"событий: {result.inspection.event_count}; "
+                f"файл: {result.path}"
+            ),
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=7000,
+        )
+
+    def _restore_workflow_backup(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Восстановить бизнес-процессы из копии",
+            str(Path.home() / "Documents"),
+            (
+                "Резервная копия CORTERIS (*.ctbackup *.zip);;"
+                "Все файлы (*)"
+            ),
+        )
+        if not filename:
+            return
+
+        inspection = self.backup_service.inspect_backup(filename)
+        if not inspection.valid:
+            QMessageBox.critical(
+                self,
+                "Резервная копия повреждена",
+                "\n".join(
+                    ["Файл не прошёл проверку:"]
+                    + [
+                        f"• {error}"
+                        for error in inspection.errors
+                    ]
+                ),
+            )
+            return
+
+        created = inspection.created_timestamp
+        created_text = (
+            created.strftime("%d.%m.%Y %H:%M:%S")
+            if created is not None
+            else inspection.created_at or "не указана"
+        )
+        answer = QMessageBox.warning(
+            self,
+            "Восстановить резервную копию?",
+            (
+                "Текущие КП, сметы, проекты и журнал изменений "
+                "будут заменены.\n\n"
+                f"Дата копии: {created_text}\n"
+                f"Записей: {inspection.record_count}\n"
+                f"Архивных: {inspection.archived_count}\n"
+                f"Событий: {inspection.event_count}\n"
+                f"Схема данных: {inspection.schema_version}\n\n"
+                "Перед заменой будет создана автоматическая "
+                "страховочная копия текущих данных."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            result = self.backup_service.restore_backup(
+                filename,
+                self.repository,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка восстановления",
+                str(exc),
+            )
+            return
+
+        self.refresh()
+        self.workflow_changed.emit()
+        self.status_banner.show_status(
+            title="Данные восстановлены",
+            message=(
+                f"Записей: {result.record_count}; "
+                f"событий: {result.event_count}. "
+                f"Страховочная копия: {result.safety_backup}"
+            ),
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=9000,
+        )
+
+    def _save_excel_template(self) -> None:
+        default_path = (
+            Path.home()
+            / "Documents"
+            / self.excel_template_service.DEFAULT_FILENAME
+        )
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить шаблон массового импорта",
+            str(default_path),
+            "Книга Excel (*.xlsx)",
+        )
+        if not filename:
+            return
+
+        try:
+            result = self.excel_template_service.copy_to(filename)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка сохранения шаблона",
+                str(exc),
+            )
+            return
+
+        self.status_banner.show_status(
+            title="Шаблон Excel сохранён",
+            message=(
+                f"Файл: {result.path} · "
+                f"размер: {result.size_bytes / 1024:.1f} КБ"
+            ),
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=6000,
         )
 
     def _import_excel(self) -> None:
