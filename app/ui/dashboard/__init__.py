@@ -2,6 +2,13 @@
 
 from app.ui.dashboard.ai_advisor import AiAdvisor, AiStatus
 from app.ui.dashboard.kpi_center import KpiCenter
+from app.ui.dashboard.quick_actions import (
+    DEFAULT_QUICK_ACTIONS,
+    QuickActionSpec,
+    QuickActionTile,
+    QuickActionTone,
+    QuickActions,
+)
 from app.ui.dashboard.section import DashboardSection
 from app.ui.dashboard.tender_feed import (
     COLUMNS,
@@ -14,8 +21,13 @@ __all__ = [
     "AiAdvisor",
     "AiStatus",
     "COLUMNS",
+    "DEFAULT_QUICK_ACTIONS",
     "DashboardSection",
     "KpiCenter",
+    "QuickActionSpec",
+    "QuickActionTile",
+    "QuickActionTone",
+    "QuickActions",
     "TenderColumn",
     "TenderFeed",
     "TenderFeedModel",

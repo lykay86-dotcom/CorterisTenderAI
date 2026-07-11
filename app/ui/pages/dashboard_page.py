@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from app.ui.dashboard.ai_advisor import AiAdvisor
 from app.ui.dashboard.kpi_center import KpiCenter
+from app.ui.dashboard.quick_actions import QuickActions
 from app.ui.dashboard.section import DashboardSection
 from app.ui.dashboard.tender_feed import TenderFeed
 from app.ui.theme.colors import ThemeName, get_palette
@@ -32,11 +33,7 @@ from app.ui.viewmodels.dashboard_viewmodel import (
     DashboardViewModel,
     RecentTender,
 )
-from app.ui.widgets.button import (
-    OutlineButton,
-    PrimaryButton,
-    SecondaryButton,
-)
+from app.ui.widgets.button import OutlineButton
 
 
 class DashboardPage(QWidget):
@@ -195,34 +192,15 @@ class DashboardPage(QWidget):
             "Быстрые действия",
             subtitle="Частые операции без перехода по меню",
         )
-        quick_row = QHBoxLayout()
-        quick_row.setSpacing(10)
-
-        find_button = PrimaryButton("Найти тендеры", theme=self._theme)
-        proposal_button = SecondaryButton("Создать КП", theme=self._theme)
-        estimate_button = SecondaryButton("Создать смету", theme=self._theme)
-        analyze_button = OutlineButton(
-            "Анализ документов",
+        self.quick_actions = QuickActions(
             theme=self._theme,
+            columns=2,
+            parent=quick,
         )
-
-        find_button.clicked.connect(self.find_tenders_requested)
-        proposal_button.clicked.connect(self.create_proposal_requested)
-        estimate_button.clicked.connect(self.create_estimate_requested)
-        analyze_button.clicked.connect(self.analyze_documents_requested)
-
-        for button in (
-            find_button,
-            proposal_button,
-            estimate_button,
-            analyze_button,
-        ):
-            quick_row.addWidget(button)
-        quick_row.addStretch(1)
-
-        quick_container = QWidget()
-        quick_container.setLayout(quick_row)
-        quick.add_widget(quick_container)
+        self.quick_actions.action_requested.connect(
+            self._handle_quick_action
+        )
+        quick.add_widget(self.quick_actions)
 
         activity = self._section(
             "Лента событий",
@@ -338,6 +316,7 @@ class DashboardPage(QWidget):
         self.kpi_center.set_theme(self._theme)
         self.tender_feed.apply_theme(self._theme)
         self.ai_advisor.apply_theme(self._theme)
+        self.quick_actions.apply_theme(self._theme)
         for section in self._themed_sections:
             section.apply_theme(self._theme)
         self._apply_page_theme()
@@ -433,23 +412,24 @@ class DashboardPage(QWidget):
             enabled=action.enabled,
         )
 
-    def _handle_advisor_action(self, action_key: str) -> None:
+    def _handle_quick_action(self, action_key: str) -> None:
         if action_key == "find_tenders":
             self.find_tenders_requested.emit()
-            return
-        if action_key == "create_proposal":
-            self.create_proposal_requested.emit()
-            return
-        if action_key == "create_estimate":
-            self.create_estimate_requested.emit()
-            return
-        if action_key == "analyze_documents":
+        elif action_key == "analyze_documents":
             self.analyze_documents_requested.emit()
-            return
+        elif action_key == "create_proposal":
+            self.create_proposal_requested.emit()
+        elif action_key == "create_estimate":
+            self.create_estimate_requested.emit()
+
+    def _handle_advisor_action(self, action_key: str) -> None:
         if action_key.startswith("open_tender:"):
             tender_number = action_key.partition(":")[2]
             if tender_number:
                 self.tender_open_requested.emit(tender_number)
+            return
+
+        self._handle_quick_action(action_key)
 
     def _kpi_int(self, key: str) -> int:
         kpi = self.viewmodel.state.kpis.get(key)
