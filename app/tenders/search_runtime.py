@@ -10,6 +10,9 @@ from app.tenders.document_storage import (
     TenderDocumentDownloadService,
     TenderDocumentStore,
 )
+from app.tenders.document_text_extractor import (
+    TenderDocumentTextService,
+)
 from app.tenders.http_client import HttpTransport
 from app.tenders.provider_factory import create_default_provider_registry
 from app.tenders.provider_registry import TenderProviderRegistry
@@ -34,6 +37,7 @@ class TenderSearchRuntime:
     tender_registry: TenderRegistryRepository | None = None
     document_store: TenderDocumentStore | None = None
     document_service: TenderDocumentDownloadService | None = None
+    text_extraction_service: TenderDocumentTextService | None = None
 
 
 def create_tender_search_runtime(
@@ -83,6 +87,11 @@ def create_tender_search_runtime(
         document_store,
         http_transport=http_transport,
     )
+    text_extraction_service = TenderDocumentTextService(
+        document_store,
+        data_path / "tender_text",
+    )
+    text_extraction_service.initialize()
 
     return TenderSearchRuntime(
         data_directory=data_path,
@@ -94,6 +103,7 @@ def create_tender_search_runtime(
         tender_registry=tender_registry,
         document_store=document_store,
         document_service=document_service,
+        text_extraction_service=text_extraction_service,
     )
 
 

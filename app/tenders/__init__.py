@@ -1,5 +1,15 @@
 """Tender intelligence infrastructure."""
 
+from app.tenders.document_text_extractor import (
+    ExtractedTextSection,
+    RawTextExtraction,
+    StoredDocumentText,
+    TenderDocumentTextExtractor,
+    TenderDocumentTextService,
+    TenderTextExtractionResult,
+    TextExtractionStatus,
+    UnsupportedDocumentFormatError,
+)
 from app.tenders.document_storage import (
     DocumentDownloadStatus,
     StoredTenderDocument,
@@ -96,6 +106,14 @@ from app.tenders.search_engine import (
 __all__ = [
     "BuiltinSearchProfileError",
     "DocumentDownloadStatus",
+    "ExtractedTextSection",
+    "RawTextExtraction",
+    "StoredDocumentText",
+    "TenderDocumentTextExtractor",
+    "TenderDocumentTextService",
+    "TenderTextExtractionResult",
+    "TextExtractionStatus",
+    "UnsupportedDocumentFormatError",
     "CorterisTenderClassifier",
     "CorterisTenderFilter",
     "CorterisTenderFilterResult",
