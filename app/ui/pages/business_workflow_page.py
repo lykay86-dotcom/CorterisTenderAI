@@ -30,6 +30,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.diagnostic_support_bundle import (
+    DiagnosticSupportBundleService,
+)
 from app.core.system_health_monitor import SystemHealthMonitor
 from app.core.system_health import (
     SystemHealthJournal,
@@ -1128,6 +1131,32 @@ class BusinessWorkflowPage(QWidget):
                 and BusinessStatus.BLOCKED in transitions
             )
         )
+
+    def create_diagnostic_support_bundle(
+        self,
+        target: str | Path,
+    ):
+        """Create a privacy-aware support bundle for global crash UI."""
+        snapshot = self.system_health_monitor.last_snapshot
+        if snapshot is None:
+            snapshot = self._collect_system_health_snapshot()
+
+        result = DiagnosticSupportBundleService().create_bundle(
+            target,
+            repository=self.repository,
+            snapshot=snapshot,
+            journal=self.system_health_journal,
+            auto_backup_service=self.auto_backup_service,
+            backup_catalog_service=self.backup_catalog_service,
+            backup_directories=self._database_backup_directories(),
+        )
+        self._record_system_event(
+            severity=SystemHealthSeverity.SUCCESS,
+            component="support",
+            title="Создан пакет диагностики после ошибки",
+            details=str(result.path),
+        )
+        return result
 
     def _collect_system_health_snapshot(self):
         return self.system_health_service.collect(
