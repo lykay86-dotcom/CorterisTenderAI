@@ -62,6 +62,10 @@ from app.tenders.search_profiles import (
     TenderSearchProfile,
     create_builtin_search_profiles,
 )
+from app.tenders.search_runtime import (
+    TenderSearchRuntime,
+    create_tender_search_runtime,
+)
 from app.tenders.search_engine import (
     AggregatedTenderSearchResult,
     ProviderSearchOutcome,
@@ -86,6 +90,7 @@ __all__ = [
     "TenderSearchProfileRepository",
     "TenderSearchProfileRun",
     "TenderSearchProfileRunner",
+    "TenderSearchRuntime",
     "EisAccessBlockedError",
     "EisHtmlParser",
     "EisParseError",
@@ -116,4 +121,5 @@ __all__ = [
     "AggregatedTenderSearchResult",
     "create_builtin_search_profiles",
     "create_default_provider_registry",
+    "create_tender_search_runtime",
 ]

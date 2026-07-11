@@ -56,6 +56,7 @@ class TenderSearchProfilesPanel(QWidget):
         self.repository = repository
         self._theme = ThemeName(theme)
         self._draft_is_new = False
+        self._search_busy = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 16, 18, 16)
@@ -215,6 +216,42 @@ class TenderSearchProfilesPanel(QWidget):
         self.repository.initialize()
         self._refresh_profiles()
         self.apply_theme(self._theme)
+
+    def refresh_profiles(
+        self,
+        *,
+        select_id: str | None = None,
+    ) -> None:
+        self._refresh_profiles(select_id=select_id)
+
+    def set_search_busy(
+        self,
+        busy: bool,
+        *,
+        profile_id: str | None = None,
+    ) -> None:
+        self._search_busy = bool(busy)
+        self.profile_list.setEnabled(not self._search_busy)
+        if self._search_busy:
+            profile = None
+            if profile_id:
+                try:
+                    profile = self.repository.get(profile_id)
+                except SearchProfileNotFoundError:
+                    profile = None
+            name = profile.name if profile is not None else "профиля"
+            self._set_status(
+                f"Выполняется поиск по профилю «{name}»…"
+            )
+        self._update_actions()
+
+    def set_status(
+        self,
+        message: str,
+        *,
+        error: bool = False,
+    ) -> None:
+        self._set_status(message, error=error)
 
     def selected_profile_id(self) -> str | None:
         item = self.profile_list.currentItem()
@@ -451,6 +488,13 @@ class TenderSearchProfilesPanel(QWidget):
         )
 
     def _run_selected(self) -> None:
+        if self._search_busy:
+            self._set_status(
+                "Поиск уже выполняется. Дождитесь завершения.",
+                error=True,
+            )
+            return
+
         if self._draft_is_new:
             self._set_status(
                 "Перед запуском сохраните новый профиль.",
@@ -477,23 +521,35 @@ class TenderSearchProfilesPanel(QWidget):
         profile = self.selected_profile()
         has_profile = profile is not None
 
-        self.create_button.setEnabled(has_profile)
+        interactive = not self._search_busy
+        self.restore_button.setEnabled(interactive)
+        self.create_button.setEnabled(has_profile and interactive)
         self.save_button.setEnabled(
-            self.editor.profile is not None
+            self.editor.profile is not None and interactive
         )
         self.cancel_button.setVisible(self._draft_is_new)
+        self.cancel_button.setEnabled(interactive)
         self.delete_button.setEnabled(
             has_profile
             and not self._draft_is_new
             and not profile.is_builtin
+            and interactive
         )
         self.toggle_button.setEnabled(
-            has_profile and not self._draft_is_new
+            has_profile
+            and not self._draft_is_new
+            and interactive
         )
         self.run_button.setEnabled(
             has_profile
             and not self._draft_is_new
             and profile.enabled
+            and interactive
+        )
+        self.run_button.setText(
+            "Идёт поиск…"
+            if self._search_busy
+            else "Запустить поиск"
         )
 
         if has_profile:
@@ -670,6 +726,32 @@ class TenderSearchProfilesDialog(QDialog):
             }}
             """
         )
+
+    def refresh_profiles(
+        self,
+        *,
+        select_id: str | None = None,
+    ) -> None:
+        self.panel.refresh_profiles(select_id=select_id)
+
+    def set_search_busy(
+        self,
+        busy: bool,
+        *,
+        profile_id: str | None = None,
+    ) -> None:
+        self.panel.set_search_busy(
+            busy,
+            profile_id=profile_id,
+        )
+
+    def set_status(
+        self,
+        message: str,
+        *,
+        error: bool = False,
+    ) -> None:
+        self.panel.set_status(message, error=error)
 
 
 __all__ = [

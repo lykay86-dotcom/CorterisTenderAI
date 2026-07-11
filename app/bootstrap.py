@@ -59,6 +59,9 @@ def bootstrap() -> None:
         from PySide6.QtWidgets import QApplication
         from app.ui.crash_report_dialog import QtCrashBridge
         from app.ui.safe_mode_dialog import SafeModeDialog
+        from app.ui.tender_search_ui_controller import (
+            TenderSearchUiController,
+        )
         from app.ui.modern_main_window import ModernMainWindow
     except ImportError as exc:
         raise SystemExit(
@@ -123,6 +126,13 @@ def bootstrap() -> None:
     crash_bridge.set_support_bundle_provider(
         _find_support_bundle_provider(window)
     )
+
+    tender_search_controller = TenderSearchUiController(
+        context.paths.data_dir,
+        theme=getattr(window, "_theme", "dark") or "dark",
+        parent=window,
+    )
+    tender_search_controller.install_on_main_window(window)
 
     window.show()
     exit_code = application.exec()
