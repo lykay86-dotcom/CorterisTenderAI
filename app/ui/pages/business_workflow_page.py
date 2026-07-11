@@ -35,6 +35,11 @@ from app.core.workflow_backup import WorkflowBackupService
 from app.core.workflow_backup_catalog import (
     WorkflowBackupCatalogService,
 )
+from app.core.workflow_database_health import (
+    WorkflowDatabaseHealthReport,
+    WorkflowDatabaseHealthService,
+    WorkflowDatabaseHealthStatus,
+)
 from app.reporting.workflow_excel import WorkflowExcelExporter
 from app.reporting.workflow_excel_import import WorkflowExcelImporter
 from app.reporting.workflow_excel_template import (
@@ -53,6 +58,10 @@ from app.ui.business_workflow.backup_center_dialog import (
 )
 from app.ui.business_workflow.backup_settings_dialog import (
     WorkflowBackupSettingsDialog,
+)
+from app.ui.business_workflow.database_recovery_dialog import (
+    WorkflowDatabaseRecoveryAction,
+    WorkflowDatabaseRecoveryDialog,
 )
 from app.ui.business_workflow.dialogs import BusinessRecordDialog
 from app.ui.business_workflow.import_dialog import (
@@ -107,6 +116,9 @@ class BusinessWorkflowPage(QWidget):
         backup_catalog_service: (
             WorkflowBackupCatalogService | None
         ) = None,
+        database_health_service: (
+            WorkflowDatabaseHealthService | None
+        ) = None,
         auto_backup_service: (
             WorkflowAutoBackupService | None
         ) = None,
@@ -127,6 +139,13 @@ class BusinessWorkflowPage(QWidget):
             backup_catalog_service
             or WorkflowBackupCatalogService(self.backup_service)
         )
+        self.database_health_service = (
+            database_health_service
+            or WorkflowDatabaseHealthService(
+                backup_service=self.backup_service,
+                catalog_service=self.backup_catalog_service,
+            )
+        )
         self.auto_backup_service = (
             auto_backup_service
             or WorkflowAutoBackupService.for_repository(
@@ -142,6 +161,7 @@ class BusinessWorkflowPage(QWidget):
         )
         self._selected_record: BusinessWorkflowRecord | None = None
         self._content_orientation: Qt.Orientation | None = None
+        self._database_health_prompt_shown = False
 
         self.setObjectName("BusinessWorkflowPage")
 
@@ -167,7 +187,7 @@ class BusinessWorkflowPage(QWidget):
         self.workflow_changed.connect(
             self._check_automatic_backup
         )
-        QTimer.singleShot(0, self._check_automatic_backup)
+        QTimer.singleShot(0, self._initialize_database_safety)
 
     def _build_header(self, root: QVBoxLayout) -> None:
         header = QHBoxLayout()
@@ -241,6 +261,12 @@ class BusinessWorkflowPage(QWidget):
         )
         self.backup_center_action.triggered.connect(
             self._open_backup_center
+        )
+        self.database_diagnostics_action = self.data_menu.addAction(
+            "Диагностика базы…"
+        )
+        self.database_diagnostics_action.triggered.connect(
+            self._run_database_diagnostics
         )
         self.data_menu.addSeparator()
         self.create_backup_action = self.data_menu.addAction(
@@ -1034,7 +1060,7 @@ class BusinessWorkflowPage(QWidget):
             )
         )
 
-    def _open_backup_center(self) -> None:
+    def _database_backup_directories(self) -> list[Path]:
         settings = self.auto_backup_service.load_settings()
         automatic_directory = (
             self.auto_backup_service.backup_directory(
@@ -1042,10 +1068,215 @@ class BusinessWorkflowPage(QWidget):
                 settings,
             )
         )
-        directories = [
+        return [
             self.repository.path.parent / "backups",
             automatic_directory,
         ]
+
+    def _initialize_database_safety(self) -> None:
+        """Run a fast, non-blocking startup check.
+
+        A modal recovery dialog must never be opened from a zero-delay
+        timer: it blocks headless tests and may make application startup
+        appear frozen. Full backup discovery and recovery remain available
+        through the explicit «Диагностика базы…» action.
+        """
+        report = self._inspect_database_health(
+            include_backups=False
+        )
+        if report.requires_recovery:
+            self.status_banner.show_status(
+                title="База требует диагностики",
+                message=(
+                    f"{report.status_label}. "
+                    "Автокопирование приостановлено. "
+                    "Откройте «Данные → Диагностика базы…»."
+                ),
+                tone=StatusTone.WARNING,
+                auto_hide_ms=12000,
+            )
+            return
+
+        if report.safe_for_backup:
+            self._check_automatic_backup()
+
+    def _run_database_diagnostics(self) -> None:
+        self._database_health_prompt_shown = False
+        report = self._inspect_database_health(
+            include_backups=True
+        )
+        if report.requires_recovery:
+            self._show_database_recovery(report)
+            return
+
+        if report.status == WorkflowDatabaseHealthStatus.MISSING:
+            message = (
+                "Файл базы ещё не создан. Он появится после "
+                "добавления первой записи."
+            )
+        else:
+            message = (
+                f"Состояние: {report.status_label}; "
+                f"записей: {report.record_count}; "
+                f"событий: {report.event_count}; "
+                f"схема: {report.schema_version}."
+            )
+
+        QMessageBox.information(
+            self,
+            "Диагностика базы завершена",
+            message,
+        )
+
+    def _inspect_database_health(
+        self,
+        *,
+        include_backups: bool,
+    ) -> WorkflowDatabaseHealthReport:
+        directories = (
+            self._database_backup_directories()
+            if include_backups
+            else ()
+        )
+        return self.database_health_service.inspect(
+            self.repository,
+            backup_directories=directories,
+        )
+
+    def _show_database_recovery(
+        self,
+        report: WorkflowDatabaseHealthReport,
+    ) -> None:
+        if self._database_health_prompt_shown:
+            return
+        self._database_health_prompt_shown = True
+
+        dialog = WorkflowDatabaseRecoveryDialog(
+            report,
+            theme=self._theme,
+            parent=self,
+        )
+        dialog.exec()
+        action = dialog.selected_action
+        self._database_health_prompt_shown = False
+
+        if action == WorkflowDatabaseRecoveryAction.RESTORE_LATEST:
+            self._recover_latest_database_backup()
+        elif (
+            action
+            == WorkflowDatabaseRecoveryAction.OPEN_BACKUP_CENTER
+        ):
+            self._database_health_prompt_shown = False
+            self._open_backup_center()
+        elif (
+            action
+            == WorkflowDatabaseRecoveryAction.INITIALIZE_EMPTY
+        ):
+            self._initialize_empty_database()
+        else:
+            self.status_banner.show_status(
+                title="База требует восстановления",
+                message=(
+                    "Автоматическое резервное копирование "
+                    "приостановлено до устранения ошибки."
+                ),
+                tone=StatusTone.WARNING,
+                auto_hide_ms=9000,
+            )
+
+    def _recover_latest_database_backup(self) -> None:
+        answer = QMessageBox.warning(
+            self,
+            "Восстановить последнюю исправную копию?",
+            (
+                "Повреждённый JSON будет сохранён в карантин, "
+                "после чего база будет восстановлена из последней "
+                "проверенной резервной копии."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            result = self.database_health_service.recover_latest(
+                self.repository,
+                backup_directories=(
+                    self._database_backup_directories()
+                ),
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка автоматического восстановления",
+                str(exc),
+            )
+            return
+
+        self._database_health_prompt_shown = False
+        self.refresh()
+        self.workflow_changed.emit()
+        self.status_banner.show_status(
+            title="База успешно восстановлена",
+            message=(
+                f"Записей: {result.report.record_count}; "
+                f"событий: {result.report.event_count}. "
+                f"Повреждённый файл: "
+                f"{result.quarantine_path or 'не создавался'}"
+            ),
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=10000,
+        )
+
+    def _initialize_empty_database(self) -> None:
+        answer = QMessageBox.warning(
+            self,
+            "Создать пустую базу?",
+            (
+                "Текущий повреждённый JSON будет сохранён "
+                "в карантин. В приложении будет создана новая "
+                "пустая база. Используйте это действие только "
+                "когда исправной резервной копии нет."
+            ),
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            result = self.database_health_service.initialize_empty(
+                self.repository,
+                backup_directories=(
+                    self._database_backup_directories()
+                ),
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка создания пустой базы",
+                str(exc),
+            )
+            return
+
+        self._database_health_prompt_shown = False
+        self.refresh()
+        self.workflow_changed.emit()
+        self.status_banner.show_status(
+            title="Создана новая пустая база",
+            message=(
+                "Повреждённый файл сохранён: "
+                f"{result.quarantine_path or 'не создавался'}"
+            ),
+            tone=StatusTone.WARNING,
+            auto_hide_ms=10000,
+        )
+
+    def _open_backup_center(self) -> None:
+        directories = self._database_backup_directories()
 
         dialog = WorkflowBackupCenterDialog(
             repository=self.repository,
@@ -1061,6 +1292,7 @@ class BusinessWorkflowPage(QWidget):
         dialog.exec()
 
     def _backup_center_restored(self, result: object) -> None:
+        self._database_health_prompt_shown = False
         self.refresh()
         self.workflow_changed.emit()
 
@@ -1141,6 +1373,22 @@ class BusinessWorkflowPage(QWidget):
         force: bool = False,
         show_success: bool = False,
     ) -> None:
+        health = self._inspect_database_health(
+            include_backups=False
+        )
+        if not health.safe_for_backup:
+            if health.requires_recovery:
+                self.status_banner.show_status(
+                    title="Автокопирование приостановлено",
+                    message=(
+                        "База бизнес-процессов повреждена. "
+                        "Запустите «Данные → Диагностика базы»."
+                    ),
+                    tone=StatusTone.WARNING,
+                    auto_hide_ms=8000,
+                )
+            return
+
         try:
             result = self.auto_backup_service.run_if_due(
                 self.repository,
