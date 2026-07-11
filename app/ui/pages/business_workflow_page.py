@@ -30,6 +30,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.system_health import (
+    SystemHealthJournal,
+    SystemHealthService,
+    SystemHealthSeverity,
+)
 from app.core.workflow_auto_backup import WorkflowAutoBackupService
 from app.core.workflow_backup import WorkflowBackupService
 from app.core.workflow_backup_catalog import (
@@ -64,6 +69,9 @@ from app.ui.business_workflow.database_recovery_dialog import (
     WorkflowDatabaseRecoveryDialog,
 )
 from app.ui.business_workflow.dialogs import BusinessRecordDialog
+from app.ui.business_workflow.system_health_dialog import (
+    SystemHealthCenterDialog,
+)
 from app.ui.business_workflow.import_dialog import (
     WorkflowImportPreviewDialog,
 )
@@ -119,6 +127,8 @@ class BusinessWorkflowPage(QWidget):
         database_health_service: (
             WorkflowDatabaseHealthService | None
         ) = None,
+        system_health_service: SystemHealthService | None = None,
+        system_health_journal: SystemHealthJournal | None = None,
         auto_backup_service: (
             WorkflowAutoBackupService | None
         ) = None,
@@ -145,6 +155,13 @@ class BusinessWorkflowPage(QWidget):
                 backup_service=self.backup_service,
                 catalog_service=self.backup_catalog_service,
             )
+        )
+        self.system_health_service = (
+            system_health_service or SystemHealthService()
+        )
+        self.system_health_journal = (
+            system_health_journal
+            or SystemHealthJournal.for_repository(self.repository)
         )
         self.auto_backup_service = (
             auto_backup_service
@@ -256,6 +273,13 @@ class BusinessWorkflowPage(QWidget):
             parent=self,
         )
         self.data_menu = QMenu(self.data_button)
+        self.system_health_action = self.data_menu.addAction(
+            "Состояние системы…"
+        )
+        self.system_health_action.triggered.connect(
+            self._open_system_health_center
+        )
+        self.data_menu.addSeparator()
         self.backup_center_action = self.data_menu.addAction(
             "Центр резервных копий…"
         )
@@ -1060,6 +1084,45 @@ class BusinessWorkflowPage(QWidget):
             )
         )
 
+    def _record_system_event(
+        self,
+        *,
+        severity: SystemHealthSeverity | str,
+        component: str,
+        title: str,
+        details: str = "",
+    ) -> None:
+        try:
+            self.system_health_journal.record(
+                severity=severity,
+                component=component,
+                title=title,
+                details=details,
+            )
+        except Exception:
+            # Diagnostics must never interrupt the business workflow UI.
+            return
+
+    def _open_system_health_center(self) -> None:
+        dialog = SystemHealthCenterDialog(
+            repository=self.repository,
+            health_service=self.system_health_service,
+            journal=self.system_health_journal,
+            database_health_service=self.database_health_service,
+            auto_backup_service=self.auto_backup_service,
+            backup_catalog_service=self.backup_catalog_service,
+            backup_directories=self._database_backup_directories(),
+            theme=self._theme,
+            parent=self,
+        )
+        dialog.database_diagnostics_requested.connect(
+            self._run_database_diagnostics
+        )
+        dialog.backup_center_requested.connect(
+            self._open_backup_center
+        )
+        dialog.exec()
+
     def _database_backup_directories(self) -> list[Path]:
         settings = self.auto_backup_service.load_settings()
         automatic_directory = (
@@ -1085,6 +1148,18 @@ class BusinessWorkflowPage(QWidget):
             include_backups=False
         )
         if report.requires_recovery:
+            self._record_system_event(
+                severity=SystemHealthSeverity.ERROR,
+                component="database",
+                title="Стартовая диагностика обнаружила ошибку",
+                details=(
+                    f"{report.status_label}: "
+                    + "; ".join(
+                        issue.message
+                        for issue in report.issues
+                    )
+                ),
+            )
             self.status_banner.show_status(
                 title="База требует диагностики",
                 message=(
@@ -1098,12 +1173,36 @@ class BusinessWorkflowPage(QWidget):
             return
 
         if report.safe_for_backup:
+            self._record_system_event(
+                severity=SystemHealthSeverity.SUCCESS,
+                component="database",
+                title="Стартовая диагностика завершена",
+                details=(
+                    f"{report.status_label}; "
+                    f"записей: {report.record_count}; "
+                    f"событий: {report.event_count}."
+                ),
+            )
             self._check_automatic_backup()
 
     def _run_database_diagnostics(self) -> None:
         self._database_health_prompt_shown = False
         report = self._inspect_database_health(
             include_backups=True
+        )
+        self._record_system_event(
+            severity=(
+                SystemHealthSeverity.ERROR
+                if report.requires_recovery
+                else SystemHealthSeverity.SUCCESS
+            ),
+            component="database",
+            title="Выполнена ручная диагностика базы",
+            details=(
+                f"{report.status_label}; "
+                f"записей: {report.record_count}; "
+                f"событий: {report.event_count}."
+            ),
         )
         if report.requires_recovery:
             self._show_database_recovery(report)
@@ -1293,6 +1392,15 @@ class BusinessWorkflowPage(QWidget):
 
     def _backup_center_restored(self, result: object) -> None:
         self._database_health_prompt_shown = False
+        self._record_system_event(
+            severity=SystemHealthSeverity.SUCCESS,
+            component="backup",
+            title="База восстановлена из Центра копий",
+            details=(
+                f"Записей: {getattr(result, 'record_count', 0)}; "
+                f"событий: {getattr(result, 'event_count', 0)}."
+            ),
+        )
         self.refresh()
         self.workflow_changed.emit()
 
@@ -1378,6 +1486,12 @@ class BusinessWorkflowPage(QWidget):
         )
         if not health.safe_for_backup:
             if health.requires_recovery:
+                self._record_system_event(
+                    severity=SystemHealthSeverity.WARNING,
+                    component="auto_backup",
+                    title="Автокопирование приостановлено",
+                    details=health.status_label,
+                )
                 self.status_banner.show_status(
                     title="Автокопирование приостановлено",
                     message=(
@@ -1395,6 +1509,12 @@ class BusinessWorkflowPage(QWidget):
                 force=force,
             )
         except Exception as exc:
+            self._record_system_event(
+                severity=SystemHealthSeverity.ERROR,
+                component="auto_backup",
+                title="Ошибка автоматической резервной копии",
+                details=str(exc),
+            )
             self.status_banner.show_status(
                 title="Ошибка автоматической резервной копии",
                 message=str(exc),
@@ -1405,6 +1525,16 @@ class BusinessWorkflowPage(QWidget):
 
         if not result.executed or result.backup is None:
             return
+
+        self._record_system_event(
+            severity=SystemHealthSeverity.SUCCESS,
+            component="auto_backup",
+            title="Автоматическая резервная копия создана",
+            details=(
+                f"{result.backup.path}; "
+                f"удалено старых: {len(result.removed_paths)}."
+            ),
+        )
 
         if show_success or force:
             removed_text = (
@@ -1446,6 +1576,12 @@ class BusinessWorkflowPage(QWidget):
                 created_at=timestamp,
             )
         except Exception as exc:
+            self._record_system_event(
+                severity=SystemHealthSeverity.ERROR,
+                component="backup",
+                title="Ошибка ручного резервного копирования",
+                details=str(exc),
+            )
             QMessageBox.critical(
                 self,
                 "Ошибка резервного копирования",
@@ -1453,6 +1589,12 @@ class BusinessWorkflowPage(QWidget):
             )
             return
 
+        self._record_system_event(
+            severity=SystemHealthSeverity.SUCCESS,
+            component="backup",
+            title="Ручная резервная копия создана",
+            details=str(result.path),
+        )
         self.status_banner.show_status(
             title="Резервная копия создана",
             message=(
@@ -1525,6 +1667,12 @@ class BusinessWorkflowPage(QWidget):
                 self.repository,
             )
         except Exception as exc:
+            self._record_system_event(
+                severity=SystemHealthSeverity.ERROR,
+                component="backup",
+                title="Ошибка восстановления резервной копии",
+                details=str(exc),
+            )
             QMessageBox.critical(
                 self,
                 "Ошибка восстановления",
@@ -1532,6 +1680,15 @@ class BusinessWorkflowPage(QWidget):
             )
             return
 
+        self._record_system_event(
+            severity=SystemHealthSeverity.SUCCESS,
+            component="backup",
+            title="База восстановлена из резервной копии",
+            details=(
+                f"Источник: {filename}; "
+                f"страховочная копия: {result.safety_backup}."
+            ),
+        )
         self.refresh()
         self.workflow_changed.emit()
         self.status_banner.show_status(

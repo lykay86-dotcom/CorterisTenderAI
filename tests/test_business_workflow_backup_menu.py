@@ -45,6 +45,8 @@ def test_workflow_page_exposes_backup_center_and_actions(
         action.text()
         for action in page.data_menu.actions()
     ] == [
+        "Состояние системы…",
+        "",
         "Центр резервных копий…",
         "Диагностика базы…",
         "",
