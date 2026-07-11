@@ -1,8 +1,6 @@
-"""Главная страница рабочего стола Corteris Tender AI."""
+"""Dashboard 1.0 structural skeleton for Corteris Tender AI."""
 
 from __future__ import annotations
-
-from collections.abc import Callable
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -14,12 +12,13 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QScrollArea,
     QSizePolicy,
-    QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
 
-from app.ui.theme.colors import ThemeName
+from app.ui.dashboard.section import DashboardSection
+from app.ui.theme.colors import ThemeName, get_palette
+from app.ui.theme.typography import Typography
 from app.ui.viewmodels.dashboard_viewmodel import (
     AiRecommendation,
     DashboardKpi,
@@ -31,11 +30,11 @@ from app.ui.widgets.button import (
     PrimaryButton,
     SecondaryButton,
 )
-from app.ui.widgets.card import Card, CardTone, KpiCard
+from app.ui.widgets.card import CardTone, KpiCard
 
 
 class DashboardPage(QWidget):
-    """Современный рабочий стол руководителя и тендерного специалиста."""
+    """Responsive Dashboard 1.0 shell with clearly separated work zones."""
 
     find_tenders_requested = Signal()
     create_proposal_requested = Signal()
@@ -56,6 +55,7 @@ class DashboardPage(QWidget):
         self._theme = ThemeName(theme)
         self.viewmodel = viewmodel or DashboardViewModel(self)
         self._kpi_cards: dict[str, KpiCard] = {}
+        self._themed_sections: list[DashboardSection] = []
 
         self.setObjectName("DashboardPage")
         self.setSizePolicy(
@@ -66,169 +66,168 @@ class DashboardPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
 
-        self._scroll = QScrollArea(self)
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll = QScrollArea(self)
+        self.scroll.setObjectName("DashboardScroll")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
 
-        self._content = QWidget(self._scroll)
-        self._content.setObjectName("DashboardContent")
-        self._layout = QVBoxLayout(self._content)
-        self._layout.setContentsMargins(24, 20, 24, 24)
-        self._layout.setSpacing(18)
+        self.canvas = QWidget(self.scroll)
+        self.canvas.setObjectName("DashboardCanvas")
+        self.canvas.setMinimumWidth(900)
+
+        self.main_layout = QVBoxLayout(self.canvas)
+        self.main_layout.setContentsMargins(24, 22, 24, 28)
+        self.main_layout.setSpacing(16)
 
         self._build_header()
-        self._build_kpis()
-        self._build_middle_section()
-        self._build_quick_actions()
+        self._build_kpi_zone()
+        self._build_primary_zone()
+        self._build_secondary_zone()
 
-        self._scroll.setWidget(self._content)
-        root.addWidget(self._scroll)
+        self.scroll.setWidget(self.canvas)
+        root.addWidget(self.scroll)
 
         self._connect_viewmodel()
+        self._apply_page_theme()
         self.refresh_from_state()
 
     def _build_header(self) -> None:
         header = QHBoxLayout()
-        header.setSpacing(12)
+        header.setContentsMargins(0, 0, 0, 2)
+        header.setSpacing(14)
 
         title_column = QVBoxLayout()
-        title_column.setSpacing(3)
+        title_column.setSpacing(4)
 
-        title = QLabel("Рабочий стол")
-        title.setObjectName("DashboardTitle")
+        self.title_label = QLabel("Рабочий стол")
+        self.title_label.setObjectName("DashboardTitle")
 
-        subtitle = QLabel(
-            "Главные показатели, последние тендеры и рекомендации AI."
+        self.subtitle_label = QLabel(
+            "Ключевые показатели, тендеры и действия на сегодня."
         )
-        subtitle.setObjectName("DashboardSubtitle")
-        subtitle.setWordWrap(True)
+        self.subtitle_label.setObjectName("DashboardSubtitle")
 
-        title_column.addWidget(title)
-        title_column.addWidget(subtitle)
+        title_column.addWidget(self.title_label)
+        title_column.addWidget(self.subtitle_label)
 
-        self._updated_label = QLabel("Данные ещё не обновлялись")
-        self._updated_label.setObjectName("DashboardUpdated")
-        self._updated_label.setAlignment(
+        self.updated_label = QLabel("Данные ещё не обновлялись")
+        self.updated_label.setObjectName("DashboardUpdated")
+        self.updated_label.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
 
-        refresh_button = OutlineButton(
+        refresh = OutlineButton(
             "Обновить",
             icon_text="↻",
             theme=self._theme,
         )
-        refresh_button.clicked.connect(self.viewmodel.request_refresh)
+        refresh.clicked.connect(self.viewmodel.request_refresh)
 
         header.addLayout(title_column, 1)
-        header.addWidget(self._updated_label)
-        header.addWidget(refresh_button)
+        header.addWidget(self.updated_label)
+        header.addWidget(refresh)
+        self.main_layout.addLayout(header)
 
-        self._layout.addLayout(header)
-
-    def _build_kpis(self) -> None:
-        self._kpi_grid = QGridLayout()
-        self._kpi_grid.setContentsMargins(0, 0, 0, 0)
-        self._kpi_grid.setHorizontalSpacing(14)
-        self._kpi_grid.setVerticalSpacing(14)
+    def _build_kpi_zone(self) -> None:
+        self.kpi_grid = QGridLayout()
+        self.kpi_grid.setContentsMargins(0, 0, 0, 0)
+        self.kpi_grid.setHorizontalSpacing(14)
+        self.kpi_grid.setVerticalSpacing(14)
 
         for index, kpi in enumerate(self.viewmodel.state.kpis.values()):
-            card = self._create_kpi_card(kpi)
+            card = KpiCard(
+                kpi.title,
+                kpi.value,
+                trend=kpi.trend,
+                trend_tone=self._tone(kpi.tone),
+                icon_text=kpi.icon_text,
+                theme=self._theme,
+                clickable=True,
+            )
+            card.setMinimumHeight(136)
             self._kpi_cards[kpi.key] = card
             row, column = divmod(index, 4)
-            self._kpi_grid.addWidget(card, row, column)
+            self.kpi_grid.addWidget(card, row, column)
 
         for column in range(4):
-            self._kpi_grid.setColumnStretch(column, 1)
+            self.kpi_grid.setColumnStretch(column, 1)
 
-        self._layout.addLayout(self._kpi_grid)
+        self.main_layout.addLayout(self.kpi_grid)
 
-    def _create_kpi_card(self, kpi: DashboardKpi) -> KpiCard:
-        card = KpiCard(
-            kpi.title,
-            kpi.value,
-            trend=kpi.trend,
-            trend_tone=self._tone(kpi.tone),
-            icon_text=kpi.icon_text,
-            theme=self._theme,
-            clickable=True,
-        )
-        card.setMinimumHeight(138)
-        return card
+    def _build_primary_zone(self) -> None:
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(16)
 
-    def _build_middle_section(self) -> None:
-        middle = QGridLayout()
-        middle.setContentsMargins(0, 0, 0, 0)
-        middle.setHorizontalSpacing(16)
-        middle.setVerticalSpacing(16)
-
-        recent_card = Card(
+        self.tender_section = self._section(
             "Последние тендеры",
-            subtitle="Недавно добавленные и обновлённые закупки",
-            icon_text="🔎",
-            theme=self._theme,
+            subtitle="Новые и недавно обновлённые закупки",
+            badge="Тендеры",
         )
-        self._recent_list = QListWidget()
-        self._recent_list.setObjectName("RecentTenderList")
-        self._recent_list.setAlternatingRowColors(True)
-        self._recent_list.itemDoubleClicked.connect(
+        self.recent_list = QListWidget()
+        self.recent_list.setObjectName("RecentTenderList")
+        self.recent_list.setAlternatingRowColors(True)
+        self.recent_list.setMinimumHeight(260)
+        self.recent_list.itemDoubleClicked.connect(
             lambda item: self.tender_open_requested.emit(
                 str(item.data(Qt.ItemDataRole.UserRole))
             )
         )
-        recent_card.add_widget(self._recent_list)
+        self.tender_section.add_widget(self.recent_list)
 
-        ai_card = Card(
-            "AI-рекомендации",
-            subtitle="Действия, которые требуют внимания",
-            icon_text="AI",
-            tone=CardTone.INFO,
-            theme=self._theme,
+        self.ai_section = self._section(
+            "AI Advisor",
+            subtitle="Риски и следующие рекомендуемые действия",
+            badge="AI",
         )
-        self._ai_list = QListWidget()
-        self._ai_list.setObjectName("AiRecommendationList")
-        self._ai_list.itemDoubleClicked.connect(
+        self.ai_list = QListWidget()
+        self.ai_list.setObjectName("AiRecommendationList")
+        self.ai_list.setMinimumHeight(260)
+        self.ai_list.itemDoubleClicked.connect(
             lambda item: self.recommendation_action_requested.emit(
                 int(item.data(Qt.ItemDataRole.UserRole))
             )
         )
-        ai_card.add_widget(self._ai_list)
+        self.ai_section.add_widget(self.ai_list)
 
-        middle.addWidget(recent_card, 0, 0)
-        middle.addWidget(ai_card, 0, 1)
-        middle.setColumnStretch(0, 3)
-        middle.setColumnStretch(1, 2)
+        grid.addWidget(self.tender_section, 0, 0)
+        grid.addWidget(self.ai_section, 0, 1)
+        grid.setColumnStretch(0, 3)
+        grid.setColumnStretch(1, 2)
 
-        self._layout.addLayout(middle)
+        self.main_layout.addLayout(grid)
 
-    def _build_quick_actions(self) -> None:
-        quick_card = Card(
+    def _build_secondary_zone(self) -> None:
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(16)
+
+        quick = self._section(
             "Быстрые действия",
-            subtitle="Основные операции без перехода по разделам",
-            icon_text="⚡",
-            theme=self._theme,
+            subtitle="Частые операции без перехода по меню",
         )
-
-        buttons = QHBoxLayout()
-        buttons.setSpacing(10)
+        quick_row = QHBoxLayout()
+        quick_row.setSpacing(10)
 
         find_button = PrimaryButton(
             "Найти тендеры",
-            icon_text="🔎",
             theme=self._theme,
         )
         proposal_button = SecondaryButton(
             "Создать КП",
-            icon_text="📄",
             theme=self._theme,
         )
         estimate_button = SecondaryButton(
             "Создать смету",
-            icon_text="📊",
             theme=self._theme,
         )
         analyze_button = OutlineButton(
-            "Проверить документацию",
-            icon_text="AI",
+            "Анализ документов",
             theme=self._theme,
         )
 
@@ -243,21 +242,48 @@ class DashboardPage(QWidget):
             estimate_button,
             analyze_button,
         ):
-            buttons.addWidget(button)
+            quick_row.addWidget(button)
+        quick_row.addStretch(1)
 
-        buttons.addItem(
-            QSpacerItem(
-                20,
-                20,
-                QSizePolicy.Policy.Expanding,
-                QSizePolicy.Policy.Minimum,
-            )
+        quick_container = QWidget()
+        quick_container.setLayout(quick_row)
+        quick.add_widget(quick_container)
+
+        activity = self._section(
+            "Лента событий",
+            subtitle="Последние действия и изменения системы",
+            badge="Сегодня",
         )
+        self.activity_empty = QLabel(
+            "События появятся после работы с тендерами и документами."
+        )
+        self.activity_empty.setObjectName("DashboardEmptyText")
+        self.activity_empty.setWordWrap(True)
+        activity.add_widget(self.activity_empty)
 
-        action_widget = QWidget()
-        action_widget.setLayout(buttons)
-        quick_card.add_widget(action_widget)
-        self._layout.addWidget(quick_card)
+        grid.addWidget(quick, 0, 0)
+        grid.addWidget(activity, 0, 1)
+        grid.setColumnStretch(0, 3)
+        grid.setColumnStretch(1, 2)
+
+        self.main_layout.addLayout(grid)
+        self.main_layout.addStretch(1)
+
+    def _section(
+        self,
+        title: str,
+        *,
+        subtitle: str = "",
+        badge: str = "",
+    ) -> DashboardSection:
+        section = DashboardSection(
+            title,
+            subtitle=subtitle,
+            badge=badge,
+            theme=self._theme,
+        )
+        self._themed_sections.append(section)
+        return section
 
     def _connect_viewmodel(self) -> None:
         self.viewmodel.kpi_changed.connect(self._on_kpi_changed)
@@ -272,7 +298,6 @@ class DashboardPage(QWidget):
         )
 
     def refresh_from_state(self) -> None:
-        """Обновляет экран из текущего состояния ViewModel."""
         for key, kpi in self.viewmodel.state.kpis.items():
             self._on_kpi_changed(key, kpi)
         self.set_recent_tenders(self.viewmodel.state.recent_tenders)
@@ -280,6 +305,62 @@ class DashboardPage(QWidget):
             self.viewmodel.state.ai_recommendations
         )
         self._refresh_updated_label()
+
+    def set_recent_tenders(self, tenders: list[RecentTender]) -> None:
+        self.recent_list.clear()
+        self.tender_section.set_badge(
+            str(len(tenders)) if tenders else "Тендеры"
+        )
+
+        if not tenders:
+            item = QListWidgetItem(
+                "Тендеры пока не добавлены. Нажмите «Найти тендеры»."
+            )
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.recent_list.addItem(item)
+            return
+
+        for tender in tenders:
+            score = f" · {tender.score}/100" if tender.score is not None else ""
+            deadline = f" · до {tender.deadline}" if tender.deadline else ""
+            item = QListWidgetItem(
+                f"{tender.number} — {tender.title}\n"
+                f"{tender.customer}{deadline}{score}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, tender.number)
+            self.recent_list.addItem(item)
+
+    def set_ai_recommendations(
+        self,
+        recommendations: list[AiRecommendation],
+    ) -> None:
+        self.ai_list.clear()
+        self.ai_section.set_badge(
+            str(len(recommendations)) if recommendations else "AI"
+        )
+
+        if not recommendations:
+            item = QListWidgetItem(
+                "Рекомендаций пока нет. Выполните анализ тендера."
+            )
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            self.ai_list.addItem(item)
+            return
+
+        symbols = {
+            "success": "✓",
+            "warning": "!",
+            "danger": "×",
+            "info": "i",
+        }
+        for index, recommendation in enumerate(recommendations):
+            symbol = symbols.get(recommendation.severity, "•")
+            item = QListWidgetItem(
+                f"{symbol} {recommendation.title}\n"
+                f"{recommendation.description}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, index)
+            self.ai_list.addItem(item)
 
     def set_kpi(
         self,
@@ -289,7 +370,6 @@ class DashboardPage(QWidget):
         trend: str | None = None,
         tone: str | None = None,
     ) -> None:
-        """Удобный публичный метод обновления KPI."""
         self.viewmodel.set_kpi(
             key,
             value=value,
@@ -297,89 +377,15 @@ class DashboardPage(QWidget):
             tone=tone,
         )
 
-    def set_recent_tenders(
-        self,
-        tenders: list[RecentTender],
-    ) -> None:
-        """Отображает последние тендеры."""
-        self._recent_list.clear()
-
-        if not tenders:
-            item = QListWidgetItem(
-                "Тендеры пока не добавлены. Используйте «Найти тендеры»."
-            )
-            item.setFlags(Qt.ItemFlag.NoItemFlags)
-            self._recent_list.addItem(item)
-            return
-
-        for tender in tenders:
-            score = f" · {tender.score}/100" if tender.score is not None else ""
-            deadline = f" · до {tender.deadline}" if tender.deadline else ""
-            recommendation = (
-                f"\n{tender.recommendation}"
-                if tender.recommendation
-                else ""
-            )
-            text = (
-                f"{tender.number} — {tender.title}"
-                f"\n{tender.customer}{deadline}{score}"
-                f"{recommendation}"
-            )
-            item = QListWidgetItem(text)
-            item.setData(Qt.ItemDataRole.UserRole, tender.number)
-            self._recent_list.addItem(item)
-
-    def set_ai_recommendations(
-        self,
-        recommendations: list[AiRecommendation],
-    ) -> None:
-        """Отображает список рекомендаций AI."""
-        self._ai_list.clear()
-
-        if not recommendations:
-            item = QListWidgetItem(
-                "Рекомендаций пока нет. Выполните анализ тендера."
-            )
-            item.setFlags(Qt.ItemFlag.NoItemFlags)
-            self._ai_list.addItem(item)
-            return
-
-        prefix_by_severity = {
-            "success": "✓",
-            "warning": "!",
-            "danger": "×",
-            "info": "i",
-        }
-
-        for index, recommendation in enumerate(recommendations):
-            prefix = prefix_by_severity.get(
-                recommendation.severity,
-                "•",
-            )
-            action = (
-                f"\nДействие: {recommendation.action_text}"
-                if recommendation.action_text
-                else ""
-            )
-            item = QListWidgetItem(
-                f"{prefix} {recommendation.title}"
-                f"\n{recommendation.description}"
-                f"{action}"
-            )
-            item.setData(Qt.ItemDataRole.UserRole, index)
-            self._ai_list.addItem(item)
-
     def set_theme(self, theme: ThemeName | str) -> None:
-        """Применяет тему ко всем составным карточкам."""
         self._theme = ThemeName(theme)
         for card in self._kpi_cards.values():
             card.set_theme(self._theme)
+        for section in self._themed_sections:
+            section.apply_theme(self._theme)
+        self._apply_page_theme()
 
-    def _on_kpi_changed(
-        self,
-        key: str,
-        kpi: DashboardKpi,
-    ) -> None:
+    def _on_kpi_changed(self, key: str, kpi: DashboardKpi) -> None:
         card = self._kpi_cards.get(key)
         if card is None:
             return
@@ -390,10 +396,60 @@ class DashboardPage(QWidget):
 
     def _refresh_updated_label(self) -> None:
         updated = self.viewmodel.state.last_updated
-        self._updated_label.setText(
+        self.updated_label.setText(
             f"Обновлено: {updated:%d.%m.%Y %H:%M:%S}"
             if updated is not None
             else "Данные ещё не обновлялись"
+        )
+
+    def _apply_page_theme(self) -> None:
+        palette = get_palette(self._theme)
+        self.setStyleSheet(
+            f"""
+            QWidget#DashboardPage, QWidget#DashboardCanvas {{
+                background-color: {palette.app_background};
+            }}
+            QScrollArea#DashboardScroll {{
+                background-color: {palette.app_background};
+                border: none;
+            }}
+            QLabel#DashboardTitle {{
+                color: {palette.text_primary};
+                {Typography.H1.css()}
+            }}
+            QLabel#DashboardSubtitle, QLabel#DashboardUpdated {{
+                color: {palette.text_muted};
+                {Typography.BODY_S.css()}
+            }}
+            QLabel#DashboardEmptyText {{
+                color: {palette.text_muted};
+                background: transparent;
+                border: none;
+                padding: 12px 0;
+                {Typography.BODY_M.css()}
+            }}
+            QListWidget#RecentTenderList,
+            QListWidget#AiRecommendationList {{
+                background-color: {palette.input_background};
+                color: {palette.text_primary};
+                border: 1px solid {palette.border_subtle};
+                border-radius: 10px;
+                padding: 6px;
+                outline: none;
+                {Typography.BODY_S.css()}
+            }}
+            QListWidget#RecentTenderList::item,
+            QListWidget#AiRecommendationList::item {{
+                border-bottom: 1px solid {palette.divider};
+                padding: 10px;
+            }}
+            QListWidget#RecentTenderList::item:selected,
+            QListWidget#AiRecommendationList::item:selected {{
+                background-color: {palette.selected_background};
+                color: {palette.text_primary};
+                border-radius: 7px;
+            }}
+            """
         )
 
     @staticmethod
