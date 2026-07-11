@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from enum import Enum
+from enum import Enum, StrEnum
 import json
 from pathlib import Path
 import sqlite3
@@ -73,6 +73,58 @@ class TenderSearchRunRecord:
     rejected_count: int
     provider_count: int
     elapsed_ms: int
+
+
+class TenderRegistrySort(StrEnum):
+    RELEVANCE_DESC = "relevance_desc"
+    DEADLINE_ASC = "deadline_asc"
+    LAST_SEEN_DESC = "last_seen_desc"
+    FIRST_SEEN_DESC = "first_seen_desc"
+    PRICE_DESC = "price_desc"
+    TITLE_ASC = "title_asc"
+
+
+@dataclass(frozen=True, slots=True)
+class TenderRegistryQuery:
+    text: str = ""
+    include_archived: bool = False
+    archived_only: bool = False
+    accepted_only: bool = False
+    minimum_score: int = 0
+    sort: TenderRegistrySort = TenderRegistrySort.RELEVANCE_DESC
+    limit: int = 500
+    offset: int = 0
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.minimum_score <= 100:
+            raise ValueError("minimum_score must be between 0 and 100")
+        if not 1 <= self.limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        if self.offset < 0:
+            raise ValueError("offset must be non-negative")
+
+
+@dataclass(frozen=True, slots=True)
+class TenderRegistryOccurrence:
+    run_id: str
+    profile_id: str
+    profile_name: str
+    executed_at: str
+    accepted: bool
+    relevance_score: int
+    relevance_grade: str
+    directions: tuple[str, ...]
+    reasons: tuple[str, ...]
+    rejection_reasons: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TenderRegistryStatistics:
+    total_count: int
+    active_count: int
+    archived_count: int
+    accepted_count: int
+    search_run_count: int
 
 
 class TenderRegistryRepository:
@@ -558,6 +610,160 @@ class TenderRegistryRepository:
             ).fetchone()
         return int(row["total"] if row is not None else 0)
 
+    def search_tenders(
+        self,
+        query: TenderRegistryQuery | None = None,
+    ) -> tuple[TenderRegistryRecord, ...]:
+        """Return registry rows matching text, state and score filters."""
+
+        effective = query or TenderRegistryQuery()
+        self.initialize()
+        conditions, parameters = _registry_query_conditions(effective)
+        where_clause = (
+            " WHERE " + " AND ".join(conditions)
+            if conditions
+            else ""
+        )
+        order_clause = _registry_order_clause(effective.sort)
+        parameters.extend((effective.limit, effective.offset))
+
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM tender_records
+                """
+                + where_clause
+                + " ORDER BY "
+                + order_clause
+                + " LIMIT ? OFFSET ?",
+                tuple(parameters),
+            ).fetchall()
+        return tuple(_row_to_tender_record(row) for row in rows)
+
+    def count_search_results(
+        self,
+        query: TenderRegistryQuery | None = None,
+    ) -> int:
+        effective = query or TenderRegistryQuery()
+        self.initialize()
+        conditions, parameters = _registry_query_conditions(effective)
+        where_clause = (
+            " WHERE " + " AND ".join(conditions)
+            if conditions
+            else ""
+        )
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS total FROM tender_records"
+                + where_clause,
+                tuple(parameters),
+            ).fetchone()
+        return int(row["total"] if row is not None else 0)
+
+    def get_record(
+        self,
+        registry_key: str,
+    ) -> TenderRegistryRecord | None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT *
+                FROM tender_records
+                WHERE registry_key = ?
+                """,
+                (normalized,),
+            ).fetchone()
+        return _row_to_tender_record(row) if row is not None else None
+
+    def list_tender_occurrences(
+        self,
+        registry_key: str,
+        *,
+        limit: int = 100,
+    ) -> tuple[TenderRegistryOccurrence, ...]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        normalized = registry_key.strip()
+        if not normalized:
+            return ()
+
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT items.run_id,
+                       runs.profile_id,
+                       runs.profile_name,
+                       runs.executed_at,
+                       items.accepted,
+                       items.relevance_score,
+                       items.relevance_grade,
+                       items.directions_json,
+                       items.reasons_json,
+                       items.rejection_reasons_json
+                FROM tender_search_run_items AS items
+                JOIN tender_search_runs AS runs
+                  ON runs.run_id = items.run_id
+                WHERE items.registry_key = ?
+                ORDER BY runs.executed_at DESC,
+                         runs.saved_at DESC
+                LIMIT ?
+                """,
+                (normalized, limit),
+            ).fetchall()
+
+        return tuple(
+            TenderRegistryOccurrence(
+                run_id=str(row["run_id"]),
+                profile_id=str(row["profile_id"]),
+                profile_name=str(row["profile_name"]),
+                executed_at=str(row["executed_at"]),
+                accepted=bool(row["accepted"]),
+                relevance_score=int(row["relevance_score"]),
+                relevance_grade=str(row["relevance_grade"]),
+                directions=_json_string_tuple(
+                    row["directions_json"]
+                ),
+                reasons=_json_string_tuple(row["reasons_json"]),
+                rejection_reasons=_json_string_tuple(
+                    row["rejection_reasons_json"]
+                ),
+            )
+            for row in rows
+        )
+
+    def statistics(self) -> TenderRegistryStatistics:
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COUNT(*) AS total_count,
+                       SUM(CASE WHEN archived = 0 THEN 1 ELSE 0 END)
+                           AS active_count,
+                       SUM(CASE WHEN archived = 1 THEN 1 ELSE 0 END)
+                           AS archived_count,
+                       SUM(CASE WHEN last_accepted = 1 THEN 1 ELSE 0 END)
+                           AS accepted_count
+                FROM tender_records
+                """
+            ).fetchone()
+            run_row = connection.execute(
+                "SELECT COUNT(*) AS total FROM tender_search_runs"
+            ).fetchone()
+
+        return TenderRegistryStatistics(
+            total_count=int(row["total_count"] or 0),
+            active_count=int(row["active_count"] or 0),
+            archived_count=int(row["archived_count"] or 0),
+            accepted_count=int(row["accepted_count"] or 0),
+            search_run_count=int(run_row["total"] or 0),
+        )
+
     def set_archived(
         self,
         registry_key: str,
@@ -582,11 +788,99 @@ class TenderRegistryRepository:
             isolation_level=None,
         )
         connection.row_factory = sqlite3.Row
+        connection.create_function(
+            "CASEFOLD",
+            1,
+            lambda value: str(value or "").casefold(),
+            deterministic=True,
+        )
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 10000")
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
+
+
+def _registry_query_conditions(
+    query: TenderRegistryQuery,
+) -> tuple[list[str], list[object]]:
+    conditions: list[str] = []
+    parameters: list[object] = []
+
+    if query.archived_only:
+        conditions.append("archived = 1")
+    elif not query.include_archived:
+        conditions.append("archived = 0")
+
+    if query.accepted_only:
+        conditions.append("last_accepted = 1")
+
+    if query.minimum_score:
+        conditions.append("last_relevance_score >= ?")
+        parameters.append(query.minimum_score)
+
+    for term in (
+        item
+        for item in query.text.casefold().split()
+        if item.strip()
+    ):
+        conditions.append(
+            """
+            CASEFOLD(
+                procurement_number || ' ' ||
+                title || ' ' ||
+                customer_name || ' ' ||
+                customer_inn || ' ' ||
+                region || ' ' ||
+                law || ' ' ||
+                source
+            ) LIKE ?
+            """
+        )
+        parameters.append(f"%{term}%")
+
+    return conditions, parameters
+
+
+def _registry_order_clause(sort: TenderRegistrySort) -> str:
+    mapping = {
+        TenderRegistrySort.RELEVANCE_DESC: (
+            "last_relevance_score DESC, "
+            "CASE WHEN application_deadline = '' THEN 1 ELSE 0 END, "
+            "application_deadline ASC, last_seen_at DESC"
+        ),
+        TenderRegistrySort.DEADLINE_ASC: (
+            "CASE WHEN application_deadline = '' THEN 1 ELSE 0 END, "
+            "application_deadline ASC, last_relevance_score DESC"
+        ),
+        TenderRegistrySort.LAST_SEEN_DESC: (
+            "last_seen_at DESC, last_relevance_score DESC"
+        ),
+        TenderRegistrySort.FIRST_SEEN_DESC: (
+            "first_seen_at DESC, last_relevance_score DESC"
+        ),
+        TenderRegistrySort.PRICE_DESC: (
+            "CASE WHEN price_amount IS NULL OR price_amount = '' "
+            "THEN 1 ELSE 0 END, "
+            "CAST(price_amount AS REAL) DESC, last_relevance_score DESC"
+        ),
+        TenderRegistrySort.TITLE_ASC: (
+            "CASEFOLD(title) ASC, last_relevance_score DESC"
+        ),
+    }
+    return mapping[TenderRegistrySort(sort)]
+
+
+def _json_string_tuple(value: object) -> tuple[str, ...]:
+    if value in (None, ""):
+        return ()
+    try:
+        payload = json.loads(str(value))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return ()
+    if not isinstance(payload, list):
+        return ()
+    return tuple(str(item) for item in payload)
 
 def tender_registry_key(tender: UnifiedTender) -> str:
     procurement_number = normalize_registry_component(
@@ -800,9 +1094,13 @@ def _json_safe(value: object) -> object:
 
 
 __all__ = [
+    "TenderRegistryOccurrence",
+    "TenderRegistryQuery",
     "TenderRegistryRecord",
     "TenderRegistryRepository",
     "TenderRegistrySaveSummary",
+    "TenderRegistrySort",
+    "TenderRegistryStatistics",
     "TenderSearchRunRecord",
     "normalize_registry_component",
     "tender_registry_key",

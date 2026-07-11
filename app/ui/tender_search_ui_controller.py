@@ -17,6 +17,7 @@ from app.tenders.search_runtime import (
     TenderSearchRuntime,
     create_tender_search_runtime,
 )
+from app.ui.tender_registry_dialog import TenderRegistryDialog
 from app.ui.tender_search_profiles_dialog import (
     TenderSearchProfilesDialog,
 )
@@ -89,6 +90,7 @@ class TenderSearchUiController(QObject):
             self._theme = ThemeName.DARK
         self._thread_pool = thread_pool or QThreadPool.globalInstance()
         self._profiles_dialog: TenderSearchProfilesDialog | None = None
+        self._registry_dialog: TenderRegistryDialog | None = None
         self._result_dialogs: list[TenderSearchResultsDialog] = []
         self._active_workers: dict[str, _TenderSearchWorker] = {}
         # PySide6 can release a QMenu wrapper created by QMenuBar.addMenu()
@@ -109,9 +111,29 @@ class TenderSearchUiController(QObject):
             self.open_profiles_dialog
         )
 
+        self.registry_action = QAction(
+            "Реестр найденных тендеров…",
+            self,
+        )
+        self.registry_action.setObjectName("actionTenderRegistry")
+        self.registry_action.setShortcut(QKeySequence("Ctrl+Shift+R"))
+        self.registry_action.setStatusTip(
+            "Открыть локальный реестр найденных тендеров"
+        )
+        self.registry_action.setEnabled(
+            self.runtime.tender_registry is not None
+        )
+        self.registry_action.triggered.connect(
+            self.open_registry_dialog
+        )
+
     @property
     def profiles_dialog(self) -> TenderSearchProfilesDialog | None:
         return self._profiles_dialog
+
+    @property
+    def registry_dialog(self) -> TenderRegistryDialog | None:
+        return self._registry_dialog
 
     @property
     def result_dialogs(self) -> tuple[TenderSearchResultsDialog, ...]:
@@ -132,9 +154,14 @@ class TenderSearchUiController(QObject):
             setattr(main_window, "_tender_search_menu", menu)
             if self.action not in menu.actions():
                 menu.addAction(self.action)
-        elif self.action not in main_window.actions():
-            # Fallback for a QWidget-based shell: Ctrl+Shift+F still works.
-            main_window.addAction(self.action)
+            if self.registry_action not in menu.actions():
+                menu.addAction(self.registry_action)
+        else:
+            # Fallback for a QWidget-based shell: shortcuts still work.
+            if self.action not in main_window.actions():
+                main_window.addAction(self.action)
+            if self.registry_action not in main_window.actions():
+                main_window.addAction(self.registry_action)
 
         # Keep the controller alive for the whole window lifetime.
         setattr(
@@ -165,6 +192,34 @@ class TenderSearchUiController(QObject):
         self._profiles_dialog.open()
         self._profiles_dialog.raise_()
         self._profiles_dialog.activateWindow()
+
+    @Slot()
+    def open_registry_dialog(self) -> None:
+        repository = self.runtime.tender_registry
+        if repository is None:
+            self._set_profiles_status(
+                "Локальный реестр тендеров недоступен."
+            )
+            return
+
+        parent = self.parent()
+        parent_widget = (
+            parent if isinstance(parent, QWidget) else None
+        )
+        if self._registry_dialog is None:
+            self._registry_dialog = TenderRegistryDialog(
+                repository,
+                theme=self._theme,
+                parent=parent_widget,
+            )
+            self._registry_dialog.profiles_requested.connect(
+                self.open_profiles_dialog
+            )
+
+        self._registry_dialog.refresh_records()
+        self._registry_dialog.open()
+        self._registry_dialog.raise_()
+        self._registry_dialog.activateWindow()
 
     @Slot(str)
     def run_profile(self, profile_id: str) -> None:
@@ -243,6 +298,9 @@ class TenderSearchUiController(QObject):
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()
+
+        if self._registry_dialog is not None:
+            self._registry_dialog.refresh_records()
 
         self.search_finished.emit(profile_id, run)
 

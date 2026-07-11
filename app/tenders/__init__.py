@@ -67,9 +67,13 @@ from app.tenders.search_runtime import (
     create_tender_search_runtime,
 )
 from app.tenders.tender_registry import (
+    TenderRegistryOccurrence,
+    TenderRegistryQuery,
     TenderRegistryRecord,
     TenderRegistryRepository,
     TenderRegistrySaveSummary,
+    TenderRegistrySort,
+    TenderRegistryStatistics,
     TenderSearchRunRecord,
     tender_registry_key,
 )
@@ -99,7 +103,11 @@ __all__ = [
     "TenderSearchProfileRunner",
     "TenderSearchRuntime",
     "TenderSearchRunRecord",
+    "TenderRegistryOccurrence",
+    "TenderRegistryQuery",
     "TenderRegistrySaveSummary",
+    "TenderRegistrySort",
+    "TenderRegistryStatistics",
     "TenderRegistryRepository",
     "TenderRegistryRecord",
     "EisAccessBlockedError",
