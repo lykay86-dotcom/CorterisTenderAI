@@ -53,6 +53,7 @@ class AiAdvisor(QFrame):
         self._theme = ThemeName(theme)
         self._status = AiStatus.ONLINE
         self._action_key = ""
+        self._compact = False
 
         self.setObjectName("AiAdvisor")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -60,7 +61,11 @@ class AiAdvisor(QFrame):
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(320)
+        self.setAccessibleName("AI Advisor")
+        self.setAccessibleDescription(
+            "Рекомендации, приоритетный тендер и следующий шаг"
+        )
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(20, 18, 20, 18)
@@ -282,6 +287,24 @@ class AiAdvisor(QFrame):
         self._root.addWidget(self.action_caption)
         self._root.addWidget(self.action_button)
 
+    def set_compact(self, compact: bool) -> None:
+        """Switch between normal and compact spacing."""
+        self._compact = bool(compact)
+        margins = (16, 14, 16, 14) if self._compact else (20, 18, 20, 18)
+        self._root.setContentsMargins(*margins)
+        self._root.setSpacing(10 if self._compact else 14)
+
+    def set_busy(self, busy: bool, text: str = "Выполняется анализ") -> None:
+        """Display a loading state without losing the current recommendation."""
+        if busy:
+            self.set_status(AiStatus.BUSY, "● Анализ")
+            self.action_button.set_loading(True)
+            self.action_caption.setText(text)
+        else:
+            self.action_button.set_loading(False)
+            self.action_caption.setText("Следующее действие")
+            self.set_status(AiStatus.ONLINE)
+
     def set_status(
         self,
         status: AiStatus | str,
@@ -328,6 +351,13 @@ class AiAdvisor(QFrame):
         self.score_value.setText(
             "—" if score is None else f"{normalized_score}/100"
         )
+        self.score_bar.setAccessibleName("AI Score")
+        self.score_bar.setAccessibleDescription(
+            "Оценка отсутствует"
+            if score is None
+            else f"Оценка тендера {normalized_score} из 100"
+        )
+        self.apply_theme(self._theme)
 
     def set_reasons(self, reasons: list[str]) -> None:
         """Display up to four recommendation reasons."""
@@ -341,8 +371,11 @@ class AiAdvisor(QFrame):
 
     def set_warning(self, text: str = "") -> None:
         """Display or hide the warning block."""
-        self.warning_label.setText(text or "Предупреждений нет")
-        self.warning_frame.setVisible(bool(text))
+        normalized = text.strip()
+        self.warning_label.setText(normalized or "Предупреждений нет")
+        self.warning_frame.setVisible(bool(normalized))
+        self.warning_frame.setAccessibleName("Предупреждение AI")
+        self.warning_frame.setAccessibleDescription(normalized)
 
     def set_action(
         self,
@@ -352,9 +385,12 @@ class AiAdvisor(QFrame):
         enabled: bool = True,
     ) -> None:
         """Configure the primary advisor action."""
-        self._action_key = action_key
-        self.action_button.setText(text)
-        self.action_button.setEnabled(enabled)
+        self._action_key = action_key.strip()
+        self.action_button.setText(text.strip() or "Продолжить")
+        self.action_button.setEnabled(bool(enabled))
+        self.action_button.setAccessibleDescription(
+            f"Действие AI: {self.action_button.text()}"
+        )
 
     def set_empty_state(self) -> None:
         """Show a useful state before AI data is available."""
@@ -389,6 +425,16 @@ class AiAdvisor(QFrame):
         warning_foreground, warning_background = palette.semantic(
             SemanticColor.WARNING
         )
+
+        score = self.score_bar.value()
+        if score >= 80:
+            score_color = palette.success
+        elif score >= 60:
+            score_color = palette.warning
+        elif score > 0:
+            score_color = palette.danger
+        else:
+            score_color = palette.brand_accent
 
         self.setStyleSheet(
             f"""
@@ -455,7 +501,7 @@ class AiAdvisor(QFrame):
                 {Typography.BODY_S.css()}
             }}
             QLabel#AiAdvisorScore {{
-                color: {palette.brand_accent};
+                color: {score_color};
                 {Typography.BUTTON.css()}
             }}
             QProgressBar#AiAdvisorScoreBar {{
@@ -464,7 +510,7 @@ class AiAdvisor(QFrame):
                 border-radius: 4px;
             }}
             QProgressBar#AiAdvisorScoreBar::chunk {{
-                background-color: {palette.brand_accent};
+                background-color: {score_color};
                 border-radius: 4px;
             }}
             QLabel#AiAdvisorReason {{
