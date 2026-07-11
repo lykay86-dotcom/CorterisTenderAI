@@ -23,6 +23,13 @@ from app.ui.dashboard.activity_feed import (
     ActivityTone,
 )
 from app.ui.dashboard.ai_advisor import AiAdvisor
+from app.ui.dashboard.data_state import DataState, DataStateKind
+from app.ui.dashboard.demo_data import (
+    DashboardDemoSnapshot,
+    build_demo_snapshot,
+    build_empty_dashboard_kpis,
+    demo_mode_from_environment,
+)
 from app.ui.dashboard.keyboard_navigation import (
     DashboardShortcutManager,
 )
@@ -65,6 +72,7 @@ class DashboardPage(QWidget):
     tender_open_requested = Signal(str)
     recommendation_action_requested = Signal(int)
     kpi_action_requested = Signal(str)
+    demo_mode_changed = Signal(bool)
 
     def __init__(
         self,
@@ -72,6 +80,7 @@ class DashboardPage(QWidget):
         advisor_viewmodel: AiAdvisorViewModel | None = None,
         *,
         theme: ThemeName | str = ThemeName.DARK,
+        demo_mode: bool | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -81,6 +90,12 @@ class DashboardPage(QWidget):
         self.advisor_viewmodel = advisor_viewmodel or AiAdvisorViewModel(self)
         self._themed_sections: list[DashboardSection] = []
         self._layout_spec: DashboardLayoutSpec | None = None
+        self._data_state = DataState.ready()
+        self._demo_mode = (
+            demo_mode_from_environment()
+            if demo_mode is None
+            else bool(demo_mode)
+        )
 
         self.setObjectName("DashboardPage")
         self.setSizePolicy(
@@ -123,6 +138,8 @@ class DashboardPage(QWidget):
         self._apply_page_theme()
         self.refresh_from_state()
         self._render_advisor_state()
+        if self._demo_mode:
+            self.load_demo_data()
 
     def _build_header(self) -> None:
         header = QHBoxLayout()
@@ -201,6 +218,9 @@ class DashboardPage(QWidget):
         self.tender_feed.setMinimumHeight(360)
         self.tender_feed.tender_open_requested.connect(
             self.tender_open_requested
+        )
+        self.tender_feed.state_action_requested.connect(
+            self._handle_data_state_action
         )
         self.tender_section.add_widget(self.tender_feed)
 
@@ -313,34 +333,183 @@ class DashboardPage(QWidget):
         super().resizeEvent(event)
         self._apply_responsive_layout()
 
+    @property
+    def demo_mode(self) -> bool:
+        return self._demo_mode
+
+    def load_demo_data(
+        self,
+        snapshot: DashboardDemoSnapshot | None = None,
+    ) -> None:
+        """Load synthetic Corteris data for visual and UX review."""
+        demo = snapshot or build_demo_snapshot()
+        self._demo_mode = True
+
+        self.set_data_state(
+            DataState.loading(
+                "Подготавливаем демонстрационные KPI, тендеры "
+                "и AI-рекомендации."
+            )
+        )
+
+        for kpi in demo.kpis:
+            self.viewmodel.set_kpi(
+                kpi.key,
+                value=kpi.value,
+                trend=kpi.trend,
+                tone=kpi.tone,
+                title=kpi.title,
+                icon_text=kpi.icon_text,
+            )
+
+        self.viewmodel.set_recent_tenders(demo.tenders)
+        self.viewmodel.set_ai_recommendations(demo.recommendations)
+        self.activity_feed.set_entries(demo.activities)
+        self.activity_section.set_badge(
+            str(len(demo.activities))
+        )
+
+        self.set_data_state(DataState.ready())
+        self._sync_advisor_from_dashboard()
+        self._configure_tab_order()
+
+        self.subtitle_label.setText(
+            "Демонстрационный режим — используются синтетические данные."
+        )
+        self.quick_actions.set_badge("find_tenders", "DEMO")
+        self.status_banner.show_status(
+            title="Демонстрационный режим",
+            message=(
+                "Все показанные закупки и организации вымышлены "
+                "и используются только для проверки интерфейса."
+            ),
+            tone=StatusTone.INFO,
+            action_text="Выключить демо",
+            action_key="disable_demo_mode",
+        )
+        self.demo_mode_changed.emit(True)
+
+    def disable_demo_mode(self) -> None:
+        """Clear synthetic data and restore the normal empty state."""
+        if not self._demo_mode:
+            return
+
+        self._demo_mode = False
+
+        for kpi in build_empty_dashboard_kpis():
+            self.viewmodel.set_kpi(
+                kpi.key,
+                value=kpi.value,
+                trend=kpi.trend,
+                tone=kpi.tone,
+                title=kpi.title,
+                icon_text=kpi.icon_text,
+            )
+
+        self.viewmodel.set_recent_tenders([])
+        self.viewmodel.set_ai_recommendations([])
+        self.activity_feed.clear()
+        self.activity_section.set_badge("Сегодня")
+        self.quick_actions.set_badge("find_tenders", "")
+        self.subtitle_label.setText(
+            "Ключевые показатели, тендеры и действия на сегодня."
+        )
+        self.set_data_state(
+            DataState.empty(
+                "Новые тендеры появятся после запуска поиска."
+            )
+        )
+        self.status_banner.clear()
+        self._configure_tab_order()
+        self.demo_mode_changed.emit(False)
+
+    @property
+    def data_state(self) -> DataState:
+        return self._data_state
+
+    def set_data_state(self, state: DataState) -> None:
+        """Apply one semantic state to all Dashboard data components."""
+        self._data_state = state
+        self.kpi_center.set_data_state(state)
+        self.tender_feed.set_data_state(state)
+        self.ai_advisor.set_data_state(state)
+
+        actions_enabled = state.kind != DataStateKind.LOADING
+        for key in self.quick_actions.action_keys:
+            self.quick_actions.set_enabled(key, actions_enabled)
+
+        badge = {
+            DataStateKind.READY: (
+                str(len(self.tender_feed.model.tenders))
+                if self.tender_feed.model.tenders
+                else "Тендеры"
+            ),
+            DataStateKind.LOADING: "…",
+            DataStateKind.EMPTY: "0",
+            DataStateKind.ERROR: "!",
+            DataStateKind.PARTIAL: "Частично",
+        }[state.kind]
+        self.tender_section.set_badge(badge)
+
     def set_refreshing(self, refreshing: bool) -> None:
         """Toggle refresh loading and provide visible status feedback."""
         self.refresh_button.set_loading(bool(refreshing))
         self.refresh_button.setEnabled(not refreshing)
 
         if refreshing:
+            self.set_data_state(
+                DataState.loading(
+                    "Получаем актуальные тендеры, KPI и AI-рекомендации."
+                )
+            )
             self.status_banner.show_status(
                 title="Обновление данных",
                 message="Получаем актуальные тендеры и показатели.",
                 tone=StatusTone.LOADING,
                 dismissible=False,
             )
-        elif self.status_banner.tone == StatusTone.LOADING:
-            self.status_banner.show_status(
-                title="Данные обновлены",
-                message="Рабочий стол содержит актуальную информацию.",
-                tone=StatusTone.SUCCESS,
-                auto_hide_ms=2500,
-            )
+        else:
+            if self._data_state.kind == DataStateKind.LOADING:
+                next_state = (
+                    DataState.ready()
+                    if self.tender_feed.model.rowCount() > 0
+                    else DataState.empty(
+                        "По текущим условиям тендеры не найдены."
+                    )
+                )
+                self.set_data_state(next_state)
+
+            if self.status_banner.tone == StatusTone.LOADING:
+                self.status_banner.show_status(
+                    title="Данные обновлены",
+                    message="Рабочий стол содержит актуальную информацию.",
+                    tone=StatusTone.SUCCESS,
+                    auto_hide_ms=2500,
+                )
+
+    def set_partial_data(self, message: str) -> None:
+        self.set_data_state(DataState.partial(message))
+        self.status_banner.show_status(
+            title="Данные загружены частично",
+            message=message,
+            tone=StatusTone.WARNING,
+        )
 
     def show_error(
         self,
         message: str,
         *,
-        action_text: str = "",
-        action_key: str = "",
+        action_text: str = "Повторить",
+        action_key: str = "refresh_dashboard",
     ) -> None:
         """Show a recoverable Dashboard error."""
+        self.set_data_state(
+            DataState.error(
+                message,
+                action_text=action_text,
+                action_key=action_key,
+            )
+        )
         self.status_banner.show_status(
             title="Не удалось выполнить операцию",
             message=message,
@@ -378,6 +547,7 @@ class DashboardPage(QWidget):
         self.kpi_center.set_columns(spec.kpi_columns)
         self.quick_actions.set_columns(spec.quick_action_columns)
         self.ai_advisor.set_compact(spec.compact)
+        self.tender_feed.set_state_compact(spec.compact)
 
         self.tender_feed.setMinimumHeight(spec.tender_min_height)
         self.ai_advisor.setMinimumHeight(spec.advisor_min_height)
@@ -500,9 +670,20 @@ class DashboardPage(QWidget):
 
     def set_recent_tenders(self, tenders: list[RecentTender]) -> None:
         self.tender_feed.set_tenders(tenders)
-        self.tender_section.set_badge(
-            str(len(tenders)) if tenders else "Тендеры"
-        )
+
+        if self._data_state.kind not in {
+            DataStateKind.LOADING,
+            DataStateKind.ERROR,
+            DataStateKind.PARTIAL,
+        }:
+            self.set_data_state(
+                DataState.ready()
+                if tenders
+                else DataState.empty(
+                    "Новые тендеры появятся после запуска поиска."
+                )
+            )
+
         self._sync_advisor_from_dashboard()
 
     def set_ai_recommendations(
@@ -546,6 +727,12 @@ class DashboardPage(QWidget):
         self,
         recommendations: list[AiRecommendation] | None = None,
     ) -> None:
+        if self._data_state.kind in {
+            DataStateKind.LOADING,
+            DataStateKind.ERROR,
+        }:
+            return
+
         state = self.viewmodel.state
         recommendations = (
             state.ai_recommendations
@@ -681,9 +868,19 @@ class DashboardPage(QWidget):
         elif action_key == "create_estimate":
             self.create_estimate_requested.emit()
 
+    def _handle_data_state_action(self, action_key: str) -> None:
+        if action_key == "disable_demo_mode":
+            self.disable_demo_mode()
+            return
+        if action_key == "refresh_dashboard":
+            self.viewmodel.request_refresh()
+            return
+        if action_key in self.quick_actions.action_keys:
+            self.quick_actions.trigger(action_key)
+
     def _handle_status_action(self, action_key: str) -> None:
         self.status_banner.clear()
-        self._handle_activity_action(action_key)
+        self._handle_data_state_action(action_key)
 
     def _handle_activity_action(self, action_key: str) -> None:
         if action_key.startswith("open_tender:"):

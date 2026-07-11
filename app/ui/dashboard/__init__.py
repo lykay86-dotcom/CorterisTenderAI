@@ -7,6 +7,18 @@ from app.ui.dashboard.activity_feed import (
     ActivityTone,
 )
 from app.ui.dashboard.ai_advisor import AiAdvisor, AiStatus
+from app.ui.dashboard.data_state import (
+    DataState,
+    DataStateKind,
+    DataStatePanel,
+)
+from app.ui.dashboard.demo_data import (
+    DEMO_ENVIRONMENT_VARIABLE,
+    DashboardDemoSnapshot,
+    build_demo_snapshot,
+    build_empty_dashboard_kpis,
+    demo_mode_from_environment,
+)
 from app.ui.dashboard.keyboard_navigation import (
     DEFAULT_DASHBOARD_SHORTCUTS,
     DashboardShortcutManager,
@@ -47,6 +59,11 @@ __all__ = [
     "COLUMNS",
     "DEFAULT_DASHBOARD_SHORTCUTS",
     "DEFAULT_QUICK_ACTIONS",
+    "DataState",
+    "DataStateKind",
+    "DataStatePanel",
+    "DEMO_ENVIRONMENT_VARIABLE",
+    "DashboardDemoSnapshot",
     "DashboardDensity",
     "DashboardLayoutSpec",
     "DashboardSection",
@@ -63,5 +80,8 @@ __all__ = [
     "TenderColumn",
     "TenderFeed",
     "TenderFeedModel",
+    "build_demo_snapshot",
+    "build_empty_dashboard_kpis",
     "dashboard_layout_for_width",
+    "demo_mode_from_environment",
 ]
