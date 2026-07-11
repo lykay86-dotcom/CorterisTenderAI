@@ -21,6 +21,9 @@ from uuid import uuid4
 from app.config.settings import get_settings
 
 
+_UNSET = object()
+
+
 class BusinessRecordKind(StrEnum):
     ESTIMATE = "estimate"
     PROPOSAL = "proposal"
@@ -248,6 +251,92 @@ class BusinessMetricsRepository:
             profit=self._number(expected_profit),
             due_date=due_date,
         )
+
+    def update_record(
+        self,
+        record_id: str,
+        *,
+        title: Any = _UNSET,
+        total: Any = _UNSET,
+        profit: Any = _UNSET,
+        margin_percent: Any = _UNSET,
+        file_path: Any = _UNSET,
+        due_date: Any = _UNSET,
+    ) -> BusinessWorkflowRecord:
+        """Edit mutable record fields while preserving identity and status."""
+        with self._lock:
+            records = self._read_records_unlocked()
+            existing = next(
+                (
+                    record
+                    for record in records
+                    if record.id == record_id
+                ),
+                None,
+            )
+            if existing is None:
+                raise KeyError(record_id)
+
+            next_title = (
+                existing.title
+                if title is _UNSET
+                else str(title).strip()
+            )
+            if not next_title:
+                raise ValueError("Наименование не может быть пустым")
+
+            next_total = (
+                existing.total
+                if total is _UNSET
+                else self._number(total)
+            )
+            next_profit = (
+                existing.profit
+                if profit is _UNSET
+                else self._number(profit)
+            )
+            next_margin = (
+                existing.margin_percent
+                if margin_percent is _UNSET
+                else self._number(margin_percent)
+            )
+            next_file = (
+                existing.file_path
+                if file_path is _UNSET
+                else str(file_path).strip()
+            )
+            next_due = (
+                existing.due_date
+                if due_date is _UNSET
+                else str(due_date).strip()
+            )
+
+            if next_total < 0:
+                raise ValueError("Сумма не может быть отрицательной")
+            if next_profit < 0:
+                raise ValueError("Прибыль не может быть отрицательной")
+
+            updated = BusinessWorkflowRecord(
+                **{
+                    **asdict(existing),
+                    "title": next_title,
+                    "total": float(next_total),
+                    "profit": float(next_profit),
+                    "margin_percent": float(next_margin),
+                    "file_path": next_file,
+                    "due_date": next_due,
+                    "updated_at": datetime.now().isoformat(
+                        timespec="seconds"
+                    ),
+                }
+            )
+
+            result = [
+                updated if record.id == record_id else record
+                for record in records
+            ]
+            self._write_records_unlocked(result)
+            return updated
 
     def update_status(
         self,

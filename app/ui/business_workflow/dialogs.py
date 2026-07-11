@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from app.repositories.business_metrics import (
     BusinessRecordKind,
     BusinessStatus,
+    BusinessWorkflowRecord,
 )
 from app.ui.business_workflow.model import (
     KIND_LABELS,
@@ -44,13 +45,19 @@ class BusinessRecordDialog(QDialog):
         initial_kind: BusinessRecordKind | str = (
             BusinessRecordKind.PROPOSAL
         ),
+        record: BusinessWorkflowRecord | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
 
         self._theme = ThemeName(theme)
-        self.setWindowTitle("Новая запись бизнес-процесса")
+        self._record = record
+        self.setWindowTitle(
+            "Редактирование записи"
+            if record is not None
+            else "Новая запись бизнес-процесса"
+        )
         self.setModal(True)
         self.resize(560, 560)
 
@@ -58,12 +65,23 @@ class BusinessRecordDialog(QDialog):
         root.setContentsMargins(22, 20, 22, 20)
         root.setSpacing(16)
 
-        title = QLabel("Новая запись", self)
+        title = QLabel(
+            "Редактирование записи"
+            if record is not None
+            else "Новая запись",
+            self,
+        )
         title.setObjectName("BusinessDialogTitle")
 
         subtitle = QLabel(
-            "Добавьте КП, смету или проект для синхронизации "
-            "с Dashboard.",
+            (
+                "Измените название, финансовые показатели, "
+                "срок или связанный файл."
+                if record is not None
+                else
+                "Добавьте КП, смету или проект для синхронизации "
+                "с Dashboard."
+            ),
             self,
         )
         subtitle.setObjectName("BusinessDialogSubtitle")
@@ -140,7 +158,11 @@ class BusinessRecordDialog(QDialog):
         )
         self.buttons.button(
             QDialogButtonBox.StandardButton.Save
-        ).setText("Сохранить")
+        ).setText(
+            "Сохранить изменения"
+            if record is not None
+            else "Сохранить"
+        )
         self.buttons.button(
             QDialogButtonBox.StandardButton.Cancel
         ).setText("Отмена")
@@ -151,8 +173,27 @@ class BusinessRecordDialog(QDialog):
         self.kind_combo.currentIndexChanged.connect(
             self._refresh_statuses
         )
-        self._set_initial_kind(initial_kind)
+        self.total_spin.valueChanged.connect(
+            self._recalculate_margin
+        )
+        self.profit_spin.valueChanged.connect(
+            self._recalculate_margin
+        )
+
+        if record is not None:
+            self._load_record(record)
+        else:
+            self._set_initial_kind(initial_kind)
+
         self.apply_theme(self._theme)
+
+    @property
+    def record(self) -> BusinessWorkflowRecord | None:
+        return self._record
+
+    @property
+    def edit_mode(self) -> bool:
+        return self._record is not None
 
     def payload(self) -> dict[str, object]:
         return {
@@ -229,6 +270,54 @@ class BusinessRecordDialog(QDialog):
         spin.setSingleStep(10_000)
         spin.setSuffix(" ₽")
         return spin
+
+    def _load_record(
+        self,
+        record: BusinessWorkflowRecord,
+    ) -> None:
+        self._set_initial_kind(record.kind)
+
+        self.kind_combo.setEnabled(False)
+        self.tender_edit.setEnabled(False)
+        self.status_combo.setEnabled(False)
+
+        self.tender_edit.setText(record.tender_id)
+        self.title_edit.setText(record.title)
+
+        status_index = self.status_combo.findData(record.status)
+        if status_index >= 0:
+            self.status_combo.setCurrentIndex(status_index)
+
+        for spin, value in (
+            (self.total_spin, record.total),
+            (self.profit_spin, record.profit),
+            (self.margin_spin, record.margin_percent),
+        ):
+            spin.blockSignals(True)
+            spin.setValue(float(value))
+            spin.blockSignals(False)
+
+        self.due_edit.setText(record.due_date)
+        self.file_edit.setText(record.file_path)
+        self.file_edit.setEnabled(
+            record.kind == BusinessRecordKind.PROPOSAL.value
+        )
+
+        if not record.margin_percent:
+            self._recalculate_margin()
+
+    def _recalculate_margin(self) -> None:
+        total = Decimal(str(self.total_spin.value()))
+        profit = Decimal(str(self.profit_spin.value()))
+
+        margin = (
+            (profit / total * Decimal("100"))
+            if total > 0
+            else Decimal("0")
+        )
+        self.margin_spin.blockSignals(True)
+        self.margin_spin.setValue(float(margin))
+        self.margin_spin.blockSignals(False)
 
     def _set_initial_kind(
         self,

@@ -360,6 +360,15 @@ class BusinessWorkflowPage(QWidget):
         action_row.addWidget(self.advance_button)
         layout.addLayout(action_row)
 
+        self.edit_button = OutlineButton(
+            "Редактировать",
+            icon_text="✎",
+            theme=self._theme,
+            parent=panel,
+        )
+        self.edit_button.clicked.connect(self._edit_selected)
+        self.edit_button.setEnabled(False)
+
         self.open_file_button = SecondaryButton(
             "Открыть документ",
             theme=self._theme,
@@ -388,6 +397,7 @@ class BusinessWorkflowPage(QWidget):
         self.block_button.clicked.connect(self._block_selected)
         self.block_button.setEnabled(False)
 
+        layout.addWidget(self.edit_button)
         layout.addWidget(self.open_file_button)
         layout.addWidget(self.open_tender_button)
         layout.addWidget(self.block_button)
@@ -398,7 +408,10 @@ class BusinessWorkflowPage(QWidget):
     def selected_record(self) -> BusinessWorkflowRecord | None:
         return self._selected_record
 
-    def refresh(self) -> None:
+    def refresh(
+        self,
+        preferred_record_id: str | None = None,
+    ) -> None:
         try:
             records = self.repository.list_records()
             summary = self.repository.summary(activity_limit=0)
@@ -416,7 +429,13 @@ class BusinessWorkflowPage(QWidget):
             datetime.now().strftime("Обновлено %H:%M")
         )
         self._restore_initial_filter()
-        self._select_first_visible()
+        if (
+            preferred_record_id
+            and self._select_record_id(preferred_record_id)
+        ):
+            pass
+        else:
+            self._select_first_visible()
         self.status_banner.clear()
 
     def apply_theme(self, theme: ThemeName | str) -> None:
@@ -432,6 +451,7 @@ class BusinessWorkflowPage(QWidget):
             self.reset_button,
             self.apply_status_button,
             self.advance_button,
+            self.edit_button,
             self.open_file_button,
             self.open_tender_button,
             self.block_button,
@@ -578,6 +598,7 @@ class BusinessWorkflowPage(QWidget):
         self.empty_label.setVisible(not visible)
         self.transition_combo.setEnabled(visible)
         self.apply_status_button.setEnabled(visible)
+        self.edit_button.setEnabled(visible)
         self.open_tender_button.setEnabled(
             bool(record and record.tender_id)
         )
@@ -636,6 +657,47 @@ class BusinessWorkflowPage(QWidget):
         self.block_button.setEnabled(
             BusinessStatus.BLOCKED in transitions
         )
+
+    def _edit_selected(self) -> None:
+        record = self._selected_record
+        if record is None:
+            return
+
+        dialog = BusinessRecordDialog(
+            record=record,
+            theme=self._theme,
+            parent=self,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+
+        payload = dialog.payload()
+        try:
+            updated = self.repository.update_record(
+                record.id,
+                title=payload["title"],
+                total=payload["total"],
+                profit=payload["profit"],
+                margin_percent=payload["margin_percent"],
+                file_path=payload["file_path"],
+                due_date=payload["due_date"],
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка редактирования",
+                str(exc),
+            )
+            return
+
+        self.status_banner.show_status(
+            title="Изменения сохранены",
+            message=updated.title,
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=2500,
+        )
+        self.refresh(preferred_record_id=updated.id)
+        self.workflow_changed.emit()
 
     def _create_record(self) -> None:
         initial_kind = (
@@ -806,6 +868,22 @@ class BusinessWorkflowPage(QWidget):
         )
         if index >= 0:
             self.kind_filter.setCurrentIndex(index)
+
+    def _select_record_id(self, record_id: str) -> bool:
+        for source_row, record in enumerate(self.model.records):
+            if record.id != record_id:
+                continue
+
+            source_index = self.model.index(source_row, 0)
+            proxy_index = self.proxy.mapFromSource(source_index)
+            if not proxy_index.isValid():
+                return False
+
+            self.table.setCurrentIndex(proxy_index)
+            self.table.selectRow(proxy_index.row())
+            self.table.scrollTo(proxy_index)
+            return True
+        return False
 
     def _select_first_visible(self) -> None:
         if self.proxy.rowCount() <= 0:
