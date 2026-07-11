@@ -17,8 +17,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.repositories.business_metrics import (
+    BusinessMetricsRepository,
+    BusinessRecordKind,
+)
 from app.ui.controllers.dashboard_controller import DashboardController
 from app.ui.main_window import MainWindow as LegacyMainWindow
+from app.ui.pages.business_workflow_page import BusinessWorkflowPage
 from app.ui.pages.dashboard_page import DashboardPage
 from app.ui.theme.colors import ThemeName
 from app.ui.theme.stylesheet import build_stylesheet
@@ -91,19 +96,30 @@ class ModernMainWindow(QMainWindow):
                 "в следующих коммитах."
             ),
         )
+        self.business_repository = BusinessMetricsRepository()
+
+        self.quotes_page = BusinessWorkflowPage(
+            repository=self.business_repository,
+            initial_kind=BusinessRecordKind.PROPOSAL,
+            theme=self._theme,
+            parent=self.workspace.pages,
+        )
         self.workspace.add_page(
             "quotes",
-            "Коммерческие предложения",
-            self._placeholder(
-                "Создание и история коммерческих предложений."
-            ),
+            "КП, сметы и проекты",
+            self.quotes_page,
+        )
+
+        self.estimates_page = BusinessWorkflowPage(
+            repository=self.business_repository,
+            initial_kind=BusinessRecordKind.ESTIMATE,
+            theme=self._theme,
+            parent=self.workspace.pages,
         )
         self.workspace.add_page(
             "estimates",
-            "Сметы",
-            self._placeholder(
-                "Сметный модуль пока доступен в разделе «Тендеры»."
-            ),
+            "Сметы и проекты",
+            self.estimates_page,
         )
         self.workspace.add_page(
             "documents",
@@ -152,6 +168,14 @@ class ModernMainWindow(QMainWindow):
             )
         )
 
+        for page in (self.quotes_page, self.estimates_page):
+            page.tender_open_requested.connect(
+                self._open_tender_from_dashboard
+            )
+            page.workflow_changed.connect(
+                self._business_workflow_changed
+            )
+
         self.apply_theme(self._theme)
         self.workspace.sidebar.select("dashboard")
         self.dashboard_controller.start()
@@ -183,13 +207,26 @@ class ModernMainWindow(QMainWindow):
             lambda: self.workspace.sidebar.select("tenders")
         )
         self.dashboard_page.create_proposal_requested.connect(
-            lambda: self.workspace.sidebar.select("tenders")
+            lambda: self.workspace.sidebar.select("quotes")
         )
         self.dashboard_page.create_estimate_requested.connect(
-            lambda: self.workspace.sidebar.select("tenders")
+            lambda: self.workspace.sidebar.select("estimates")
         )
         self.dashboard_page.analyze_documents_requested.connect(
             lambda: self.workspace.sidebar.select("ai")
+        )
+
+    def _business_workflow_changed(self) -> None:
+        """Synchronize both workflow views and Dashboard KPI."""
+        sender = self.sender()
+        for page in (self.quotes_page, self.estimates_page):
+            if page is not sender:
+                page.refresh()
+
+        self.dashboard_controller.refresh()
+        self.statusBar().showMessage(
+            "Бизнес-процессы и Dashboard обновлены",
+            4000,
         )
 
     def _open_tender_from_dashboard(self, tender_id: str) -> None:
@@ -223,6 +260,8 @@ class ModernMainWindow(QMainWindow):
         self._theme = ThemeName(theme)
         self.setStyleSheet(build_stylesheet(self._theme.value))
         self.dashboard_page.set_theme(self._theme)
+        self.quotes_page.apply_theme(self._theme)
+        self.estimates_page.apply_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme.value)
 
         self.workspace.topbar.theme_button.setText(

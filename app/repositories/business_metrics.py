@@ -131,6 +131,46 @@ class BusinessMetricsRepository:
             if record.kind == normalized_kind
         ]
 
+    def get_record(
+        self,
+        record_id: str,
+    ) -> BusinessWorkflowRecord | None:
+        """Return one workflow record by its stable UUID."""
+        return next(
+            (
+                record
+                for record in self._read_records()
+                if record.id == record_id
+            ),
+            None,
+        )
+
+    def save_record(
+        self,
+        *,
+        kind: BusinessRecordKind | str,
+        tender_id: str | int,
+        title: str,
+        status: BusinessStatus | str,
+        total: float | Decimal = 0,
+        profit: float | Decimal = 0,
+        margin_percent: float | Decimal = 0,
+        file_path: str | Path = "",
+        due_date: str = "",
+    ) -> BusinessWorkflowRecord:
+        """Create or update one generic business workflow record."""
+        return self._upsert(
+            kind=kind,
+            tender_id=tender_id,
+            title=title,
+            status=status,
+            total=self._number(total),
+            profit=self._number(profit),
+            margin_percent=self._number(margin_percent),
+            file_path=str(file_path),
+            due_date=due_date,
+        )
+
     def record_estimate(
         self,
         tender_id: str | int,
