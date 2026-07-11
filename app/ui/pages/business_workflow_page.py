@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QListWidget,
+    QListWidgetItem,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -27,6 +29,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.repositories.business_metrics import (
+    BusinessAuditAction,
+    BusinessAuditEvent,
     BusinessMetricsRepository,
     BusinessRecordKind,
     BusinessStatus,
@@ -396,6 +400,32 @@ class BusinessWorkflowPage(QWidget):
         self.detail_form.addRow("Файл", self.detail_file)
         layout.addLayout(self.detail_form)
 
+        history_title = QLabel("История изменений", content)
+        history_title.setObjectName("WorkflowHistoryTitle")
+        layout.addWidget(history_title)
+
+        self.history_empty = QLabel(
+            "История для выбранной записи пока отсутствует.",
+            content,
+        )
+        self.history_empty.setObjectName("WorkflowHistoryEmpty")
+        self.history_empty.setWordWrap(True)
+        layout.addWidget(self.history_empty)
+
+        self.history_list = QListWidget(content)
+        self.history_list.setObjectName("WorkflowHistoryList")
+        self.history_list.setWordWrap(True)
+        self.history_list.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection
+        )
+        self.history_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.history_list.setMinimumHeight(190)
+        self.history_list.setMaximumHeight(310)
+        self.history_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        layout.addWidget(self.history_list)
+
         status_title = QLabel("Переход статуса", content)
         status_title.setObjectName("WorkflowStatusTitle")
         layout.addWidget(status_title)
@@ -628,9 +658,14 @@ class BusinessWorkflowPage(QWidget):
                 color: {palette.text_primary};
                 {Typography.H3.css()}
             }}
-            QLabel#WorkflowStatusTitle {{
+            QLabel#WorkflowStatusTitle,
+            QLabel#WorkflowHistoryTitle {{
                 color: {palette.text_secondary};
                 {Typography.BUTTON.css()}
+            }}
+            QLabel#WorkflowHistoryEmpty {{
+                color: {palette.text_muted};
+                {Typography.BODY_S.css()}
             }}
             QFrame#WorkflowDetailPanel QLabel {{
                 color: {palette.text_secondary};
@@ -648,6 +683,22 @@ class BusinessWorkflowPage(QWidget):
                 border-radius: 8px;
                 padding: 9px 10px;
                 {Typography.BODY_M.css()}
+            }}
+            QListWidget#WorkflowHistoryList {{
+                color: {palette.text_primary};
+                background-color: {palette.input_background};
+                border: 1px solid {palette.border_subtle};
+                border-radius: 8px;
+                padding: 5px;
+                outline: none;
+                {Typography.BODY_S.css()}
+            }}
+            QListWidget#WorkflowHistoryList::item {{
+                border-bottom: 1px solid {palette.border_subtle};
+                padding: 9px 7px;
+            }}
+            QListWidget#WorkflowHistoryList::item:last {{
+                border-bottom: none;
             }}
             QLineEdit, QComboBox {{
                 min-height: 34px;
@@ -781,6 +832,8 @@ class BusinessWorkflowPage(QWidget):
             ):
                 label.setText("—")
             self.transition_combo.clear()
+            self.history_list.clear()
+            self.history_empty.show()
             self.advance_button.setEnabled(False)
             self.block_button.setEnabled(False)
             self.archive_button.setEnabled(False)
@@ -800,6 +853,7 @@ class BusinessWorkflowPage(QWidget):
         self.detail_title.setToolTip(record.title)
         self.detail_tender.setToolTip(record.tender_id or "")
         self.detail_file.setToolTip(record.file_path or "")
+        self._load_history(record.id)
 
         transitions = (
             ()
@@ -828,6 +882,111 @@ class BusinessWorkflowPage(QWidget):
                 and BusinessStatus.BLOCKED in transitions
             )
         )
+
+    def _load_history(self, record_id: str) -> None:
+        try:
+            events = self.repository.list_history(
+                record_id,
+                limit=50,
+            )
+        except Exception as exc:
+            self.history_list.clear()
+            self.history_empty.setText(
+                f"Не удалось загрузить историю: {exc}"
+            )
+            self.history_empty.show()
+            return
+
+        self.history_list.clear()
+        self.history_empty.setText(
+            "История для выбранной записи пока отсутствует."
+        )
+        self.history_empty.setVisible(not events)
+        self.history_list.setVisible(bool(events))
+
+        for event in events:
+            item = QListWidgetItem(
+                self._history_event_text(event)
+            )
+            item.setToolTip(
+                self._history_event_tooltip(event)
+            )
+            self.history_list.addItem(item)
+
+    def _history_event_text(
+        self,
+        event: BusinessAuditEvent,
+    ) -> str:
+        timestamp = event.timestamp.strftime("%d.%m.%Y %H:%M")
+        action = BusinessAuditAction(event.action)
+
+        if action == BusinessAuditAction.CREATED:
+            detail = "Создана запись"
+        elif action == BusinessAuditAction.ARCHIVED:
+            detail = "Запись перемещена в архив"
+        elif action == BusinessAuditAction.RESTORED:
+            detail = "Запись восстановлена из архива"
+        elif action == BusinessAuditAction.STATUS_CHANGED:
+            detail = (
+                f"Статус: {self._history_value(event.field, event.old_value)}"
+                f" → {self._history_value(event.field, event.new_value)}"
+            )
+        else:
+            field_label = self._history_field_label(event.field)
+            detail = (
+                f"{field_label}: "
+                f"{self._history_value(event.field, event.old_value)}"
+                f" → {self._history_value(event.field, event.new_value)}"
+            )
+
+        return f"{timestamp}\n{detail}"
+
+    def _history_event_tooltip(
+        self,
+        event: BusinessAuditEvent,
+    ) -> str:
+        return (
+            f"Событие: {event.action}\n"
+            f"Поле: {event.field or '—'}\n"
+            f"Пользователь: {event.actor}"
+        )
+
+    @staticmethod
+    def _history_field_label(field: str) -> str:
+        return {
+            "title": "Название",
+            "status": "Статус",
+            "total": "Сумма",
+            "profit": "Прибыль",
+            "margin_percent": "Маржа",
+            "file_path": "Файл",
+            "due_date": "Срок",
+            "archived_at": "Архив",
+        }.get(field, field or "Запись")
+
+    def _history_value(self, field: str, value: str) -> str:
+        if value == "":
+            return "не указано"
+
+        if field == "status":
+            try:
+                return status_label(BusinessStatus(value))
+            except ValueError:
+                return value
+
+        if field in {"total", "profit"}:
+            try:
+                return self._money(Decimal(value))
+            except Exception:
+                return value
+
+        if field == "margin_percent":
+            try:
+                return f"{Decimal(value):.2f}%"
+            except Exception:
+                return value
+
+        return value
 
     def _archive_selected(self) -> None:
         record = self._selected_record

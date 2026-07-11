@@ -2,6 +2,8 @@
 
 from app.repositories.business_metrics import (
     BusinessActivity,
+    BusinessAuditAction,
+    BusinessAuditEvent,
     BusinessMetricsRepository,
     BusinessMetricsSnapshot,
     BusinessRecordKind,
@@ -12,6 +14,8 @@ from app.repositories.tenders import TenderRepository
 
 __all__ = [
     "BusinessActivity",
+    "BusinessAuditAction",
+    "BusinessAuditEvent",
     "BusinessMetricsRepository",
     "BusinessMetricsSnapshot",
     "BusinessRecordKind",

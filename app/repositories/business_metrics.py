@@ -30,6 +30,14 @@ class BusinessRecordKind(StrEnum):
     PROJECT = "project"
 
 
+class BusinessAuditAction(StrEnum):
+    CREATED = "created"
+    UPDATED = "updated"
+    STATUS_CHANGED = "status_changed"
+    ARCHIVED = "archived"
+    RESTORED = "restored"
+
+
 class BusinessStatus(StrEnum):
     DRAFT = "draft"
     REVIEW = "review"
@@ -68,6 +76,25 @@ class BusinessWorkflowRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class BusinessAuditEvent:
+    id: str
+    record_id: str
+    action: str
+    occurred_at: str
+    field: str = ""
+    old_value: str = ""
+    new_value: str = ""
+    actor: str = "local_user"
+
+    @property
+    def timestamp(self) -> datetime:
+        try:
+            return datetime.fromisoformat(self.occurred_at)
+        except ValueError:
+            return datetime.min
+
+
+@dataclass(frozen=True, slots=True)
 class BusinessActivity:
     key: str
     title: str
@@ -92,7 +119,7 @@ class BusinessMetricsSnapshot:
 class BusinessMetricsRepository:
     """Atomic JSON repository for estimates, proposals and projects."""
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     PROPOSAL_IN_WORK = {
         BusinessStatus.DRAFT,
@@ -165,6 +192,28 @@ class BusinessMetricsRepository:
             ),
             None,
         )
+
+    def list_history(
+        self,
+        record_id: str,
+        *,
+        limit: int | None = None,
+    ) -> list[BusinessAuditEvent]:
+        """Return newest audit events for one workflow record."""
+        with self._lock:
+            events = [
+                event
+                for event in self._read_events_unlocked()
+                if event.record_id == record_id
+            ]
+
+        events.sort(
+            key=lambda event: event.timestamp,
+            reverse=True,
+        )
+        if limit is None:
+            return events
+        return events[: max(0, int(limit))]
 
     def save_record(
         self,
@@ -357,7 +406,23 @@ class BusinessMetricsRepository:
                 updated if record.id == record_id else record
                 for record in records
             ]
-            self._write_records_unlocked(result)
+            events = self._field_change_events(
+                existing,
+                updated,
+                fields=(
+                    "title",
+                    "total",
+                    "profit",
+                    "margin_percent",
+                    "file_path",
+                    "due_date",
+                ),
+                occurred_at=updated.updated_at,
+            )
+            self._write_records_with_events_unlocked(
+                result,
+                events,
+            )
             return updated
 
     def update_status(
@@ -368,12 +433,14 @@ class BusinessMetricsRepository:
         normalized_status = BusinessStatus(status).value
         with self._lock:
             records = self._read_records_unlocked()
+            existing: BusinessWorkflowRecord | None = None
             updated: BusinessWorkflowRecord | None = None
             now = datetime.now().isoformat(timespec="seconds")
 
             result: list[BusinessWorkflowRecord] = []
             for record in records:
                 if record.id == record_id:
+                    existing = record
                     updated = BusinessWorkflowRecord(
                         **{
                             **asdict(record),
@@ -392,7 +459,18 @@ class BusinessMetricsRepository:
                     "Нельзя изменять статус архивной записи"
                 )
 
-            self._write_records_unlocked(result)
+            event = self._new_event(
+                record_id=record_id,
+                action=BusinessAuditAction.STATUS_CHANGED,
+                field="status",
+                old_value=existing.status if existing else "",
+                new_value=updated.status,
+                occurred_at=now,
+            )
+            self._write_records_with_events_unlocked(
+                result,
+                [event],
+            )
             return updated
 
     def archive_record(
@@ -446,7 +524,22 @@ class BusinessMetricsRepository:
                 updated if record.id == record_id else record
                 for record in records
             ]
-            self._write_records_unlocked(result)
+            event = self._new_event(
+                record_id=record_id,
+                action=(
+                    BusinessAuditAction.ARCHIVED
+                    if archived
+                    else BusinessAuditAction.RESTORED
+                ),
+                field="archived_at",
+                old_value=existing.archived_at,
+                new_value=updated.archived_at,
+                occurred_at=now,
+            )
+            self._write_records_with_events_unlocked(
+                result,
+                [event],
+            )
             return updated
 
     def summary(
@@ -568,29 +661,94 @@ class BusinessMetricsRepository:
                 if item.id != record.id
             ]
             result.append(record)
-            self._write_records_unlocked(result)
+
+            if existing is None:
+                events = [
+                    self._new_event(
+                        record_id=record.id,
+                        action=BusinessAuditAction.CREATED,
+                        new_value=record.title,
+                        occurred_at=now,
+                    )
+                ]
+            else:
+                events = self._field_change_events(
+                    existing,
+                    record,
+                    fields=(
+                        "title",
+                        "status",
+                        "total",
+                        "profit",
+                        "margin_percent",
+                        "file_path",
+                        "due_date",
+                    ),
+                    occurred_at=now,
+                )
+
+            self._write_records_with_events_unlocked(
+                result,
+                events,
+            )
             return record
 
     def _read_records(self) -> list[BusinessWorkflowRecord]:
         with self._lock:
             return self._read_records_unlocked()
 
-    def _read_records_unlocked(self) -> list[BusinessWorkflowRecord]:
+    def _read_payload_unlocked(self) -> dict[str, Any]:
         if not self.path.exists():
-            return []
+            return {
+                "schema_version": self.SCHEMA_VERSION,
+                "records": [],
+                "events": [],
+            }
 
         try:
             payload = json.loads(
                 self.path.read_text(encoding="utf-8")
             )
         except (OSError, json.JSONDecodeError):
-            return []
+            return {
+                "schema_version": self.SCHEMA_VERSION,
+                "records": [],
+                "events": [],
+            }
 
-        raw_records = payload.get("records", [])
+        if not isinstance(payload, dict):
+            return {
+                "schema_version": self.SCHEMA_VERSION,
+                "records": [],
+                "events": [],
+            }
+
+        payload.setdefault("records", [])
+        payload.setdefault("events", [])
+        return payload
+
+    def _read_records_unlocked(self) -> list[BusinessWorkflowRecord]:
+        payload = self._read_payload_unlocked()
         result: list[BusinessWorkflowRecord] = []
-        for raw in raw_records:
+
+        for raw in payload.get("records", []):
+            if not isinstance(raw, dict):
+                continue
             try:
                 result.append(BusinessWorkflowRecord(**raw))
+            except (TypeError, ValueError):
+                continue
+        return result
+
+    def _read_events_unlocked(self) -> list[BusinessAuditEvent]:
+        payload = self._read_payload_unlocked()
+        result: list[BusinessAuditEvent] = []
+
+        for raw in payload.get("events", []):
+            if not isinstance(raw, dict):
+                continue
+            try:
+                result.append(BusinessAuditEvent(**raw))
             except (TypeError, ValueError):
                 continue
         return result
@@ -599,10 +757,30 @@ class BusinessMetricsRepository:
         self,
         records: Iterable[BusinessWorkflowRecord],
     ) -> None:
+        self._write_state_unlocked(
+            records,
+            self._read_events_unlocked(),
+        )
+
+    def _write_records_with_events_unlocked(
+        self,
+        records: Iterable[BusinessWorkflowRecord],
+        new_events: Iterable[BusinessAuditEvent],
+    ) -> None:
+        events = self._read_events_unlocked()
+        events.extend(new_events)
+        self._write_state_unlocked(records, events)
+
+    def _write_state_unlocked(
+        self,
+        records: Iterable[BusinessWorkflowRecord],
+        events: Iterable[BusinessAuditEvent],
+    ) -> None:
         payload = {
             "schema_version": self.SCHEMA_VERSION,
             "updated_at": datetime.now().isoformat(timespec="seconds"),
             "records": [asdict(record) for record in records],
+            "events": [asdict(event) for event in events],
         }
         temporary = self.path.with_suffix(
             self.path.suffix + ".tmp"
@@ -616,6 +794,74 @@ class BusinessMetricsRepository:
             encoding="utf-8",
         )
         temporary.replace(self.path)
+
+    def _field_change_events(
+        self,
+        before: BusinessWorkflowRecord,
+        after: BusinessWorkflowRecord,
+        *,
+        fields: Iterable[str],
+        occurred_at: str,
+    ) -> list[BusinessAuditEvent]:
+        events: list[BusinessAuditEvent] = []
+        for field in fields:
+            old_value = getattr(before, field)
+            new_value = getattr(after, field)
+            if old_value == new_value:
+                continue
+
+            action = (
+                BusinessAuditAction.STATUS_CHANGED
+                if field == "status"
+                else BusinessAuditAction.UPDATED
+            )
+            events.append(
+                self._new_event(
+                    record_id=after.id,
+                    action=action,
+                    field=field,
+                    old_value=old_value,
+                    new_value=new_value,
+                    occurred_at=occurred_at,
+                )
+            )
+        return events
+
+    @staticmethod
+    def _new_event(
+        *,
+        record_id: str,
+        action: BusinessAuditAction | str,
+        field: str = "",
+        old_value: Any = "",
+        new_value: Any = "",
+        occurred_at: str | None = None,
+    ) -> BusinessAuditEvent:
+        return BusinessAuditEvent(
+            id=str(uuid4()),
+            record_id=record_id,
+            action=BusinessAuditAction(action).value,
+            occurred_at=(
+                occurred_at
+                or datetime.now().isoformat(timespec="seconds")
+            ),
+            field=field,
+            old_value=BusinessMetricsRepository._audit_value(
+                old_value
+            ),
+            new_value=BusinessMetricsRepository._audit_value(
+                new_value
+            ),
+        )
+
+    @staticmethod
+    def _audit_value(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, Decimal):
+            return format(value, "f")
+        return str(value)
+
 
     def _potential_profit(
         self,
@@ -743,6 +989,8 @@ class BusinessMetricsRepository:
 
 __all__ = [
     "BusinessActivity",
+    "BusinessAuditAction",
+    "BusinessAuditEvent",
     "BusinessMetricsRepository",
     "BusinessMetricsSnapshot",
     "BusinessRecordKind",
