@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Any
 
+from app.core.launch_guard import LaunchGuardService
 from app.core.crash_reporting import (
     CrashReportService,
     GlobalCrashHandler,
@@ -33,6 +34,15 @@ def bootstrap() -> None:
     """Initialize infrastructure, crash capture and the Qt application."""
     context = initialize_core()
 
+    launch_guard = LaunchGuardService(
+        context.paths.data_dir / "launch_history.json"
+    )
+    force_safe_mode = "--safe-mode" in sys.argv
+    safe_mode_decision = launch_guard.evaluate(
+        force_safe_mode=force_safe_mode
+    )
+    launch_guard.begin_launch()
+
     crash_service = CrashReportService(
         context.paths.data_dir / "crash_reports",
         log_file=context.paths.log_dir / "app.log",
@@ -48,6 +58,7 @@ def bootstrap() -> None:
     try:
         from PySide6.QtWidgets import QApplication
         from app.ui.crash_report_dialog import QtCrashBridge
+        from app.ui.safe_mode_dialog import SafeModeDialog
         from app.ui.modern_main_window import ModernMainWindow
     except ImportError as exc:
         raise SystemExit(
@@ -64,6 +75,37 @@ def bootstrap() -> None:
         crash_handler,
         parent=application,
     )
+
+    def handle_crash(report) -> None:
+        launch_guard.mark_crash(
+            crash_report=report.path,
+            details=(
+                f"{report.exception_type}: "
+                f"{report.exception_message}"
+            ),
+        )
+        crash_bridge.notify(report)
+
+    crash_handler.set_report_callback(handle_crash)
+
+    if safe_mode_decision.enabled:
+        safe_dialog = SafeModeDialog(
+            decision=safe_mode_decision,
+            launch_guard=launch_guard,
+            data_directory=context.paths.data_dir,
+            database_file=context.paths.database_file,
+            backups_directory=context.paths.backups_dir,
+            crash_reports_directory=(
+                context.paths.data_dir / "crash_reports"
+            ),
+        )
+        safe_result = safe_dialog.exec()
+        if safe_result != SafeModeDialog.NORMAL_EXIT_CODE:
+            launch_guard.mark_safe_mode_exit(
+                details="Пользователь завершил безопасный режим."
+            )
+            crash_handler.uninstall()
+            raise SystemExit(0)
 
     try:
         window = ModernMainWindow()
@@ -85,6 +127,9 @@ def bootstrap() -> None:
     window.show()
     exit_code = application.exec()
 
+    launch_guard.mark_clean_exit(
+        details=f"Qt exit code: {exit_code}"
+    )
     crash_handler.uninstall()
     raise SystemExit(exit_code)
 
