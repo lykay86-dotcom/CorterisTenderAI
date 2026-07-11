@@ -1,4 +1,4 @@
-"""Dashboard 1.0 structural skeleton for Corteris Tender AI."""
+"""Dashboard 1.0 with KPI Center for Corteris Tender AI."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.section import DashboardSection
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
@@ -30,11 +31,11 @@ from app.ui.widgets.button import (
     PrimaryButton,
     SecondaryButton,
 )
-from app.ui.widgets.card import CardTone, KpiCard
+from app.ui.widgets.card import CardTone
 
 
 class DashboardPage(QWidget):
-    """Responsive Dashboard 1.0 shell with clearly separated work zones."""
+    """Responsive Dashboard 1.0 shell with a six-card KPI Center."""
 
     find_tenders_requested = Signal()
     create_proposal_requested = Signal()
@@ -42,6 +43,7 @@ class DashboardPage(QWidget):
     analyze_documents_requested = Signal()
     tender_open_requested = Signal(str)
     recommendation_action_requested = Signal(int)
+    kpi_action_requested = Signal(str)
 
     def __init__(
         self,
@@ -54,7 +56,6 @@ class DashboardPage(QWidget):
 
         self._theme = ThemeName(theme)
         self.viewmodel = viewmodel or DashboardViewModel(self)
-        self._kpi_cards: dict[str, KpiCard] = {}
         self._themed_sections: list[DashboardSection] = []
 
         self.setObjectName("DashboardPage")
@@ -132,30 +133,14 @@ class DashboardPage(QWidget):
         self.main_layout.addLayout(header)
 
     def _build_kpi_zone(self) -> None:
-        self.kpi_grid = QGridLayout()
-        self.kpi_grid.setContentsMargins(0, 0, 0, 0)
-        self.kpi_grid.setHorizontalSpacing(14)
-        self.kpi_grid.setVerticalSpacing(14)
-
-        for index, kpi in enumerate(self.viewmodel.state.kpis.values()):
-            card = KpiCard(
-                kpi.title,
-                kpi.value,
-                trend=kpi.trend,
-                trend_tone=self._tone(kpi.tone),
-                icon_text=kpi.icon_text,
-                theme=self._theme,
-                clickable=True,
-            )
-            card.setMinimumHeight(136)
-            self._kpi_cards[kpi.key] = card
-            row, column = divmod(index, 4)
-            self.kpi_grid.addWidget(card, row, column)
-
-        for column in range(4):
-            self.kpi_grid.setColumnStretch(column, 1)
-
-        self.main_layout.addLayout(self.kpi_grid)
+        self.kpi_center = KpiCenter(
+            self.viewmodel.ordered_kpis(),
+            theme=self._theme,
+            columns=3,
+            parent=self.canvas,
+        )
+        self.kpi_center.kpi_clicked.connect(self.kpi_action_requested)
+        self.main_layout.addWidget(self.kpi_center)
 
     def _build_primary_zone(self) -> None:
         grid = QGridLayout()
@@ -379,20 +364,13 @@ class DashboardPage(QWidget):
 
     def set_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)
-        for card in self._kpi_cards.values():
-            card.set_theme(self._theme)
+        self.kpi_center.set_theme(self._theme)
         for section in self._themed_sections:
             section.apply_theme(self._theme)
         self._apply_page_theme()
 
     def _on_kpi_changed(self, key: str, kpi: DashboardKpi) -> None:
-        card = self._kpi_cards.get(key)
-        if card is None:
-            return
-        card.title = kpi.title
-        card.value = kpi.value
-        card.icon_text = kpi.icon_text
-        card.set_trend(kpi.trend, self._tone(kpi.tone))
+        self.kpi_center.update_kpi(kpi)
 
     def _refresh_updated_label(self) -> None:
         updated = self.viewmodel.state.last_updated
@@ -451,13 +429,6 @@ class DashboardPage(QWidget):
             }}
             """
         )
-
-    @staticmethod
-    def _tone(value: str) -> CardTone:
-        try:
-            return CardTone(value)
-        except ValueError:
-            return CardTone.DEFAULT
 
 
 __all__ = ["DashboardPage"]
