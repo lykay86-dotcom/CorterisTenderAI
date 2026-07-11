@@ -35,6 +35,33 @@ from app.tenders.providers.eis import (
     EisTenderProvider,
 )
 from app.tenders.provider_registry import TenderProviderRegistry
+from app.tenders.corteris_filter import (
+    CorterisTenderClassifier,
+    CorterisTenderFilter,
+    CorterisTenderFilterResult,
+    EvaluatedTender,
+    RelevanceGrade,
+    TenderDirection,
+    TenderFilterOptions,
+    TenderRelevance,
+)
+from app.tenders.corteris_search import (
+    CorterisTenderSearchResult,
+    CorterisTenderSearchService,
+)
+from app.tenders.search_profile_repository import (
+    BuiltinSearchProfileError,
+    SearchProfileNotFoundError,
+    TenderSearchProfileRepository,
+)
+from app.tenders.search_profile_runner import (
+    TenderSearchProfileRun,
+    TenderSearchProfileRunner,
+)
+from app.tenders.search_profiles import (
+    TenderSearchProfile,
+    create_builtin_search_profiles,
+)
 from app.tenders.search_engine import (
     AggregatedTenderSearchResult,
     ProviderSearchOutcome,
@@ -43,6 +70,22 @@ from app.tenders.search_engine import (
 )
 
 __all__ = [
+    "BuiltinSearchProfileError",
+    "CorterisTenderClassifier",
+    "CorterisTenderFilter",
+    "CorterisTenderFilterResult",
+    "CorterisTenderSearchResult",
+    "CorterisTenderSearchService",
+    "EvaluatedTender",
+    "RelevanceGrade",
+    "SearchProfileNotFoundError",
+    "TenderDirection",
+    "TenderFilterOptions",
+    "TenderRelevance",
+    "TenderSearchProfile",
+    "TenderSearchProfileRepository",
+    "TenderSearchProfileRun",
+    "TenderSearchProfileRunner",
     "EisAccessBlockedError",
     "EisHtmlParser",
     "EisParseError",
@@ -71,5 +114,6 @@ __all__ = [
     "TenderStatus",
     "UnifiedTender",
     "AggregatedTenderSearchResult",
+    "create_builtin_search_profiles",
     "create_default_provider_registry",
 ]
