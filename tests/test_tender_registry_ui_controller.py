@@ -68,6 +68,18 @@ def test_controller_installs_registry_menu_action(tmp_path) -> None:
         "actionTenderRegistry"
     )
     assert controller.registry_action.isEnabled()
+
+    toolbar = controller._tender_toolbar
+    assert toolbar is not None
+    assert toolbar.objectName() == "tenderSearchToolBar"
+    # The QMainWindow is intentionally not shown in this unit test.
+    # QWidget.isVisible() therefore returns False because the parent
+    # window is hidden, even when the toolbar itself is enabled and
+    # not explicitly hidden. isHidden() checks the toolbar state itself.
+    assert not toolbar.isHidden()
+    assert controller.registry_action in toolbar.actions()
+    assert window._tender_search_toolbar is toolbar
+
     app.processEvents()
 
 
