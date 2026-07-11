@@ -693,6 +693,18 @@ class DashboardPage(QWidget):
     ) -> None:
         self._sync_advisor_from_dashboard(recommendations)
 
+    def set_activities(
+        self,
+        activities: list[ActivityEntry]
+        | tuple[ActivityEntry, ...],
+    ) -> None:
+        """Replace Activity Feed content from a controller."""
+        self.activity_feed.set_entries(activities)
+        self.activity_section.set_badge(
+            str(len(activities)) if activities else "Сегодня"
+        )
+        self._configure_tab_order()
+
     def set_kpi(
         self,
         key: str,

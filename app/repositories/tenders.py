@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.database.base import json_safe
 from app.database.models import Analysis, Document, Tender
@@ -26,10 +27,31 @@ class TenderRepository:
             )
             return list(session.scalars(stmt).all())
 
+    def list_for_dashboard(
+        self,
+        *,
+        limit: int = 100,
+    ) -> list[Tender]:
+        """Load recent tenders together with analyses for Dashboard KPI."""
+        normalized_limit = max(1, min(int(limit), 500))
+
+        with session_scope() as session:
+            stmt = (
+                select(Tender)
+                .options(selectinload(Tender.analyses))
+                .where(Tender.is_deleted.is_(False))
+                .order_by(Tender.created_at.desc())
+                .limit(normalized_limit)
+            )
+            return list(session.scalars(stmt).all())
+
     def get(self, tender_id: str) -> Tender | None:
         with session_scope() as session:
             return session.scalar(
-                select(Tender).where(Tender.id == tender_id, Tender.is_deleted.is_(False))
+                select(Tender).where(
+                    Tender.id == tender_id,
+                    Tender.is_deleted.is_(False),
+                )
             )
 
     def add_document(self, tender_id: str, **data) -> Document:
@@ -47,13 +69,23 @@ class TenderRepository:
             )
             return list(session.scalars(stmt).all())
 
-    def save_analysis(self, tender_id: str, report: dict) -> Analysis:
+    def save_analysis(
+        self,
+        tender_id: str,
+        report: dict,
+    ) -> Analysis:
         with session_scope() as session:
-            analysis = Analysis(tender_id=tender_id, **report["metrics"], report=json_safe(report))
+            analysis = Analysis(
+                tender_id=tender_id,
+                **report["metrics"],
+                report=json_safe(report),
+            )
             session.add(analysis)
+
             tender = session.get(Tender, tender_id)
             if tender is None:
                 raise ValueError(f"Тендер не найден: {tender_id}")
+
             tender.score = report["score"]
             tender.recommendation = report["recommendation"]
             tender.status = "Проанализирован"

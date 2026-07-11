@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.controllers.dashboard_controller import DashboardController
 from app.ui.main_window import MainWindow as LegacyMainWindow
 from app.ui.pages.dashboard_page import DashboardPage
 from app.ui.theme.colors import ThemeName
@@ -52,6 +53,10 @@ class ModernMainWindow(QMainWindow):
             "dashboard",
             "Рабочий стол",
             self.dashboard_page,
+        )
+        self.dashboard_controller = DashboardController(
+            self.dashboard_page,
+            parent=self,
         )
 
         # ВАЖНО:
@@ -130,8 +135,26 @@ class ModernMainWindow(QMainWindow):
         )
 
         self._connect_actions()
+        self.dashboard_controller.tender_selected.connect(
+            self._open_tender_from_dashboard
+        )
+        self.dashboard_controller.refresh_succeeded.connect(
+            lambda snapshot: self.statusBar().showMessage(
+                f"Dashboard обновлён · тендеров: "
+                f"{len(snapshot.tenders)}",
+                4000,
+            )
+        )
+        self.dashboard_controller.refresh_failed.connect(
+            lambda message: self.statusBar().showMessage(
+                message,
+                8000,
+            )
+        )
+
         self.apply_theme(self._theme)
         self.workspace.sidebar.select("dashboard")
+        self.dashboard_controller.start()
 
         self.statusBar().showMessage(
             "Corteris Tender AI 1.3 Alpha · система готова",
@@ -168,6 +191,32 @@ class ModernMainWindow(QMainWindow):
         self.dashboard_page.analyze_documents_requested.connect(
             lambda: self.workspace.sidebar.select("ai")
         )
+
+    def _open_tender_from_dashboard(self, tender_id: str) -> None:
+        """Open a Dashboard tender in the existing working module."""
+        self.workspace.sidebar.select("tenders")
+
+        if hasattr(self._legacy_window, "refresh"):
+            self._legacy_window.refresh()
+
+        table = getattr(self._legacy_window, "table", None)
+        if table is None:
+            return
+
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            if item is None or item.text() != tender_id:
+                continue
+
+            table.selectRow(row)
+            self._legacy_window.current_id = tender_id
+            if hasattr(self._legacy_window, "select_row"):
+                self._legacy_window.select_row(row, 0)
+            self.statusBar().showMessage(
+                f"Открыт тендер ID {tender_id}",
+                5000,
+            )
+            return
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         """Apply and persist the selected UI theme."""
