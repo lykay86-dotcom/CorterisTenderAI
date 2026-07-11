@@ -1,5 +1,11 @@
 """Tender intelligence infrastructure."""
 
+from app.tenders.http_client import (
+    HttpResponse,
+    HttpTransport,
+    HttpTransportError,
+    UrllibHttpTransport,
+)
 from app.tenders.models import (
     TenderCustomer,
     TenderDocument,
@@ -21,6 +27,13 @@ from app.tenders.provider_base import (
 from app.tenders.provider_factory import (
     create_default_provider_registry,
 )
+from app.tenders.providers.eis import (
+    EisAccessBlockedError,
+    EisHtmlParser,
+    EisParseError,
+    EisProviderConfig,
+    EisTenderProvider,
+)
 from app.tenders.provider_registry import TenderProviderRegistry
 from app.tenders.search_engine import (
     AggregatedTenderSearchResult,
@@ -30,6 +43,15 @@ from app.tenders.search_engine import (
 )
 
 __all__ = [
+    "EisAccessBlockedError",
+    "EisHtmlParser",
+    "EisParseError",
+    "EisProviderConfig",
+    "EisTenderProvider",
+    "HttpResponse",
+    "HttpTransport",
+    "HttpTransportError",
+    "UrllibHttpTransport",
     "ProviderCapabilities",
     "ProviderDescriptor",
     "ProviderHealth",
