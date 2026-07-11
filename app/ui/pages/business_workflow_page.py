@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.core.system_health_monitor import SystemHealthMonitor
 from app.core.system_health import (
     SystemHealthJournal,
     SystemHealthService,
@@ -69,6 +70,9 @@ from app.ui.business_workflow.database_recovery_dialog import (
     WorkflowDatabaseRecoveryDialog,
 )
 from app.ui.business_workflow.dialogs import BusinessRecordDialog
+from app.ui.business_workflow.system_health_badge import (
+    SystemHealthBadge,
+)
 from app.ui.business_workflow.system_health_dialog import (
     SystemHealthCenterDialog,
 )
@@ -129,6 +133,7 @@ class BusinessWorkflowPage(QWidget):
         ) = None,
         system_health_service: SystemHealthService | None = None,
         system_health_journal: SystemHealthJournal | None = None,
+        system_health_monitor: SystemHealthMonitor | None = None,
         auto_backup_service: (
             WorkflowAutoBackupService | None
         ) = None,
@@ -170,6 +175,13 @@ class BusinessWorkflowPage(QWidget):
                 backup_service=self.backup_service,
             )
         )
+        self.system_health_monitor = (
+            system_health_monitor
+            or SystemHealthMonitor(
+                self._collect_system_health_snapshot,
+                parent=self,
+            )
+        )
         self._theme = ThemeName(theme)
         self._initial_kind = (
             BusinessRecordKind(initial_kind)
@@ -179,6 +191,7 @@ class BusinessWorkflowPage(QWidget):
         self._selected_record: BusinessWorkflowRecord | None = None
         self._content_orientation: Qt.Orientation | None = None
         self._database_health_prompt_shown = False
+        self._last_health_severity: SystemHealthSeverity | None = None
 
         self.setObjectName("BusinessWorkflowPage")
 
@@ -204,7 +217,29 @@ class BusinessWorkflowPage(QWidget):
         self.workflow_changed.connect(
             self._check_automatic_backup
         )
+
+        self.system_health_monitor.snapshot_ready.connect(
+            self._system_health_snapshot_ready
+        )
+        self.system_health_monitor.check_failed.connect(
+            self._system_health_check_failed
+        )
+        self.system_health_monitor.busy_changed.connect(
+            self.system_health_badge.set_busy
+        )
+        self.workflow_changed.connect(
+            self._request_system_health_refresh
+        )
+
+        self._system_health_timer = QTimer(self)
+        self._system_health_timer.setInterval(2 * 60 * 1000)
+        self._system_health_timer.timeout.connect(
+            self._request_system_health_refresh
+        )
+        self._system_health_timer.start()
+
         QTimer.singleShot(0, self._initialize_database_safety)
+        QTimer.singleShot(250, self._request_system_health_refresh)
 
     def _build_header(self, root: QVBoxLayout) -> None:
         header = QHBoxLayout()
@@ -231,6 +266,14 @@ class BusinessWorkflowPage(QWidget):
 
         self.updated_label = QLabel("", self)
         self.updated_label.setObjectName("WorkflowUpdated")
+
+        self.system_health_badge = SystemHealthBadge(
+            theme=self._theme,
+            parent=self,
+        )
+        self.system_health_badge.clicked.connect(
+            self._open_system_health_center
+        )
 
         self.refresh_button = OutlineButton(
             "Обновить",
@@ -330,6 +373,7 @@ class BusinessWorkflowPage(QWidget):
 
         header.addLayout(titles, 1)
         header.addWidget(self.updated_label)
+        header.addWidget(self.system_health_badge)
         header.addWidget(self.refresh_button)
         header.addWidget(self.data_button)
         header.addWidget(self.template_button)
@@ -793,6 +837,7 @@ class BusinessWorkflowPage(QWidget):
 
         self.summary.set_theme(self._theme)
         self.status_banner.apply_theme(self._theme)
+        self.system_health_badge.apply_theme(self._theme)
 
         for button in (
             self.refresh_button,
@@ -1084,6 +1129,70 @@ class BusinessWorkflowPage(QWidget):
             )
         )
 
+    def _collect_system_health_snapshot(self):
+        return self.system_health_service.collect(
+            repository=self.repository,
+            database_health_service=self.database_health_service,
+            auto_backup_service=self.auto_backup_service,
+            backup_catalog_service=self.backup_catalog_service,
+            journal=self.system_health_journal,
+            backup_directories=self._database_backup_directories(),
+        )
+
+    def _request_system_health_refresh(self) -> None:
+        self.system_health_monitor.request_refresh()
+
+    def _system_health_snapshot_ready(self, snapshot: object) -> None:
+        if not hasattr(snapshot, "severity"):
+            return
+
+        self.system_health_badge.set_snapshot(snapshot)
+        severity = snapshot.severity
+        previous = self._last_health_severity
+        self._last_health_severity = severity
+
+        if previous is None or previous == severity:
+            return
+
+        self._record_system_event(
+            severity=severity,
+            component="system",
+            title="Изменилось общее состояние системы",
+            details=(
+                f"{previous.value} → {severity.value}; "
+                + "; ".join(snapshot.issues)
+            ),
+        )
+
+        if severity in {
+            SystemHealthSeverity.WARNING,
+            SystemHealthSeverity.ERROR,
+        }:
+            tone = (
+                StatusTone.ERROR
+                if severity == SystemHealthSeverity.ERROR
+                else StatusTone.WARNING
+            )
+            self.status_banner.show_status(
+                title=snapshot.status_label,
+                message=(
+                    snapshot.issues[0]
+                    if snapshot.issues
+                    else "Откройте центр состояния для подробностей."
+                ),
+                tone=tone,
+                auto_hide_ms=9000,
+            )
+
+    def _system_health_check_failed(self, message: str) -> None:
+        self.system_health_badge.set_error(message)
+        self._record_system_event(
+            severity=SystemHealthSeverity.WARNING,
+            component="system",
+            title="Не удалось обновить состояние системы",
+            details=message,
+        )
+
     def _record_system_event(
         self,
         *,
@@ -1122,6 +1231,7 @@ class BusinessWorkflowPage(QWidget):
             self._open_backup_center
         )
         dialog.exec()
+        self._request_system_health_refresh()
 
     def _database_backup_directories(self) -> list[Path]:
         settings = self.auto_backup_service.load_settings()
