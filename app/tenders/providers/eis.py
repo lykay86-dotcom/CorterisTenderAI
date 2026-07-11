@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 from app.tenders.http_client import (
     HttpResponse,
+    HttpRetryPolicy,
     HttpTransport,
     HttpTransportError,
     UrllibHttpTransport,
@@ -57,10 +58,15 @@ class EisProviderConfig:
     base_url: str = "https://zakupki.gov.ru/"
     search_path: str = "/epz/order/extendedsearch/results.html"
     home_path: str = "/epz/main/public/home.html"
-    timeout_seconds: float = 20.0
+    timeout_seconds: float = 10.0
+    retry_attempts: int = 3
+    retry_backoff_seconds: float = 0.75
+    max_attempt_timeout_seconds: float = 25.0
     user_agent: str = (
-        "CorterisTenderAI/1.5.1 "
-        "(+https://corteris.ru; public procurement search)"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0 Safari/537.36 "
+        "CorterisTenderAI/1.5.1"
     )
     supported_page_sizes: tuple[int, ...] = (10, 20, 50, 100)
 
@@ -70,6 +76,16 @@ class EisProviderConfig:
             raise ValueError("base_url must be an absolute HTTP(S) URL")
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if self.retry_attempts < 1:
+            raise ValueError("retry_attempts must be at least 1")
+        if self.retry_backoff_seconds < 0:
+            raise ValueError(
+                "retry_backoff_seconds must be non-negative"
+            )
+        if self.max_attempt_timeout_seconds <= 0:
+            raise ValueError(
+                "max_attempt_timeout_seconds must be positive"
+            )
         if not self.supported_page_sizes:
             raise ValueError("supported_page_sizes must not be empty")
 
@@ -527,8 +543,20 @@ class EisTenderProvider(TenderProvider):
         transport: HttpTransport | None = None,
         config: EisProviderConfig | None = None,
     ) -> None:
-        self.transport = transport or UrllibHttpTransport()
         self.config = config or EisProviderConfig()
+        self.transport = transport or UrllibHttpTransport(
+            retry_policy=HttpRetryPolicy(
+                max_attempts=self.config.retry_attempts,
+                backoff_seconds=(
+                    self.config.retry_backoff_seconds
+                ),
+                backoff_multiplier=2.0,
+                timeout_multiplier=1.5,
+                max_attempt_timeout_seconds=(
+                    self.config.max_attempt_timeout_seconds
+                ),
+            )
+        )
         self.parser = EisHtmlParser(base_url=self.config.base_url)
 
     def search(self, query: TenderSearchQuery) -> TenderSearchResult:
@@ -736,8 +764,20 @@ class EisTenderProvider(TenderProvider):
                 timeout_seconds=self.config.timeout_seconds,
             )
         except HttpTransportError as exc:
+            detail = str(exc)
+            if "SSL handshake timed out" in detail:
+                detail = (
+                    "не удалось завершить SSL-рукопожатие "
+                    f"после {exc.attempts} попыток. "
+                    "ЕИС не ответила в пределах сетевого таймаута"
+                )
+            elif "connection timed out" in detail:
+                detail = (
+                    "истёк таймаут подключения "
+                    f"после {exc.attempts} попыток"
+                )
             raise TenderProviderError(
-                f"Ошибка подключения к ЕИС: {exc}"
+                f"Ошибка подключения к ЕИС: {detail}"
             ) from exc
 
         if not allow_non_200 and response.status_code != 200:

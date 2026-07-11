@@ -41,7 +41,7 @@ def create_tender_search_runtime(
     *,
     http_transport: HttpTransport | None = None,
     max_workers: int = 6,
-    timeout_seconds: float = 35.0,
+    timeout_seconds: float = 60.0,
 ) -> TenderSearchRuntime:
     """Build the production tender-search graph without network activity.
 
