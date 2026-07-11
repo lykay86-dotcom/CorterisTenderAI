@@ -32,6 +32,9 @@ from PySide6.QtWidgets import (
 
 from app.core.workflow_auto_backup import WorkflowAutoBackupService
 from app.core.workflow_backup import WorkflowBackupService
+from app.core.workflow_backup_catalog import (
+    WorkflowBackupCatalogService,
+)
 from app.reporting.workflow_excel import WorkflowExcelExporter
 from app.reporting.workflow_excel_import import WorkflowExcelImporter
 from app.reporting.workflow_excel_template import (
@@ -44,6 +47,9 @@ from app.repositories.business_metrics import (
     BusinessRecordKind,
     BusinessStatus,
     BusinessWorkflowRecord,
+)
+from app.ui.business_workflow.backup_center_dialog import (
+    WorkflowBackupCenterDialog,
 )
 from app.ui.business_workflow.backup_settings_dialog import (
     WorkflowBackupSettingsDialog,
@@ -98,6 +104,9 @@ class BusinessWorkflowPage(QWidget):
             WorkflowExcelTemplateService | None
         ) = None,
         backup_service: WorkflowBackupService | None = None,
+        backup_catalog_service: (
+            WorkflowBackupCatalogService | None
+        ) = None,
         auto_backup_service: (
             WorkflowAutoBackupService | None
         ) = None,
@@ -114,6 +123,10 @@ class BusinessWorkflowPage(QWidget):
             excel_template_service or WorkflowExcelTemplateService()
         )
         self.backup_service = backup_service or WorkflowBackupService()
+        self.backup_catalog_service = (
+            backup_catalog_service
+            or WorkflowBackupCatalogService(self.backup_service)
+        )
         self.auto_backup_service = (
             auto_backup_service
             or WorkflowAutoBackupService.for_repository(
@@ -223,6 +236,13 @@ class BusinessWorkflowPage(QWidget):
             parent=self,
         )
         self.data_menu = QMenu(self.data_button)
+        self.backup_center_action = self.data_menu.addAction(
+            "Центр резервных копий…"
+        )
+        self.backup_center_action.triggered.connect(
+            self._open_backup_center
+        )
+        self.data_menu.addSeparator()
         self.create_backup_action = self.data_menu.addAction(
             "Создать резервную копию…"
         )
@@ -1012,6 +1032,51 @@ class BusinessWorkflowPage(QWidget):
                 not record.is_archived
                 and BusinessStatus.BLOCKED in transitions
             )
+        )
+
+    def _open_backup_center(self) -> None:
+        settings = self.auto_backup_service.load_settings()
+        automatic_directory = (
+            self.auto_backup_service.backup_directory(
+                self.repository,
+                settings,
+            )
+        )
+        directories = [
+            self.repository.path.parent / "backups",
+            automatic_directory,
+        ]
+
+        dialog = WorkflowBackupCenterDialog(
+            repository=self.repository,
+            backup_service=self.backup_service,
+            catalog_service=self.backup_catalog_service,
+            directories=directories,
+            theme=self._theme,
+            parent=self,
+        )
+        dialog.backup_restored.connect(
+            self._backup_center_restored
+        )
+        dialog.exec()
+
+    def _backup_center_restored(self, result: object) -> None:
+        self.refresh()
+        self.workflow_changed.emit()
+
+        record_count = getattr(result, "record_count", 0)
+        event_count = getattr(result, "event_count", 0)
+        safety_backup = getattr(result, "safety_backup", "")
+
+        self.status_banner.show_status(
+            title="Данные восстановлены из центра копий",
+            message=(
+                f"Записей: {record_count}; "
+                f"событий: {event_count}. "
+                f"Страховочная копия: {safety_backup}"
+            ),
+            tone=StatusTone.SUCCESS,
+            auto_hide_ms=9000,
         )
 
     def _configure_automatic_backup(self) -> None:

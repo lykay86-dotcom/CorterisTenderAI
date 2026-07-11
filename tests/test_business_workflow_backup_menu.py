@@ -10,6 +10,9 @@ from PySide6.QtWidgets import QApplication
 
 from app.core.workflow_auto_backup import WorkflowAutoBackupService
 from app.core.workflow_backup import WorkflowBackupService
+from app.core.workflow_backup_catalog import (
+    WorkflowBackupCatalogService,
+)
 from app.repositories.business_metrics import BusinessMetricsRepository
 from app.ui.pages.business_workflow_page import BusinessWorkflowPage
 
@@ -18,17 +21,22 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-def test_workflow_page_exposes_backup_and_restore_actions(
+def test_workflow_page_exposes_backup_center_and_actions(
     tmp_path,
 ) -> None:
     _app()
+    backup_service = WorkflowBackupService()
     page = BusinessWorkflowPage(
         repository=BusinessMetricsRepository(
             tmp_path / "workflow.json"
         ),
-        backup_service=WorkflowBackupService(),
+        backup_service=backup_service,
+        backup_catalog_service=WorkflowBackupCatalogService(
+            backup_service
+        ),
         auto_backup_service=WorkflowAutoBackupService(
-            tmp_path / "auto_backup_settings.json"
+            tmp_path / "auto_backup_settings.json",
+            backup_service=backup_service,
         ),
     )
 
@@ -37,6 +45,8 @@ def test_workflow_page_exposes_backup_and_restore_actions(
         action.text()
         for action in page.data_menu.actions()
     ] == [
+        "Центр резервных копий…",
+        "",
         "Создать резервную копию…",
         "Восстановить из копии…",
         "",
