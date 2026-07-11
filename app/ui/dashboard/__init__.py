@@ -46,7 +46,10 @@ from app.ui.dashboard.tender_feed import (
     COLUMNS,
     TenderColumn,
     TenderFeed,
+    TenderFeedDelegate,
+    TenderFeedDensity,
     TenderFeedModel,
+    VISIBLE_COLUMNS,
 )
 
 __all__ = [
@@ -79,7 +82,10 @@ __all__ = [
     "StatusTone",
     "TenderColumn",
     "TenderFeed",
+    "TenderFeedDelegate",
+    "TenderFeedDensity",
     "TenderFeedModel",
+    "VISIBLE_COLUMNS",
     "build_demo_snapshot",
     "build_empty_dashboard_kpis",
     "dashboard_layout_for_width",

@@ -546,6 +546,7 @@ class DashboardPage(QWidget):
 
         self.kpi_center.set_columns(spec.kpi_columns)
         self.quick_actions.set_columns(spec.quick_action_columns)
+        self.quick_actions.set_compact(spec.compact)
         self.ai_advisor.set_compact(spec.compact)
         self.tender_feed.set_state_compact(spec.compact)
 

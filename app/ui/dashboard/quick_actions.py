@@ -105,6 +105,7 @@ class QuickActionTile(QFrame):
         self._hovered = False
         self._pressed = False
         self._focused = False
+        self._compact = False
 
         self.setObjectName("QuickActionTile")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -213,8 +214,12 @@ class QuickActionTile(QFrame):
             background = palette.hover_background
             border = accent
         else:
-            background = palette.input_background
-            border = palette.border_subtle
+            if self.spec.tone == QuickActionTone.PRIMARY:
+                background = accent_background
+                border = accent
+            else:
+                background = palette.input_background
+                border = palette.border_subtle
 
         self.setStyleSheet(
             f"""
@@ -262,6 +267,25 @@ class QuickActionTile(QFrame):
             }}
             """
         )
+
+    def set_compact(self, compact: bool) -> None:
+        """Reduce vertical density on smaller Dashboard layouts."""
+        self._compact = bool(compact)
+        self.description_label.setVisible(not self._compact)
+        self.shortcut_label.setVisible(
+            bool(self.spec.shortcut) and not self._compact
+        )
+        self.setMinimumHeight(78 if self._compact else 104)
+
+        layout = self.layout()
+        if layout is not None:
+            layout.setContentsMargins(
+                11 if self._compact else 14,
+                10 if self._compact else 13,
+                11 if self._compact else 14,
+                10 if self._compact else 13,
+            )
+            layout.setSpacing(9 if self._compact else 12)
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         self._focused = True
@@ -373,6 +397,11 @@ class QuickActions(QWidget):
             if tile.isEnabled():
                 tile.setFocus(Qt.FocusReason.ShortcutFocusReason)
                 return
+
+    def set_compact(self, compact: bool) -> None:
+        """Apply compact density to every action tile."""
+        for tile in self._tiles.values():
+            tile.set_compact(compact)
 
     def set_columns(self, columns: int) -> None:
         """Change the grid column count without recreating tiles."""
