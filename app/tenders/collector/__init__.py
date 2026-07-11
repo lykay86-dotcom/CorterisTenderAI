@@ -22,6 +22,47 @@ from app.tenders.collector.async_http import (
     parse_retry_after,
     sanitize_url,
 )
+from app.tenders.collector.change_tracker import (
+    TenderChange,
+    TenderChangeSet,
+    TenderChangeTracker,
+    TenderChangeType,
+)
+from app.tenders.collector.checkpoint import CollectorCheckpoint
+from app.tenders.collector.codec import (
+    query_to_payload,
+    stable_hash,
+    stable_json,
+    tender_from_payload,
+    tender_to_payload,
+)
+from app.tenders.collector.collector_service import CollectorService
+from app.tenders.collector.deduplicator import TenderDeduplicator
+from app.tenders.collector.models import (
+    CollectionPersistenceSummary,
+    CollectionRunRecord,
+    CollectionRunStatus,
+    CollectorRunResult,
+    CollectorSourceReference,
+    DeduplicationGroup,
+    DeduplicationMatchLevel,
+    DeduplicationResult,
+    NormalizedTender,
+    TenderAliasType,
+    TenderIdentityAlias,
+    TenderObservationStatus,
+)
+from app.tenders.collector.normalizer import (
+    TenderNormalizer,
+    normalize_digits,
+    normalize_identifier,
+    normalize_text,
+)
+from app.tenders.collector.schema import (
+    COLLECTOR_SCHEMA_VERSION,
+    CollectorSchemaMigrator,
+)
+from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.async_provider import (
     AsyncTenderProvider,
     LegacySyncProviderAdapter,
@@ -61,6 +102,37 @@ from app.tenders.collector.rate_limiter import (
 )
 
 __all__ = [
+    "COLLECTOR_SCHEMA_VERSION",
+    "CollectionPersistenceSummary",
+    "CollectionRunRecord",
+    "CollectionRunStatus",
+    "CollectorCheckpoint",
+    "CollectorRunResult",
+    "CollectorSchemaMigrator",
+    "CollectorService",
+    "CollectorSourceReference",
+    "CollectorStateRepository",
+    "DeduplicationGroup",
+    "DeduplicationMatchLevel",
+    "DeduplicationResult",
+    "NormalizedTender",
+    "TenderAliasType",
+    "TenderChange",
+    "TenderChangeSet",
+    "TenderChangeTracker",
+    "TenderChangeType",
+    "TenderDeduplicator",
+    "TenderIdentityAlias",
+    "TenderNormalizer",
+    "TenderObservationStatus",
+    "normalize_digits",
+    "normalize_identifier",
+    "normalize_text",
+    "query_to_payload",
+    "stable_hash",
+    "stable_json",
+    "tender_from_payload",
+    "tender_to_payload",
     "AsyncHttpClient",
     "AsyncHttpClientConfig",
     "AsyncHttpError",
