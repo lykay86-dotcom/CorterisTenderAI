@@ -14,7 +14,15 @@ from typing import TYPE_CHECKING, Any, Iterable, Mapping
 from uuid import uuid4
 
 from app.tenders.corteris_filter import EvaluatedTender
-from app.tenders.models import UnifiedTender
+from app.tenders.models import (
+    TenderCustomer,
+    TenderDocument,
+    TenderMoney,
+    TenderProcedureType,
+    TenderSource,
+    TenderStatus,
+    UnifiedTender,
+)
 
 if TYPE_CHECKING:
     from app.tenders.search_profile_runner import TenderSearchProfileRun
@@ -680,6 +688,38 @@ class TenderRegistryRepository:
             ).fetchone()
         return _row_to_tender_record(row) if row is not None else None
 
+    def get_tender(
+        self,
+        registry_key: str,
+    ) -> UnifiedTender | None:
+        """Restore the canonical UnifiedTender payload for one registry row."""
+
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT payload_json
+                FROM tender_records
+                WHERE registry_key = ?
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(str(row["payload_json"]))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            return _payload_to_tender(payload)
+        except (KeyError, TypeError, ValueError):
+            return None
+
     def list_tender_occurrences(
         self,
         registry_key: str,
@@ -1019,6 +1059,101 @@ def _tender_payload(tender: UnifiedTender) -> dict[str, Any]:
         ],
         "raw_metadata": _json_safe(tender.raw_metadata),
     }
+
+
+def _payload_to_tender(payload: Mapping[str, Any]) -> UnifiedTender:
+    customer_payload = payload.get("customer") or {}
+    if not isinstance(customer_payload, Mapping):
+        customer_payload = {}
+
+    price_payload = payload.get("price")
+    price = None
+    if isinstance(price_payload, Mapping):
+        price = TenderMoney.from_value(
+            price_payload.get("amount", "0"),
+            currency=str(price_payload.get("currency", "RUB")),
+            includes_vat=price_payload.get("includes_vat"),
+        )
+
+    documents: list[TenderDocument] = []
+    for item in payload.get("documents", ()) or ():
+        if not isinstance(item, Mapping):
+            continue
+        published_raw = str(item.get("published_at", "") or "")
+        documents.append(
+            TenderDocument(
+                id=str(item.get("id", "")),
+                name=str(item.get("name", "")),
+                url=str(item.get("url", "")),
+                mime_type=str(item.get("mime_type", "")),
+                size_bytes=(
+                    int(item["size_bytes"])
+                    if item.get("size_bytes") is not None
+                    else None
+                ),
+                published_at=(
+                    datetime.fromisoformat(published_raw)
+                    if published_raw
+                    else None
+                ),
+                checksum_sha256=str(
+                    item.get("checksum_sha256", "")
+                ),
+            )
+        )
+
+    published_at = str(payload.get("published_at", "") or "")
+    deadline = str(payload.get("application_deadline", "") or "")
+    execution = str(payload.get("execution_deadline", "") or "")
+
+    return UnifiedTender(
+        source=TenderSource(str(payload["source"])),
+        external_id=str(payload["external_id"]),
+        procurement_number=str(payload["procurement_number"]),
+        title=str(payload["title"]),
+        customer=TenderCustomer(
+            name=str(customer_payload.get("name", "")),
+            inn=str(customer_payload.get("inn", "")),
+            kpp=str(customer_payload.get("kpp", "")),
+            region=str(customer_payload.get("region", "")),
+            address=str(customer_payload.get("address", "")),
+        ),
+        source_url=str(payload["source_url"]),
+        published_at=(
+            datetime.fromisoformat(published_at)
+            if published_at
+            else None
+        ),
+        application_deadline=(
+            datetime.fromisoformat(deadline)
+            if deadline
+            else None
+        ),
+        execution_deadline=(
+            date.fromisoformat(execution)
+            if execution
+            else None
+        ),
+        price=price,
+        status=TenderStatus(str(payload.get("status", "unknown"))),
+        procedure_type=TenderProcedureType(
+            str(payload.get("procedure_type", "unknown"))
+        ),
+        law=str(payload.get("law", "")),
+        region=str(payload.get("region", "")),
+        description=str(payload.get("description", "")),
+        classification_codes=tuple(
+            str(item)
+            for item in payload.get("classification_codes", ())
+        ),
+        tags=tuple(str(item) for item in payload.get("tags", ())),
+        documents=tuple(documents),
+        raw_metadata=(
+            payload.get("raw_metadata", {})
+            if isinstance(payload.get("raw_metadata", {}), Mapping)
+            else {}
+        ),
+    )
 
 
 def _row_to_tender_record(row: sqlite3.Row) -> TenderRegistryRecord:

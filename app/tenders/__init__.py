@@ -1,5 +1,14 @@
 """Tender intelligence infrastructure."""
 
+from app.tenders.document_storage import (
+    DocumentDownloadStatus,
+    StoredTenderDocument,
+    TenderDocumentDownloadError,
+    TenderDocumentDownloadResult,
+    TenderDocumentDownloadService,
+    TenderDocumentStorageStatistics,
+    TenderDocumentStore,
+)
 from app.tenders.http_client import (
     HttpResponse,
     HttpTransport,
@@ -86,6 +95,7 @@ from app.tenders.search_engine import (
 
 __all__ = [
     "BuiltinSearchProfileError",
+    "DocumentDownloadStatus",
     "CorterisTenderClassifier",
     "CorterisTenderFilter",
     "CorterisTenderFilterResult",
@@ -94,7 +104,13 @@ __all__ = [
     "EvaluatedTender",
     "RelevanceGrade",
     "SearchProfileNotFoundError",
+    "StoredTenderDocument",
     "TenderDirection",
+    "TenderDocumentDownloadError",
+    "TenderDocumentDownloadResult",
+    "TenderDocumentDownloadService",
+    "TenderDocumentStorageStatistics",
+    "TenderDocumentStore",
     "TenderFilterOptions",
     "TenderRelevance",
     "TenderSearchProfile",

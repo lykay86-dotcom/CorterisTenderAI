@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.tenders.corteris_search import CorterisTenderSearchService
+from app.tenders.document_storage import (
+    TenderDocumentDownloadService,
+    TenderDocumentStore,
+)
 from app.tenders.http_client import HttpTransport
 from app.tenders.provider_factory import create_default_provider_registry
 from app.tenders.provider_registry import TenderProviderRegistry
@@ -28,6 +32,8 @@ class TenderSearchRuntime:
     search_service: CorterisTenderSearchService
     runner: TenderSearchProfileRunner
     tender_registry: TenderRegistryRepository | None = None
+    document_store: TenderDocumentStore | None = None
+    document_service: TenderDocumentDownloadService | None = None
 
 
 def create_tender_search_runtime(
@@ -68,6 +74,15 @@ def create_tender_search_runtime(
         search_service,
         tender_registry,
     )
+    document_store = TenderDocumentStore(
+        data_path / "tender_documents"
+    )
+    document_store.initialize()
+    document_service = TenderDocumentDownloadService(
+        registry,
+        document_store,
+        http_transport=http_transport,
+    )
 
     return TenderSearchRuntime(
         data_directory=data_path,
@@ -77,6 +92,8 @@ def create_tender_search_runtime(
         search_service=search_service,
         runner=runner,
         tender_registry=tender_registry,
+        document_store=document_store,
+        document_service=document_service,
     )
 
 
