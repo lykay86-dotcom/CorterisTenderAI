@@ -180,16 +180,15 @@ class WorkflowImportPreviewDialog(QDialog):
 
         for column, value in enumerate(values):
             item = QTableWidgetItem(value)
-            item.setTextAlignment(
-                int(
-                    Qt.AlignmentFlag.AlignTop
-                    | (
-                        Qt.AlignmentFlag.AlignRight
-                        if column in {0, 6}
-                        else Qt.AlignmentFlag.AlignLeft
-                    )
+            alignment = (
+                Qt.AlignmentFlag.AlignTop
+                | (
+                    Qt.AlignmentFlag.AlignRight
+                    if column in {0, 6}
+                    else Qt.AlignmentFlag.AlignLeft
                 )
             )
+            item.setTextAlignment(alignment)
             self.table.setItem(table_row, column, item)
 
     def _summary_text(self) -> str:

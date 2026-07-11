@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -74,3 +75,32 @@ def test_preview_dialog_disables_import_for_invalid_rows() -> None:
 
     assert not dialog.import_button.isEnabled()
     assert dialog.table.item(0, 1).text() == "Ошибка"
+
+def test_preview_dialog_uses_non_deprecated_alignment_api() -> None:
+    _app()
+    preview = WorkflowImportPreview(
+        path=Path("registry.xlsx"),
+        sheet_name="Реестр",
+        rows=(
+            WorkflowImportRow(
+                source_row=2,
+                kind=BusinessRecordKind.PROPOSAL,
+                tender_id="T-1",
+                title="КП",
+                status=BusinessStatus.DRAFT,
+            ),
+        ),
+    )
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        WorkflowImportPreviewDialog(preview)
+
+    deprecated = [
+        warning
+        for warning in captured
+        if issubclass(warning.category, DeprecationWarning)
+        and "setTextAlignment" in str(warning.message)
+    ]
+    assert deprecated == []
+
