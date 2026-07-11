@@ -1,4 +1,4 @@
-"""Dashboard 1.0 with KPI Center for Corteris Tender AI."""
+"""Dashboard 1.0 with integrated AI Advisor."""
 
 from __future__ import annotations
 
@@ -8,19 +8,24 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
+from app.ui.dashboard.ai_advisor import AiAdvisor
 from app.ui.dashboard.kpi_center import KpiCenter
-from app.ui.dashboard.tender_feed import TenderFeed
 from app.ui.dashboard.section import DashboardSection
+from app.ui.dashboard.tender_feed import TenderFeed
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
+from app.ui.viewmodels.ai_advisor_viewmodel import (
+    AiAdvisorAction,
+    AiAdvisorFocus,
+    AiAdvisorMetrics,
+    AiAdvisorViewModel,
+)
 from app.ui.viewmodels.dashboard_viewmodel import (
     AiRecommendation,
     DashboardKpi,
@@ -32,11 +37,10 @@ from app.ui.widgets.button import (
     PrimaryButton,
     SecondaryButton,
 )
-from app.ui.widgets.card import CardTone
 
 
 class DashboardPage(QWidget):
-    """Responsive Dashboard 1.0 shell with a six-card KPI Center."""
+    """Responsive Dashboard 1.0 with KPI, tender feed and AI Advisor."""
 
     find_tenders_requested = Signal()
     create_proposal_requested = Signal()
@@ -49,6 +53,7 @@ class DashboardPage(QWidget):
     def __init__(
         self,
         viewmodel: DashboardViewModel | None = None,
+        advisor_viewmodel: AiAdvisorViewModel | None = None,
         *,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
@@ -57,6 +62,7 @@ class DashboardPage(QWidget):
 
         self._theme = ThemeName(theme)
         self.viewmodel = viewmodel or DashboardViewModel(self)
+        self.advisor_viewmodel = advisor_viewmodel or AiAdvisorViewModel(self)
         self._themed_sections: list[DashboardSection] = []
 
         self.setObjectName("DashboardPage")
@@ -92,9 +98,11 @@ class DashboardPage(QWidget):
         self.scroll.setWidget(self.canvas)
         root.addWidget(self.scroll)
 
-        self._connect_viewmodel()
+        self._connect_dashboard_viewmodel()
+        self._connect_advisor_viewmodel()
         self._apply_page_theme()
         self.refresh_from_state()
+        self._render_advisor_state()
 
     def _build_header(self) -> None:
         header = QHBoxLayout()
@@ -158,29 +166,20 @@ class DashboardPage(QWidget):
             theme=self._theme,
             parent=self.tender_section,
         )
-        self.tender_feed.setMinimumHeight(280)
+        self.tender_feed.setMinimumHeight(360)
         self.tender_feed.tender_open_requested.connect(
             self.tender_open_requested
         )
         self.tender_section.add_widget(self.tender_feed)
 
-        self.ai_section = self._section(
-            "AI Advisor",
-            subtitle="Риски и следующие рекомендуемые действия",
-            badge="AI",
+        self.ai_advisor = AiAdvisor(
+            theme=self._theme,
+            parent=self.canvas,
         )
-        self.ai_list = QListWidget()
-        self.ai_list.setObjectName("AiRecommendationList")
-        self.ai_list.setMinimumHeight(260)
-        self.ai_list.itemDoubleClicked.connect(
-            lambda item: self.recommendation_action_requested.emit(
-                int(item.data(Qt.ItemDataRole.UserRole))
-            )
-        )
-        self.ai_section.add_widget(self.ai_list)
+        self.ai_advisor.setMinimumHeight(360)
 
         grid.addWidget(self.tender_section, 0, 0)
-        grid.addWidget(self.ai_section, 0, 1)
+        grid.addWidget(self.ai_advisor, 0, 1)
         grid.setColumnStretch(0, 3)
         grid.setColumnStretch(1, 2)
 
@@ -199,18 +198,9 @@ class DashboardPage(QWidget):
         quick_row = QHBoxLayout()
         quick_row.setSpacing(10)
 
-        find_button = PrimaryButton(
-            "Найти тендеры",
-            theme=self._theme,
-        )
-        proposal_button = SecondaryButton(
-            "Создать КП",
-            theme=self._theme,
-        )
-        estimate_button = SecondaryButton(
-            "Создать смету",
-            theme=self._theme,
-        )
+        find_button = PrimaryButton("Найти тендеры", theme=self._theme)
+        proposal_button = SecondaryButton("Создать КП", theme=self._theme)
+        estimate_button = SecondaryButton("Создать смету", theme=self._theme)
         analyze_button = OutlineButton(
             "Анализ документов",
             theme=self._theme,
@@ -270,7 +260,7 @@ class DashboardPage(QWidget):
         self._themed_sections.append(section)
         return section
 
-    def _connect_viewmodel(self) -> None:
+    def _connect_dashboard_viewmodel(self) -> None:
         self.viewmodel.kpi_changed.connect(self._on_kpi_changed)
         self.viewmodel.recent_tenders_changed.connect(
             self.set_recent_tenders
@@ -282,6 +272,29 @@ class DashboardPage(QWidget):
             lambda _state: self._refresh_updated_label()
         )
 
+    def _connect_advisor_viewmodel(self) -> None:
+        self.advisor_viewmodel.status_changed.connect(
+            self.ai_advisor.set_status
+        )
+        self.advisor_viewmodel.metrics_changed.connect(
+            self._render_advisor_metrics
+        )
+        self.advisor_viewmodel.focus_changed.connect(
+            self._render_advisor_focus
+        )
+        self.advisor_viewmodel.reasons_changed.connect(
+            lambda reasons: self.ai_advisor.set_reasons(list(reasons))
+        )
+        self.advisor_viewmodel.warning_changed.connect(
+            self.ai_advisor.set_warning
+        )
+        self.advisor_viewmodel.action_changed.connect(
+            self._render_advisor_action
+        )
+        self.ai_advisor.action_requested.connect(
+            self._handle_advisor_action
+        )
+
     def refresh_from_state(self) -> None:
         for key, kpi in self.viewmodel.state.kpis.items():
             self._on_kpi_changed(key, kpi)
@@ -290,44 +303,20 @@ class DashboardPage(QWidget):
             self.viewmodel.state.ai_recommendations
         )
         self._refresh_updated_label()
+        self._sync_advisor_from_dashboard()
 
     def set_recent_tenders(self, tenders: list[RecentTender]) -> None:
         self.tender_feed.set_tenders(tenders)
         self.tender_section.set_badge(
             str(len(tenders)) if tenders else "Тендеры"
         )
+        self._sync_advisor_from_dashboard()
 
     def set_ai_recommendations(
         self,
         recommendations: list[AiRecommendation],
     ) -> None:
-        self.ai_list.clear()
-        self.ai_section.set_badge(
-            str(len(recommendations)) if recommendations else "AI"
-        )
-
-        if not recommendations:
-            item = QListWidgetItem(
-                "Рекомендаций пока нет. Выполните анализ тендера."
-            )
-            item.setFlags(Qt.ItemFlag.NoItemFlags)
-            self.ai_list.addItem(item)
-            return
-
-        symbols = {
-            "success": "✓",
-            "warning": "!",
-            "danger": "×",
-            "info": "i",
-        }
-        for index, recommendation in enumerate(recommendations):
-            symbol = symbols.get(recommendation.severity, "•")
-            item = QListWidgetItem(
-                f"{symbol} {recommendation.title}\n"
-                f"{recommendation.description}"
-            )
-            item.setData(Qt.ItemDataRole.UserRole, index)
-            self.ai_list.addItem(item)
+        self._sync_advisor_from_dashboard(recommendations)
 
     def set_kpi(
         self,
@@ -348,12 +337,137 @@ class DashboardPage(QWidget):
         self._theme = ThemeName(theme)
         self.kpi_center.set_theme(self._theme)
         self.tender_feed.apply_theme(self._theme)
+        self.ai_advisor.apply_theme(self._theme)
         for section in self._themed_sections:
             section.apply_theme(self._theme)
         self._apply_page_theme()
 
     def _on_kpi_changed(self, key: str, kpi: DashboardKpi) -> None:
         self.kpi_center.update_kpi(kpi)
+        self._sync_advisor_from_dashboard()
+
+    def _sync_advisor_from_dashboard(
+        self,
+        recommendations: list[AiRecommendation] | None = None,
+    ) -> None:
+        state = self.viewmodel.state
+        recommendations = (
+            state.ai_recommendations
+            if recommendations is None
+            else recommendations
+        )
+
+        self.advisor_viewmodel.set_metrics(
+            new_tenders=self._kpi_int("new_tenders"),
+            recommended=self._kpi_int("recommended"),
+            attention=self._kpi_int("attention"),
+        )
+
+        priority = self._priority_tender(state.recent_tenders)
+        if priority is None:
+            self.advisor_viewmodel.set_focus(
+                title="Запустите поиск тендеров, чтобы получить рекомендацию"
+            )
+            self.advisor_viewmodel.set_reasons([])
+            self.advisor_viewmodel.set_warning("")
+            self.advisor_viewmodel.set_action(
+                text="Найти тендеры",
+                key="find_tenders",
+            )
+            return
+
+        self.advisor_viewmodel.set_focus(
+            title=priority.title,
+            number=priority.number,
+            amount=priority.nmck,
+            score=priority.score,
+        )
+        reasons = [
+            item.description or item.title
+            for item in recommendations
+            if item.severity in {"success", "info"}
+        ]
+        self.advisor_viewmodel.set_reasons(reasons)
+
+        warnings = [
+            item.description or item.title
+            for item in recommendations
+            if item.severity in {"warning", "danger"}
+        ]
+        self.advisor_viewmodel.set_warning(
+            warnings[0] if warnings else ""
+        )
+        self.advisor_viewmodel.set_action(
+            text="Открыть приоритетный тендер",
+            key=f"open_tender:{priority.number}",
+        )
+
+    def _render_advisor_state(self) -> None:
+        state = self.advisor_viewmodel.state
+        self.ai_advisor.set_status(state.status, state.status_text or None)
+        self._render_advisor_metrics(state.metrics)
+        self._render_advisor_focus(state.focus)
+        self.ai_advisor.set_reasons(list(state.reasons))
+        self.ai_advisor.set_warning(state.warning)
+        self._render_advisor_action(state.action)
+
+    def _render_advisor_metrics(self, metrics: AiAdvisorMetrics) -> None:
+        self.ai_advisor.set_metrics(
+            new_tenders=metrics.new_tenders,
+            recommended=metrics.recommended,
+            attention=metrics.attention,
+        )
+
+    def _render_advisor_focus(self, focus: AiAdvisorFocus) -> None:
+        self.ai_advisor.set_focus(
+            title=focus.title,
+            number=focus.number,
+            amount=focus.amount,
+            score=focus.score,
+        )
+
+    def _render_advisor_action(self, action: AiAdvisorAction) -> None:
+        self.ai_advisor.set_action(
+            text=action.text,
+            action_key=action.key,
+            enabled=action.enabled,
+        )
+
+    def _handle_advisor_action(self, action_key: str) -> None:
+        if action_key == "find_tenders":
+            self.find_tenders_requested.emit()
+            return
+        if action_key == "create_proposal":
+            self.create_proposal_requested.emit()
+            return
+        if action_key == "create_estimate":
+            self.create_estimate_requested.emit()
+            return
+        if action_key == "analyze_documents":
+            self.analyze_documents_requested.emit()
+            return
+        if action_key.startswith("open_tender:"):
+            tender_number = action_key.partition(":")[2]
+            if tender_number:
+                self.tender_open_requested.emit(tender_number)
+
+    def _kpi_int(self, key: str) -> int:
+        kpi = self.viewmodel.state.kpis.get(key)
+        if kpi is None:
+            return 0
+        digits = "".join(character for character in kpi.value if character.isdigit())
+        return int(digits) if digits else 0
+
+    @staticmethod
+    def _priority_tender(
+        tenders: list[RecentTender],
+    ) -> RecentTender | None:
+        if not tenders:
+            return None
+        return max(
+            tenders,
+            key=lambda tender: tender.score if tender.score is not None else -1,
+        )
 
     def _refresh_updated_label(self) -> None:
         updated = self.viewmodel.state.last_updated
@@ -388,24 +502,6 @@ class DashboardPage(QWidget):
                 border: none;
                 padding: 12px 0;
                 {Typography.BODY_M.css()}
-            }}
-            QListWidget#AiRecommendationList {{
-                background-color: {palette.input_background};
-                color: {palette.text_primary};
-                border: 1px solid {palette.border_subtle};
-                border-radius: 10px;
-                padding: 6px;
-                outline: none;
-                {Typography.BODY_S.css()}
-            }}
-            QListWidget#AiRecommendationList::item {{
-                border-bottom: 1px solid {palette.divider};
-                padding: 10px;
-            }}
-            QListWidget#AiRecommendationList::item:selected {{
-                background-color: {palette.selected_background};
-                color: {palette.text_primary};
-                border-radius: 7px;
             }}
             """
         )
