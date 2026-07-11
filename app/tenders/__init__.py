@@ -68,6 +68,19 @@ from app.tenders.corteris_search import (
     CorterisTenderSearchResult,
     CorterisTenderSearchService,
 )
+from app.tenders.requirement_analysis import (
+    AnalysisRiskLevel,
+    AnalyzedDocument,
+    DocumentKind,
+    FindingSeverity,
+    RequirementCategory,
+    RequirementFinding,
+    TenderAnalysisRepository,
+    TenderAnalysisSource,
+    TenderRequirementAnalysis,
+    TenderRequirementAnalysisService,
+    TenderRequirementsAnalyzer,
+)
 from app.tenders.search_profile_repository import (
     BuiltinSearchProfileError,
     SearchProfileNotFoundError,
@@ -104,6 +117,17 @@ from app.tenders.search_engine import (
 )
 
 __all__ = [
+    "AnalysisRiskLevel",
+    "AnalyzedDocument",
+    "DocumentKind",
+    "FindingSeverity",
+    "RequirementCategory",
+    "RequirementFinding",
+    "TenderAnalysisRepository",
+    "TenderAnalysisSource",
+    "TenderRequirementAnalysis",
+    "TenderRequirementAnalysisService",
+    "TenderRequirementsAnalyzer",
     "BuiltinSearchProfileError",
     "DocumentDownloadStatus",
     "ExtractedTextSection",
