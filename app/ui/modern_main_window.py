@@ -286,8 +286,9 @@ class ModernMainWindow(QMainWindow):
         return page
 
     def closeEvent(self, event) -> None:
-        """Close the hidden legacy shell and the modern window cleanly."""
+        """Stop background work and close both application shells."""
         try:
+            self.dashboard_controller.shutdown()
             self._legacy_window.close()
             self._legacy_window.deleteLater()
         finally:

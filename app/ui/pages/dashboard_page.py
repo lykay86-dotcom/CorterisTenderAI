@@ -451,41 +451,64 @@ class DashboardPage(QWidget):
         }[state.kind]
         self.tender_section.set_badge(badge)
 
-    def set_refreshing(self, refreshing: bool) -> None:
-        """Toggle refresh loading and provide visible status feedback."""
+    def set_refreshing(
+        self,
+        refreshing: bool,
+        *,
+        preserve_content: bool = False,
+        successful: bool = True,
+    ) -> None:
+        """Show refresh progress while optionally preserving current data."""
         self.refresh_button.set_loading(bool(refreshing))
         self.refresh_button.setEnabled(not refreshing)
 
         if refreshing:
-            self.set_data_state(
-                DataState.loading(
-                    "Получаем актуальные тендеры, KPI и AI-рекомендации."
+            if not preserve_content:
+                self.set_data_state(
+                    DataState.loading(
+                        "Получаем актуальные тендеры, KPI "
+                        "и AI-рекомендации."
+                    )
                 )
-            )
+
             self.status_banner.show_status(
-                title="Обновление данных",
-                message="Получаем актуальные тендеры и показатели.",
+                title="Фоновое обновление",
+                message=(
+                    "Получаем актуальные тендеры и показатели. "
+                    "Интерфейс остаётся доступным."
+                    if preserve_content
+                    else "Получаем актуальные тендеры и показатели."
+                ),
                 tone=StatusTone.LOADING,
                 dismissible=False,
             )
-        else:
-            if self._data_state.kind == DataStateKind.LOADING:
-                next_state = (
-                    DataState.ready()
-                    if self.tender_feed.model.rowCount() > 0
-                    else DataState.empty(
-                        "По текущим условиям тендеры не найдены."
-                    )
-                )
-                self.set_data_state(next_state)
+            return
 
-            if self.status_banner.tone == StatusTone.LOADING:
-                self.status_banner.show_status(
-                    title="Данные обновлены",
-                    message="Рабочий стол содержит актуальную информацию.",
-                    tone=StatusTone.SUCCESS,
-                    auto_hide_ms=2500,
+        if (
+            not preserve_content
+            and self._data_state.kind == DataStateKind.LOADING
+        ):
+            next_state = (
+                DataState.ready()
+                if self.tender_feed.model.rowCount() > 0
+                else DataState.empty(
+                    "По текущим условиям тендеры не найдены."
                 )
+            )
+            self.set_data_state(next_state)
+
+        if self.status_banner.tone != StatusTone.LOADING:
+            return
+
+        if successful:
+            self.status_banner.show_status(
+                title="Данные обновлены",
+                message="Рабочий стол содержит актуальную информацию.",
+                tone=StatusTone.SUCCESS,
+                auto_hide_ms=2500,
+            )
+        else:
+            self.status_banner.clear()
 
     def set_partial_data(self, message: str) -> None:
         self.set_data_state(DataState.partial(message))

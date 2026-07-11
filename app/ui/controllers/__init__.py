@@ -2,6 +2,7 @@
 
 from app.ui.controllers.dashboard_controller import (
     DashboardController,
+    DashboardRefreshWorker,
     DashboardSnapshot,
     DashboardSnapshotBuilder,
     TenderRepositoryLike,
@@ -9,6 +10,7 @@ from app.ui.controllers.dashboard_controller import (
 
 __all__ = [
     "DashboardController",
+    "DashboardRefreshWorker",
     "DashboardSnapshot",
     "DashboardSnapshotBuilder",
     "TenderRepositoryLike",

@@ -7,7 +7,14 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Iterable, Protocol, Sequence
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import (
+    QCoreApplication,
+    QObject,
+    QThread,
+    QTimer,
+    Signal,
+    Slot,
+)
 
 from app.repositories.tenders import TenderRepository
 from app.ui.dashboard.activity_feed import (
@@ -509,12 +516,40 @@ class DashboardSnapshotBuilder:
             return default
 
 
-class DashboardController(QObject):
-    """Coordinates repository refreshes and Dashboard presentation."""
+class DashboardRefreshWorker(QObject):
+    """Runs repository loading and snapshot building outside the UI thread."""
 
+    completed = Signal(object, object)
+
+    def __init__(
+        self,
+        task: Callable[[], DashboardSnapshot],
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._task = task
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            snapshot = self._task()
+        except Exception as exc:
+            self.completed.emit(None, exc)
+            return
+
+        self.completed.emit(snapshot, None)
+
+
+class DashboardController(QObject):
+    """Coordinates non-blocking Dashboard repository refreshes."""
+
+    refresh_started = Signal()
     refresh_succeeded = Signal(object)
     refresh_failed = Signal(str)
+    refresh_cycle_finished = Signal()
     tender_selected = Signal(str)
+
+    DEFAULT_AUTO_REFRESH_MS = 5 * 60 * 1000
 
     def __init__(
         self,
@@ -522,6 +557,7 @@ class DashboardController(QObject):
         *,
         repository: TenderRepositoryLike | None = None,
         clock: Callable[[], datetime] = datetime.now,
+        auto_refresh_ms: int = DEFAULT_AUTO_REFRESH_MS,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -530,12 +566,52 @@ class DashboardController(QObject):
         self.repository = repository or TenderRepository()
         self.clock = clock
         self.builder = DashboardSnapshotBuilder()
+
         self._number_to_id: dict[str, str] = {}
         self._started = False
         self._refreshing = False
+        self._has_loaded_once = False
+        self._preserve_content_during_refresh = False
+
+        self._refresh_thread: QThread | None = None
+        self._refresh_worker: DashboardRefreshWorker | None = None
+
+        self._auto_refresh_timer = QTimer(self)
+        self._auto_refresh_timer.setSingleShot(False)
+        self._auto_refresh_timer.timeout.connect(self.refresh)
+        self.set_auto_refresh_interval(auto_refresh_ms)
+
+        application = QCoreApplication.instance()
+        if application is not None:
+            application.aboutToQuit.connect(self.shutdown)
+
+    @property
+    def is_refreshing(self) -> bool:
+        return self._refreshing
+
+    @property
+    def has_loaded_once(self) -> bool:
+        return self._has_loaded_once
+
+    @property
+    def auto_refresh_interval(self) -> int:
+        return self._auto_refresh_timer.interval()
+
+    def set_auto_refresh_interval(self, milliseconds: int) -> None:
+        """Configure periodic background refresh; zero disables it."""
+        normalized = max(0, int(milliseconds))
+        self._auto_refresh_timer.stop()
+
+        if normalized == 0:
+            self._auto_refresh_timer.setInterval(0)
+            return
+
+        self._auto_refresh_timer.setInterval(max(10_000, normalized))
+        if self._started:
+            self._auto_refresh_timer.start()
 
     def start(self) -> None:
-        """Connect signals and load real Dashboard data once."""
+        """Connect signals and schedule the first background refresh."""
         if self._started:
             return
 
@@ -545,52 +621,140 @@ class DashboardController(QObject):
             self._select_tender_by_number
         )
 
+        if self._auto_refresh_timer.interval() > 0:
+            self._auto_refresh_timer.start()
+
         if not bool(getattr(self.page, "demo_mode", False)):
             QTimer.singleShot(0, self.refresh)
 
-    def refresh(self) -> None:
-        """Load tenders from the local repository and update the page."""
+    @Slot()
+    def refresh(self) -> bool:
+        """Start a repository refresh without blocking the Qt event loop."""
         if self._refreshing:
-            return
+            return False
         if bool(getattr(self.page, "demo_mode", False)):
-            return
+            return False
 
         self._refreshing = True
-        self.page.set_refreshing(True)
+        self._preserve_content_during_refresh = self._has_loaded_once
 
-        try:
-            entities = self._load_entities()
-            snapshot = self.builder.build(
+        self.page.set_refreshing(
+            True,
+            preserve_content=self._preserve_content_during_refresh,
+        )
+        self.refresh_started.emit()
+
+        repository = self.repository
+        builder = self.builder
+        clock = self.clock
+
+        def load_snapshot() -> DashboardSnapshot:
+            dashboard_loader = getattr(
+                repository,
+                "list_for_dashboard",
+                None,
+            )
+            if callable(dashboard_loader):
+                entities = dashboard_loader(limit=100)
+            else:
+                entities = repository.list()
+
+            return builder.build(
                 entities,
-                now=self.clock(),
+                now=clock(),
             )
-            self._apply_snapshot(snapshot)
-            self.page.set_refreshing(False)
-            self.refresh_succeeded.emit(snapshot)
-        except Exception as exc:
-            self.page.set_refreshing(False)
-            message = (
-                "Не удалось загрузить данные из локальной базы: "
-                f"{exc}"
+
+        thread = QThread(self)
+        worker = DashboardRefreshWorker(load_snapshot)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._on_worker_completed)
+        thread.finished.connect(self._on_thread_finished)
+        thread.finished.connect(thread.deleteLater)
+
+        self._refresh_thread = thread
+        self._refresh_worker = worker
+        thread.start()
+        return True
+
+    @Slot(object, object)
+    def _on_worker_completed(
+        self,
+        snapshot: DashboardSnapshot | None,
+        error: Exception | None,
+    ) -> None:
+        if error is not None:
+            self._handle_refresh_failure(error)
+        elif snapshot is not None:
+            try:
+                self._apply_snapshot(snapshot)
+            except Exception as exc:
+                self._handle_refresh_failure(exc)
+            else:
+                self.page.set_refreshing(
+                    False,
+                    preserve_content=self._preserve_content_during_refresh,
+                    successful=True,
+                )
+                self._has_loaded_once = True
+                self.refresh_succeeded.emit(snapshot)
+
+        worker = self._refresh_worker
+        thread = self._refresh_thread
+
+        if worker is not None:
+            worker.deleteLater()
+        if thread is not None and thread.isRunning():
+            thread.quit()
+
+    def _handle_refresh_failure(self, error: Exception) -> None:
+        message = (
+            "Не удалось обновить данные из локальной базы: "
+            f"{error}"
+        )
+
+        self.page.set_refreshing(
+            False,
+            preserve_content=self._preserve_content_during_refresh,
+            successful=False,
+        )
+
+        if self._has_loaded_once:
+            self.page.set_partial_data(
+                f"{message} Отображаются ранее загруженные данные."
             )
+        else:
             self.page.show_error(
                 message,
                 action_text="Повторить",
                 action_key="refresh_dashboard",
             )
-            self.refresh_failed.emit(message)
-        finally:
-            self._refreshing = False
 
-    def _load_entities(self) -> Sequence[Any]:
-        dashboard_loader = getattr(
-            self.repository,
-            "list_for_dashboard",
-            None,
-        )
-        if callable(dashboard_loader):
-            return dashboard_loader(limit=100)
-        return self.repository.list()
+        self.refresh_failed.emit(message)
+
+    @Slot()
+    def _on_thread_finished(self) -> None:
+        self._refresh_worker = None
+        self._refresh_thread = None
+        self._refreshing = False
+        self.refresh_cycle_finished.emit()
+
+    def shutdown(self, wait_ms: int = 3000) -> None:
+        """Stop timers and wait briefly for an active worker thread."""
+        self._auto_refresh_timer.stop()
+
+        thread = self._refresh_thread
+        if thread is None or not thread.isRunning():
+            return
+
+        thread.requestInterruption()
+        thread.quit()
+        thread.wait(max(0, int(wait_ms)))
+
+        self._refresh_worker = None
+        self._refresh_thread = None
+        self._refreshing = False
 
     def _apply_snapshot(
         self,
@@ -630,6 +794,7 @@ class DashboardController(QObject):
 
 __all__ = [
     "DashboardController",
+    "DashboardRefreshWorker",
     "DashboardSnapshot",
     "DashboardSnapshotBuilder",
     "TenderRepositoryLike",
