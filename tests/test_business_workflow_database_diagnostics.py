@@ -54,7 +54,9 @@ def test_data_menu_contains_database_diagnostics(tmp_path) -> None:
         for action in page.data_menu.actions()
     ]
 
-    assert actions[:4] == [
+    assert actions[:6] == [
+        "Состояние системы…",
+        "",
         "Центр резервных копий…",
         "Диагностика базы…",
         "",
