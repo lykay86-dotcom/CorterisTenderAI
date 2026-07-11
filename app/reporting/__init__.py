@@ -9,3 +9,21 @@ __all__ = [
     "WorkflowExcelExporter",
     "WorkflowExcelExportResult",
 ]
+
+from app.reporting.workflow_excel_import import (
+    WorkflowExcelImporter,
+    WorkflowImportIssue,
+    WorkflowImportLevel,
+    WorkflowImportPreview,
+    WorkflowImportResult,
+    WorkflowImportRow,
+)
+
+__all__ += [
+    "WorkflowExcelImporter",
+    "WorkflowImportIssue",
+    "WorkflowImportLevel",
+    "WorkflowImportPreview",
+    "WorkflowImportResult",
+    "WorkflowImportRow",
+]

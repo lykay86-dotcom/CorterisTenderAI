@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.reporting.workflow_excel import WorkflowExcelExporter
+from app.reporting.workflow_excel_import import WorkflowExcelImporter
 from app.repositories.business_metrics import (
     BusinessAuditAction,
     BusinessAuditEvent,
@@ -39,6 +40,9 @@ from app.repositories.business_metrics import (
     BusinessWorkflowRecord,
 )
 from app.ui.business_workflow.dialogs import BusinessRecordDialog
+from app.ui.business_workflow.import_dialog import (
+    WorkflowImportPreviewDialog,
+)
 from app.ui.business_workflow.model import (
     KIND_LABELS,
     STATUS_LABELS,
@@ -80,6 +84,7 @@ class BusinessWorkflowPage(QWidget):
         *,
         repository: BusinessMetricsRepository | None = None,
         excel_exporter: WorkflowExcelExporter | None = None,
+        excel_importer: WorkflowExcelImporter | None = None,
         initial_kind: BusinessRecordKind | str | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
@@ -88,6 +93,7 @@ class BusinessWorkflowPage(QWidget):
 
         self.repository = repository or BusinessMetricsRepository()
         self.excel_exporter = excel_exporter or WorkflowExcelExporter()
+        self.excel_importer = excel_importer or WorkflowExcelImporter()
         self._theme = ThemeName(theme)
         self._initial_kind = (
             BusinessRecordKind(initial_kind)
@@ -154,6 +160,14 @@ class BusinessWorkflowPage(QWidget):
         )
         self.export_button.clicked.connect(self._export_excel)
 
+        self.import_button = OutlineButton(
+            "Импорт Excel",
+            icon_text="⇧",
+            theme=self._theme,
+            parent=self,
+        )
+        self.import_button.clicked.connect(self._import_excel)
+
         self.create_button = PrimaryButton(
             "Новая запись",
             icon_text="+",
@@ -165,6 +179,7 @@ class BusinessWorkflowPage(QWidget):
         header.addLayout(titles, 1)
         header.addWidget(self.updated_label)
         header.addWidget(self.refresh_button)
+        header.addWidget(self.import_button)
         header.addWidget(self.export_button)
         header.addWidget(self.create_button)
         root.addLayout(header)
@@ -627,6 +642,7 @@ class BusinessWorkflowPage(QWidget):
 
         for button in (
             self.refresh_button,
+            self.import_button,
             self.export_button,
             self.create_button,
             self.reset_button,
@@ -895,6 +911,82 @@ class BusinessWorkflowPage(QWidget):
                 not record.is_archived
                 and BusinessStatus.BLOCKED in transitions
             )
+        )
+
+    def _import_excel(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Импорт КП, смет и проектов из Excel",
+            str(Path.home() / "Documents"),
+            "Книга Excel (*.xlsx)",
+        )
+        if not filename:
+            return
+
+        try:
+            preview = self.excel_importer.preview(
+                filename,
+                existing_records=self.repository.list_records(
+                    include_archived=True
+                ),
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка проверки Excel",
+                str(exc),
+            )
+            return
+
+        dialog = WorkflowImportPreviewDialog(
+            preview,
+            theme=self._theme,
+            parent=self,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+
+        try:
+            result = self.excel_importer.apply(
+                preview,
+                self.repository,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Ошибка импорта",
+                str(exc),
+            )
+            return
+
+        preferred_id = (
+            result.imported_ids[-1]
+            if result.imported_ids
+            else None
+        )
+        self.refresh(preferred_record_id=preferred_id)
+        self.workflow_changed.emit()
+
+        if result.failures:
+            tone = StatusTone.WARNING
+            failure_text = (
+                f" Ошибок выполнения: {len(result.failures)}."
+            )
+        else:
+            tone = StatusTone.SUCCESS
+            failure_text = ""
+
+        self.status_banner.show_status(
+            title="Импорт Excel завершён",
+            message=(
+                f"Создано: {result.created}; "
+                f"обновлено: {result.updated}; "
+                f"архивировано: {result.archived}; "
+                f"пропущено: {result.skipped}."
+                f"{failure_text}"
+            ),
+            tone=tone,
+            auto_hide_ms=7000,
         )
 
     def _export_excel(self) -> None:
