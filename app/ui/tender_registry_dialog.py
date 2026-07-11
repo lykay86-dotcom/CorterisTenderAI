@@ -47,6 +47,7 @@ class TenderRegistryDialog(QDialog):
     """Browse saved tenders and their discovery history."""
 
     profiles_requested = Signal()
+    documents_requested = Signal(str)
 
     def __init__(
         self,
@@ -199,6 +200,14 @@ class TenderRegistryDialog(QDialog):
             self._open_selected_source
         )
 
+        self.documents_button = QPushButton(
+            "Скачать документацию",
+            self,
+        )
+        self.documents_button.clicked.connect(
+            self._request_selected_documents
+        )
+
         self.archive_button = QPushButton(
             "В архив",
             self,
@@ -222,6 +231,7 @@ class TenderRegistryDialog(QDialog):
         )
 
         action_row.addWidget(self.open_source_button)
+        action_row.addWidget(self.documents_button)
         action_row.addWidget(self.archive_button)
         action_row.addWidget(self.refresh_button)
         action_row.addWidget(self.profiles_button)
@@ -501,6 +511,7 @@ class TenderRegistryDialog(QDialog):
             )
             self.history_table.setRowCount(0)
             self.open_source_button.setEnabled(False)
+            self.documents_button.setEnabled(False)
             self.archive_button.setEnabled(False)
 
     def selected_record(self) -> TenderRegistryRecord | None:
@@ -513,10 +524,12 @@ class TenderRegistryDialog(QDialog):
         record = self.selected_record()
         if record is None:
             self.open_source_button.setEnabled(False)
+            self.documents_button.setEnabled(False)
             self.archive_button.setEnabled(False)
             return
 
         self.open_source_button.setEnabled(bool(record.source_url))
+        self.documents_button.setEnabled(True)
         self.archive_button.setEnabled(True)
         self.archive_button.setText(
             "Вернуть из архива" if record.archived else "В архив"
@@ -618,6 +631,12 @@ class TenderRegistryDialog(QDialog):
             )
         )
         self.refresh_records()
+
+    def _request_selected_documents(self) -> None:
+        record = self.selected_record()
+        if record is None:
+            return
+        self.documents_requested.emit(record.registry_key)
 
     def _open_selected_source(self) -> None:
         record = self.selected_record()

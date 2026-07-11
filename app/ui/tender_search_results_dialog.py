@@ -48,6 +48,7 @@ class TenderSearchResultsDialog(QDialog):
 
     rerun_requested = Signal(str)
     profiles_requested = Signal()
+    documents_requested = Signal(object)
 
     def __init__(
         self,
@@ -182,6 +183,14 @@ class TenderSearchResultsDialog(QDialog):
             self._open_selected_source
         )
 
+        self.documents_button = QPushButton(
+            "Скачать документацию",
+            self,
+        )
+        self.documents_button.clicked.connect(
+            self._request_selected_documents
+        )
+
         self.rerun_button = QPushButton(
             "Повторить поиск",
             self,
@@ -199,6 +208,7 @@ class TenderSearchResultsDialog(QDialog):
         )
 
         action_row.addWidget(self.open_source_button)
+        action_row.addWidget(self.documents_button)
         action_row.addWidget(self.rerun_button)
         action_row.addWidget(self.profiles_button)
         action_row.addStretch(1)
@@ -299,6 +309,7 @@ class TenderSearchResultsDialog(QDialog):
             self.table.selectRow(0)
             self._show_selected_details()
             self.open_source_button.setEnabled(True)
+            self.documents_button.setEnabled(True)
         else:
             self.details.setHtml(
                 "<h3>Подходящих закупок не найдено</h3>"
@@ -306,6 +317,7 @@ class TenderSearchResultsDialog(QDialog):
                 "минимальную релевантность и повторите поиск.</p>"
             )
             self.open_source_button.setEnabled(False)
+            self.documents_button.setEnabled(False)
 
     def selected_evaluated(self) -> EvaluatedTender | None:
         row = self.table.currentRow()
@@ -317,9 +329,11 @@ class TenderSearchResultsDialog(QDialog):
         evaluated = self.selected_evaluated()
         if evaluated is None:
             self.open_source_button.setEnabled(False)
+            self.documents_button.setEnabled(False)
             return
 
         self.open_source_button.setEnabled(True)
+        self.documents_button.setEnabled(True)
         tender = evaluated.tender
         relevance = evaluated.relevance
         directions = ", ".join(
@@ -376,6 +390,12 @@ class TenderSearchResultsDialog(QDialog):
                 f"• {outcome.display_name}: {status}; {details}"
             )
         return "\n".join(lines)
+
+    def _request_selected_documents(self) -> None:
+        evaluated = self.selected_evaluated()
+        if evaluated is None:
+            return
+        self.documents_requested.emit(evaluated.tender)
 
     def _open_selected_source(self) -> None:
         evaluated = self.selected_evaluated()
