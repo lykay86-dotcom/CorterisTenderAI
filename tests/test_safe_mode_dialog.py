@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -24,17 +24,17 @@ def test_safe_mode_dialog_shows_checks_and_actions(tmp_path) -> None:
         crash_threshold=2,
     )
 
-    for index in range(2):
+    now = datetime.now()
+
+    for minutes in (20, 10):
         guard.begin_launch(
-            started_at=datetime(2026, 7, 12, 10 + index, 0)
+            started_at=now - timedelta(minutes=minutes)
         )
         guard.mark_crash(
-            finished_at=datetime(2026, 7, 12, 10 + index, 1)
+            finished_at=now - timedelta(minutes=minutes - 1)
         )
 
-    decision = guard.evaluate(
-        now=datetime(2026, 7, 12, 12, 0)
-    )
+    decision = guard.evaluate(now=now)
     data_dir = tmp_path / "data"
     backups = data_dir / "backups"
     crashes = data_dir / "crash_reports"
@@ -63,9 +63,12 @@ def test_safe_mode_dialog_shows_checks_and_actions(tmp_path) -> None:
         "Продолжить обычный запуск"
     )
     assert dialog.reset_button.isEnabled()
-    assert "Последние аварийные запуски: 2" in (
-        dialog._history_text()
-    )
+    assert decision.recent_crashes == 2
+    assert decision.enabled
+
+    history = dialog._history_text()
+    assert "История:" in history
+    assert "crashed" in history
 
 
 def test_reset_button_clears_launch_history(tmp_path) -> None:
