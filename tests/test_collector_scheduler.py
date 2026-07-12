@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.tenders.collector.scheduler import (
     CollectorScheduleFrequency,
@@ -49,9 +49,10 @@ def test_repository_roundtrip(tmp_path) -> None:
 
     assert settings.profile_id == "all-corteris"
     assert settings.provider_ids == ("eis",)
-    assert state.next_run_at.startswith(
-        "2026-07-12T11:00:00"
-    )
+    expected = _now().astimezone() + timedelta(hours=1)
+    actual = datetime.fromisoformat(state.next_run_at)
+
+    assert actual == expected
 
 
 def test_poll_returns_due_request(tmp_path) -> None:
@@ -115,9 +116,10 @@ def test_mark_started_moves_next_interval(tmp_path) -> None:
     )
 
     assert state.last_status == "running:scheduled"
-    assert state.next_run_at.startswith(
-        "2026-07-12T12:00:00"
-    )
+    expected = _now(11, 0).astimezone() + timedelta(hours=1)
+    actual = datetime.fromisoformat(state.next_run_at)
+
+    assert actual == expected
 
 
 def test_daily_schedule_uses_selected_time(tmp_path) -> None:
