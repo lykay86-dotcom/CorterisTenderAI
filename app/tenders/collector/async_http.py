@@ -17,6 +17,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
+from app.core.ssl_support import build_ssl_context
 from app.tenders.collector.cancellation import (
     CollectorCancellationToken,
     CollectorCancelledError,
@@ -175,12 +176,8 @@ class AsyncHttpClient:
 
     @staticmethod
     def _create_client(config: AsyncHttpClientConfig) -> httpx.AsyncClient:
-        ssl_context = ssl.create_default_context(
-            cafile=(
-                str(config.ca_bundle_path)
-                if config.ca_bundle_path is not None
-                else None
-            )
+        ssl_context = build_ssl_context(
+            config.ca_bundle_path
         )
         return httpx.AsyncClient(
             timeout=config.timeouts.to_httpx(),

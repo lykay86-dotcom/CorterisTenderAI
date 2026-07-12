@@ -34,6 +34,18 @@ def bootstrap() -> None:
     """Initialize infrastructure, crash capture and the Qt application."""
     context = initialize_core()
 
+    if "--self-test" in sys.argv:
+        from app.core.frozen_self_test import (
+            run_frozen_self_test_from_argv,
+        )
+
+        raise SystemExit(
+            run_frozen_self_test_from_argv(
+                context,
+                sys.argv[1:],
+            )
+        )
+
     launch_guard = LaunchGuardService(
         context.paths.data_dir / "launch_history.json"
     )

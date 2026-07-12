@@ -2,6 +2,7 @@
 param(
     [switch]$SkipTests,
     [switch]$SkipInstaller,
+    [switch]$SkipFrozenSmokeTest,
     [switch]$RecreateVenv
 )
 
@@ -21,7 +22,9 @@ Set-Location $ProjectRoot
 
 $LogDir = Join-Path $ProjectRoot "logs"
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
-$LogFile = Join-Path $LogDir ("build_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+$Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$LogFile = Join-Path $LogDir ("build_{0}.log" -f $Timestamp)
+$PreflightReport = Join-Path $LogDir ("build_preflight_{0}.json" -f $Timestamp)
 
 function Write-Step {
     param([Parameter(Mandatory=$true)][string]$Text)
@@ -53,20 +56,16 @@ function Invoke-NativeChecked {
         [Parameter(Mandatory=$true)][string]$ErrorMessage
     )
 
-    # Windows PowerShell 5.1 turns native stderr into ErrorRecord objects.
-    # Temporarily use Continue and write every output line to UTF-8 manually.
     $oldPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
         $allOutput = @(& $FilePath @Arguments 2>&1)
         $exitCode = $LASTEXITCODE
-
         foreach ($item in $allOutput) {
             $line = $item.ToString()
             Write-Host $line
             Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
         }
-
         if ($exitCode -ne 0) {
             throw "$ErrorMessage Exit code: $exitCode"
         }
@@ -76,39 +75,46 @@ function Invoke-NativeChecked {
     }
 }
 
+function Assert-PythonSupported {
+    param([Parameter(Mandatory=$true)][string]$PythonExe)
+
+    $version = (& $PythonExe -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
+    $minor = (& $PythonExe -c "import sys; print(sys.version_info.minor)").Trim()
+    $major = (& $PythonExe -c "import sys; print(sys.version_info.major)").Trim()
+    $bits = (& $PythonExe -c "import struct; print(struct.calcsize('P') * 8)").Trim()
+
+    if ($major -ne "3" -or $minor -notin @("12", "13")) {
+        throw "Python 3.12 or 3.13 x64 is required. Found: $version"
+    }
+    if ($bits -ne "64") {
+        throw "64-bit Python is required. Found: $bits-bit"
+    }
+    return "Python $version ($bits-bit)"
+}
+
 try {
     Write-Step "Checking project structure"
     $RequiredPaths = @(
         "app\main.py",
-        "app\core\path_manager.py",
+        "app\bootstrap.py",
+        "app\core\ssl_support.py",
+        "app\core\frozen_self_test.py",
         "templates",
-        "data",
-        "assets",
         "requirements.txt",
-        "installer\corteris_tender_ai.spec"
+        "requirements-build.txt",
+        "installer\corteris_tender_ai.spec",
+        "installer\version_info.txt",
+        "installer\setup.iss",
+        "scripts\validate_build_environment.py",
+        "scripts\run_frozen_smoke_test.ps1",
+        "scripts\write_build_manifest.py"
     )
     foreach ($relativePath in $RequiredPaths) {
-        Assert-PathExists -Path (Join-Path $ProjectRoot $relativePath) -Description $relativePath
+        Assert-PathExists `
+            -Path (Join-Path $ProjectRoot $relativePath) `
+            -Description $relativePath
     }
     Write-Ok "Project structure: OK"
-
-    Write-Step "Checking Python 3.12 x64"
-    $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $PythonCommand) {
-        throw "Python was not found in PATH. Install Python 3.12 x64 and enable Add Python to PATH."
-    }
-
-    $PythonExe = $PythonCommand.Source
-    $PythonVersion = (& $PythonExe -c "import sys; print('.'.join(map(str, sys.version_info[:3])))").Trim()
-    $PythonBits = (& $PythonExe -c "import struct; print(struct.calcsize('P') * 8)").Trim()
-
-    if (-not $PythonVersion.StartsWith("3.12.")) {
-        throw "Python 3.12 x64 is required. Found: $PythonVersion"
-    }
-    if ($PythonBits -ne "64") {
-        throw "64-bit Python is required. Found: $PythonBits-bit"
-    }
-    Write-Ok "Python $PythonVersion ($PythonBits-bit): OK"
 
     $VenvDir = Join-Path $ProjectRoot ".venv"
     $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
@@ -119,35 +125,83 @@ try {
     }
 
     if (-not (Test-Path -LiteralPath $VenvPython)) {
+        Write-Step "Locating Python for virtual environment"
+        $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $PythonCommand) {
+            throw "Python was not found in PATH. Install Python 3.12 or 3.13 x64."
+        }
+        $BasePython = $PythonCommand.Source
+        $description = Assert-PythonSupported -PythonExe $BasePython
+        Write-Ok "${description}: OK"
+
         Write-Step "Creating virtual environment"
-        Invoke-NativeChecked -FilePath $PythonExe -Arguments @("-m","venv",$VenvDir) -ErrorMessage "Failed to create virtual environment."
+        Invoke-NativeChecked `
+            -FilePath $BasePython `
+            -Arguments @("-m", "venv", $VenvDir) `
+            -ErrorMessage "Failed to create virtual environment."
     }
 
-    Write-Step "Installing build dependencies"
-    Invoke-NativeChecked -FilePath $VenvPython -Arguments @("-m","pip","install","--upgrade","pip","setuptools","wheel") -ErrorMessage "Failed to update pip tools."
-    Invoke-NativeChecked -FilePath $VenvPython -Arguments @("-m","pip","install","-r","requirements.txt") -ErrorMessage "Failed to install requirements."
-    Invoke-NativeChecked -FilePath $VenvPython -Arguments @("-m","pip","install","pyinstaller","pytest") -ErrorMessage "Failed to install build tools."
+    Write-Step "Checking virtual-environment Python"
+    $venvDescription = Assert-PythonSupported -PythonExe $VenvPython
+    Write-Ok "${venvDescription}: OK"
+
+    Write-Step "Installing runtime and build dependencies"
+    Invoke-NativeChecked `
+        -FilePath $VenvPython `
+        -Arguments @("-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel") `
+        -ErrorMessage "Failed to update pip tools."
+    Invoke-NativeChecked `
+        -FilePath $VenvPython `
+        -Arguments @("-m", "pip", "install", "-r", "requirements.txt") `
+        -ErrorMessage "Failed to install runtime requirements."
+    Invoke-NativeChecked `
+        -FilePath $VenvPython `
+        -Arguments @("-m", "pip", "install", "-r", "requirements-build.txt") `
+        -ErrorMessage "Failed to install build requirements."
+
+    Write-Step "Running build preflight"
+    Invoke-NativeChecked `
+        -FilePath $VenvPython `
+        -Arguments @(
+            "scripts\validate_build_environment.py",
+            "--output",
+            $PreflightReport
+        ) `
+        -ErrorMessage "Build preflight failed."
+    Write-Ok "Build preflight: OK"
 
     Write-Step "Compiling Python modules"
-    Invoke-NativeChecked -FilePath $VenvPython -Arguments @("-m","compileall","-q","app") -ErrorMessage "Python compilation failed."
+    Invoke-NativeChecked `
+        -FilePath $VenvPython `
+        -Arguments @("-m", "compileall", "-q", "app", "scripts") `
+        -ErrorMessage "Python compilation failed."
 
     if (-not $SkipTests) {
-        Write-Step "Running automated tests"
-        Invoke-NativeChecked -FilePath $VenvPython -Arguments @("-m","pytest","-q") -ErrorMessage "Automated tests failed."
+        Write-Step "Running full automated test suite"
+        Invoke-NativeChecked `
+            -FilePath $VenvPython `
+            -Arguments @("-m", "pytest", "-q", "--durations=20") `
+            -ErrorMessage "Automated tests failed."
+    } else {
+        Write-Warning "Automated tests were skipped by request."
     }
 
     Write-Step "Cleaning old build artifacts"
-    foreach ($folder in @("build","dist")) {
+    foreach ($folder in @("build", "dist")) {
         $fullPath = Join-Path $ProjectRoot $folder
         if (Test-Path -LiteralPath $fullPath) {
             Remove-Item -LiteralPath $fullPath -Recurse -Force
         }
     }
+    $InstallerOutput = Join-Path $ProjectRoot "installer\output"
+    $OldSetup = Join-Path $InstallerOutput "CorterisTenderAI_Setup_x64.exe"
+    Remove-Item -LiteralPath $OldSetup -Force -ErrorAction SilentlyContinue
 
-    Write-Step "Building EXE with PyInstaller"
+    Write-Step "Building one-file EXE with PyInstaller"
     $SpecFile = Join-Path $ProjectRoot "installer\corteris_tender_ai.spec"
-    Invoke-NativeChecked -FilePath $VenvPython `
-        -Arguments @("-m","PyInstaller","--noconfirm","--clean",$SpecFile) `
+    Invoke-NativeChecked `
+        -FilePath $VenvPython `
+        -Arguments @("-m", "PyInstaller", "--noconfirm", "--clean", $SpecFile) `
         -ErrorMessage "PyInstaller build failed."
 
     $Exe = Join-Path $ProjectRoot "dist\CorterisTenderAI.exe"
@@ -156,33 +210,79 @@ try {
     $ExeHash = (Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash
     Write-Ok ("EXE created: {0}" -f $Exe)
     Write-Ok ("EXE size: {0:N2} MB" -f ($ExeInfo.Length / 1MB))
-    Write-Ok ("SHA256: {0}" -f $ExeHash)
+    Write-Ok ("EXE SHA256: {0}" -f $ExeHash)
 
+    $SmokeReport = Join-Path $ProjectRoot "dist\frozen_self_test.json"
+    if (-not $SkipFrozenSmokeTest) {
+        Write-Step "Running frozen EXE self-test"
+        & (Join-Path $ProjectRoot "scripts\run_frozen_smoke_test.ps1") `
+            -ExePath $Exe `
+            -ReportPath $SmokeReport `
+            -TimeoutSeconds 120
+        Write-Ok "Frozen EXE self-test: OK"
+    } else {
+        Write-Warning "Frozen EXE self-test was skipped by request."
+    }
+
+    $SetupExe = $null
     if (-not $SkipInstaller) {
         $SetupScript = Join-Path $ProjectRoot "installer\setup.iss"
         $InnoCandidates = @(
             "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
             "C:\Program Files\Inno Setup 6\ISCC.exe"
         )
-        $ISCC = $InnoCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-        if ((Test-Path -LiteralPath $SetupScript) -and $ISCC) {
-            Write-Step "Building installer with Inno Setup"
-            Invoke-NativeChecked -FilePath $ISCC -Arguments @($SetupScript) -ErrorMessage "Inno Setup build failed."
-        } else {
-            Write-Warning "Inno Setup or setup.iss was not found. Installer step skipped."
+        $ISCC = $InnoCandidates |
+            Where-Object { Test-Path -LiteralPath $_ } |
+            Select-Object -First 1
+        if (-not $ISCC) {
+            throw "Inno Setup 6 was not found. Use -SkipInstaller only for an EXE-only build."
         }
+
+        Write-Step "Building installer with Inno Setup"
+        Invoke-NativeChecked `
+            -FilePath $ISCC `
+            -Arguments @($SetupScript) `
+            -ErrorMessage "Inno Setup build failed."
+        $SetupExe = Join-Path $InstallerOutput "CorterisTenderAI_Setup_x64.exe"
+        Assert-PathExists -Path $SetupExe -Description "installer EXE"
+        $SetupHash = (Get-FileHash -LiteralPath $SetupExe -Algorithm SHA256).Hash
+        Write-Ok ("Installer created: {0}" -f $SetupExe)
+        Write-Ok ("Installer SHA256: {0}" -f $SetupHash)
     }
+
+    Write-Step "Writing build manifest"
+    $Manifest = Join-Path $ProjectRoot "dist\build_manifest.json"
+    $manifestArguments = @(
+        "scripts\write_build_manifest.py",
+        "--output", $Manifest,
+        "--exe", $Exe
+    )
+    if ($SetupExe) {
+        $manifestArguments += @("--installer", $SetupExe)
+    }
+    if (Test-Path -LiteralPath $SmokeReport) {
+        $manifestArguments += @("--self-test", $SmokeReport)
+    }
+    Invoke-NativeChecked `
+        -FilePath $VenvPython `
+        -Arguments $manifestArguments `
+        -ErrorMessage "Failed to write build manifest."
+    Write-Ok ("Build manifest: {0}" -f $Manifest)
 
     Write-Host ""
     Write-Ok "Corteris Tender AI 1.5.1 build completed successfully."
     Write-Ok ("Build log: {0}" -f $LogFile)
+    Write-Ok ("Preflight report: {0}" -f $PreflightReport)
     exit 0
 }
 catch {
     $message = $_.Exception.Message
     Write-Host ""
     Write-Host ("BUILD FAILED: {0}" -f $message) -ForegroundColor Red
-    Add-Content -LiteralPath $LogFile -Value ("BUILD FAILED: {0}`n{1}" -f $message, $_.ScriptStackTrace) -Encoding UTF8
+    Add-Content `
+        -LiteralPath $LogFile `
+        -Value ("BUILD FAILED: {0}`n{1}" -f $message, $_.ScriptStackTrace) `
+        -Encoding UTF8
     Write-Host ("Build log: {0}" -f $LogFile) -ForegroundColor Yellow
     exit 1
 }
