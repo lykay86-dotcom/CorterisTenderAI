@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 import re
 from typing import Iterable, Mapping, Any
 
@@ -12,6 +13,7 @@ from app.tenders.corteris_filter import (
     TenderFilterOptions,
 )
 from app.tenders.provider_base import TenderSearchQuery
+from app.tenders.models import normalize_money_amount
 
 
 _PROFILE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
@@ -30,8 +32,8 @@ class TenderSearchProfile:
     require_all_directions: bool = False
     regions: tuple[str, ...] = ()
     laws: tuple[str, ...] = ("44-ФЗ", "223-ФЗ")
-    min_price: float | None = None
-    max_price: float | None = None
+    min_price: Decimal | int | float | str | None = None
+    max_price: Decimal | int | float | str | None = None
     minimum_score: int = 24
     only_open: bool = True
     lookback_days: int | None = 30
@@ -44,6 +46,24 @@ class TenderSearchProfile:
     updated_at: str = ""
 
     def __post_init__(self) -> None:
+        if self.min_price is not None:
+            object.__setattr__(
+                self,
+                "min_price",
+                normalize_money_amount(
+                    self.min_price,
+                    field_name="min_price",
+                ),
+            )
+        if self.max_price is not None:
+            object.__setattr__(
+                self,
+                "max_price",
+                normalize_money_amount(
+                    self.max_price,
+                    field_name="max_price",
+                ),
+            )
         normalized_id = self.id.strip().casefold()
         if normalized_id != self.id:
             object.__setattr__(self, "id", normalized_id)
@@ -69,10 +89,6 @@ class TenderSearchProfile:
                 )
         if not 1 <= self.page_size <= 500:
             raise ValueError("page_size must be between 1 and 500")
-        if self.min_price is not None and self.min_price < 0:
-            raise ValueError("min_price must be non-negative")
-        if self.max_price is not None and self.max_price < 0:
-            raise ValueError("max_price must be non-negative")
         if (
             self.min_price is not None
             and self.max_price is not None
@@ -156,8 +172,16 @@ class TenderSearchProfile:
             "require_all_directions": self.require_all_directions,
             "regions": list(self.regions),
             "laws": list(self.laws),
-            "min_price": self.min_price,
-            "max_price": self.max_price,
+            "min_price": (
+                str(self.min_price)
+                if self.min_price is not None
+                else None
+            ),
+            "max_price": (
+                str(self.max_price)
+                if self.max_price is not None
+                else None
+            ),
             "minimum_score": self.minimum_score,
             "only_open": self.only_open,
             "lookback_days": self.lookback_days,
@@ -200,8 +224,8 @@ class TenderSearchProfile:
             laws=_string_tuple(
                 payload.get("laws", ("44-ФЗ", "223-ФЗ"))
             ),
-            min_price=_optional_float(payload.get("min_price")),
-            max_price=_optional_float(payload.get("max_price")),
+            min_price=_optional_decimal(payload.get("min_price")),
+            max_price=_optional_decimal(payload.get("max_price")),
             minimum_score=int(payload.get("minimum_score", 24)),
             only_open=bool(payload.get("only_open", True)),
             lookback_days=_optional_int(
@@ -400,10 +424,10 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     return tuple(result)
 
 
-def _optional_float(value: object) -> float | None:
+def _optional_decimal(value: object) -> Decimal | None:
     if value in (None, ""):
         return None
-    return float(value)
+    return normalize_money_amount(value)  # type: ignore[arg-type]
 
 
 def _optional_int(value: object) -> int | None:

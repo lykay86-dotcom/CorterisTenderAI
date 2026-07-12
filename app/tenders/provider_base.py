@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Mapping, Sequence
 
@@ -12,6 +13,7 @@ from app.tenders.models import (
     TenderDocument,
     TenderSource,
     UnifiedTender,
+    normalize_money_amount,
 )
 
 
@@ -75,8 +77,8 @@ class TenderSearchQuery:
     laws: tuple[str, ...] = ()
     date_from: date | None = None
     date_to: date | None = None
-    min_price: float | None = None
-    max_price: float | None = None
+    min_price: Decimal | int | float | str | None = None
+    max_price: Decimal | int | float | str | None = None
     page: int = 1
     page_size: int = 50
     extra: Mapping[str, Any] = field(
@@ -86,20 +88,28 @@ class TenderSearchQuery:
     )
 
     def __post_init__(self) -> None:
+        if self.min_price is not None:
+            object.__setattr__(
+                self,
+                "min_price",
+                normalize_money_amount(
+                    self.min_price,
+                    field_name="min_price",
+                ),
+            )
+        if self.max_price is not None:
+            object.__setattr__(
+                self,
+                "max_price",
+                normalize_money_amount(
+                    self.max_price,
+                    field_name="max_price",
+                ),
+            )
         if self.page < 1:
             raise ValueError("page must be at least 1")
         if not 1 <= self.page_size <= 500:
             raise ValueError("page_size must be between 1 and 500")
-        if (
-            self.min_price is not None
-            and self.min_price < 0
-        ):
-            raise ValueError("min_price must be non-negative")
-        if (
-            self.max_price is not None
-            and self.max_price < 0
-        ):
-            raise ValueError("max_price must be non-negative")
         if (
             self.min_price is not None
             and self.max_price is not None

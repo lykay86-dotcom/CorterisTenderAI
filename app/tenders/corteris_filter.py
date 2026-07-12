@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 import re
 from typing import Iterable, Mapping, Sequence
 
-from app.tenders.models import TenderStatus, UnifiedTender
+from app.tenders.models import (
+    TenderStatus,
+    UnifiedTender,
+    normalize_money_amount,
+)
 
 
 class TenderDirection(StrEnum):
@@ -86,10 +91,28 @@ class TenderFilterOptions:
     regions: tuple[str, ...] = ()
     laws: tuple[str, ...] = ()
     only_open: bool = True
-    min_price: float | None = None
-    max_price: float | None = None
+    min_price: Decimal | int | float | str | None = None
+    max_price: Decimal | int | float | str | None = None
 
     def __post_init__(self) -> None:
+        if self.min_price is not None:
+            object.__setattr__(
+                self,
+                "min_price",
+                normalize_money_amount(
+                    self.min_price,
+                    field_name="min_price",
+                ),
+            )
+        if self.max_price is not None:
+            object.__setattr__(
+                self,
+                "max_price",
+                normalize_money_amount(
+                    self.max_price,
+                    field_name="max_price",
+                ),
+            )
         if (
             self.minimum_score is not None
             and not 0 <= self.minimum_score <= 100
@@ -97,10 +120,6 @@ class TenderFilterOptions:
             raise ValueError(
                 "minimum_score must be between 0 and 100"
             )
-        if self.min_price is not None and self.min_price < 0:
-            raise ValueError("min_price must be non-negative")
-        if self.max_price is not None and self.max_price < 0:
-            raise ValueError("max_price must be non-negative")
         if (
             self.min_price is not None
             and self.max_price is not None
@@ -569,11 +588,7 @@ class CorterisTenderFilter:
             if law not in allowed_laws:
                 reasons.append("Закон закупки не входит в фильтр")
 
-        amount = (
-            float(tender.price.amount)
-            if tender.price is not None
-            else None
-        )
+        amount = tender.price.amount if tender.price is not None else None
         if (
             options.min_price is not None
             and amount is not None

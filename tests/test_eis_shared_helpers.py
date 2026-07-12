@@ -58,6 +58,19 @@ def test_shared_filter_compares_decimal_without_float_conversion() -> None:
     )
 
 
+def test_search_builder_preserves_exact_decimal_boundaries() -> None:
+    url, _ = build_eis_search_url(
+        TenderSearchQuery(
+            min_price="9007199254740993.01",
+            max_price=Decimal("9007199254740993.09"),
+        )
+    )
+
+    params = parse_qs(urlparse(url).query)
+    assert params["priceFromGeneral"] == ["9007199254740993.01"]
+    assert params["priceToGeneral"] == ["9007199254740993.09"]
+
+
 def test_documents_url_preserves_procurement_number() -> None:
     source = (
         "https://zakupki.gov.ru/epz/order/notice/ea20/view/"

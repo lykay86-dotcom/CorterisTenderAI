@@ -1014,8 +1014,11 @@ def _looks_like_money(value: str) -> bool:
     return bool(re.search(r"\d[\d\s]*(?:[.,]\d{2})?\s*(?:₽|руб)", value, re.I))
 
 
-def _format_number(value: float) -> str:
-    return format(value, ".2f").rstrip("0").rstrip(".")
+def _format_number(value: Decimal | int | float) -> str:
+    rendered = format(Decimal(str(value)), "f")
+    if "." in rendered:
+        rendered = rendered.rstrip("0").rstrip(".")
+    return rendered
 
 
 def _elapsed_ms(started: float) -> int:

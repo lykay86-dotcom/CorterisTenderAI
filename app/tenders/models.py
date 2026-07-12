@@ -87,8 +87,14 @@ class TenderMoney:
     includes_vat: bool | None = None
 
     def __post_init__(self) -> None:
-        if self.amount < 0:
-            raise ValueError("TenderMoney.amount must be non-negative")
+        object.__setattr__(
+            self,
+            "amount",
+            normalize_money_amount(
+                self.amount,
+                field_name="TenderMoney.amount",
+            ),
+        )
         if not self.currency.strip():
             raise ValueError("TenderMoney.currency must not be empty")
 
@@ -100,17 +106,34 @@ class TenderMoney:
         currency: str = "RUB",
         includes_vat: bool | None = None,
     ) -> "TenderMoney":
-        try:
-            amount = Decimal(str(value))
-        except (InvalidOperation, ValueError) as exc:
-            raise ValueError(
-                f"Invalid tender amount: {value!r}"
-            ) from exc
         return cls(
-            amount=amount,
+            amount=normalize_money_amount(
+                value,
+                field_name="tender amount",
+            ),
             currency=currency,
             includes_vat=includes_vat,
         )
+
+
+def normalize_money_amount(
+    value: Decimal | int | float | str,
+    *,
+    field_name: str = "amount",
+) -> Decimal:
+    """Return an exact, finite and non-negative monetary amount."""
+
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(
+            f"Invalid {field_name}: {value!r}"
+        ) from exc
+    if not amount.is_finite():
+        raise ValueError(f"{field_name} must be finite")
+    if amount < 0:
+        raise ValueError(f"{field_name} must be non-negative")
+    return amount
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +247,7 @@ __all__ = [
     "TenderCustomer",
     "TenderDocument",
     "TenderMoney",
+    "normalize_money_amount",
     "TenderProcedureType",
     "TenderSource",
     "TenderStatus",

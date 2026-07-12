@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from decimal import Decimal
 
 import pytest
 
@@ -94,6 +95,33 @@ def test_profile_json_round_trip_preserves_directions() -> None:
         TenderDirection.BARRIERS,
         TenderDirection.ANPR,
     )
+
+
+def test_profile_prices_round_trip_as_exact_json_strings() -> None:
+    profile = TenderSearchProfile(
+        id="exact-money",
+        name="Точные суммы",
+        keywords=("СКУД",),
+        min_price=0.1,
+        max_price="9007199254740993.01",
+    )
+
+    payload = profile.to_dict()
+    restored = TenderSearchProfile.from_dict(payload)
+    legacy = TenderSearchProfile.from_dict(
+        {
+            **payload,
+            "min_price": 1000,
+            "max_price": 5000000.5,
+        }
+    )
+
+    assert payload["min_price"] == "0.1"
+    assert payload["max_price"] == "9007199254740993.01"
+    assert restored.min_price == Decimal("0.1")
+    assert restored.max_price == Decimal("9007199254740993.01")
+    assert legacy.min_price == Decimal("1000")
+    assert legacy.max_price == Decimal("5000000.5")
 
 
 def test_clone_as_custom_changes_identity_and_timestamps() -> None:

@@ -187,6 +187,25 @@ def test_filter_applies_region_and_price() -> None:
     assert result.accepted[0].tender is moscow
 
 
+def test_filter_keeps_exact_precision_for_large_price_boundaries() -> None:
+    tender = make_tender(
+        title="Монтаж СКУД",
+        amount="9007199254740993.01",
+    )
+
+    result = CorterisTenderFilter().filter(
+        (tender,),
+        TenderFilterOptions(
+            max_price="9007199254740993.00",
+        ),
+    )
+
+    assert result.accepted_count == 0
+    assert result.rejected[0].rejection_reasons == (
+        "Цена выше максимальной",
+    )
+
+
 def test_results_are_ranked_by_relevance_then_deadline() -> None:
     medium = make_tender(
         title="Поставка шлагбаума",
