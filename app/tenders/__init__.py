@@ -85,6 +85,12 @@ from app.tenders.commercial_estimator import (
     CommercialEstimator,
     CommercialEvidence,
 )
+from app.tenders.participation_decision import (
+    ParticipationDecision,
+    ParticipationDecisionEvidence,
+    ParticipationDecisionInput,
+    ParticipationDecisionRecommendation,
+)
 from app.tenders.requirement_analysis import (
     AnalysisRiskLevel,
     AnalyzedDocument,
@@ -169,6 +175,10 @@ __all__ = [
     "CommercialEstimateStatus",
     "CommercialEstimator",
     "CommercialEvidence",
+    "ParticipationDecision",
+    "ParticipationDecisionEvidence",
+    "ParticipationDecisionInput",
+    "ParticipationDecisionRecommendation",
     "MatchingCatalog",
     "MatchingCatalogEntry",
     "MatchingCatalogRepository",
