@@ -36,6 +36,10 @@ from app.tenders.collector.provider_control import (
     ProviderDisplayState,
 )
 from app.tenders.collector.run_session import CollectorRunSession
+from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.collector.verification_review import (
+    TenderVerificationReviewService,
+)
 from app.tenders.full_analysis import (
     FullAnalysisProgress,
     TenderFullAnalysisResult,
@@ -72,6 +76,7 @@ from app.ui.tender_provider_manager_dialog import (
     TenderProviderManagerDialog,
 )
 from app.ui.tender_registry_dialog import TenderRegistryDialog
+from app.ui.tender_verification_dialog import TenderVerificationDialog
 from app.ui.tender_requirement_analysis_dialog import (
     TenderRequirementAnalysisDialog,
 )
@@ -394,6 +399,9 @@ class TenderSearchUiController(QObject):
         runtime: TenderSearchRuntime | None = None,
         provider_manager: CollectorProviderManager | None = None,
         collector_session: CollectorRunSession | None = None,
+        verification_review_service: (
+            TenderVerificationReviewService | None
+        ) = None,
         theme: ThemeName | str = ThemeName.DARK,
         thread_pool: _ThreadPoolLike | None = None,
         parent: QObject | None = None,
@@ -411,6 +419,20 @@ class TenderSearchUiController(QObject):
         self.collector_session = (
             collector_session
             or CollectorRunSession(self.data_directory)
+        )
+        registry_path = (
+            self.runtime.tender_registry.path
+            if self.runtime.tender_registry is not None
+            else self.data_directory / "tender_registry.sqlite3"
+        )
+        self.verification_repository = CollectorStateRepository(
+            registry_path
+        )
+        self.verification_review_service = (
+            verification_review_service
+            or TenderVerificationReviewService(
+                self.verification_repository
+            )
         )
         try:
             self._theme = ThemeName(theme)
@@ -455,6 +477,9 @@ class TenderSearchUiController(QObject):
         self._full_analysis_workers: dict[
             str,
             _TenderFullAnalysisWorker,
+        ] = {}
+        self._verification_dialogs: dict[
+            str, TenderVerificationDialog
         ] = {}
         # PySide6 can release a QMenu wrapper created by QMenuBar.addMenu()
         # when no Python-side strong reference is retained, especially with
@@ -699,6 +724,9 @@ class TenderSearchUiController(QObject):
             )
             self._registry_dialog.full_analysis_requested.connect(
                 self.open_full_analysis
+            )
+            self._registry_dialog.verification_requested.connect(
+                self.open_verification_details
             )
 
         self._registry_dialog.refresh_records()
@@ -1325,6 +1353,144 @@ class TenderSearchUiController(QObject):
             registry_key,
             rendered,
         )
+
+    @Slot(str)
+    def open_verification_details(
+        self,
+        registry_key: str,
+    ) -> None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return
+        try:
+            review = self.verification_review_service.load(normalized)
+        except Exception as exc:
+            if self._registry_dialog is not None:
+                self._registry_dialog.set_status(
+                    f"Не удалось загрузить достоверность: {exc}",
+                    error=True,
+                )
+            return
+        dialog = self._verification_dialogs.get(normalized)
+        if dialog is None:
+            parent = self.parent()
+            parent_widget = (
+                parent if isinstance(parent, QWidget) else None
+            )
+            dialog = TenderVerificationDialog(
+                review,
+                theme=self._theme,
+                parent=parent_widget,
+            )
+            dialog.resolve_requested.connect(
+                self.resolve_verification_field
+            )
+            dialog.clear_requested.connect(
+                self.clear_verification_field
+            )
+            dialog.refresh_requested.connect(
+                self.refresh_verification_details
+            )
+            dialog.finished.connect(
+                lambda _result, key=normalized, current=dialog: (
+                    self._forget_verification_dialog(key, current)
+                )
+            )
+            self._verification_dialogs[normalized] = dialog
+        else:
+            dialog.set_review(review)
+        dialog.open()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    @Slot(str)
+    def refresh_verification_details(
+        self,
+        registry_key: str,
+    ) -> None:
+        normalized = registry_key.strip()
+        dialog = self._verification_dialogs.get(normalized)
+        if dialog is None:
+            return
+        try:
+            dialog.set_review(
+                self.verification_review_service.load(normalized)
+            )
+            dialog.set_status("Данные обновлены.")
+        except Exception as exc:
+            dialog.set_status(str(exc), error=True)
+
+    @Slot(str, str, str, str)
+    def resolve_verification_field(
+        self,
+        registry_key: str,
+        field_name: str,
+        candidate_id: str,
+        note: str,
+    ) -> None:
+        dialog = self._verification_dialogs.get(registry_key)
+        try:
+            review = self.verification_review_service.resolve(
+                registry_key,
+                field_name,
+                candidate_id,
+                note=note,
+            )
+        except Exception as exc:
+            if dialog is not None:
+                dialog.set_status(
+                    f"Не удалось сохранить выбор: {exc}",
+                    error=True,
+                )
+            return
+        if dialog is not None:
+            dialog.set_review(review)
+            dialog.set_status(
+                "Ручной выбор сохранён. Рейтинг пересчитывается."
+            )
+        if self._registry_dialog is not None:
+            self._registry_dialog.refresh_records()
+        if self.runtime.participation_score_service is not None:
+            self.run_participation_score(registry_key)
+
+    @Slot(str, str, str)
+    def clear_verification_field(
+        self,
+        registry_key: str,
+        field_name: str,
+        note: str,
+    ) -> None:
+        dialog = self._verification_dialogs.get(registry_key)
+        try:
+            review = self.verification_review_service.clear(
+                registry_key,
+                field_name,
+                note=note,
+            )
+        except Exception as exc:
+            if dialog is not None:
+                dialog.set_status(
+                    f"Не удалось снять ручной выбор: {exc}",
+                    error=True,
+                )
+            return
+        if dialog is not None:
+            dialog.set_review(review)
+            dialog.set_status(
+                "Ручной выбор снят; восстановлен приоритет источников."
+            )
+        if self._registry_dialog is not None:
+            self._registry_dialog.refresh_records()
+        if self.runtime.participation_score_service is not None:
+            self.run_participation_score(registry_key)
+
+    def _forget_verification_dialog(
+        self,
+        registry_key: str,
+        dialog: TenderVerificationDialog,
+    ) -> None:
+        if self._verification_dialogs.get(registry_key) is dialog:
+            self._verification_dialogs.pop(registry_key, None)
 
     @Slot(str)
     def open_full_analysis(self, registry_key: str) -> None:

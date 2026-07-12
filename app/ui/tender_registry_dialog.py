@@ -7,7 +7,7 @@ from decimal import Decimal
 from html import escape
 
 from PySide6.QtCore import QUrl, Qt, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -28,6 +28,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.collector.verification import (
+    TenderVerificationState,
+    TenderVerificationStatus,
+)
+from app.tenders.collector.verification_review import STATUS_LABELS
 from app.tenders.tender_registry import (
     TenderRegistryQuery,
     TenderRegistryRecord,
@@ -51,22 +57,31 @@ class TenderRegistryDialog(QDialog):
     analysis_requested = Signal(str)
     score_requested = Signal(str)
     full_analysis_requested = Signal(str)
+    verification_requested = Signal(str)
 
     def __init__(
         self,
         repository: TenderRegistryRepository,
         *,
+        verification_repository: CollectorStateRepository | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
 
         self.repository = repository
+        self.verification_repository = (
+            verification_repository
+            or CollectorStateRepository(repository.path)
+        )
         try:
             self._theme = ThemeName(theme)
         except (TypeError, ValueError, AttributeError):
             self._theme = ThemeName.DARK
         self._records: tuple[TenderRegistryRecord, ...] = ()
+        self._verification_states: dict[
+            str, TenderVerificationState
+        ] = {}
 
         self.setWindowTitle("Corteris Tender AI — реестр тендеров")
         self.setModal(False)
@@ -95,11 +110,12 @@ class TenderRegistryDialog(QDialog):
 
         self.table = QTableWidget(table_frame)
         self.table.setObjectName("TenderRegistryTable")
-        self.table.setColumnCount(11)
+        self.table.setColumnCount(12)
         self.table.setHorizontalHeaderLabels(
             (
                 "Балл",
                 "Результат",
+                "Достоверность",
                 "Номер",
                 "Закупка",
                 "Заказчик",
@@ -126,7 +142,7 @@ class TenderRegistryDialog(QDialog):
             QHeaderView.ResizeMode.ResizeToContents
         )
         self.table.horizontalHeader().setSectionResizeMode(
-            3,
+            4,
             QHeaderView.ResizeMode.Stretch,
         )
         self.table.itemSelectionChanged.connect(
@@ -230,6 +246,14 @@ class TenderRegistryDialog(QDialog):
             self._request_selected_score
         )
 
+        self.verification_button = QPushButton(
+            "Достоверность и источники",
+            self,
+        )
+        self.verification_button.clicked.connect(
+            self._request_selected_verification
+        )
+
         self.documents_button = QPushButton(
             "Скачать документацию",
             self,
@@ -264,6 +288,7 @@ class TenderRegistryDialog(QDialog):
         action_row.addWidget(self.full_analysis_button)
         action_row.addWidget(self.analysis_button)
         action_row.addWidget(self.score_button)
+        action_row.addWidget(self.verification_button)
         action_row.addWidget(self.documents_button)
         action_row.addWidget(self.archive_button)
         action_row.addWidget(self.refresh_button)
@@ -470,6 +495,11 @@ class TenderRegistryDialog(QDialog):
             query = self.current_query()
             records = self.repository.search_tenders(query)
             total_matches = self.repository.count_search_results(query)
+            self._verification_states = dict(
+                self.verification_repository.list_verification_states(
+                    tuple(item.registry_key for item in records)
+                )
+            )
         except Exception as exc:
             self.set_status(
                 f"Не удалось прочитать реестр: {exc}",
@@ -502,9 +532,14 @@ class TenderRegistryDialog(QDialog):
                 if record.archived
                 else ("Подходит" if record.last_accepted else "Отсеяно")
             )
+            verification_state = self._verification_states.get(
+                record.registry_key
+            )
+            verification_text = _verification_text(verification_state)
             values = (
                 str(record.relevance_score),
                 result_text,
+                verification_text,
                 record.procurement_number,
                 record.title,
                 record.customer_name,
@@ -525,15 +560,32 @@ class TenderRegistryDialog(QDialog):
                     item.setTextAlignment(
                         Qt.AlignmentFlag.AlignCenter
                     )
+                if column == 2:
+                    item.setForeground(
+                        QColor(
+                            _verification_color(
+                                verification_state,
+                                get_palette(self._theme),
+                            )
+                        )
+                    )
+                    item.setToolTip(
+                        _verification_tooltip(verification_state)
+                    )
                 self.table.setItem(row, column, item)
 
             if record.registry_key == selected_key:
                 selected_row = row
 
         if self._records:
-            self.table.selectRow(
-                selected_row if selected_row >= 0 else 0
-            )
+            target_row = selected_row if selected_row >= 0 else 0
+            # QTableWidget.selectRow() may update only the selection
+            # model without establishing a current index in offscreen
+            # and some platform styles. Set the current cell first so
+            # action buttons and signal handlers can resolve the row
+            # immediately, even before the event loop processes events.
+            self.table.setCurrentCell(target_row, 0)
+            self.table.selectRow(target_row)
             self._show_selected_record()
         else:
             self.details.setHtml(
@@ -547,10 +599,22 @@ class TenderRegistryDialog(QDialog):
             self.full_analysis_button.setEnabled(False)
             self.analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
+            self.verification_button.setEnabled(False)
             self.archive_button.setEnabled(False)
 
     def selected_record(self) -> TenderRegistryRecord | None:
-        row = self.table.currentRow()
+        """Return the selected record without relying only on currentRow()."""
+
+        row = -1
+        selection_model = self.table.selectionModel()
+        if selection_model is not None:
+            selected_rows = selection_model.selectedRows(0)
+            if selected_rows:
+                row = selected_rows[0].row()
+
+        if row < 0:
+            row = self.table.currentRow()
+
         if not 0 <= row < len(self._records):
             return None
         return self._records[row]
@@ -562,6 +626,7 @@ class TenderRegistryDialog(QDialog):
             self.full_analysis_button.setEnabled(False)
             self.analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
+            self.verification_button.setEnabled(False)
             self.archive_button.setEnabled(False)
             return
 
@@ -569,11 +634,15 @@ class TenderRegistryDialog(QDialog):
         self.full_analysis_button.setEnabled(True)
         self.analysis_button.setEnabled(True)
         self.documents_button.setEnabled(True)
+        self.verification_button.setEnabled(True)
         self.archive_button.setEnabled(True)
         self.archive_button.setText(
             "Вернуть из архива" if record.archived else "В архив"
         )
 
+        verification_state = self._verification_states.get(
+            record.registry_key
+        )
         state = (
             "Архив"
             if record.archived
@@ -594,6 +663,8 @@ class TenderRegistryDialog(QDialog):
             f"<p><b>Срок подачи:</b> "
             f"{escape(_format_timestamp(record.application_deadline))}</p>"
             f"<p><b>Состояние:</b> {escape(state)}</p>"
+            f"<p><b>Достоверность данных:</b> "
+            f"{escape(_verification_text(verification_state))}</p>"
             f"<p><b>Последняя релевантность:</b> "
             f"{record.relevance_score}/100 "
             f"({escape(record.relevance_grade)})</p>"
@@ -688,6 +759,12 @@ class TenderRegistryDialog(QDialog):
         if record is None:
             return
         self.score_requested.emit(record.registry_key)
+
+    def _request_selected_verification(self) -> None:
+        record = self.selected_record()
+        if record is None:
+            return
+        self.verification_requested.emit(record.registry_key)
 
     def _request_selected_documents(self) -> None:
         record = self.selected_record()
@@ -845,6 +922,54 @@ def _format_timestamp(value: str) -> str:
     if parsed.hour == 0 and parsed.minute == 0 and "T" not in value:
         return parsed.strftime("%d.%m.%Y")
     return parsed.strftime("%d.%m.%Y %H:%M")
+
+
+def _verification_text(
+    state: TenderVerificationState | None,
+) -> str:
+    if state is None:
+        return "Не проверено"
+    label = STATUS_LABELS.get(state.status, state.status.value)
+    if state.unresolved_conflict_count:
+        return f"{label} · {state.unresolved_conflict_count}"
+    return label
+
+
+def _verification_tooltip(
+    state: TenderVerificationState | None,
+) -> str:
+    if state is None:
+        return "Проверка происхождения критичных полей ещё не выполнялась."
+    return (
+        f"{_verification_text(state)}\n"
+        f"Подтверждено: {state.verified_field_count}/"
+        f"{state.critical_field_count}\n"
+        f"Официальных полей: {state.official_field_count}\n"
+        f"Конфликтов: {state.conflict_count}; нерешённых: "
+        f"{state.unresolved_conflict_count}\n"
+        f"Минимальная достоверность: {state.minimum_confidence:.0%}"
+    )
+
+
+def _verification_color(state, palette) -> str:
+    if state is None:
+        return palette.neutral
+    if state.status == TenderVerificationStatus.CONFLICT:
+        return palette.danger
+    if state.status in {
+        TenderVerificationStatus.INCOMPLETE,
+        TenderVerificationStatus.AGGREGATOR_ONLY,
+        TenderVerificationStatus.PUBLIC_CARD,
+    }:
+        return palette.warning
+    if state.status in {
+        TenderVerificationStatus.VERIFIED_DOCUMENTATION,
+        TenderVerificationStatus.VERIFIED_EIS,
+        TenderVerificationStatus.VERIFIED_PLATFORM,
+        TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+    }:
+        return palette.success
+    return palette.info
 
 
 __all__ = ["TenderRegistryDialog"]

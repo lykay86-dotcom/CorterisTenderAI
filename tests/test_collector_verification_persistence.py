@@ -39,7 +39,7 @@ def _save(repository, tender, run_id: str):
     return verification, summary
 
 
-def test_schema_v3_contains_provenance_tables(tmp_path) -> None:
+def test_schema_v4_contains_review_tables(tmp_path) -> None:
     path = tmp_path / "tender_registry.sqlite3"
     repository = CollectorStateRepository(path)
     repository.initialize()
@@ -61,13 +61,15 @@ def test_schema_v3_contains_provenance_tables(tmp_path) -> None:
             )
         }
 
-    assert version == COLLECTOR_SCHEMA_VERSION == 3
+    assert version == COLLECTOR_SCHEMA_VERSION == 4
     assert {
         "collector_verification_runs",
         "collector_tender_field_values",
         "collector_tender_field_provenance",
         "collector_tender_field_conflicts",
         "collector_tender_verification_state",
+        "collector_tender_field_manual_selections",
+        "collector_tender_field_resolution_history",
     } <= tables
 
 

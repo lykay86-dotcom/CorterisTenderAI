@@ -292,3 +292,21 @@ __all__ += [
     "TenderVerificationStatus",
     "VerificationBatchResult",
 ]
+
+from app.tenders.collector.verification_review import (
+    FIELD_LABELS,
+    STATUS_LABELS,
+    TRUST_LABELS,
+    TenderVerificationReview,
+    TenderVerificationReviewService,
+    VerificationFieldReview,
+)
+
+__all__ += [
+    "FIELD_LABELS",
+    "STATUS_LABELS",
+    "TRUST_LABELS",
+    "TenderVerificationReview",
+    "TenderVerificationReviewService",
+    "VerificationFieldReview",
+]

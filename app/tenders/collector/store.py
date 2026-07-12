@@ -40,12 +40,17 @@ from app.tenders.collector.verification import (
     FieldConflict,
     FieldConflictType,
     FieldProvenance,
+    FieldResolutionAction,
+    FieldResolutionRecord,
     SourceTrustLevel,
     TenderVerificationHistory,
     TenderVerificationResult,
     TenderVerificationState,
     TenderVerificationStatus,
     VerificationBatchResult,
+    apply_selected_field_values,
+    determine_verification_status,
+    field_candidate_priority,
 )
 from app.tenders.models import UnifiedTender
 from app.tenders.provider_base import TenderSearchQuery
@@ -561,10 +566,21 @@ class CollectorStateRepository:
                 return None
             rows = connection.execute(
                 """
-                SELECT *
-                FROM collector_tender_field_values
-                WHERE registry_key = ? AND selected = 1
-                ORDER BY rowid DESC
+                SELECT values_table.*,
+                       CASE
+                           WHEN manual.candidate_id = values_table.candidate_id
+                           THEN 1 ELSE 0
+                       END AS manual_selected
+                FROM collector_tender_field_values AS values_table
+                LEFT JOIN collector_tender_field_manual_selections AS manual
+                  ON manual.registry_key = values_table.registry_key
+                 AND manual.field_name = values_table.field_name
+                WHERE values_table.registry_key = ?
+                  AND (
+                      values_table.selected = 1
+                      OR manual.candidate_id = values_table.candidate_id
+                  )
+                ORDER BY manual_selected DESC, values_table.rowid DESC
                 """,
                 (registry_key,),
             ).fetchall()
@@ -594,6 +610,7 @@ class CollectorStateRepository:
                 confidence=float(row["confidence"]),
                 selected=True,
                 historical=True,
+                manual_override=bool(row["manual_selected"]),
             )
         if not selected:
             return None
@@ -620,35 +637,36 @@ class CollectorStateRepository:
                 """,
                 (normalized,),
             ).fetchone()
-        if row is None:
-            return None
-        try:
-            missing = json.loads(
-                str(row["missing_fields_json"] or "[]")
+        return _row_to_verification_state(row) if row is not None else None
+
+    def list_verification_states(
+        self,
+        registry_keys: Sequence[str],
+    ) -> Mapping[str, TenderVerificationState]:
+        """Load verification badges for a registry page in one query."""
+
+        normalized = tuple(
+            dict.fromkeys(
+                item.strip() for item in registry_keys if item.strip()
             )
-        except json.JSONDecodeError:
-            missing = []
-        if not isinstance(missing, list):
-            missing = []
-        return TenderVerificationState(
-            registry_key=str(row["registry_key"]),
-            verification_run_id=str(
-                row["verification_run_id"]
-            ),
-            status=TenderVerificationStatus(str(row["status"])),
-            last_verified_at=str(row["last_verified_at"]),
-            critical_field_count=int(
-                row["critical_field_count"]
-            ),
-            verified_field_count=int(row["verified_field_count"]),
-            official_field_count=int(row["official_field_count"]),
-            missing_fields=tuple(str(item) for item in missing),
-            conflict_count=int(row["conflict_count"]),
-            unresolved_conflict_count=int(
-                row["unresolved_conflict_count"]
-            ),
-            minimum_confidence=float(row["minimum_confidence"]),
         )
+        if not normalized:
+            return {}
+        self.initialize()
+        placeholders = ",".join("?" for _ in normalized)
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT *
+                FROM collector_tender_verification_state
+                WHERE registry_key IN ({placeholders})
+                """,
+                normalized,
+            ).fetchall()
+        return {
+            str(row["registry_key"]): _row_to_verification_state(row)
+            for row in rows
+        }
 
     def list_field_provenance(
         self,
@@ -695,13 +713,23 @@ class CollectorStateRepository:
     ) -> tuple[FieldConflict, ...]:
         self.initialize()
         sql = """
-            SELECT *
-            FROM collector_tender_field_conflicts
-            WHERE registry_key = ?
+            SELECT conflicts.*,
+                   CASE
+                       WHEN manual.candidate_id IS NOT NULL THEN 1
+                       ELSE 0
+                   END AS manually_resolved
+            FROM collector_tender_field_conflicts AS conflicts
+            LEFT JOIN collector_tender_field_manual_selections AS manual
+              ON manual.registry_key = conflicts.registry_key
+             AND manual.field_name = conflicts.field_name
+            WHERE conflicts.registry_key = ?
         """
         if unresolved_only:
-            sql += " AND unresolved = 1"
-        sql += " ORDER BY detected_at DESC, rowid DESC"
+            sql += (
+                " AND conflicts.unresolved = 1"
+                " AND manual.candidate_id IS NULL"
+            )
+        sql += " ORDER BY conflicts.detected_at DESC, conflicts.rowid DESC"
         with self._lock, self._connect() as connection:
             rows = connection.execute(
                 sql,
@@ -728,11 +756,566 @@ class CollectorStateRepository:
                     ),
                     detected_at=str(row["detected_at"]),
                     critical=bool(row["critical"]),
-                    unresolved=bool(row["unresolved"]),
+                    unresolved=(
+                        bool(row["unresolved"])
+                        and not bool(row["manually_resolved"])
+                    ),
                     message=str(row["message"]),
                 )
             )
         return tuple(result)
+
+    def list_field_candidates(
+        self,
+        registry_key: str,
+        *,
+        field_name: str = "",
+        current_only: bool = True,
+    ) -> tuple[FieldCandidate, ...]:
+        """Return field candidates with current/manual selection markers."""
+
+        normalized = registry_key.strip()
+        if not normalized:
+            return ()
+        self.initialize()
+        sql = """
+            SELECT values_table.*,
+                   CASE
+                       WHEN manual.candidate_id = values_table.candidate_id
+                       THEN 1 ELSE 0
+                   END AS manual_selected
+            FROM collector_tender_field_values AS values_table
+            LEFT JOIN collector_tender_field_manual_selections AS manual
+              ON manual.registry_key = values_table.registry_key
+             AND manual.field_name = values_table.field_name
+            WHERE values_table.registry_key = ?
+        """
+        params: list[object] = [normalized]
+        if current_only:
+            sql += """
+                AND values_table.verification_run_id = (
+                    SELECT verification_run_id
+                    FROM collector_tender_verification_state
+                    WHERE registry_key = ?
+                )
+            """
+            params.append(normalized)
+        if field_name.strip():
+            sql += " AND values_table.field_name = ?"
+            params.append(field_name.strip())
+        sql += """
+            ORDER BY values_table.field_name,
+                     manual_selected DESC,
+                     values_table.selected DESC,
+                     values_table.trust_level DESC,
+                     values_table.confidence DESC,
+                     values_table.retrieved_at DESC
+        """
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(sql, tuple(params)).fetchall()
+        return tuple(_row_to_field_candidate(row) for row in rows)
+
+    def list_field_resolutions(
+        self,
+        registry_key: str,
+        *,
+        limit: int = 200,
+    ) -> tuple[FieldResolutionRecord, ...]:
+        if not 1 <= limit <= 2000:
+            raise ValueError("limit must be between 1 and 2000")
+        normalized = registry_key.strip()
+        if not normalized:
+            return ()
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM collector_tender_field_resolution_history
+                WHERE registry_key = ?
+                ORDER BY resolved_at DESC, rowid DESC
+                LIMIT ?
+                """,
+                (normalized, limit),
+            ).fetchall()
+        return tuple(_row_to_field_resolution(row) for row in rows)
+
+    def resolve_field_candidate(
+        self,
+        registry_key: str,
+        field_name: str,
+        candidate_id: str,
+        *,
+        resolved_by: str = "user",
+        note: str = "",
+        resolved_at: str | None = None,
+    ) -> FieldResolutionRecord:
+        """Select one candidate manually and write an immutable audit row."""
+
+        normalized_key = registry_key.strip()
+        normalized_field = field_name.strip()
+        normalized_candidate = candidate_id.strip()
+        if not normalized_key or not normalized_field or not normalized_candidate:
+            raise ValueError(
+                "registry_key, field_name and candidate_id are required"
+            )
+        moment = resolved_at or _utc_now()
+        actor = resolved_by.strip() or "user"
+        safe_note = note.strip()[:4000]
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                state = connection.execute(
+                    """
+                    SELECT verification_run_id
+                    FROM collector_tender_verification_state
+                    WHERE registry_key = ?
+                    """,
+                    (normalized_key,),
+                ).fetchone()
+                if state is None:
+                    raise KeyError(normalized_key)
+                verification_run_id = str(state["verification_run_id"])
+                row = connection.execute(
+                    """
+                    SELECT *
+                    FROM collector_tender_field_values
+                    WHERE candidate_id = ?
+                      AND registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                    """,
+                    (
+                        normalized_candidate,
+                        normalized_key,
+                        normalized_field,
+                        verification_run_id,
+                    ),
+                ).fetchone()
+                if row is None:
+                    raise KeyError(normalized_candidate)
+                previous = connection.execute(
+                    """
+                    SELECT candidate_id
+                    FROM collector_tender_field_values
+                    WHERE registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                      AND selected = 1
+                    ORDER BY rowid DESC
+                    LIMIT 1
+                    """,
+                    (normalized_key, normalized_field, verification_run_id),
+                ).fetchone()
+                previous_id = (
+                    str(previous["candidate_id"]) if previous is not None else ""
+                )
+                connection.execute(
+                    """
+                    UPDATE collector_tender_field_values
+                    SET selected = CASE WHEN candidate_id = ? THEN 1 ELSE 0 END
+                    WHERE registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                    """,
+                    (
+                        normalized_candidate,
+                        normalized_key,
+                        normalized_field,
+                        verification_run_id,
+                    ),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO collector_tender_field_manual_selections(
+                        registry_key, field_name, candidate_id, selected_at,
+                        selected_by, note
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(registry_key, field_name) DO UPDATE SET
+                        candidate_id=excluded.candidate_id,
+                        selected_at=excluded.selected_at,
+                        selected_by=excluded.selected_by,
+                        note=excluded.note
+                    """,
+                    (
+                        normalized_key,
+                        normalized_field,
+                        normalized_candidate,
+                        moment,
+                        actor,
+                        safe_note,
+                    ),
+                )
+                conflict = connection.execute(
+                    """
+                    SELECT conflict_id
+                    FROM collector_tender_field_conflicts
+                    WHERE registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                    ORDER BY detected_at DESC, rowid DESC
+                    LIMIT 1
+                    """,
+                    (normalized_key, normalized_field, verification_run_id),
+                ).fetchone()
+                conflict_id = (
+                    str(conflict["conflict_id"]) if conflict is not None else ""
+                )
+                connection.execute(
+                    """
+                    UPDATE collector_tender_field_conflicts
+                    SET selected_candidate_id = ?
+                    WHERE registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                    """,
+                    (
+                        normalized_candidate,
+                        normalized_key,
+                        normalized_field,
+                        verification_run_id,
+                    ),
+                )
+                candidate = _row_to_field_candidate(row)
+                resolution = FieldResolutionRecord(
+                    resolution_id=uuid4().hex,
+                    registry_key=normalized_key,
+                    field_name=normalized_field,
+                    action=FieldResolutionAction.SELECTED,
+                    previous_candidate_id=previous_id,
+                    selected_candidate_id=normalized_candidate,
+                    selected_value=candidate.value_payload(),
+                    selected_source_id=candidate.source_id,
+                    resolved_at=moment,
+                    resolved_by=actor,
+                    note=safe_note,
+                    conflict_id=conflict_id,
+                )
+                self._insert_resolution_history(connection, resolution)
+                self._apply_manual_candidate_to_record(
+                    connection,
+                    normalized_key,
+                    candidate.with_selected(True),
+                )
+                self._recalculate_verification_state(
+                    connection,
+                    normalized_key,
+                )
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
+        return resolution
+
+    def clear_manual_field_resolution(
+        self,
+        registry_key: str,
+        field_name: str,
+        *,
+        resolved_by: str = "user",
+        note: str = "",
+        resolved_at: str | None = None,
+    ) -> FieldResolutionRecord | None:
+        """Remove a manual override and restore automatic source priority."""
+
+        normalized_key = registry_key.strip()
+        normalized_field = field_name.strip()
+        if not normalized_key or not normalized_field:
+            raise ValueError("registry_key and field_name are required")
+        moment = resolved_at or _utc_now()
+        actor = resolved_by.strip() or "user"
+        safe_note = note.strip()[:4000]
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                manual = connection.execute(
+                    """
+                    SELECT *
+                    FROM collector_tender_field_manual_selections
+                    WHERE registry_key = ? AND field_name = ?
+                    """,
+                    (normalized_key, normalized_field),
+                ).fetchone()
+                if manual is None:
+                    connection.execute("COMMIT")
+                    return None
+                state = connection.execute(
+                    """
+                    SELECT verification_run_id
+                    FROM collector_tender_verification_state
+                    WHERE registry_key = ?
+                    """,
+                    (normalized_key,),
+                ).fetchone()
+                if state is None:
+                    raise KeyError(normalized_key)
+                verification_run_id = str(state["verification_run_id"])
+                rows = connection.execute(
+                    """
+                    SELECT values_table.*, 0 AS manual_selected
+                    FROM collector_tender_field_values AS values_table
+                    WHERE registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                    """,
+                    (normalized_key, normalized_field, verification_run_id),
+                ).fetchall()
+                if not rows:
+                    raise KeyError(normalized_field)
+                candidates = tuple(_row_to_field_candidate(row) for row in rows)
+                automatic = max(candidates, key=field_candidate_priority)
+                previous_id = str(manual["candidate_id"])
+                connection.execute(
+                    """
+                    DELETE FROM collector_tender_field_manual_selections
+                    WHERE registry_key = ? AND field_name = ?
+                    """,
+                    (normalized_key, normalized_field),
+                )
+                connection.execute(
+                    """
+                    UPDATE collector_tender_field_values
+                    SET selected = CASE WHEN candidate_id = ? THEN 1 ELSE 0 END
+                    WHERE registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                    """,
+                    (
+                        automatic.candidate_id,
+                        normalized_key,
+                        normalized_field,
+                        verification_run_id,
+                    ),
+                )
+                connection.execute(
+                    """
+                    UPDATE collector_tender_field_conflicts
+                    SET selected_candidate_id = ?
+                    WHERE registry_key = ?
+                      AND field_name = ?
+                      AND verification_run_id = ?
+                    """,
+                    (
+                        automatic.candidate_id,
+                        normalized_key,
+                        normalized_field,
+                        verification_run_id,
+                    ),
+                )
+                resolution = FieldResolutionRecord(
+                    resolution_id=uuid4().hex,
+                    registry_key=normalized_key,
+                    field_name=normalized_field,
+                    action=FieldResolutionAction.CLEARED,
+                    previous_candidate_id=previous_id,
+                    selected_candidate_id=automatic.candidate_id,
+                    selected_value=automatic.value_payload(),
+                    selected_source_id=automatic.source_id,
+                    resolved_at=moment,
+                    resolved_by=actor,
+                    note=safe_note,
+                )
+                self._insert_resolution_history(connection, resolution)
+                self._apply_manual_candidate_to_record(
+                    connection,
+                    normalized_key,
+                    automatic.with_selected(True),
+                )
+                self._recalculate_verification_state(
+                    connection,
+                    normalized_key,
+                )
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
+        return resolution
+
+    @staticmethod
+    def _insert_resolution_history(
+        connection: sqlite3.Connection,
+        resolution: FieldResolutionRecord,
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO collector_tender_field_resolution_history(
+                resolution_id, registry_key, field_name, action, conflict_id,
+                previous_candidate_id, selected_candidate_id,
+                selected_value_json, selected_source_id, resolved_at,
+                resolved_by, note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                resolution.resolution_id,
+                resolution.registry_key,
+                resolution.field_name,
+                resolution.action.value,
+                resolution.conflict_id,
+                resolution.previous_candidate_id,
+                resolution.selected_candidate_id,
+                stable_json(resolution.selected_value),
+                resolution.selected_source_id,
+                resolution.resolved_at,
+                resolution.resolved_by,
+                resolution.note,
+            ),
+        )
+
+    @staticmethod
+    def _apply_manual_candidate_to_record(
+        connection: sqlite3.Connection,
+        registry_key: str,
+        candidate: FieldCandidate,
+    ) -> None:
+        tender = CollectorStateRepository._load_existing_tender(
+            connection,
+            registry_key,
+        )
+        if tender is None:
+            raise KeyError(registry_key)
+        updated = apply_selected_field_values(
+            tender,
+            {candidate.field_name: candidate},
+        )
+        payload = stable_json(tender_to_payload(updated))
+        price_amount = (
+            str(updated.price.amount) if updated.price is not None else None
+        )
+        currency = updated.price.currency if updated.price is not None else ""
+        includes_vat = (
+            None
+            if updated.price is None or updated.price.includes_vat is None
+            else int(updated.price.includes_vat)
+        )
+        connection.execute(
+            """
+            UPDATE tender_records
+            SET procurement_number = ?,
+                customer_name = ?,
+                customer_inn = ?,
+                price_amount = ?,
+                currency = ?,
+                includes_vat = ?,
+                status = ?,
+                law = ?,
+                application_deadline = ?,
+                source_url = ?,
+                payload_json = ?
+            WHERE registry_key = ?
+            """,
+            (
+                updated.procurement_number,
+                updated.customer.name,
+                updated.customer.inn,
+                price_amount,
+                currency,
+                includes_vat,
+                updated.status.value,
+                updated.law,
+                _iso(updated.application_deadline),
+                updated.source_url,
+                payload,
+                registry_key,
+            ),
+        )
+
+    @staticmethod
+    def _recalculate_verification_state(
+        connection: sqlite3.Connection,
+        registry_key: str,
+    ) -> None:
+        state = connection.execute(
+            """
+            SELECT *
+            FROM collector_tender_verification_state
+            WHERE registry_key = ?
+            """,
+            (registry_key,),
+        ).fetchone()
+        if state is None:
+            return
+        run_id = str(state["verification_run_id"])
+        rows = connection.execute(
+            """
+            SELECT values_table.*,
+                   CASE
+                       WHEN manual.candidate_id = values_table.candidate_id
+                       THEN 1 ELSE 0
+                   END AS manual_selected
+            FROM collector_tender_field_values AS values_table
+            LEFT JOIN collector_tender_field_manual_selections AS manual
+              ON manual.registry_key = values_table.registry_key
+             AND manual.field_name = values_table.field_name
+            WHERE values_table.registry_key = ?
+              AND values_table.verification_run_id = ?
+              AND values_table.selected = 1
+            """,
+            (registry_key, run_id),
+        ).fetchall()
+        selected = tuple(_row_to_field_candidate(row) for row in rows)
+        try:
+            missing_raw = json.loads(str(state["missing_fields_json"] or "[]"))
+        except json.JSONDecodeError:
+            missing_raw = []
+        missing = (
+            tuple(str(item) for item in missing_raw)
+            if isinstance(missing_raw, list)
+            else ()
+        )
+        unresolved = int(
+            connection.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM collector_tender_field_conflicts AS conflicts
+                LEFT JOIN collector_tender_field_manual_selections AS manual
+                  ON manual.registry_key = conflicts.registry_key
+                 AND manual.field_name = conflicts.field_name
+                WHERE conflicts.registry_key = ?
+                  AND conflicts.verification_run_id = ?
+                  AND conflicts.unresolved = 1
+                  AND manual.candidate_id IS NULL
+                """,
+                (registry_key, run_id),
+            ).fetchone()["total"]
+        )
+        conflict_count = int(
+            connection.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM collector_tender_field_conflicts
+                WHERE registry_key = ? AND verification_run_id = ?
+                """,
+                (registry_key, run_id),
+            ).fetchone()["total"]
+        )
+        status = determine_verification_status(
+            selected,
+            missing_fields=missing,
+            unresolved_conflict=bool(unresolved),
+        )
+        connection.execute(
+            """
+            UPDATE collector_tender_verification_state
+            SET status = ?,
+                verified_field_count = ?,
+                official_field_count = ?,
+                conflict_count = ?,
+                unresolved_conflict_count = ?,
+                minimum_confidence = ?
+            WHERE registry_key = ?
+            """,
+            (
+                status.value,
+                sum(item.verified for item in selected),
+                sum(item.official for item in selected),
+                conflict_count,
+                unresolved,
+                min((item.confidence for item in selected), default=0.0),
+                registry_key,
+            ),
+        )
 
     @staticmethod
     def _persist_verification(
@@ -824,6 +1407,21 @@ class CollectorStateRepository:
                     candidate.confidence,
                     int(candidate.trust_level),
                 ),
+            )
+
+        for candidate in verification.candidates:
+            if not candidate.selected or not candidate.manual_override:
+                continue
+            storage_id = candidate_ids.get(candidate.candidate_id)
+            if not storage_id:
+                continue
+            connection.execute(
+                """
+                UPDATE collector_tender_field_manual_selections
+                SET candidate_id = ?
+                WHERE registry_key = ? AND field_name = ?
+                """,
+                (storage_id, registry_key, candidate.field_name),
             )
 
         for conflict in verification.conflicts:
@@ -1565,6 +2163,84 @@ def _source_payloads(item: NormalizedTender) -> tuple[dict[str, str], ...]:
     for source in result:
         unique[(source["source"], source["external_id"])] = source
     return tuple(unique.values())
+
+
+def _row_to_field_candidate(row: sqlite3.Row) -> FieldCandidate:
+    try:
+        payload = json.loads(str(row["value_json"]))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        payload = str(row["value_json"])
+    keys = set(row.keys())
+    return FieldCandidate(
+        candidate_id=str(row["candidate_id"]),
+        field_name=str(row["field_name"]),
+        value=payload,
+        normalized_value=str(row["normalized_value"]),
+        value_hash=str(row["value_hash"]),
+        source_id=str(row["source_id"]),
+        source_url=str(row["source_url"]),
+        retrieved_at=str(row["retrieved_at"]),
+        trust_level=SourceTrustLevel(int(row["trust_level"])),
+        official=bool(row["official"]),
+        verified=bool(row["verified"]),
+        confidence=float(row["confidence"]),
+        selected=bool(row["selected"]),
+        historical=bool(row["historical"]),
+        manual_override=(
+            bool(row["manual_selected"])
+            if "manual_selected" in keys
+            else False
+        ),
+    )
+
+
+def _row_to_field_resolution(
+    row: sqlite3.Row,
+) -> FieldResolutionRecord:
+    try:
+        selected_value = json.loads(
+            str(row["selected_value_json"] or "null")
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        selected_value = str(row["selected_value_json"] or "")
+    return FieldResolutionRecord(
+        resolution_id=str(row["resolution_id"]),
+        registry_key=str(row["registry_key"]),
+        field_name=str(row["field_name"]),
+        action=FieldResolutionAction(str(row["action"])),
+        previous_candidate_id=str(row["previous_candidate_id"]),
+        selected_candidate_id=str(row["selected_candidate_id"]),
+        selected_value=selected_value,
+        selected_source_id=str(row["selected_source_id"]),
+        resolved_at=str(row["resolved_at"]),
+        resolved_by=str(row["resolved_by"]),
+        note=str(row["note"]),
+        conflict_id=str(row["conflict_id"]),
+    )
+
+
+def _row_to_verification_state(
+    row: sqlite3.Row,
+) -> TenderVerificationState:
+    try:
+        missing = json.loads(str(row["missing_fields_json"] or "[]"))
+    except json.JSONDecodeError:
+        missing = []
+    if not isinstance(missing, list):
+        missing = []
+    return TenderVerificationState(
+        registry_key=str(row["registry_key"]),
+        verification_run_id=str(row["verification_run_id"]),
+        status=TenderVerificationStatus(str(row["status"])),
+        last_verified_at=str(row["last_verified_at"]),
+        critical_field_count=int(row["critical_field_count"]),
+        verified_field_count=int(row["verified_field_count"]),
+        official_field_count=int(row["official_field_count"]),
+        missing_fields=tuple(str(item) for item in missing),
+        conflict_count=int(row["conflict_count"]),
+        unresolved_conflict_count=int(row["unresolved_conflict_count"]),
+        minimum_confidence=float(row["minimum_confidence"]),
+    )
 
 
 def _row_to_run(row: sqlite3.Row) -> CollectionRunRecord:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 3
+COLLECTOR_SCHEMA_VERSION = 4
 
 
 class CollectorSchemaMigrator:
@@ -296,6 +296,56 @@ class CollectorSchemaMigrator:
                     registry_key,
                     unresolved,
                     detected_at DESC
+                );
+
+            CREATE TABLE IF NOT EXISTS collector_tender_field_manual_selections (
+                registry_key TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                candidate_id TEXT NOT NULL,
+                selected_at TEXT NOT NULL,
+                selected_by TEXT NOT NULL DEFAULT 'user',
+                note TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (registry_key, field_name),
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (candidate_id)
+                    REFERENCES collector_tender_field_values(candidate_id)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_manual_field_candidate
+                ON collector_tender_field_manual_selections(candidate_id);
+
+            CREATE TABLE IF NOT EXISTS collector_tender_field_resolution_history (
+                resolution_id TEXT PRIMARY KEY,
+                registry_key TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                action TEXT NOT NULL,
+                conflict_id TEXT NOT NULL DEFAULT '',
+                previous_candidate_id TEXT NOT NULL DEFAULT '',
+                selected_candidate_id TEXT NOT NULL DEFAULT '',
+                selected_value_json TEXT NOT NULL DEFAULT 'null',
+                selected_source_id TEXT NOT NULL DEFAULT '',
+                resolved_at TEXT NOT NULL,
+                resolved_by TEXT NOT NULL DEFAULT 'user',
+                note TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_resolution_history_registry
+                ON collector_tender_field_resolution_history(
+                    registry_key,
+                    resolved_at DESC
+                );
+
+            CREATE INDEX IF NOT EXISTS idx_resolution_history_field
+                ON collector_tender_field_resolution_history(
+                    registry_key,
+                    field_name,
+                    resolved_at DESC
                 );
 
             CREATE TABLE IF NOT EXISTS collector_tender_verification_state (

@@ -45,6 +45,35 @@ class SourceTrustLevel(IntEnum):
     OFFICIAL_DOCUMENTATION = 700
 
 
+class FieldResolutionAction(StrEnum):
+    SELECTED = "selected"
+    CLEARED = "cleared"
+
+
+@dataclass(frozen=True, slots=True)
+class FieldResolutionRecord:
+    resolution_id: str
+    registry_key: str
+    field_name: str
+    action: FieldResolutionAction
+    previous_candidate_id: str
+    selected_candidate_id: str
+    selected_value: object
+    selected_source_id: str
+    resolved_at: str
+    resolved_by: str
+    note: str = ""
+    conflict_id: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.resolution_id.strip():
+            raise ValueError("resolution_id must not be empty")
+        if not self.registry_key.strip():
+            raise ValueError("registry_key must not be empty")
+        if not self.field_name.strip():
+            raise ValueError("field_name must not be empty")
+
+
 class TenderVerificationStatus(StrEnum):
     MISSING = "missing"
     UNVERIFIED = "unverified"
@@ -82,6 +111,7 @@ class FieldCandidate:
     confidence: float
     selected: bool = False
     historical: bool = False
+    manual_override: bool = False
 
     def __post_init__(self) -> None:
         if not self.candidate_id.strip():
@@ -209,7 +239,7 @@ class VerificationBatchResult:
 HistoryLoader = Callable[[NormalizedTender], TenderVerificationHistory | None]
 
 
-_CRITICAL_FIELDS = (
+CRITICAL_FIELD_NAMES = (
     "procurement_number",
     "price",
     "application_deadline",
@@ -266,7 +296,7 @@ class TenderVerificationService:
         *,
         normalizer: TenderNormalizer | None = None,
         history_loader: HistoryLoader | None = None,
-        critical_fields: Sequence[str] = _CRITICAL_FIELDS,
+        critical_fields: Sequence[str] = CRITICAL_FIELD_NAMES,
     ) -> None:
         self.normalizer = normalizer or TenderNormalizer()
         self.history_loader = history_loader
@@ -673,8 +703,9 @@ def _parse_trust_level(value: object) -> SourceTrustLevel | None:
 
 def _candidate_priority(
     candidate: FieldCandidate,
-) -> tuple[int, int, float, tuple[int, ...], int, str]:
+) -> tuple[int, int, int, float, tuple[int, ...], int, str]:
     return (
+        int(candidate.manual_override),
         int(candidate.trust_level),
         int(candidate.verified),
         candidate.confidence,
@@ -918,6 +949,39 @@ def _status_from_candidate(
         return fallback
 
 
+def apply_selected_field_values(
+    tender: UnifiedTender,
+    selected: Mapping[str, FieldCandidate],
+) -> UnifiedTender:
+    """Apply selected critical-field candidates to a tender payload."""
+
+    return _apply_selected_values(tender, selected)
+
+
+def determine_verification_status(
+    selected: Sequence[FieldCandidate],
+    *,
+    missing_fields: tuple[str, ...] = (),
+    unresolved_conflict: bool = False,
+) -> TenderVerificationStatus:
+    """Return the source-based verification status for selected values."""
+
+    return _verification_status(
+        selected,
+        missing_fields=missing_fields,
+        unresolved_conflict=unresolved_conflict,
+    )
+
+
+def field_candidate_priority(
+    candidate: FieldCandidate,
+) -> tuple[int, int, int, float, tuple[int, ...], int, str]:
+    """Public deterministic ordering used for automatic field selection."""
+
+    automatic = replace(candidate, manual_override=False)
+    return _candidate_priority(automatic)
+
+
 def _verification_status(
     selected: Sequence[FieldCandidate],
     *,
@@ -1060,7 +1124,10 @@ def _utc_now() -> str:
 
 
 __all__ = [
+    "CRITICAL_FIELD_NAMES",
     "FieldCandidate",
+    "FieldResolutionAction",
+    "FieldResolutionRecord",
     "FieldConflict",
     "FieldConflictType",
     "FieldProvenance",
@@ -1071,4 +1138,7 @@ __all__ = [
     "TenderVerificationService",
     "TenderVerificationStatus",
     "VerificationBatchResult",
+    "apply_selected_field_values",
+    "determine_verification_status",
+    "field_candidate_priority",
 ]
