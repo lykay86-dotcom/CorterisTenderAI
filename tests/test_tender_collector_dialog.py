@@ -163,3 +163,28 @@ def test_dialog_updates_progress_and_summary() -> None:
     assert dialog.progress_bar.value() == 100
     assert not dialog.running
     app.processEvents()
+
+
+def test_dialog_renders_unverified_provider_without_crashing() -> None:
+    app = _app()
+    dialog = TenderCollectorDialog()
+    state = ProviderDisplayState(
+        provider_id="mos_supplier",
+        display_name="Портал поставщиков Москвы",
+        enabled=True,
+        ui_state=ProviderUiState.UNVERIFIED,
+        status_text="Требуется полная проверка C19",
+        connection_mode="Официальный API",
+        implementation_status="official_api_bearer",
+        homepage_url="https://zakupki.mos.ru/",
+        last_checked_at="",
+        last_success_at="",
+        last_error="",
+        latency_ms=None,
+    )
+
+    dialog.set_provider_states((state,))
+
+    assert dialog.provider_table.rowCount() == 1
+    assert dialog._provider_ui_color(ProviderUiState.UNVERIFIED)
+    app.processEvents()
