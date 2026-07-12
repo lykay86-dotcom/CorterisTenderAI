@@ -7,6 +7,9 @@ from pathlib import Path
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.collector_service import CollectorService
 from app.tenders.collector.network_runtime import CollectorNetworkRuntime
+from app.tenders.collector.provider_settings import (
+    ProviderEnablementRepository,
+)
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.providers.commercial_adapter import (
     create_commercial_access_providers,
@@ -29,6 +32,10 @@ def create_default_async_providers(
     mos_supplier_config: MosSupplierApiConfig | None = None,
     include_commercial_catalog: bool = False,
     commercial_catalog: CommercialProviderCatalog | None = None,
+    provider_settings_repository: (
+        ProviderEnablementRepository | None
+    ) = None,
+    include_disabled: bool = False,
 ):
     """Return implemented providers and optional visible access adapters.
 
@@ -60,9 +67,24 @@ def create_default_async_providers(
         providers.extend(
             create_commercial_access_providers(
                 catalog.resolve_all(),
-                enabled_only=True,
+                enabled_only=(
+                    provider_settings_repository is None
+                    and not include_disabled
+                ),
             )
         )
+
+    if provider_settings_repository is not None:
+        providers = [
+            provider
+            for provider in providers
+            if (
+                include_disabled
+                or provider_settings_repository.is_enabled(
+                    provider.descriptor
+                )
+            )
+        ]
     return tuple(providers)
 
 
@@ -74,6 +96,9 @@ def create_default_collector_service(
     mos_supplier_config: MosSupplierApiConfig | None = None,
     include_commercial_catalog: bool = False,
     commercial_catalog: CommercialProviderCatalog | None = None,
+    provider_settings_repository: (
+        ProviderEnablementRepository | None
+    ) = None,
 ) -> CollectorService:
     """Build the first production collector pipeline without network I/O."""
 
@@ -83,12 +108,19 @@ def create_default_collector_service(
         data_path / "tender_registry.sqlite3"
     )
     repository.initialize()
+    source_settings = (
+        provider_settings_repository
+        or ProviderEnablementRepository(
+            data_path / "collector_provider_settings.json"
+        )
+    )
     providers = create_default_async_providers(
         network_runtime,
         repository=repository,
         mos_supplier_config=mos_supplier_config,
         include_commercial_catalog=include_commercial_catalog,
         commercial_catalog=commercial_catalog,
+        provider_settings_repository=source_settings,
     )
     engine = AsyncProviderSearchEngine(
         providers,

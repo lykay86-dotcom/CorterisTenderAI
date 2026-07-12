@@ -78,16 +78,6 @@ from app.tenders.collector.cancellation import (
     CollectorCancellationToken,
     CollectorCancelledError,
 )
-from app.tenders.collector.eis_checkpoint import (
-    EisCheckpointCoordinator,
-    EisCheckpointPolicy,
-    EisPreparedQuery,
-)
-from app.tenders.collector.mos_supplier_checkpoint import (
-    MosSupplierCheckpointCoordinator,
-    MosSupplierCheckpointPolicy,
-    MosSupplierPreparedQuery,
-)
 from app.tenders.collector.health_monitor import (
     ProviderCircuitOpenError,
     ProviderHealthMonitor,
@@ -110,26 +100,6 @@ from app.tenders.collector.rate_limiter import (
     RateLimitPolicy,
     RateLimitSnapshot,
 )
-
-
-def create_default_async_providers(*args, **kwargs):
-    """Lazy composition import avoiding provider/package cycles."""
-
-    from app.tenders.collector.async_provider_factory import (
-        create_default_async_providers as factory,
-    )
-
-    return factory(*args, **kwargs)
-
-
-def create_default_collector_service(*args, **kwargs):
-    """Lazy composition import avoiding provider/package cycles."""
-
-    from app.tenders.collector.async_provider_factory import (
-        create_default_collector_service as factory,
-    )
-
-    return factory(*args, **kwargs)
 
 __all__ = [
     "COLLECTOR_SCHEMA_VERSION",
@@ -186,13 +156,7 @@ __all__ = [
     "CollectorNetworkSettings",
     "CollectorProviderBaseline",
     "DailyRateLimitExceeded",
-    "EisCheckpointCoordinator",
-    "EisCheckpointPolicy",
-    "EisPreparedQuery",
     "LegacySyncProviderAdapter",
-    "MosSupplierCheckpointCoordinator",
-    "MosSupplierCheckpointPolicy",
-    "MosSupplierPreparedQuery",
     "ProviderCircuitOpenError",
     "ProviderHealthMonitor",
     "ProviderHealthPolicy",
@@ -203,9 +167,30 @@ __all__ = [
     "RateLimitSnapshot",
     "build_collector_baseline",
     "create_collector_network_runtime",
-    "create_default_async_providers",
-    "create_default_collector_service",
     "default_collector_network_settings",
     "parse_retry_after",
     "sanitize_url",
+]
+
+
+from app.tenders.collector.provider_control import (
+    CollectorProviderManager,
+    ProviderCheckRecord,
+    ProviderCheckRepository,
+    ProviderDisplayState,
+    ProviderUiState,
+)
+from app.tenders.collector.provider_settings import (
+    ProviderEnablement,
+    ProviderEnablementRepository,
+)
+
+__all__ += [
+    "CollectorProviderManager",
+    "ProviderCheckRecord",
+    "ProviderCheckRepository",
+    "ProviderDisplayState",
+    "ProviderUiState",
+    "ProviderEnablement",
+    "ProviderEnablementRepository",
 ]

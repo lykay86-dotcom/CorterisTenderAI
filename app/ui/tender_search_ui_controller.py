@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Protocol
 
@@ -21,6 +22,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.tenders.collector.provider_control import (
+    CollectorProviderManager,
+    ProviderDisplayState,
+)
 from app.tenders.document_storage import (
     TenderDocumentDownloadResult,
     TenderDocumentDownloadService,
@@ -40,6 +45,9 @@ from app.tenders.search_runtime import (
     create_tender_search_runtime,
 )
 from app.ui.tender_documents_dialog import TenderDocumentsDialog
+from app.ui.tender_provider_manager_dialog import (
+    TenderProviderManagerDialog,
+)
 from app.ui.tender_registry_dialog import TenderRegistryDialog
 from app.ui.tender_requirement_analysis_dialog import (
     TenderRequirementAnalysisDialog,
@@ -169,6 +177,40 @@ class _TenderRequirementAnalysisWorker(QRunnable):
         self.signals.succeeded.emit(self.registry_key, result)
 
 
+class _ProviderCheckWorkerSignals(QObject):
+    succeeded = Signal(object)
+    failed = Signal(str, str)
+
+
+class _ProviderCheckWorker(QRunnable):
+    def __init__(
+        self,
+        manager: CollectorProviderManager,
+        provider_ids: tuple[str, ...],
+    ) -> None:
+        super().__init__()
+        self.manager = manager
+        self.provider_ids = provider_ids
+        self.signals = _ProviderCheckWorkerSignals()
+        self.setAutoDelete(True)
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            states = asyncio.run(
+                self.manager.check_providers(
+                    self.provider_ids
+                )
+            )
+        except Exception as exc:
+            self.signals.failed.emit(
+                type(exc).__name__,
+                str(exc),
+            )
+            return
+        self.signals.succeeded.emit(states)
+
+
 class TenderSearchUiController(QObject):
     """Install tender search in the main window and run it off-thread."""
 
@@ -187,6 +229,7 @@ class TenderSearchUiController(QObject):
         data_directory: str | Path,
         *,
         runtime: TenderSearchRuntime | None = None,
+        provider_manager: CollectorProviderManager | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         thread_pool: _ThreadPoolLike | None = None,
         parent: QObject | None = None,
@@ -196,6 +239,10 @@ class TenderSearchUiController(QObject):
         self.runtime = runtime or create_tender_search_runtime(
             data_directory
         )
+        self.provider_manager = (
+            provider_manager
+            or CollectorProviderManager(data_directory)
+        )
         try:
             self._theme = ThemeName(theme)
         except (TypeError, ValueError, AttributeError):
@@ -203,6 +250,9 @@ class TenderSearchUiController(QObject):
         self._thread_pool = thread_pool or QThreadPool.globalInstance()
         self._profiles_dialog: TenderSearchProfilesDialog | None = None
         self._registry_dialog: TenderRegistryDialog | None = None
+        self._provider_dialog: TenderProviderManagerDialog | None = None
+        self._provider_check_worker: _ProviderCheckWorker | None = None
+        self._provider_check_ids: tuple[str, ...] = ()
         self._result_dialogs: list[TenderSearchResultsDialog] = []
         self._document_dialogs: dict[str, TenderDocumentsDialog] = {}
         self._active_workers: dict[str, _TenderSearchWorker] = {}
@@ -253,6 +303,23 @@ class TenderSearchUiController(QObject):
             self.open_registry_dialog
         )
 
+        self.providers_action = QAction(
+            "Источники тендеров…",
+            self,
+        )
+        self.providers_action.setObjectName(
+            "actionTenderProviders"
+        )
+        self.providers_action.setShortcut(
+            QKeySequence("Ctrl+Shift+S")
+        )
+        self.providers_action.setStatusTip(
+            "Настроить источники и проверить подключения"
+        )
+        self.providers_action.triggered.connect(
+            self.open_provider_manager_dialog
+        )
+
     @property
     def profiles_dialog(self) -> TenderSearchProfilesDialog | None:
         return self._profiles_dialog
@@ -260,6 +327,12 @@ class TenderSearchUiController(QObject):
     @property
     def registry_dialog(self) -> TenderRegistryDialog | None:
         return self._registry_dialog
+
+    @property
+    def provider_dialog(
+        self,
+    ) -> TenderProviderManagerDialog | None:
+        return self._provider_dialog
 
     @property
     def result_dialogs(self) -> tuple[TenderSearchResultsDialog, ...]:
@@ -292,6 +365,8 @@ class TenderSearchUiController(QObject):
                 menu.addAction(self.action)
             if self.registry_action not in menu.actions():
                 menu.addAction(self.registry_action)
+            if self.providers_action not in menu.actions():
+                menu.addAction(self.providers_action)
 
             toolbar = self._find_or_create_tender_toolbar(
                 main_window
@@ -306,6 +381,8 @@ class TenderSearchUiController(QObject):
                 toolbar.addAction(self.action)
             if self.registry_action not in toolbar.actions():
                 toolbar.addAction(self.registry_action)
+            if self.providers_action not in toolbar.actions():
+                toolbar.addAction(self.providers_action)
             toolbar.setVisible(True)
         else:
             # Fallback for a QWidget-based shell: shortcuts still work.
@@ -313,6 +390,8 @@ class TenderSearchUiController(QObject):
                 main_window.addAction(self.action)
             if self.registry_action not in main_window.actions():
                 main_window.addAction(self.registry_action)
+            if self.providers_action not in main_window.actions():
+                main_window.addAction(self.providers_action)
 
         # Keep the controller alive for the whole window lifetime.
         setattr(
@@ -377,6 +456,178 @@ class TenderSearchUiController(QObject):
         self._registry_dialog.open()
         self._registry_dialog.raise_()
         self._registry_dialog.activateWindow()
+
+    @Slot()
+    def open_provider_manager_dialog(self) -> None:
+        parent = self.parent()
+        parent_widget = (
+            parent if isinstance(parent, QWidget) else None
+        )
+        if self._provider_dialog is None:
+            self._provider_dialog = TenderProviderManagerDialog(
+                self.provider_manager.states(),
+                theme=self._theme,
+                parent=parent_widget,
+            )
+            self._provider_dialog.provider_enabled_changed.connect(
+                self.set_provider_enabled
+            )
+            self._provider_dialog.provider_check_requested.connect(
+                self.check_provider_connection
+            )
+            self._provider_dialog.check_all_requested.connect(
+                self.check_all_provider_connections
+            )
+            self._provider_dialog.refresh_button.clicked.connect(
+                self.refresh_provider_states
+            )
+
+        self.refresh_provider_states()
+        self._provider_dialog.open()
+        self._provider_dialog.raise_()
+        self._provider_dialog.activateWindow()
+
+    @Slot()
+    def refresh_provider_states(self) -> None:
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_states(
+                self.provider_manager.states()
+            )
+
+    @Slot(str, bool)
+    def set_provider_enabled(
+        self,
+        provider_id: str,
+        enabled: bool,
+    ) -> None:
+        try:
+            self.provider_manager.set_enabled(
+                provider_id,
+                enabled,
+            )
+        except Exception as exc:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    f"Не удалось сохранить настройку: {exc}",
+                    error=True,
+                )
+            return
+        self.refresh_provider_states()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_status(
+                (
+                    "Источник включён."
+                    if enabled
+                    else "Источник отключён."
+                )
+            )
+
+    @Slot(str)
+    def check_provider_connection(
+        self,
+        provider_id: str,
+    ) -> None:
+        self._start_provider_checks((provider_id,))
+
+    @Slot()
+    def check_all_provider_connections(self) -> None:
+        self._start_provider_checks(
+            self.provider_manager.enabled_provider_ids()
+        )
+
+    def _start_provider_checks(
+        self,
+        provider_ids: tuple[str, ...],
+    ) -> None:
+        normalized = tuple(
+            dict.fromkeys(
+                item.strip().casefold()
+                for item in provider_ids
+                if item.strip()
+            )
+        )
+        if not normalized:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Нет включённых источников для проверки."
+                )
+            return
+        if self._provider_check_worker is not None:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Проверка источников уже выполняется."
+                )
+            return
+
+        worker = _ProviderCheckWorker(
+            self.provider_manager,
+            normalized,
+        )
+        worker.signals.succeeded.connect(
+            self._on_provider_checks_succeeded
+        )
+        worker.signals.failed.connect(
+            self._on_provider_checks_failed
+        )
+        self._provider_check_worker = worker
+        self._provider_check_ids = normalized
+
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_checking(
+                normalized,
+                True,
+            )
+            self._provider_dialog.set_status(
+                "Проверка подключений выполняется в фоне…"
+            )
+        self._thread_pool.start(worker)
+
+    @Slot(object)
+    def _on_provider_checks_succeeded(
+        self,
+        states: object,
+    ) -> None:
+        checked = self._provider_check_ids
+        self._provider_check_worker = None
+        self._provider_check_ids = ()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_checking(
+                checked,
+                False,
+            )
+            if isinstance(states, tuple) and all(
+                isinstance(item, ProviderDisplayState)
+                for item in states
+            ):
+                self._provider_dialog.set_states(states)
+            else:
+                self.refresh_provider_states()
+            self._provider_dialog.set_status(
+                "Проверка источников завершена."
+            )
+
+    @Slot(str, str)
+    def _on_provider_checks_failed(
+        self,
+        error_type: str,
+        message: str,
+    ) -> None:
+        checked = self._provider_check_ids
+        self._provider_check_worker = None
+        self._provider_check_ids = ()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_checking(
+                checked,
+                False,
+            )
+            self._provider_dialog.set_status(
+                (
+                    "Проверка источников завершилась ошибкой: "
+                    f"{error_type}: {message}"
+                ),
+                error=True,
+            )
+            self.refresh_provider_states()
 
     @Slot(str)
     def run_profile(self, profile_id: str) -> None:
