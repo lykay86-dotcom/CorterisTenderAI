@@ -1945,6 +1945,9 @@ class TenderSearchUiController(QObject):
         if isinstance(result, CorterisParticipationScore):
             if dialog is not None:
                 dialog.set_score(result)
+                decision_service = self.runtime.participation_decision_service
+                if decision_service is not None:
+                    dialog.set_decision(decision_service.evaluate(registry_key))
             if self._registry_dialog is not None:
                 self._registry_dialog.refresh_records()
             self.score_finished.emit(registry_key, result)
