@@ -11,7 +11,7 @@ from app.tenders.collector.verification import (
     TenderVerificationService,
     TenderVerificationStatus,
 )
-from app.tenders.models import TenderSource
+from app.tenders.models import TenderSource, TenderStatus
 from tests.collector_c3_helpers import make_tender
 
 
@@ -86,6 +86,106 @@ def test_equal_priority_official_values_require_manual_resolution() -> None:
         FieldConflictType.OFFICIAL_OFFICIAL
     )
     assert result.status == TenderVerificationStatus.CONFLICT
+
+
+def test_deadline_conflict_keeps_eis_over_aggregator() -> None:
+    eis = make_tender(
+        source=TenderSource.EIS,
+        external_id="eis-deadline",
+        deadline_day=20,
+    )
+    aggregator = make_tender(
+        source=TenderSource.CUSTOM,
+        external_id="aggregator-deadline",
+        deadline_day=25,
+        raw_metadata={
+            "aggregator": True,
+            "source_kind": "aggregator",
+        },
+    )
+
+    result = _verify(eis, aggregator)
+    conflict = next(
+        item
+        for item in result.conflicts
+        if item.field_name == "application_deadline"
+    )
+    selected = next(
+        item
+        for item in result.candidates
+        if item.field_name == "application_deadline" and item.selected
+    )
+
+    assert result.tender.application_deadline == eis.application_deadline
+    assert selected.source_id == "eis"
+    assert not conflict.unresolved
+    assert conflict.conflict_type == (
+        FieldConflictType.OFFICIAL_LOWER_TRUST
+    )
+
+
+def test_status_conflict_between_official_sources_is_unresolved() -> None:
+    accepting = make_tender(
+        source=TenderSource.MOS_SUPPLIER,
+        external_id="mos-status-1",
+        status=TenderStatus.ACCEPTING_APPLICATIONS,
+        raw_metadata={
+            "connection_mode": "official_api_bearer",
+            "retrieved_at": "2026-07-12T10:00:00+00:00",
+        },
+    )
+    cancelled = make_tender(
+        source=TenderSource.MOS_SUPPLIER,
+        external_id="mos-status-2",
+        status=TenderStatus.CANCELLED,
+        raw_metadata={
+            "connection_mode": "official_api_bearer",
+            "retrieved_at": "2026-07-12T11:00:00+00:00",
+        },
+    )
+
+    result = _verify(accepting, cancelled)
+    conflict = next(
+        item for item in result.conflicts if item.field_name == "status"
+    )
+
+    assert result.tender.status == TenderStatus.CANCELLED
+    assert conflict.unresolved
+    assert conflict.conflict_type == FieldConflictType.OFFICIAL_OFFICIAL
+    assert result.status == TenderVerificationStatus.CONFLICT
+
+
+def test_latest_official_variant_is_selected_at_equal_priority() -> None:
+    older = make_tender(
+        source=TenderSource.EIS,
+        external_id="eis-older",
+        amount="1500000.00",
+        raw_metadata={
+            "retrieved_at": "2026-07-12T09:00:00+00:00",
+        },
+    )
+    newer = make_tender(
+        source=TenderSource.EIS,
+        external_id="eis-newer",
+        amount="1600000.00",
+        raw_metadata={
+            "retrieved_at": "2026-07-12T12:00:00+00:00",
+        },
+    )
+
+    result = _verify(older, newer)
+    selected = next(
+        item
+        for item in result.candidates
+        if item.field_name == "price" and item.selected
+    )
+
+    assert str(result.tender.price.amount) == "1600000.00"
+    assert selected.retrieved_at == "2026-07-12T12:00:00+00:00"
+    assert any(
+        item.field_name == "price" and item.unresolved
+        for item in result.conflicts
+    )
 
 
 def test_field_level_official_documentation_overrides_eis() -> None:

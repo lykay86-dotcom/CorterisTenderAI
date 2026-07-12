@@ -1,4 +1,8 @@
-# Corteris Tender Collector C15
+# Corteris Tender Collector C14
+
+> Имя файла сохранено для совместимости со старыми ссылками. По согласованной
+> дорожной карте Freshness & Timezone Model является этапом C14. Номер C15
+> зарезервирован для Company Capability Profile.
 
 ## Свежесть данных и часовые пояса
 

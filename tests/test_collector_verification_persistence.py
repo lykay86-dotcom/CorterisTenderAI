@@ -11,7 +11,7 @@ from app.tenders.collector.verification import (
     SourceTrustLevel,
     TenderVerificationService,
 )
-from app.tenders.models import TenderSource
+from app.tenders.models import TenderSource, TenderStatus
 from app.tenders.provider_base import TenderSearchQuery
 from app.tenders.tender_registry import TenderRegistryRepository
 from tests.collector_c3_helpers import make_tender
@@ -144,6 +144,8 @@ def test_previous_official_value_is_not_downgraded_by_aggregator(
         source=TenderSource.CUSTOM,
         external_id="aggregator-later",
         amount="2400000.00",
+        deadline_day=25,
+        status=TenderStatus.CANCELLED,
         raw_metadata={
             "aggregator": True,
             "application_security": "0",
@@ -158,6 +160,8 @@ def test_previous_official_value_is_not_downgraded_by_aggregator(
     )
 
     assert str(selected_tender.price.amount) == "1500000.00"
+    assert selected_tender.application_deadline == official.application_deadline
+    assert selected_tender.status == TenderStatus.ACCEPTING_APPLICATIONS
     assert selected_tender.raw_metadata["contract_security"] == "75000"
     record = TenderRegistryRepository(repository.path).get_record(key)
 
@@ -166,5 +170,11 @@ def test_previous_official_value_is_not_downgraded_by_aggregator(
     assert history is not None
     assert history.registry_key == key
     assert history.selected_candidates["price"].trust_level == (
+        SourceTrustLevel.EIS
+    )
+    assert history.selected_candidates[
+        "application_deadline"
+    ].trust_level == SourceTrustLevel.EIS
+    assert history.selected_candidates["status"].trust_level == (
         SourceTrustLevel.EIS
     )
