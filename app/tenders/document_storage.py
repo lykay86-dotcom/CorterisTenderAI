@@ -12,7 +12,7 @@ import re
 import shutil
 import sqlite3
 from threading import RLock
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 from urllib.parse import urlparse
 
 from app.tenders.http_client import (
@@ -77,6 +77,7 @@ class TenderDocumentDownloadResult:
     folder: Path
     documents: tuple[StoredTenderDocument, ...]
     catalog_warning: str = ""
+    cancelled: bool = False
 
     @property
     def downloaded_count(self) -> int:
@@ -613,6 +614,8 @@ class TenderDocumentDownloadService:
         *,
         force: bool = False,
         refresh_catalog: bool = True,
+        should_cancel: Callable[[], bool] | None = None,
+        progress_callback: Callable[[int, int, StoredTenderDocument], None] | None = None,
     ) -> TenderDocumentDownloadResult:
         documents = tender.documents
         catalog_warning = ""
@@ -640,7 +643,12 @@ class TenderDocumentDownloadService:
                     )
 
         results: list[StoredTenderDocument] = []
-        for document in _unique_documents(documents):
+        unique_documents = _unique_documents(documents)
+        cancelled = False
+        for index, document in enumerate(unique_documents, start=1):
+            if should_cancel is not None and should_cancel():
+                cancelled = True
+                break
             if not force:
                 reusable = self.store.find_reusable(tender, document)
                 if reusable is not None:
@@ -675,6 +683,8 @@ class TenderDocumentDownloadService:
                     str(exc),
                 )
             results.append(stored)
+            if progress_callback is not None:
+                progress_callback(index, len(unique_documents), stored)
 
         return TenderDocumentDownloadResult(
             tender_registry_key=tender_registry_key(tender),
@@ -682,6 +692,7 @@ class TenderDocumentDownloadService:
             folder=self.store.tender_folder(tender),
             documents=tuple(results),
             catalog_warning=catalog_warning,
+            cancelled=cancelled,
         )
 
 

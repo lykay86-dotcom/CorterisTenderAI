@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.tenders.collector.participation_score_service import (
         CorterisParticipationScoreService,
     )
+    from app.tenders.full_analysis import TenderFullAnalysisService
 from app.tenders.corteris_search import CorterisTenderSearchService
 from app.tenders.document_storage import (
     TenderDocumentDownloadService,
@@ -53,6 +54,7 @@ class TenderSearchRuntime:
     participation_score_service: (
         CorterisParticipationScoreService | None
     ) = None
+    full_analysis_service: "TenderFullAnalysisService | None" = None
 
 
 def create_tender_search_runtime(
@@ -132,6 +134,20 @@ def create_tender_search_runtime(
         text_service=text_extraction_service,
         requirement_analysis_service=requirement_analysis_service,
     )
+    from app.tenders.full_analysis import TenderFullAnalysisService
+    from app.tenders.legacy_analysis_bridge import LegacyAnalysisBridge
+    from app.tenders.safe_archive import SafeArchiveExtractor
+
+    full_analysis_service = TenderFullAnalysisService(
+        tender_registry,
+        document_service,
+        document_store,
+        text_extraction_service,
+        requirement_analysis_service,
+        participation_score_service,
+        archive_extractor=SafeArchiveExtractor(),
+        legacy_bridge=LegacyAnalysisBridge(),
+    )
 
     return TenderSearchRuntime(
         data_directory=data_path,
@@ -150,6 +166,7 @@ def create_tender_search_runtime(
         participation_score_service=(
             participation_score_service
         ),
+        full_analysis_service=full_analysis_service,
     )
 
 

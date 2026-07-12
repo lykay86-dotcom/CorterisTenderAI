@@ -13,6 +13,7 @@ from enum import StrEnum
 from io import BytesIO
 import hashlib
 import importlib
+import mimetypes
 from pathlib import Path, PurePosixPath
 import re
 import sqlite3
@@ -22,6 +23,7 @@ import xml.etree.ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
 from app.tenders.document_storage import (
+    DocumentDownloadStatus,
     StoredTenderDocument,
     TenderDocumentStore,
 )
@@ -830,6 +832,49 @@ class TenderDocumentTextService:
             registry_key=registry_key.strip(),
             documents=results,
         )
+
+    def extract_path(
+        self,
+        registry_key: str,
+        procurement_number: str,
+        source_path: str | Path,
+        *,
+        document_key: str = "",
+        display_name: str = "",
+        force: bool = False,
+    ) -> StoredDocumentText:
+        """Extract and persist text from a safely unpacked local file."""
+
+        normalized_key = registry_key.strip()
+        path = Path(source_path).expanduser()
+        if not normalized_key:
+            raise ValueError("registry_key must not be empty")
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        checksum = _file_sha256(path)
+        effective_document_key = document_key.strip() or (
+            "archive-member:"
+            + hashlib.sha256(
+                f"{normalized_key}|{path.resolve()}|{checksum}".encode("utf-8")
+            ).hexdigest()
+        )
+        synthetic = StoredTenderDocument(
+            document_key=effective_document_key,
+            registry_key=normalized_key,
+            procurement_number=procurement_number.strip() or normalized_key,
+            source="archive",
+            external_id="",
+            document_id=checksum[:24],
+            name=display_name.strip() or path.name,
+            source_url=path.resolve().as_uri(),
+            local_path=path.resolve(),
+            mime_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            size_bytes=path.stat().st_size,
+            checksum_sha256=checksum,
+            status=DocumentDownloadStatus.DOWNLOADED,
+            downloaded_at=_utc_now(),
+        )
+        return self.extract_document(synthetic, force=force)
 
     def list_results(
         self,

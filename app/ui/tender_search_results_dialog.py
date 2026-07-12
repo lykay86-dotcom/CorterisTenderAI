@@ -49,6 +49,7 @@ class TenderSearchResultsDialog(QDialog):
     rerun_requested = Signal(str)
     profiles_requested = Signal()
     documents_requested = Signal(object)
+    full_analysis_requested = Signal(object)
 
     def __init__(
         self,
@@ -183,6 +184,15 @@ class TenderSearchResultsDialog(QDialog):
             self._open_selected_source
         )
 
+        self.full_analysis_button = QPushButton(
+            "Скачать документы и провести полный анализ",
+            self,
+        )
+        self.full_analysis_button.setObjectName("PrimaryActionButton")
+        self.full_analysis_button.clicked.connect(
+            self._request_selected_full_analysis
+        )
+
         self.documents_button = QPushButton(
             "Скачать документацию",
             self,
@@ -208,6 +218,7 @@ class TenderSearchResultsDialog(QDialog):
         )
 
         action_row.addWidget(self.open_source_button)
+        action_row.addWidget(self.full_analysis_button)
         action_row.addWidget(self.documents_button)
         action_row.addWidget(self.rerun_button)
         action_row.addWidget(self.profiles_button)
@@ -309,6 +320,7 @@ class TenderSearchResultsDialog(QDialog):
             self.table.selectRow(0)
             self._show_selected_details()
             self.open_source_button.setEnabled(True)
+            self.full_analysis_button.setEnabled(True)
             self.documents_button.setEnabled(True)
         else:
             self.details.setHtml(
@@ -317,6 +329,7 @@ class TenderSearchResultsDialog(QDialog):
                 "минимальную релевантность и повторите поиск.</p>"
             )
             self.open_source_button.setEnabled(False)
+            self.full_analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
 
     def selected_evaluated(self) -> EvaluatedTender | None:
@@ -329,10 +342,12 @@ class TenderSearchResultsDialog(QDialog):
         evaluated = self.selected_evaluated()
         if evaluated is None:
             self.open_source_button.setEnabled(False)
+            self.full_analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
             return
 
         self.open_source_button.setEnabled(True)
+        self.full_analysis_button.setEnabled(True)
         self.documents_button.setEnabled(True)
         tender = evaluated.tender
         relevance = evaluated.relevance
@@ -390,6 +405,12 @@ class TenderSearchResultsDialog(QDialog):
                 f"• {outcome.display_name}: {status}; {details}"
             )
         return "\n".join(lines)
+
+    def _request_selected_full_analysis(self) -> None:
+        evaluated = self.selected_evaluated()
+        if evaluated is None:
+            return
+        self.full_analysis_requested.emit(evaluated.tender)
 
     def _request_selected_documents(self) -> None:
         evaluated = self.selected_evaluated()

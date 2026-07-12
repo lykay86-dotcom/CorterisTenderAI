@@ -36,6 +36,11 @@ from app.tenders.collector.provider_control import (
     ProviderDisplayState,
 )
 from app.tenders.collector.run_session import CollectorRunSession
+from app.tenders.full_analysis import (
+    FullAnalysisProgress,
+    TenderFullAnalysisResult,
+    TenderFullAnalysisService,
+)
 from app.tenders.document_storage import (
     TenderDocumentDownloadResult,
     TenderDocumentDownloadService,
@@ -59,6 +64,7 @@ from app.ui.tender_collector_scheduler_controller import (
     TenderCollectorSchedulerUiController,
 )
 from app.ui.tender_documents_dialog import TenderDocumentsDialog
+from app.ui.tender_full_analysis_dialog import TenderFullAnalysisDialog
 from app.ui.tender_participation_score_dialog import (
     TenderParticipationScoreDialog,
 )
@@ -112,6 +118,52 @@ class _TenderSearchWorker(QRunnable):
             )
             return
         self.signals.succeeded.emit(self.profile_id, result)
+
+
+
+class _FullAnalysisWorkerSignals(QObject):
+    progress = Signal(str, object)
+    succeeded = Signal(str, object)
+    failed = Signal(str, str, str)
+
+
+class _TenderFullAnalysisWorker(QRunnable):
+    def __init__(
+        self,
+        service: TenderFullAnalysisService,
+        registry_key: str,
+    ) -> None:
+        super().__init__()
+        self.service = service
+        self.registry_key = registry_key.strip()
+        self.cancellation_token = CollectorCancellationToken()
+        self.signals = _FullAnalysisWorkerSignals()
+        self.setAutoDelete(True)
+
+    def cancel(self) -> bool:
+        return self.cancellation_token.cancel(
+            "Полный анализ остановлен пользователем."
+        )
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = self.service.run(
+                self.registry_key,
+                cancellation_token=self.cancellation_token,
+                progress_callback=lambda event: self.signals.progress.emit(
+                    self.registry_key,
+                    event,
+                ),
+            )
+        except Exception as exc:
+            self.signals.failed.emit(
+                self.registry_key,
+                type(exc).__name__,
+                str(exc),
+            )
+            return
+        self.signals.succeeded.emit(self.registry_key, result)
 
 
 class _DocumentWorkerSignals(QObject):
@@ -331,6 +383,9 @@ class TenderSearchUiController(QObject):
     score_started = Signal(str)
     score_finished = Signal(str, object)
     score_failed = Signal(str, str)
+    full_analysis_started = Signal(str)
+    full_analysis_finished = Signal(str, object)
+    full_analysis_failed = Signal(str, str)
 
     def __init__(
         self,
@@ -392,6 +447,14 @@ class TenderSearchUiController(QObject):
         self._score_workers: dict[
             str,
             _ParticipationScoreWorker,
+        ] = {}
+        self._full_analysis_dialogs: dict[
+            str,
+            TenderFullAnalysisDialog,
+        ] = {}
+        self._full_analysis_workers: dict[
+            str,
+            _TenderFullAnalysisWorker,
         ] = {}
         # PySide6 can release a QMenu wrapper created by QMenuBar.addMenu()
         # when no Python-side strong reference is retained, especially with
@@ -633,6 +696,9 @@ class TenderSearchUiController(QObject):
             )
             self._registry_dialog.score_requested.connect(
                 self.open_participation_score
+            )
+            self._registry_dialog.full_analysis_requested.connect(
+                self.open_full_analysis
             )
 
         self._registry_dialog.refresh_records()
@@ -1069,6 +1135,11 @@ class TenderSearchUiController(QObject):
         dialog.documents_requested.connect(
             self.open_tender_documents
         )
+        dialog.full_analysis_requested.connect(
+            lambda tender: self.open_full_analysis(
+                tender_registry_key(tender)
+            )
+        )
         dialog.finished.connect(
             lambda _result, current=dialog: (
                 self._forget_result_dialog(current)
@@ -1254,6 +1325,116 @@ class TenderSearchUiController(QObject):
             registry_key,
             rendered,
         )
+
+    @Slot(str)
+    def open_full_analysis(self, registry_key: str) -> None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return
+        service = self.runtime.full_analysis_service
+        if service is None:
+            if self._registry_dialog is not None:
+                self._registry_dialog.set_status(
+                    "Сервис полного анализа недоступен.",
+                    error=True,
+                )
+            return
+        dialog = self._full_analysis_dialogs.get(normalized)
+        if dialog is None:
+            parent = self.parent()
+            parent_widget = parent if isinstance(parent, QWidget) else None
+            dialog = TenderFullAnalysisDialog(
+                normalized,
+                theme=self._theme,
+                parent=parent_widget,
+            )
+            dialog.cancel_requested.connect(self.cancel_full_analysis)
+            dialog.documents_requested.connect(self.open_tender_documents)
+            dialog.requirements_requested.connect(self.open_requirement_analysis)
+            dialog.score_requested.connect(self.open_participation_score)
+            dialog.finished.connect(
+                lambda _result, key=normalized, current=dialog: (
+                    self._forget_full_analysis_dialog(key, current)
+                )
+            )
+            self._full_analysis_dialogs[normalized] = dialog
+        dialog.open()
+        dialog.raise_()
+        dialog.activateWindow()
+        self.run_full_analysis(normalized)
+
+    @Slot(str)
+    def run_full_analysis(self, registry_key: str) -> None:
+        normalized = registry_key.strip()
+        service = self.runtime.full_analysis_service
+        if not normalized or service is None:
+            return
+        dialog = self._full_analysis_dialogs.get(normalized)
+        if normalized in self._full_analysis_workers:
+            if dialog is not None:
+                dialog.message_label.setText(
+                    "Полный анализ этой закупки уже выполняется."
+                )
+            return
+        worker = _TenderFullAnalysisWorker(service, normalized)
+        worker.signals.progress.connect(self._on_full_analysis_progress)
+        worker.signals.succeeded.connect(self._on_full_analysis_succeeded)
+        worker.signals.failed.connect(self._on_full_analysis_failed)
+        self._full_analysis_workers[normalized] = worker
+        if dialog is not None:
+            dialog.begin()
+        self.full_analysis_started.emit(normalized)
+        self._thread_pool.start(worker)
+
+    @Slot(str)
+    def cancel_full_analysis(self, registry_key: str) -> None:
+        worker = self._full_analysis_workers.get(registry_key.strip())
+        if worker is not None:
+            worker.cancel()
+
+    @Slot(str, object)
+    def _on_full_analysis_progress(self, registry_key: str, event: object) -> None:
+        dialog = self._full_analysis_dialogs.get(registry_key)
+        if dialog is not None and isinstance(event, FullAnalysisProgress):
+            dialog.update_progress(event)
+
+    @Slot(str, object)
+    def _on_full_analysis_succeeded(self, registry_key: str, result: object) -> None:
+        self._full_analysis_workers.pop(registry_key, None)
+        dialog = self._full_analysis_dialogs.get(registry_key)
+        if isinstance(result, TenderFullAnalysisResult):
+            if dialog is not None:
+                dialog.set_result(result)
+            if self._registry_dialog is not None:
+                self._registry_dialog.refresh_records()
+            self.full_analysis_finished.emit(registry_key, result)
+            return
+        message = "Сервис вернул неподдерживаемый результат полного анализа."
+        if dialog is not None:
+            dialog.set_error(message)
+        self.full_analysis_failed.emit(registry_key, message)
+
+    @Slot(str, str, str)
+    def _on_full_analysis_failed(
+        self,
+        registry_key: str,
+        error_type: str,
+        message: str,
+    ) -> None:
+        self._full_analysis_workers.pop(registry_key, None)
+        rendered = message or error_type
+        dialog = self._full_analysis_dialogs.get(registry_key)
+        if dialog is not None:
+            dialog.set_error(rendered)
+        self.full_analysis_failed.emit(registry_key, rendered)
+
+    def _forget_full_analysis_dialog(
+        self,
+        registry_key: str,
+        dialog: TenderFullAnalysisDialog,
+    ) -> None:
+        if self._full_analysis_dialogs.get(registry_key) is dialog:
+            self._full_analysis_dialogs.pop(registry_key, None)
 
     @Slot(str)
     def open_participation_score(

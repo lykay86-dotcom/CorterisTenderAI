@@ -200,4 +200,17 @@ __all__ = [
     "create_default_provider_registry",
     "create_tender_search_runtime",
     "tender_registry_key",
+    "FullAnalysisProgress",
+    "FullAnalysisStage",
+    "FullAnalysisStatus",
+    "TenderFullAnalysisResult",
+    "TenderFullAnalysisService",
+    "SafeArchiveExtractor",
 ]
+
+from app.tenders.full_analysis import (
+    FullAnalysisProgress, FullAnalysisStage, FullAnalysisStatus,
+    TenderFullAnalysisResult, TenderFullAnalysisService,
+)
+from app.tenders.safe_archive import SafeArchiveExtractor
+
