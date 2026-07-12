@@ -8,7 +8,7 @@ from pathlib import Path
 import json
 import sqlite3
 from threading import RLock
-from typing import Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 from uuid import uuid4
 
 from app.tenders.collector.change_tracker import (
@@ -63,6 +63,9 @@ from app.tenders.collector.verification import (
 from app.tenders.models import UnifiedTender
 from app.tenders.provider_base import TenderSearchQuery
 from app.tenders.tender_registry import TenderRegistryRepository
+
+if TYPE_CHECKING:
+    from app.tenders.participation_decision import ParticipationDecision
 
 
 class CollectorStateRepository:
@@ -1780,6 +1783,58 @@ class CollectorStateRepository:
         if not isinstance(payload, Mapping):
             return None
         return CorterisParticipationScore.from_payload(payload)
+
+    def save_participation_decision(
+        self,
+        decision: "ParticipationDecision",
+    ) -> "ParticipationDecision":
+        """Persist one RM-107 decision in the existing registry database."""
+        self.initialize()
+        payload = stable_json(decision.to_payload())
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO collector_participation_decisions(
+                    decision_id, registry_key, recommendation, confidence,
+                    summary, policy_version, decided_at, payload_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    decision.decision_id,
+                    decision.registry_key,
+                    decision.recommendation.value,
+                    decision.confidence,
+                    decision.summary,
+                    decision.policy_version,
+                    decision.decided_at,
+                    payload,
+                ),
+            )
+        return decision
+
+    def get_latest_participation_decision_payload(
+        self,
+        registry_key: str,
+    ) -> Mapping[str, object] | None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT payload_json
+                FROM collector_participation_decisions
+                WHERE registry_key = ?
+                ORDER BY decided_at DESC, rowid DESC
+                LIMIT 1
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = json.loads(str(row["payload_json"]))
+        return dict(payload) if isinstance(payload, Mapping) else None
 
     def get_latest_stop_factor_assessment(
         self,

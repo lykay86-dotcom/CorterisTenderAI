@@ -224,7 +224,7 @@
 - [x] RM-107.2 — единая модель результата; `participation_decision.py`.
 - [x] RM-107.3 — единый сервис принятия решения; `participation_decision_service.py`.
 - [x] RM-107.4 — правила оценки и приоритет стоп-факторов; `participation_decision_policy.py`.
-- [ ] RM-107.5 — сохранение результата;
+- [x] RM-107.5 — сохранение результата; `collector_participation_decisions`.
 - [ ] RM-107.6 — интерфейс;
 - [ ] RM-107.7 — тесты;
 - [ ] RM-107.8 — финализация и обновление документации.

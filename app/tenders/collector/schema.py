@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 11
+COLLECTOR_SCHEMA_VERSION = 12
 
 
 class CollectorSchemaMigrator:
@@ -609,6 +609,26 @@ class CollectorSchemaMigrator:
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (provider_id, scope_key)
             );
+
+            CREATE TABLE IF NOT EXISTS collector_participation_decisions (
+                decision_id TEXT PRIMARY KEY,
+                registry_key TEXT NOT NULL,
+                recommendation TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                summary TEXT NOT NULL,
+                policy_version TEXT NOT NULL,
+                decided_at TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_participation_decisions_latest
+                ON collector_participation_decisions(
+                    registry_key,
+                    decided_at DESC
+                );
             """
         )
         connection.execute(
