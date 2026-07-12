@@ -22,10 +22,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.tenders.collector.cancellation import CollectorCancellationToken
+from app.tenders.collector.models import CollectorRunResult
+from app.tenders.collector.progress import CollectorProgressEvent
 from app.tenders.collector.provider_control import (
     CollectorProviderManager,
     ProviderDisplayState,
 )
+from app.tenders.collector.run_session import CollectorRunSession
 from app.tenders.document_storage import (
     TenderDocumentDownloadResult,
     TenderDocumentDownloadService,
@@ -44,6 +48,7 @@ from app.tenders.search_runtime import (
     TenderSearchRuntime,
     create_tender_search_runtime,
 )
+from app.ui.tender_collector_dialog import TenderCollectorDialog
 from app.ui.tender_documents_dialog import TenderDocumentsDialog
 from app.ui.tender_provider_manager_dialog import (
     TenderProviderManagerDialog,
@@ -177,6 +182,53 @@ class _TenderRequirementAnalysisWorker(QRunnable):
         self.signals.succeeded.emit(self.registry_key, result)
 
 
+class _CollectorRunWorkerSignals(QObject):
+    progress = Signal(object)
+    succeeded = Signal(object)
+    failed = Signal(str, str)
+
+
+class _CollectorRunWorker(QRunnable):
+    def __init__(
+        self,
+        session: CollectorRunSession,
+        query: object,
+        provider_ids: tuple[str, ...],
+    ) -> None:
+        super().__init__()
+        self.session = session
+        self.query = query
+        self.provider_ids = provider_ids
+        self.cancellation_token = CollectorCancellationToken()
+        self.signals = _CollectorRunWorkerSignals()
+        self.setAutoDelete(True)
+
+    def cancel(self) -> bool:
+        return self.cancellation_token.cancel(
+            "Остановлено пользователем из интерфейса."
+        )
+
+    @Slot()
+    def run(self) -> None:
+        async def execute() -> object:
+            return await self.session.run(
+                self.query,
+                provider_ids=self.provider_ids,
+                cancellation_token=self.cancellation_token,
+                progress_callback=self.signals.progress.emit,
+            )
+
+        try:
+            result = asyncio.run(execute())
+        except Exception as exc:
+            self.signals.failed.emit(
+                type(exc).__name__,
+                str(exc),
+            )
+            return
+        self.signals.succeeded.emit(result)
+
+
 class _ProviderCheckWorkerSignals(QObject):
     succeeded = Signal(object)
     failed = Signal(str, str)
@@ -223,6 +275,9 @@ class TenderSearchUiController(QObject):
     analysis_started = Signal(str)
     analysis_finished = Signal(str, object)
     analysis_failed = Signal(str, str)
+    collector_started = Signal(str)
+    collector_finished = Signal(object)
+    collector_failed = Signal(str)
 
     def __init__(
         self,
@@ -230,18 +285,24 @@ class TenderSearchUiController(QObject):
         *,
         runtime: TenderSearchRuntime | None = None,
         provider_manager: CollectorProviderManager | None = None,
+        collector_session: CollectorRunSession | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         thread_pool: _ThreadPoolLike | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
 
+        self.data_directory = Path(data_directory).expanduser()
         self.runtime = runtime or create_tender_search_runtime(
-            data_directory
+            self.data_directory
         )
         self.provider_manager = (
             provider_manager
-            or CollectorProviderManager(data_directory)
+            or CollectorProviderManager(self.data_directory)
+        )
+        self.collector_session = (
+            collector_session
+            or CollectorRunSession(self.data_directory)
         )
         try:
             self._theme = ThemeName(theme)
@@ -253,6 +314,9 @@ class TenderSearchUiController(QObject):
         self._provider_dialog: TenderProviderManagerDialog | None = None
         self._provider_check_worker: _ProviderCheckWorker | None = None
         self._provider_check_ids: tuple[str, ...] = ()
+        self._collector_dialog: TenderCollectorDialog | None = None
+        self._collector_worker: _CollectorRunWorker | None = None
+        self._collector_profile_id = ""
         self._result_dialogs: list[TenderSearchResultsDialog] = []
         self._document_dialogs: dict[str, TenderDocumentsDialog] = {}
         self._active_workers: dict[str, _TenderSearchWorker] = {}
@@ -320,6 +384,23 @@ class TenderSearchUiController(QObject):
             self.open_provider_manager_dialog
         )
 
+        self.collector_action = QAction(
+            "Запустить сборщик тендеров…",
+            self,
+        )
+        self.collector_action.setObjectName(
+            "actionTenderCollector"
+        )
+        self.collector_action.setShortcut(
+            QKeySequence("Ctrl+Shift+C")
+        )
+        self.collector_action.setStatusTip(
+            "Запустить автоматический сбор по включённым источникам"
+        )
+        self.collector_action.triggered.connect(
+            self.open_collector_dialog
+        )
+
     @property
     def profiles_dialog(self) -> TenderSearchProfilesDialog | None:
         return self._profiles_dialog
@@ -333,6 +414,10 @@ class TenderSearchUiController(QObject):
         self,
     ) -> TenderProviderManagerDialog | None:
         return self._provider_dialog
+
+    @property
+    def collector_dialog(self) -> TenderCollectorDialog | None:
+        return self._collector_dialog
 
     @property
     def result_dialogs(self) -> tuple[TenderSearchResultsDialog, ...]:
@@ -367,6 +452,8 @@ class TenderSearchUiController(QObject):
                 menu.addAction(self.registry_action)
             if self.providers_action not in menu.actions():
                 menu.addAction(self.providers_action)
+            if self.collector_action not in menu.actions():
+                menu.addAction(self.collector_action)
 
             toolbar = self._find_or_create_tender_toolbar(
                 main_window
@@ -383,6 +470,8 @@ class TenderSearchUiController(QObject):
                 toolbar.addAction(self.registry_action)
             if self.providers_action not in toolbar.actions():
                 toolbar.addAction(self.providers_action)
+            if self.collector_action not in toolbar.actions():
+                toolbar.addAction(self.collector_action)
             toolbar.setVisible(True)
         else:
             # Fallback for a QWidget-based shell: shortcuts still work.
@@ -392,6 +481,8 @@ class TenderSearchUiController(QObject):
                 main_window.addAction(self.registry_action)
             if self.providers_action not in main_window.actions():
                 main_window.addAction(self.providers_action)
+            if self.collector_action not in main_window.actions():
+                main_window.addAction(self.collector_action)
 
         # Keep the controller alive for the whole window lifetime.
         setattr(
@@ -458,6 +549,175 @@ class TenderSearchUiController(QObject):
         self._registry_dialog.activateWindow()
 
     @Slot()
+    def open_collector_dialog(self) -> None:
+        parent = self.parent()
+        parent_widget = (
+            parent if isinstance(parent, QWidget) else None
+        )
+        if self._collector_dialog is None:
+            self._collector_dialog = TenderCollectorDialog(
+                theme=self._theme,
+                parent=parent_widget,
+            )
+            self._collector_dialog.start_requested.connect(
+                self.start_collector
+            )
+            self._collector_dialog.stop_requested.connect(
+                self.stop_collector
+            )
+            self._collector_dialog.sources_requested.connect(
+                self.open_provider_manager_dialog
+            )
+            self._collector_dialog.registry_requested.connect(
+                self.open_registry_dialog
+            )
+
+        self.refresh_collector_configuration()
+        self._collector_dialog.open()
+        self._collector_dialog.raise_()
+        self._collector_dialog.activateWindow()
+
+    @Slot()
+    def refresh_collector_configuration(self) -> None:
+        if self._collector_dialog is None or self._collector_dialog.running:
+            return
+        profiles = self.runtime.repository.list_profiles(
+            include_disabled=False
+        )
+        self._collector_dialog.set_profiles(
+            profiles,
+            select_id=self._collector_profile_id,
+        )
+        self._collector_dialog.set_provider_states(
+            self.provider_manager.states(),
+            preserve_selection=True,
+        )
+
+    @Slot(str, object)
+    def start_collector(
+        self,
+        profile_id: str,
+        provider_ids: object,
+    ) -> None:
+        normalized = profile_id.strip().casefold()
+        if not normalized:
+            return
+        if self._collector_worker is not None:
+            if self._collector_dialog is not None:
+                self._collector_dialog.set_status(
+                    "Сборщик уже выполняется."
+                )
+            return
+
+        try:
+            profile = self.runtime.repository.get(normalized)
+        except Exception as exc:
+            if self._collector_dialog is not None:
+                self._collector_dialog.set_error(
+                    f"Не удалось загрузить профиль: {exc}"
+                )
+            return
+        if not profile.enabled:
+            if self._collector_dialog is not None:
+                self._collector_dialog.set_error(
+                    "Выбранный профиль отключён."
+                )
+            return
+
+        selected = tuple(
+            dict.fromkeys(
+                str(item).strip().casefold()
+                for item in (provider_ids or ())
+                if str(item).strip()
+            )
+        )
+        enabled = set(
+            self.provider_manager.enabled_provider_ids()
+        )
+        selected = tuple(
+            provider_id
+            for provider_id in selected
+            if provider_id in enabled
+        )
+        if not selected:
+            if self._collector_dialog is not None:
+                self._collector_dialog.set_error(
+                    "Нет включённых источников для запуска."
+                )
+            return
+
+        worker = _CollectorRunWorker(
+            self.collector_session,
+            profile.to_search_query(),
+            selected,
+        )
+        worker.signals.progress.connect(
+            self._on_collector_progress
+        )
+        worker.signals.succeeded.connect(
+            self._on_collector_succeeded
+        )
+        worker.signals.failed.connect(
+            self._on_collector_failed
+        )
+        self._collector_worker = worker
+        self._collector_profile_id = normalized
+
+        if self._collector_dialog is not None:
+            self._collector_dialog.begin_run(
+                profile.name,
+                selected,
+            )
+        self.collector_started.emit(normalized)
+        self._thread_pool.start(worker)
+
+    @Slot()
+    def stop_collector(self) -> None:
+        worker = self._collector_worker
+        if worker is None:
+            return
+        worker.cancel()
+        if self._collector_dialog is not None:
+            self._collector_dialog.mark_cancel_requested()
+
+    @Slot(object)
+    def _on_collector_progress(self, event: object) -> None:
+        if (
+            self._collector_dialog is not None
+            and isinstance(event, CollectorProgressEvent)
+        ):
+            self._collector_dialog.apply_progress(event)
+
+    @Slot(object)
+    def _on_collector_succeeded(self, result: object) -> None:
+        self._collector_worker = None
+        if not isinstance(result, CollectorRunResult):
+            self._on_collector_failed(
+                "TypeError",
+                "Коллектор вернул неподдерживаемый результат.",
+            )
+            return
+        if self._collector_dialog is not None:
+            self._collector_dialog.set_result(result)
+        if self._registry_dialog is not None:
+            self._registry_dialog.refresh_records()
+        self.collector_finished.emit(result)
+
+    @Slot(str, str)
+    def _on_collector_failed(
+        self,
+        error_type: str,
+        message: str,
+    ) -> None:
+        self._collector_worker = None
+        rendered = f"{error_type}: {message}"
+        if self._collector_dialog is not None:
+            self._collector_dialog.set_error(
+                f"Сбор завершился ошибкой: {rendered}"
+            )
+        self.collector_failed.emit(rendered)
+
+    @Slot()
     def open_provider_manager_dialog(self) -> None:
         parent = self.parent()
         parent_widget = (
@@ -489,9 +749,13 @@ class TenderSearchUiController(QObject):
 
     @Slot()
     def refresh_provider_states(self) -> None:
+        states = self.provider_manager.states()
         if self._provider_dialog is not None:
-            self._provider_dialog.set_states(
-                self.provider_manager.states()
+            self._provider_dialog.set_states(states)
+        if self._collector_dialog is not None and not self._collector_dialog.running:
+            self._collector_dialog.set_provider_states(
+                states,
+                preserve_selection=True,
             )
 
     @Slot(str, bool)

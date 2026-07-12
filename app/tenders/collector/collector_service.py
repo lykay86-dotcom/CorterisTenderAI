@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Sequence
 
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.deduplicator import TenderDeduplicator
 from app.tenders.collector.models import (
-    CollectionPersistenceSummary,
     CollectionRunStatus,
     CollectorRunResult,
-    DeduplicationResult,
 )
 from app.tenders.collector.normalizer import TenderNormalizer
+from app.tenders.collector.progress import (
+    CollectorProgressCallback,
+    CollectorProgressEvent,
+    CollectorProgressPhase,
+    emit_collector_progress,
+)
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.provider_base import TenderSearchQuery
 
@@ -43,20 +46,71 @@ class CollectorService:
         *,
         provider_ids: Sequence[str] | None = None,
         cancellation_token: CollectorCancellationToken | None = None,
+        progress_callback: CollectorProgressCallback | None = None,
     ) -> CollectorRunResult:
         requested = tuple(provider_ids or ())
+        await emit_collector_progress(
+            progress_callback,
+            CollectorProgressEvent(
+                phase=CollectorProgressPhase.PREPARING,
+                total_providers=len(requested),
+                message="Подготовка запуска коллектора…",
+            ),
+        )
         run_id = self.repository.start_run(
             query,
             provider_ids=requested,
         )
         try:
-            batch = await self.engine.search(
-                query,
-                provider_ids=provider_ids,
-                cancellation_token=cancellation_token,
+            if progress_callback is None:
+                batch = await self.engine.search(
+                    query,
+                    provider_ids=provider_ids,
+                    cancellation_token=cancellation_token,
+                )
+            else:
+                batch = await self.engine.search(
+                    query,
+                    provider_ids=provider_ids,
+                    cancellation_token=cancellation_token,
+                    progress_callback=progress_callback,
+                )
+
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
+                    phase=CollectorProgressPhase.NORMALIZING,
+                    total_providers=len(batch.outcomes),
+                    raw_count=len(batch.raw_items),
+                    message=(
+                        "Нормализация данных, полученных от источников…"
+                    ),
+                ),
             )
             normalized = self.normalizer.normalize_many(batch.raw_items)
+
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
+                    phase=CollectorProgressPhase.DEDUPLICATING,
+                    total_providers=len(batch.outcomes),
+                    raw_count=len(normalized),
+                    message="Поиск и объединение дублей…",
+                ),
+            )
             deduplicated = self.deduplicator.deduplicate(normalized)
+
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
+                    phase=CollectorProgressPhase.SAVING,
+                    total_providers=len(batch.outcomes),
+                    raw_count=deduplicated.raw_count,
+                    merged_count=deduplicated.merged_count,
+                    duplicate_count=deduplicated.duplicate_count,
+                    message="Сохранение результатов в локальный реестр…",
+                ),
+            )
             persistence = self.repository.save_batch(
                 run_id,
                 deduplicated,
@@ -75,7 +129,7 @@ class CollectorService:
                 for outcome in batch.outcomes
                 for warning in outcome.warnings
             )
-            return CollectorRunResult(
+            result = CollectorRunResult(
                 run_id=run_id,
                 status=status,
                 batch_result=batch,
@@ -87,11 +141,42 @@ class CollectorService:
                     "cancelled": batch.cancelled,
                 },
             )
+            final_phase = (
+                CollectorProgressPhase.CANCELLED
+                if status == CollectionRunStatus.CANCELLED
+                else CollectorProgressPhase.COMPLETED
+            )
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
+                    phase=final_phase,
+                    total_providers=len(batch.outcomes),
+                    raw_count=deduplicated.raw_count,
+                    merged_count=persistence.merged_count,
+                    duplicate_count=persistence.duplicate_count,
+                    new_count=persistence.new_count,
+                    changed_count=persistence.changed_count,
+                    unchanged_count=persistence.unchanged_count,
+                    message=(
+                        "Сбор остановлен. Полученные данные сохранены."
+                        if final_phase == CollectorProgressPhase.CANCELLED
+                        else "Сбор тендеров завершён."
+                    ),
+                ),
+            )
+            return result
         except Exception as exc:
             self.repository.complete_run(
                 run_id,
                 status=CollectionRunStatus.FAILED,
                 error=exc,
+            )
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
+                    phase=CollectorProgressPhase.FAILED,
+                    message=f"{type(exc).__name__}: {exc}",
+                ),
             )
             raise
 

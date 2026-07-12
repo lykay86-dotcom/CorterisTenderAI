@@ -14,9 +14,12 @@ from app.tenders.collector.cancellation import (
     CollectorCancellationToken,
     CollectorCancelledError,
 )
-from app.tenders.collector.health_monitor import (
-    ProviderHealthMonitor,
-    ProviderOperationalStatus,
+from app.tenders.collector.health_monitor import ProviderHealthMonitor
+from app.tenders.collector.progress import (
+    CollectorProgressCallback,
+    CollectorProgressEvent,
+    CollectorProgressPhase,
+    emit_collector_progress,
 )
 from app.tenders.provider_base import (
     ProviderCapabilityError,
@@ -128,12 +131,26 @@ class AsyncProviderSearchEngine:
         *,
         provider_ids: Sequence[str] | None = None,
         cancellation_token: CollectorCancellationToken | None = None,
+        progress_callback: CollectorProgressCallback | None = None,
     ) -> AsyncProviderBatchResult:
         started_counter = perf_counter()
         started_at = _utc_now()
         selected = self._select(provider_ids)
+        total_providers = len(selected)
         semaphore = asyncio.Semaphore(self.max_concurrent_providers)
         token = cancellation_token or CollectorCancellationToken()
+
+        for provider in selected:
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
+                    phase=CollectorProgressPhase.PROVIDER_QUEUED,
+                    provider_id=provider.descriptor.id,
+                    display_name=provider.descriptor.display_name,
+                    total_providers=total_providers,
+                    message="Источник добавлен в очередь.",
+                ),
+            )
 
         tasks = [
             asyncio.create_task(
@@ -142,12 +159,15 @@ class AsyncProviderSearchEngine:
                     query,
                     semaphore=semaphore,
                     cancellation_token=token,
+                    progress_callback=progress_callback,
+                    total_providers=total_providers,
                 )
             )
             for provider in selected
         ]
 
         cancelled = False
+        executions: tuple[_Execution, ...]
         if tasks:
             cancel_task = asyncio.create_task(token.wait_cancelled())
             gather_task = asyncio.ensure_future(
@@ -159,16 +179,22 @@ class AsyncProviderSearchEngine:
             )
             if cancel_task in done:
                 cancelled = True
-                for task in tasks:
-                    task.cancel()
-                await asyncio.gather(*tasks, return_exceptions=True)
+                executions = await self._collect_after_cancellation(
+                    selected,
+                    tasks,
+                    token.reason,
+                )
                 gather_task.cancel()
-                executions = tuple(
-                    self._cancelled_execution(provider, token.reason)
-                    for provider in selected
+                await asyncio.gather(
+                    gather_task,
+                    return_exceptions=True,
                 )
             else:
                 cancel_task.cancel()
+                await asyncio.gather(
+                    cancel_task,
+                    return_exceptions=True,
+                )
                 raw = await gather_task
                 executions = tuple(
                     self._coerce_execution(provider, item)
@@ -183,8 +209,7 @@ class AsyncProviderSearchEngine:
             if execution.result is not None
         )
         outcomes = tuple(
-            execution.outcome
-            for execution in executions
+            execution.outcome for execution in executions
         )
         effective_cancelled = (
             cancelled
@@ -202,6 +227,30 @@ class AsyncProviderSearchEngine:
             elapsed_ms=round((perf_counter() - started_counter) * 1000),
             cancelled=effective_cancelled,
         )
+
+    async def _collect_after_cancellation(
+        self,
+        providers: tuple[AsyncTenderProvider, ...],
+        tasks: list[asyncio.Task[_Execution]],
+        reason: str,
+    ) -> tuple[_Execution, ...]:
+        """Keep already completed provider results and cancel only pending."""
+
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        values = await asyncio.gather(*tasks, return_exceptions=True)
+        result: list[_Execution] = []
+        for provider, value in zip(providers, values):
+            if isinstance(value, asyncio.CancelledError):
+                result.append(
+                    self._cancelled_execution(provider, reason)
+                )
+            else:
+                result.append(
+                    self._coerce_execution(provider, value)
+                )
+        return tuple(result)
 
     def _select(
         self,
@@ -227,6 +276,45 @@ class AsyncProviderSearchEngine:
         *,
         semaphore: asyncio.Semaphore,
         cancellation_token: CollectorCancellationToken,
+        progress_callback: CollectorProgressCallback | None,
+        total_providers: int,
+    ) -> _Execution:
+        execution = await self._execute_provider_impl(
+            provider,
+            query,
+            semaphore=semaphore,
+            cancellation_token=cancellation_token,
+            progress_callback=progress_callback,
+            total_providers=total_providers,
+        )
+        outcome = execution.outcome
+        await emit_collector_progress(
+            progress_callback,
+            CollectorProgressEvent(
+                phase=CollectorProgressPhase.PROVIDER_COMPLETED,
+                provider_id=outcome.provider_id,
+                display_name=outcome.display_name,
+                provider_status=outcome.status.value,
+                item_count=outcome.item_count,
+                elapsed_ms=outcome.elapsed_ms,
+                total_providers=total_providers,
+                message=(
+                    outcome.error_message
+                    or _provider_status_message(outcome.status)
+                ),
+            ),
+        )
+        return execution
+
+    async def _execute_provider_impl(
+        self,
+        provider: AsyncTenderProvider,
+        query: TenderSearchQuery,
+        *,
+        semaphore: asyncio.Semaphore,
+        cancellation_token: CollectorCancellationToken,
+        progress_callback: CollectorProgressCallback | None,
+        total_providers: int,
     ) -> _Execution:
         provider_id = provider.descriptor.id
         display_name = provider.descriptor.display_name
@@ -266,6 +354,17 @@ class AsyncProviderSearchEngine:
         try:
             cancellation_token.throw_if_cancelled()
             async with semaphore:
+                cancellation_token.throw_if_cancelled()
+                await emit_collector_progress(
+                    progress_callback,
+                    CollectorProgressEvent(
+                        phase=CollectorProgressPhase.PROVIDER_RUNNING,
+                        provider_id=provider_id,
+                        display_name=display_name,
+                        total_providers=total_providers,
+                        message="Выполняется поиск по источнику…",
+                    ),
+                )
                 async with asyncio.timeout(
                     self.provider_timeout_seconds
                 ):
@@ -343,9 +442,12 @@ class AsyncProviderSearchEngine:
                 AsyncProviderSearchStatus.CANCELLED,
                 elapsed_ms,
                 exc,
-                message=cancellation_token.reason,
+                message=(
+                    cancellation_token.reason
+                    or "Операция отменена пользователем."
+                ),
             )
-        except (TenderProviderError, Exception) as exc:
+        except Exception as exc:
             elapsed_ms = round((perf_counter() - started) * 1000)
             self.health_monitor.register_failure(
                 provider_id,
@@ -397,7 +499,9 @@ class AsyncProviderSearchEngine:
                 status=AsyncProviderSearchStatus.CANCELLED,
                 elapsed_ms=0,
                 error_type="CollectorCancelledError",
-                error_message=reason,
+                error_message=(
+                    reason or "Операция отменена пользователем."
+                ),
             ),
         )
 
@@ -421,6 +525,24 @@ class AsyncProviderSearchEngine:
             0,
             RuntimeError("Провайдер вернул неподдерживаемый результат."),
         )
+
+
+def _provider_status_message(
+    status: AsyncProviderSearchStatus,
+) -> str:
+    return {
+        AsyncProviderSearchStatus.SUCCESS: "Источник завершён успешно.",
+        AsyncProviderSearchStatus.EMPTY: "Подходящие закупки не найдены.",
+        AsyncProviderSearchStatus.NOT_CONFIGURED: "Источник не настроен.",
+        AsyncProviderSearchStatus.UNSUPPORTED: "Поиск не поддерживается.",
+        AsyncProviderSearchStatus.FAILED: "Ошибка источника.",
+        AsyncProviderSearchStatus.TIMED_OUT: "Истекло время ожидания.",
+        AsyncProviderSearchStatus.CANCELLED: "Источник остановлен.",
+        AsyncProviderSearchStatus.SKIPPED: "Источник пропущен.",
+        AsyncProviderSearchStatus.CIRCUIT_OPEN: (
+            "Источник временно отключён после ошибок."
+        ),
+    }[status]
 
 
 def _utc_now() -> str:
