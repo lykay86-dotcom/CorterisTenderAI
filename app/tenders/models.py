@@ -19,6 +19,8 @@ class TenderSource(StrEnum):
     B2B_CENTER = "b2b_center"
     TEK_TORG = "tek_torg"
     GAZPROMBANK = "gazprombank"
+    FABRIKANT = "fabrikant"
+    OTC = "otc"
     COMMERCIAL = "commercial"
     CUSTOM = "custom"
 

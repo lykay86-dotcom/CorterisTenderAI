@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "providers": {
+    "b2b_center": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    },
+    "gazprombank": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    },
+    "fabrikant": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    },
+    "tek_torg": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    },
+    "otc": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    },
+    "sber_commercial": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    },
+    "rts_commercial": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    },
+    "roseltorg_commercial": {
+      "enabled": false,
+      "access_confirmed": false,
+      "api_base_url": ""
+    }
+  }
+}

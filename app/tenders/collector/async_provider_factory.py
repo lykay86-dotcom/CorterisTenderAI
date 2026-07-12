@@ -8,6 +8,13 @@ from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.collector_service import CollectorService
 from app.tenders.collector.network_runtime import CollectorNetworkRuntime
 from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.providers.commercial_adapter import (
+    create_commercial_access_providers,
+)
+from app.tenders.providers.commercial_catalog import (
+    CommercialProviderCatalog,
+    create_commercial_provider_catalog,
+)
 from app.tenders.providers.eis_async import AsyncEisTenderProvider
 from app.tenders.providers.mos_supplier_api import (
     AsyncMosSupplierTenderProvider,
@@ -20,14 +27,17 @@ def create_default_async_providers(
     *,
     repository: CollectorStateRepository | None = None,
     mos_supplier_config: MosSupplierApiConfig | None = None,
+    include_commercial_catalog: bool = False,
+    commercial_catalog: CommercialProviderCatalog | None = None,
 ):
-    """Return only providers that are genuinely implemented.
+    """Return implemented providers and optional visible access adapters.
 
-    Commercial placeholders are intentionally excluded until credentials and
-    a verified integration contract are available.
+    Commercial adapters are excluded by default. When explicitly requested,
+    only providers enabled by the user are added, and they remain honest
+    ``not_configured`` adapters until a real API contract is verified.
     """
 
-    return (
+    providers = [
         AsyncEisTenderProvider(
             network_runtime.http_client,
             network_settings=network_runtime.settings.get("eis"),
@@ -44,7 +54,16 @@ def create_default_async_providers(
             ),
             checkpoint_repository=repository,
         ),
-    )
+    ]
+    if include_commercial_catalog:
+        catalog = commercial_catalog or create_commercial_provider_catalog()
+        providers.extend(
+            create_commercial_access_providers(
+                catalog.resolve_all(),
+                enabled_only=True,
+            )
+        )
+    return tuple(providers)
 
 
 def create_default_collector_service(
@@ -53,6 +72,8 @@ def create_default_collector_service(
     *,
     provider_timeout_seconds: float = 90.0,
     mos_supplier_config: MosSupplierApiConfig | None = None,
+    include_commercial_catalog: bool = False,
+    commercial_catalog: CommercialProviderCatalog | None = None,
 ) -> CollectorService:
     """Build the first production collector pipeline without network I/O."""
 
@@ -66,6 +87,8 @@ def create_default_collector_service(
         network_runtime,
         repository=repository,
         mos_supplier_config=mos_supplier_config,
+        include_commercial_catalog=include_commercial_catalog,
+        commercial_catalog=commercial_catalog,
     )
     engine = AsyncProviderSearchEngine(
         providers,
