@@ -506,6 +506,7 @@ class TenderSearchProfileEditor(QWidget):
             max_price=self._optional_price(
                 self.max_price_spin
             ),
+            price_currency=self._profile.price_currency,
             minimum_score=self.minimum_score_spin.value(),
             only_open=self.only_open_check.isChecked(),
             lookback_days=(

@@ -14,7 +14,7 @@ from app.tenders.corteris_filter import (
     CorterisTenderClassifier,
     normalize_text,
 )
-from app.tenders.models import UnifiedTender
+from app.tenders.models import UnifiedTender, normalize_currency_code
 from app.tenders.requirement_analysis import (
     FindingSeverity,
     TenderRequirementAnalysis,
@@ -193,6 +193,7 @@ class CorterisCompanyProfile:
     preferred_price_min: Decimal = Decimal("100000")
     preferred_price_max: Decimal = Decimal("30000000")
     extended_price_max: Decimal = Decimal("80000000")
+    price_currency: str = "RUB"
     known_licenses: tuple[str, ...] = ()
     equipment_terms: tuple[str, ...] = (
         "trassir",
@@ -223,6 +224,11 @@ class CorterisCompanyProfile:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "price_currency",
+            normalize_currency_code(self.price_currency),
+        )
         if not self.version.strip():
             raise ValueError("profile version must not be empty")
         if self.preferred_price_min < 0:
@@ -626,6 +632,13 @@ class CorterisParticipationRanker:
     ) -> tuple[int, str]:
         if tender.price is None:
             return 4, "НМЦК не указана — финансовая оценка неполная."
+        if tender.price.currency != self.profile.price_currency:
+            return (
+                4,
+                "НМЦК указана в валюте "
+                f"{tender.price.currency}; рабочий диапазон задан в "
+                f"{self.profile.price_currency}. Требуется ручной курс.",
+            )
         amount = tender.price.amount
         if (
             self.profile.preferred_price_min
@@ -933,6 +946,11 @@ def _input_fingerprint(
         "region": tender.region,
         "price": (
             str(tender.price.amount)
+            if tender.price is not None
+            else ""
+        ),
+        "price_currency": (
+            tender.price.currency
             if tender.price is not None
             else ""
         ),

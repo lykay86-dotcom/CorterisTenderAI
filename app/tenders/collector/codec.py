@@ -206,6 +206,7 @@ def query_to_payload(query: TenderSearchQuery) -> dict[str, Any]:
             if query.max_price is not None
             else None
         ),
+        "price_currency": query.price_currency,
         "page": query.page,
         "page_size": query.page_size,
         "extra": _json_safe(query.extra),

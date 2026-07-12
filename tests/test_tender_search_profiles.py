@@ -122,6 +122,24 @@ def test_profile_prices_round_trip_as_exact_json_strings() -> None:
     assert restored.max_price == Decimal("9007199254740993.01")
     assert legacy.min_price == Decimal("1000")
     assert legacy.max_price == Decimal("5000000.5")
+    assert restored.price_currency == "RUB"
+
+
+def test_profile_preserves_currency_and_defaults_old_json_to_rub() -> None:
+    profile = TenderSearchProfile(
+        id="usd-price",
+        name="USD границы",
+        keywords=("оборудование",),
+        min_price="100.50",
+        price_currency="usd",
+    )
+    payload = profile.to_dict()
+
+    assert payload["price_currency"] == "USD"
+    assert TenderSearchProfile.from_dict(payload).price_currency == "USD"
+
+    payload.pop("price_currency")
+    assert TenderSearchProfile.from_dict(payload).price_currency == "RUB"
 
 
 def test_clone_as_custom_changes_identity_and_timestamps() -> None:

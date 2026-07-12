@@ -13,7 +13,10 @@ from app.tenders.corteris_filter import (
     TenderFilterOptions,
 )
 from app.tenders.provider_base import TenderSearchQuery
-from app.tenders.models import normalize_money_amount
+from app.tenders.models import (
+    normalize_currency_code,
+    normalize_money_amount,
+)
 
 
 _PROFILE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
@@ -44,8 +47,14 @@ class TenderSearchProfile:
     is_builtin: bool = False
     created_at: str = ""
     updated_at: str = ""
+    price_currency: str = "RUB"
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "price_currency",
+            normalize_currency_code(self.price_currency),
+        )
         if self.min_price is not None:
             object.__setattr__(
                 self,
@@ -126,6 +135,7 @@ class TenderSearchProfile:
             date_to=date_to,
             min_price=self.min_price,
             max_price=self.max_price,
+            price_currency=self.price_currency,
             page=page,
             page_size=self.page_size,
         )
@@ -140,6 +150,7 @@ class TenderSearchProfile:
             only_open=self.only_open,
             min_price=self.min_price,
             max_price=self.max_price,
+            price_currency=self.price_currency,
         )
 
     def clone_as_custom(
@@ -182,6 +193,7 @@ class TenderSearchProfile:
                 if self.max_price is not None
                 else None
             ),
+            "price_currency": self.price_currency,
             "minimum_score": self.minimum_score,
             "only_open": self.only_open,
             "lookback_days": self.lookback_days,
@@ -226,6 +238,7 @@ class TenderSearchProfile:
             ),
             min_price=_optional_decimal(payload.get("min_price")),
             max_price=_optional_decimal(payload.get("max_price")),
+            price_currency=str(payload.get("price_currency", "RUB")),
             minimum_score=int(payload.get("minimum_score", 24)),
             only_open=bool(payload.get("only_open", True)),
             lookback_days=_optional_int(

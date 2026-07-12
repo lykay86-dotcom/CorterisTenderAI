@@ -63,7 +63,17 @@ def test_search_query_normalizes_legacy_price_inputs_to_decimal() -> None:
 
     assert query.min_price == Decimal("0.1")
     assert query.max_price == Decimal("9007199254740993.01")
+    assert query.price_currency == "RUB"
+
+    usd_query = TenderSearchQuery(
+        min_price=1,
+        price_currency="usd",
+    )
+    assert usd_query.price_currency == "USD"
 
     for invalid in ("NaN", "Infinity", -1):
         with pytest.raises(ValueError):
             TenderSearchQuery(min_price=invalid)
+
+    with pytest.raises(ValueError):
+        TenderSearchQuery(price_currency="unknown")

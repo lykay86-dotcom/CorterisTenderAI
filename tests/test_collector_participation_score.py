@@ -107,3 +107,22 @@ def test_document_text_participates_in_matching() -> None:
         item.casefold() for item in score.matched_keywords
     }
     assert "Техническое задание.docx" in score.evidence_sources
+
+
+def test_foreign_currency_requires_manual_financial_review() -> None:
+    tender = make_tender(title="Монтаж видеонаблюдения")
+    tender = replace(
+        tender,
+        price=replace(tender.price, currency="USD"),
+    )
+
+    score = CorterisParticipationRanker().score(
+        tender,
+        ParticipationScoringContext(now=_now()),
+    )
+    price = next(
+        item for item in score.components if item.key == "price"
+    )
+
+    assert price.score == 4
+    assert "Требуется ручной курс" in price.explanation

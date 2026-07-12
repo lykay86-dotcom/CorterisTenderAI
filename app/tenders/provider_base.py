@@ -13,6 +13,7 @@ from app.tenders.models import (
     TenderDocument,
     TenderSource,
     UnifiedTender,
+    normalize_currency_code,
     normalize_money_amount,
 )
 
@@ -86,8 +87,14 @@ class TenderSearchQuery:
         compare=False,
         repr=False,
     )
+    price_currency: str = "RUB"
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "price_currency",
+            normalize_currency_code(self.price_currency),
+        )
         if self.min_price is not None:
             object.__setattr__(
                 self,

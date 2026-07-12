@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+import re
 from typing import Any, Mapping
 from urllib.parse import urlparse
 
@@ -95,8 +96,11 @@ class TenderMoney:
                 field_name="TenderMoney.amount",
             ),
         )
-        if not self.currency.strip():
-            raise ValueError("TenderMoney.currency must not be empty")
+        object.__setattr__(
+            self,
+            "currency",
+            normalize_currency_code(self.currency),
+        )
 
     @classmethod
     def from_value(
@@ -134,6 +138,34 @@ def normalize_money_amount(
     if amount < 0:
         raise ValueError(f"{field_name} must be non-negative")
     return amount
+
+
+_CURRENCY_ALIASES = {
+    "₽": "RUB",
+    "РУБ": "RUB",
+    "РУБ.": "RUB",
+    "RUR": "RUB",
+    "643": "RUB",
+    "$": "USD",
+    "ДОЛЛАР": "USD",
+    "ДОЛЛАР США": "USD",
+    "840": "USD",
+    "€": "EUR",
+    "ЕВРО": "EUR",
+    "978": "EUR",
+    "ЮАНЬ": "CNY",
+    "156": "CNY",
+}
+
+
+def normalize_currency_code(value: str) -> str:
+    """Return a canonical ISO 4217 alpha code for a currency label."""
+
+    normalized = " ".join(str(value).strip().upper().split())
+    normalized = _CURRENCY_ALIASES.get(normalized, normalized)
+    if not re.fullmatch(r"[A-Z]{3}", normalized):
+        raise ValueError(f"Invalid currency code: {value!r}")
+    return normalized
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +279,7 @@ __all__ = [
     "TenderCustomer",
     "TenderDocument",
     "TenderMoney",
+    "normalize_currency_code",
     "normalize_money_amount",
     "TenderProcedureType",
     "TenderSource",

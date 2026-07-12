@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 from app.tenders.corteris_filter import (
@@ -203,6 +204,27 @@ def test_filter_keeps_exact_precision_for_large_price_boundaries() -> None:
     assert result.accepted_count == 0
     assert result.rejected[0].rejection_reasons == (
         "Цена выше максимальной",
+    )
+
+
+def test_filter_does_not_compare_different_currencies() -> None:
+    tender = make_tender(
+        title="Монтаж СКУД",
+        amount="1000",
+    )
+    tender = replace(
+        tender,
+        price=replace(tender.price, currency="USD"),
+    )
+
+    result = CorterisTenderFilter().filter(
+        (tender,),
+        TenderFilterOptions(max_price="2000", price_currency="RUB"),
+    )
+
+    assert result.accepted_count == 0
+    assert result.rejected[0].rejection_reasons == (
+        "Валюта цены не совпадает с валютой фильтра",
     )
 
 

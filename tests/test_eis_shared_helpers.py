@@ -71,6 +71,29 @@ def test_search_builder_preserves_exact_decimal_boundaries() -> None:
     assert params["priceToGeneral"] == ["9007199254740993.09"]
 
 
+def test_eis_does_not_apply_ruble_filter_to_foreign_currency() -> None:
+    query = TenderSearchQuery(
+        min_price="100",
+        max_price="200",
+        price_currency="USD",
+    )
+    url, _ = build_eis_search_url(query)
+    params = parse_qs(urlparse(url).query)
+    tender = UnifiedTender(
+        source=TenderSource.EIS,
+        external_id="usd-1",
+        procurement_number="usd-1",
+        title="Оборудование",
+        customer=TenderCustomer(name="Заказчик"),
+        source_url="https://zakupki.gov.ru/tender/usd-1",
+        price=TenderMoney.from_value("150", currency="RUB"),
+    )
+
+    assert "priceFromGeneral" not in params
+    assert "priceToGeneral" not in params
+    assert not matches_eis_query(tender, query)
+
+
 def test_documents_url_preserves_procurement_number() -> None:
     source = (
         "https://zakupki.gov.ru/epz/order/notice/ea20/view/"

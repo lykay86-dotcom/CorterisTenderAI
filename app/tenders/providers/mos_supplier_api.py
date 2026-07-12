@@ -306,7 +306,10 @@ def build_mos_supplier_search_payload(
         filter_payload["status"] = status
 
     payload: dict[str, object] = {"filter": filter_payload}
-    if query.min_price is not None or query.max_price is not None:
+    if (
+        query.price_currency == "RUB"
+        and (query.min_price is not None or query.max_price is not None)
+    ):
         price_filter: dict[str, object] = {"isNotNull": True}
         if query.min_price is not None:
             price_filter["start"] = [_transport_number(query.min_price)]
@@ -376,6 +379,11 @@ def matches_mos_supplier_query(
         ):
             return False
     if tender.price is not None:
+        if (
+            (query.min_price is not None or query.max_price is not None)
+            and tender.price.currency != query.price_currency
+        ):
+            return False
         if (
             query.min_price is not None
             and tender.price.amount < Decimal(str(query.min_price))

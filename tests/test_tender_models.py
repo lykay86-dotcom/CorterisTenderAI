@@ -65,6 +65,16 @@ def test_tender_money_normalizes_inputs_without_float_rounding() -> None:
             TenderMoney.from_value(invalid)
 
 
+def test_tender_money_normalizes_currency_aliases() -> None:
+    assert TenderMoney.from_value("1", currency="руб.").currency == "RUB"
+    assert TenderMoney.from_value("1", currency="rur").currency == "RUB"
+    assert TenderMoney.from_value("1", currency="€").currency == "EUR"
+    assert TenderMoney.from_value("1", currency="usd").currency == "USD"
+
+    with pytest.raises(ValueError):
+        TenderMoney.from_value("1", currency="рубли")
+
+
 def test_deadline_cannot_precede_publication() -> None:
     published = datetime(2026, 7, 12, 12, 0)
 

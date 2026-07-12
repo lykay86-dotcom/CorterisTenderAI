@@ -93,6 +93,18 @@ def test_search_payload_uses_documented_name_and_price_filters() -> None:
     }
 
 
+def test_search_payload_skips_ruble_filter_for_foreign_currency() -> None:
+    payload = build_mos_supplier_search_payload(
+        TenderSearchQuery(
+            keywords=("оборудование",),
+            min_price=100,
+            price_currency="USD",
+        )
+    )
+
+    assert "startprice" not in payload
+
+
 def test_api_url_contains_encoded_json_query() -> None:
     url = build_mos_supplier_api_url(
         MosSupplierApiConfig().search_url,

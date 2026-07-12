@@ -12,6 +12,7 @@ from typing import Iterable, Mapping, Sequence
 from app.tenders.models import (
     TenderStatus,
     UnifiedTender,
+    normalize_currency_code,
     normalize_money_amount,
 )
 
@@ -93,8 +94,14 @@ class TenderFilterOptions:
     only_open: bool = True
     min_price: Decimal | int | float | str | None = None
     max_price: Decimal | int | float | str | None = None
+    price_currency: str = "RUB"
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "price_currency",
+            normalize_currency_code(self.price_currency),
+        )
         if self.min_price is not None:
             object.__setattr__(
                 self,
@@ -589,6 +596,19 @@ class CorterisTenderFilter:
                 reasons.append("Закон закупки не входит в фильтр")
 
         amount = tender.price.amount if tender.price is not None else None
+        has_price_boundary = (
+            options.min_price is not None
+            or options.max_price is not None
+        )
+        if (
+            has_price_boundary
+            and tender.price is not None
+            and tender.price.currency != options.price_currency
+        ):
+            reasons.append(
+                "Валюта цены не совпадает с валютой фильтра"
+            )
+            return reasons
         if (
             options.min_price is not None
             and amount is not None

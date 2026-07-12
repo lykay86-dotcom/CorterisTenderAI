@@ -578,9 +578,9 @@ def build_eis_search_url(
         params.append(
             ("publishDateTo", query.date_to.strftime("%d.%m.%Y"))
         )
-    if query.min_price is not None:
+    if query.min_price is not None and query.price_currency == "RUB":
         params.append(("priceFromGeneral", _format_number(query.min_price)))
-    if query.max_price is not None:
+    if query.max_price is not None and query.price_currency == "RUB":
         params.append(("priceToGeneral", _format_number(query.max_price)))
 
     base = urljoin(effective.base_url, effective.search_path)
@@ -630,6 +630,11 @@ def matches_eis_query(
             return False
 
     if item.price is not None:
+        if (
+            (query.min_price is not None or query.max_price is not None)
+            and item.price.currency != query.price_currency
+        ):
+            return False
         amount = item.price.amount
         if (
             query.min_price is not None
