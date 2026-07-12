@@ -205,6 +205,7 @@ def _render_result(result: TenderFullAnalysisResult) -> str:
     text = result.text
     score = result.score
     requirements = result.requirements
+    commercial = result.commercial_estimate
     warnings = "".join(f"<li>{escape(item)}</li>" for item in result.warnings) or "<li>Нет</li>"
     return (
         f"<h2>{escape(result.procurement_number or result.registry_key)}</h2>"
@@ -218,6 +219,10 @@ def _render_result(result: TenderFullAnalysisResult) -> str:
         f"<p><b>Риск требований:</b> {escape(requirements.risk_level.value) if requirements else '—'}</p>"
         f"<p><b>Итоговая оценка:</b> {score.total_score if score else '—'}/100 — "
         f"{escape(score.recommendation_text) if score else 'не рассчитана'}</p>"
+        f"<p><b>Коммерческий расчёт:</b> "
+        f"{escape(commercial.status.value) if commercial else 'не создан'}; "
+        f"прибыль: {commercial.profit if commercial and commercial.profit is not None else 'не рассчитана'}"
+        f"</p>"
         f"<p><b>Существующий AnalysisEngine:</b> {'выполнен' if result.legacy else 'не выполнен или недоступен'}</p>"
         f"<h3>Предупреждения</h3><ul>{warnings}</ul>"
     )

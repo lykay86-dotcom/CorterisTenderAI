@@ -17,6 +17,7 @@ from app.tenders.corteris_filter import (
     CorterisTenderFilter,
 )
 from app.tenders.matching_catalog import MatchingCatalogRepository
+from app.tenders.commercial_estimator import CommercialEstimateRepository
 from app.tenders.document_storage import (
     TenderDocumentDownloadService,
     TenderDocumentStore,
@@ -61,6 +62,7 @@ class TenderSearchRuntime:
     ) = None
     full_analysis_service: "TenderFullAnalysisService | None" = None
     matching_catalog_repository: MatchingCatalogRepository | None = None
+    commercial_estimate_repository: CommercialEstimateRepository | None = None
 
 
 def create_tender_search_runtime(
@@ -148,6 +150,10 @@ def create_tender_search_runtime(
         data_path / "tender_registry.sqlite3"
     )
     collector_state_repository.initialize()
+    commercial_estimate_repository = CommercialEstimateRepository(
+        data_path / "tender_registry.sqlite3"
+    )
+    commercial_estimate_repository.initialize()
     participation_score_service = CorterisParticipationScoreService(
         tender_registry,
         collector_state_repository,
@@ -171,6 +177,7 @@ def create_tender_search_runtime(
         participation_score_service,
         archive_extractor=SafeArchiveExtractor(),
         legacy_bridge=LegacyAnalysisBridge(),
+        commercial_estimate_repository=commercial_estimate_repository,
     )
 
     return TenderSearchRuntime(
@@ -192,6 +199,7 @@ def create_tender_search_runtime(
         ),
         full_analysis_service=full_analysis_service,
         matching_catalog_repository=matching_catalog_repository,
+        commercial_estimate_repository=commercial_estimate_repository,
     )
 
 

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 import hashlib
-from pathlib import Path
 from typing import Callable
 
 from app.tenders.collector.cancellation import (
@@ -41,6 +40,10 @@ from app.tenders.safe_archive import (
     UnsafeArchiveError,
 )
 from app.tenders.tender_registry import TenderRegistryRepository
+from app.tenders.commercial_estimator import (
+    CommercialEstimateRepository,
+    CommercialEstimateResult,
+)
 
 
 class FullAnalysisStage(StrEnum):
@@ -91,6 +94,7 @@ class TenderFullAnalysisResult:
     score: CorterisParticipationScore | None
     legacy: LegacyAnalysisBridgeResult | None
     warnings: tuple[str, ...] = ()
+    commercial_estimate: CommercialEstimateResult | None = None
 
     @property
     def successful(self) -> bool:
@@ -114,6 +118,7 @@ class TenderFullAnalysisService:
         *,
         archive_extractor: SafeArchiveExtractor | None = None,
         legacy_bridge: LegacyAnalysisBridge | None = None,
+        commercial_estimate_repository: CommercialEstimateRepository | None = None,
     ) -> None:
         self.tender_registry = tender_registry
         self.document_service = document_service
@@ -123,6 +128,7 @@ class TenderFullAnalysisService:
         self.score_service = score_service
         self.archive_extractor = archive_extractor or SafeArchiveExtractor()
         self.legacy_bridge = legacy_bridge
+        self.commercial_estimate_repository = commercial_estimate_repository
 
     def run(
         self,
@@ -271,6 +277,12 @@ class TenderFullAnalysisService:
 
             emit(FullAnalysisStage.SCORING, "Пересчёт итоговой рекомендации Кортерис…", 7)
             score = self.score_service.evaluate(key, persist=True)
+            latest_commercial = (
+                self.commercial_estimate_repository.latest(key)
+                if self.commercial_estimate_repository is not None
+                else None
+            )
+            commercial_estimate = latest_commercial[1] if latest_commercial else None
             status = FullAnalysisStatus.PARTIAL if warnings else FullAnalysisStatus.COMPLETED
             emit(FullAnalysisStage.COMPLETED, "Полный анализ завершён.", 8)
             return TenderFullAnalysisResult(
@@ -286,6 +298,7 @@ class TenderFullAnalysisService:
                 score=score,
                 legacy=legacy,
                 warnings=_ordered_unique(warnings),
+                commercial_estimate=commercial_estimate,
             )
         except CollectorCancelledError:
             emit(FullAnalysisStage.CANCELLED, token.reason or "Операция остановлена.", 0)
@@ -306,6 +319,7 @@ class TenderFullAnalysisService:
                 score=score,
                 legacy=legacy,
                 warnings=_ordered_unique((*warnings, token.reason or "Операция отменена")),
+                commercial_estimate=None,
             )
 
 

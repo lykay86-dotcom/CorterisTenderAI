@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 8
+COLLECTOR_SCHEMA_VERSION = 9
 
 
 class CollectorSchemaMigrator:
@@ -247,6 +247,46 @@ class CollectorSchemaMigrator:
                 saved_at TEXT NOT NULL,
                 saved_by TEXT NOT NULL,
                 payload_json TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS collector_commercial_estimates (
+                estimate_id TEXT PRIMARY KEY,
+                registry_key TEXT NOT NULL,
+                status TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                known_cost TEXT NOT NULL,
+                total_cost TEXT,
+                proposed_revenue TEXT,
+                profit TEXT,
+                margin_percent TEXT,
+                calculated_at TEXT NOT NULL,
+                input_fingerprint TEXT NOT NULL,
+                draft_json TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                UNIQUE(registry_key, input_fingerprint),
+                FOREIGN KEY(registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_commercial_estimates_registry
+                ON collector_commercial_estimates(
+                    registry_key,
+                    calculated_at DESC
+                );
+            CREATE TABLE IF NOT EXISTS collector_commercial_cost_lines (
+                estimate_id TEXT NOT NULL,
+                line_id TEXT NOT NULL,
+                registry_key TEXT NOT NULL,
+                category TEXT NOT NULL,
+                description TEXT NOT NULL,
+                quantity TEXT NOT NULL,
+                unit_cost TEXT,
+                total TEXT,
+                evidence_json TEXT,
+                PRIMARY KEY(estimate_id, line_id),
+                FOREIGN KEY(estimate_id)
+                    REFERENCES collector_commercial_estimates(estimate_id)
+                    ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_collector_scores_run
                 ON collector_tender_scores(run_id);

@@ -62,6 +62,7 @@ class TenderRegistryDialog(QDialog):
     analysis_requested = Signal(str)
     score_requested = Signal(str)
     full_analysis_requested = Signal(str)
+    commercial_estimate_requested = Signal(str)
     verification_requested = Signal(str)
 
     def __init__(
@@ -253,6 +254,15 @@ class TenderRegistryDialog(QDialog):
             self._request_selected_score
         )
 
+        self.commercial_button = QPushButton(
+            "Коммерческий расчёт",
+            self,
+        )
+        self.commercial_button.setObjectName("PrimaryActionButton")
+        self.commercial_button.clicked.connect(
+            self._request_selected_commercial_estimate
+        )
+
         self.verification_button = QPushButton(
             "Достоверность и источники",
             self,
@@ -295,6 +305,7 @@ class TenderRegistryDialog(QDialog):
         action_row.addWidget(self.full_analysis_button)
         action_row.addWidget(self.analysis_button)
         action_row.addWidget(self.score_button)
+        action_row.addWidget(self.commercial_button)
         action_row.addWidget(self.verification_button)
         action_row.addWidget(self.documents_button)
         action_row.addWidget(self.archive_button)
@@ -632,6 +643,7 @@ class TenderRegistryDialog(QDialog):
             self.analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
             self.verification_button.setEnabled(False)
+            self.commercial_button.setEnabled(False)
             self.archive_button.setEnabled(False)
 
     def selected_record(self) -> TenderRegistryRecord | None:
@@ -659,6 +671,7 @@ class TenderRegistryDialog(QDialog):
             self.analysis_button.setEnabled(False)
             self.documents_button.setEnabled(False)
             self.verification_button.setEnabled(False)
+            self.commercial_button.setEnabled(False)
             self.archive_button.setEnabled(False)
             return
 
@@ -667,6 +680,7 @@ class TenderRegistryDialog(QDialog):
         self.analysis_button.setEnabled(True)
         self.documents_button.setEnabled(True)
         self.verification_button.setEnabled(True)
+        self.commercial_button.setEnabled(True)
         self.archive_button.setEnabled(True)
         self.archive_button.setText(
             "Вернуть из архива" if record.archived else "В архив"
@@ -798,6 +812,12 @@ class TenderRegistryDialog(QDialog):
         if record is None:
             return
         self.score_requested.emit(record.registry_key)
+
+    def _request_selected_commercial_estimate(self) -> None:
+        record = self.selected_record()
+        if record is None:
+            return
+        self.commercial_estimate_requested.emit(record.registry_key)
 
     def _request_selected_verification(self) -> None:
         record = self.selected_record()

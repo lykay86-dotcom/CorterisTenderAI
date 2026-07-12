@@ -68,7 +68,7 @@ def test_current_schema_contains_freshness_state(tmp_path) -> None:
             )
         }
 
-    assert version == COLLECTOR_SCHEMA_VERSION == 8
+    assert version == COLLECTOR_SCHEMA_VERSION == 9
     assert "collector_tender_freshness_state" in tables
 
 

@@ -77,6 +77,8 @@ from app.tenders.search_runtime import (
 from app.ui.tender_collector_dialog import TenderCollectorDialog
 from app.ui.company_capability_dialog import CompanyCapabilityDialog
 from app.ui.matching_catalog_dialog import MatchingCatalogDialog
+from app.ui.commercial_estimator_dialog import CommercialEstimatorDialog
+from app.tenders.commercial_estimator import CommercialEstimateRepository
 from app.ui.tender_collector_scheduler_controller import (
     TenderCollectorSchedulerUiController,
 )
@@ -457,6 +459,7 @@ class TenderSearchUiController(QObject):
         self._provider_dialog: TenderProviderManagerDialog | None = None
         self._company_capability_dialog: CompanyCapabilityDialog | None = None
         self._matching_catalog_dialog: MatchingCatalogDialog | None = None
+        self._commercial_estimate_dialogs: dict[str, CommercialEstimatorDialog] = {}
         self._provider_check_worker: _ProviderCheckWorker | None = None
         self._provider_check_ids: tuple[str, ...] = ()
         self._collector_dialog: TenderCollectorDialog | None = None
@@ -824,6 +827,9 @@ class TenderSearchUiController(QObject):
             )
             self._registry_dialog.full_analysis_requested.connect(
                 self.open_full_analysis
+            )
+            self._registry_dialog.commercial_estimate_requested.connect(
+                self.open_commercial_estimator
             )
             self._registry_dialog.verification_requested.connect(
                 self.open_verification_details
@@ -1591,6 +1597,42 @@ class TenderSearchUiController(QObject):
     ) -> None:
         if self._verification_dialogs.get(registry_key) is dialog:
             self._verification_dialogs.pop(registry_key, None)
+
+    @Slot(str)
+    def open_commercial_estimator(self, registry_key: str) -> None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return
+        dialog = self._commercial_estimate_dialogs.get(normalized)
+        if dialog is None:
+            repository = (
+                self.runtime.commercial_estimate_repository
+                or CommercialEstimateRepository(
+                    self.data_directory / "tender_registry.sqlite3"
+                )
+            )
+            tender = (
+                self.runtime.tender_registry.get_tender(normalized)
+                if self.runtime.tender_registry is not None
+                else None
+            )
+            parent = self.parent()
+            parent_widget = parent if isinstance(parent, QWidget) else None
+            dialog = CommercialEstimatorDialog(
+                normalized,
+                repository,
+                tender=tender,
+                parent=parent_widget,
+            )
+            dialog.finished.connect(
+                lambda _result, key=normalized: (
+                    self._commercial_estimate_dialogs.pop(key, None)
+                )
+            )
+            self._commercial_estimate_dialogs[normalized] = dialog
+        dialog.open()
+        dialog.raise_()
+        dialog.activateWindow()
 
     @Slot(str)
     def open_full_analysis(self, registry_key: str) -> None:
