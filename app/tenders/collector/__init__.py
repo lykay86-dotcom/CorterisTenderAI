@@ -315,6 +315,26 @@ __all__ += [
     "StopFactorStatus",
 ]
 
+from app.tenders.collector.vertical_source_verification import (
+    REQUIRED_VERTICAL_STAGES,
+    VerifiedVerticalSourceSmokeService,
+    VerticalSmokeStage,
+    VerticalSmokeStep,
+    VerticalSourceStatus,
+    VerticalSourceVerification,
+    VerticalSourceVerificationRepository,
+)
+
+__all__ += [
+    "REQUIRED_VERTICAL_STAGES",
+    "VerifiedVerticalSourceSmokeService",
+    "VerticalSmokeStage",
+    "VerticalSmokeStep",
+    "VerticalSourceStatus",
+    "VerticalSourceVerification",
+    "VerticalSourceVerificationRepository",
+]
+
 from app.tenders.collector.verification import (
     FieldCandidate,
     FieldConflict,

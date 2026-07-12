@@ -9,7 +9,6 @@ from enum import StrEnum
 import json
 from pathlib import Path
 from threading import RLock
-from typing import Any
 
 from app.tenders.collector.async_provider_factory import (
     create_default_async_providers,
@@ -26,7 +25,6 @@ from app.tenders.provider_base import (
     ProviderHealthStatus,
 )
 from app.tenders.providers.commercial_catalog import (
-    CommercialProviderResolvedSettings,
     CommercialProviderSettingsRepository,
     CommercialProviderState,
     CommercialProviderUserSettings,
@@ -37,6 +35,9 @@ from app.tenders.providers.mos_supplier_api import (
     AsyncMosSupplierTenderProvider,
     MosSupplierApiConfig,
 )
+from app.tenders.collector.vertical_source_verification import (
+    VerticalSourceVerificationRepository,
+)
 
 
 class ProviderUiState(StrEnum):
@@ -46,6 +47,7 @@ class ProviderUiState(StrEnum):
     DISABLED = "disabled"
     NOT_CONFIGURED = "not_configured"
     UNKNOWN = "unknown"
+    UNVERIFIED = "unverified"
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,6 +244,9 @@ class CollectorProviderManager:
         enablement_repository: ProviderEnablementRepository | None = None,
         check_repository: ProviderCheckRepository | None = None,
         health_checker: HealthChecker | None = None,
+        vertical_verification_repository: (
+            VerticalSourceVerificationRepository | None
+        ) = None,
     ) -> None:
         self.data_directory = Path(data_directory).expanduser()
         self.data_directory.mkdir(parents=True, exist_ok=True)
@@ -267,6 +272,12 @@ class CollectorProviderManager:
             )
         )
         self._health_checker = health_checker
+        self.vertical_verification_repository = (
+            vertical_verification_repository
+            or VerticalSourceVerificationRepository(
+                self.data_directory / "tender_registry.sqlite3"
+            )
+        )
 
     def states(self) -> tuple[ProviderDisplayState, ...]:
         definitions = self._definitions()
@@ -520,7 +531,14 @@ class CollectorProviderManager:
             ui_state = ProviderUiState.DISABLED
             status_text = "Отключён пользователем"
         elif record is not None:
-            ui_state, status_text = _record_state(record)
+            ui_state, status_text = _record_state(
+                record,
+                vertically_verified=(
+                    self.vertical_verification_repository.is_working(
+                        descriptor.id
+                    )
+                ),
+            )
         else:
             ui_state, status_text = self._initial_state(
                 definition
@@ -633,8 +651,15 @@ class CollectorProviderManager:
 
 def _record_state(
     record: ProviderCheckRecord,
+    *,
+    vertically_verified: bool = False,
 ) -> tuple[ProviderUiState, str]:
     if record.status == ProviderHealthStatus.AVAILABLE:
+        if not vertically_verified:
+            return (
+                ProviderUiState.UNVERIFIED,
+                "Health-check успешен; полный C19 live-smoke не пройден",
+            )
         return (
             ProviderUiState.WORKING,
             record.message or "Источник работает",

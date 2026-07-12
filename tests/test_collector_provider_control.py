@@ -89,7 +89,7 @@ def test_health_check_persists_success_and_error(tmp_path) -> None:
     )
     by_id = {item.provider_id: item for item in states}
 
-    assert by_id["eis"].ui_state == ProviderUiState.WORKING
+    assert by_id["eis"].ui_state == ProviderUiState.UNVERIFIED
     assert by_id["eis"].last_success_at == (
         "2026-07-12T12:00:00+00:00"
     )

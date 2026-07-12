@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 9
+COLLECTOR_SCHEMA_VERSION = 10
 
 
 class CollectorSchemaMigrator:
@@ -288,6 +288,23 @@ class CollectorSchemaMigrator:
                     REFERENCES collector_commercial_estimates(estimate_id)
                     ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS collector_vertical_source_verifications (
+                verification_id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                connection_mode TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL,
+                live INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_vertical_verification_provider
+                ON collector_vertical_source_verifications(
+                    provider_id,
+                    completed_at DESC
+                );
             CREATE INDEX IF NOT EXISTS idx_collector_scores_run
                 ON collector_tender_scores(run_id);
             CREATE INDEX IF NOT EXISTS idx_collector_scores_total

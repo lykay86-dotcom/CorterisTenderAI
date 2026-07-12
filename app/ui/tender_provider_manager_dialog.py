@@ -424,6 +424,7 @@ class TenderProviderManagerDialog(QDialog):
             ProviderUiState.DISABLED: palette.neutral,
             ProviderUiState.NOT_CONFIGURED: palette.warning,
             ProviderUiState.UNKNOWN: palette.info,
+            ProviderUiState.UNVERIFIED: palette.info,
         }[state]
 
     def apply_theme(
