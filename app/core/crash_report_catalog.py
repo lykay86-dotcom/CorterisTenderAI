@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 from typing import Iterable, Sequence
@@ -113,9 +113,14 @@ class CrashReportCatalogService:
         ]
         entries.sort(
             key=lambda entry: (
-                entry.created_timestamp,
-                entry.modified_at,
-                entry.path.name.lower(),
+                entry.valid,
+                self._datetime_sort_key(
+                    entry.created_timestamp
+                ),
+                self._datetime_sort_key(
+                    entry.modified_at
+                ),
+                entry.path.name.casefold(),
             ),
             reverse=True,
         )
@@ -253,6 +258,27 @@ class CrashReportCatalogService:
     @staticmethod
     def _identity(path: Path) -> str:
         return str(path.resolve(strict=False)).casefold()
+
+    @staticmethod
+    def _datetime_sort_key(
+        value: datetime,
+    ) -> tuple[int, int, int, int, int, int, int]:
+        """Return a comparable key for naive and timezone-aware values."""
+
+        normalized = value
+        if normalized.tzinfo is not None:
+            normalized = normalized.astimezone(
+                timezone.utc
+            ).replace(tzinfo=None)
+        return (
+            normalized.year,
+            normalized.month,
+            normalized.day,
+            normalized.hour,
+            normalized.minute,
+            normalized.second,
+            normalized.microsecond,
+        )
 
     @staticmethod
     def _safe_mtime(path: Path) -> int:

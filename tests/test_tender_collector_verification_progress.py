@@ -38,3 +38,22 @@ def test_dialog_displays_verification_phase() -> None:
     assert dialog.progress_bar.value() >= 86
     assert "происхождения" in dialog.status_label.text().casefold()
     app.processEvents()
+
+
+def test_dialog_displays_freshness_phase() -> None:
+    app = _app()
+    dialog = TenderCollectorDialog()
+
+    dialog.apply_progress(
+        CollectorProgressEvent(
+            phase=CollectorProgressPhase.CHECKING_FRESHNESS,
+            raw_count=5,
+            merged_count=4,
+            duplicate_count=1,
+            message="Нормализация сроков и расчёт повторной проверки…",
+        )
+    )
+
+    assert dialog.progress_bar.value() >= 89
+    assert "повторной проверки" in dialog.status_label.text().casefold()
+    app.processEvents()

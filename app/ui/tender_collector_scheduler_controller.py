@@ -23,6 +23,7 @@ from app.tenders.collector.notifications import (
 from app.tenders.collector.provider_control import (
     CollectorProviderManager,
 )
+from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.scheduler import (
     CollectorScheduleRepository,
     CollectorScheduleSettings,
@@ -79,6 +80,9 @@ class TenderCollectorSchedulerUiController(QObject):
                 self.data_directory
                 / "collector_schedule.json"
             )
+        )
+        self.freshness_repository = CollectorStateRepository(
+            self.data_directory / "tender_registry.sqlite3"
         )
         self.notification_repository = (
             CollectorNotificationRepository(
@@ -303,8 +307,23 @@ class TenderCollectorSchedulerUiController(QObject):
 
     @Slot()
     def poll(self) -> None:
+        freshness_due_at = ""
+        try:
+            due_items = self.freshness_repository.list_due_reverification(
+                limit=1
+            )
+            if due_items:
+                freshness_due_at = (
+                    due_items[0].verification_due_at
+                    or due_items[0].updated_at
+                )
+        except Exception:
+            # The regular schedule must remain operational even when the
+            # registry is temporarily locked or has not been created yet.
+            freshness_due_at = ""
         request = self.scheduler.poll(
-            busy=self.is_collector_busy()
+            busy=self.is_collector_busy(),
+            freshness_due_at=freshness_due_at,
         )
         if request is not None:
             self._start_scheduled(request)

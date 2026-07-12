@@ -404,8 +404,10 @@ class TenderCollectorDialog(QDialog):
             self.progress_bar.setValue(max(self.progress_bar.value(), 80))
         elif event.phase == CollectorProgressPhase.VERIFYING:
             self.progress_bar.setValue(max(self.progress_bar.value(), 86))
+        elif event.phase == CollectorProgressPhase.CHECKING_FRESHNESS:
+            self.progress_bar.setValue(max(self.progress_bar.value(), 89))
         elif event.phase == CollectorProgressPhase.RANKING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 91))
+            self.progress_bar.setValue(max(self.progress_bar.value(), 92))
         elif event.phase == CollectorProgressPhase.SAVING:
             self.progress_bar.setValue(max(self.progress_bar.value(), 95))
             self.duplicate_value.setText(str(event.duplicate_count))
@@ -457,7 +459,8 @@ class TenderCollectorDialog(QDialog):
                 "Сбор завершён с ошибками отдельных источников. "
                 f"Новых: {persistence.new_count}, изменённых: "
                 f"{persistence.changed_count}, дублей: "
-                f"{persistence.duplicate_count}, рекомендовано: "
+                f"{persistence.duplicate_count}, требуется перепроверка: "
+                f"{persistence.reverification_due_count}, рекомендовано: "
                 f"{persistence.recommended_count}."
             )
         else:

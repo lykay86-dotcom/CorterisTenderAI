@@ -24,6 +24,7 @@ from app.database.backup_manager import BackupManager
 from app.database.diagnostics import DiagnosticsService
 from app.database.maintenance import DatabaseMaintenanceService
 from app.database.session import get_engine
+from app.core.json_serialization import json_dumps
 
 LICENSE_OPTIONS=['Лицензия МЧС','Лицензия ФСБ','Лицензия Росгвардии','СРО проектирование','СРО строительство']
 TEMPLATE_NAMES=['00_Фирменный_бланк_Corteris.docx','01_Коммерческое_предложение.docx','02_Технико_коммерческое_предложение.docx','03_Запрос_на_разъяснение.docx','04_Гарантийное_письмо.docx','05_Письмо_об_отсутствии_лицензий.docx','06_Письмо_о_системе_налогообложения.docx','07_Справка_об_опыте.docx','08_Декларация_соответствия.docx','09_Сопроводительное_письмо.docx','10_Опись_документов.docx','11_Протокол_разногласий.docx','12_Управленческое_заключение.docx']
@@ -158,7 +159,7 @@ class MainWindow(QMainWindow):
     def import_eis_reference(self):
         try:
             data=EISConnector().create_stub(self.eis_input.text())
-            QMessageBox.information(self,'ЕИС',json.dumps(data,ensure_ascii=False,indent=2))
+            QMessageBox.information(self,'ЕИС',json_dumps(data))
         except Exception as exc:
             QMessageBox.warning(self,'ЕИС',str(exc))
 
@@ -248,7 +249,7 @@ class MainWindow(QMainWindow):
     def run_analysis(self):
         if not self.current_id: QMessageBox.warning(self,'Тендер','Выберите тендер'); return
         rows=self._estimate_rows(); items=[EstimateItem(x.name,x.quantity,x.unit,x.cost,x.markup_percent) for x in rows] or [EstimateItem('Оборудование',1,'компл.',100000,self.profit_percent.value())]
-        self.last_estimate=EstimateCalculator().calculate(items,vat_percent=self.vat.value(),risk_percent=self.risk.value(),profit_percent=self.profit_percent.value(),profit_mode=self.profit_mode.currentData()); self.last_report=AnalysisEngine().analyze(self.current_id,self.last_estimate['total'],self.last_estimate['protected_cost'],self.last_estimate); self.output.setPlainText(json.dumps(self.last_report,ensure_ascii=False,indent=2)); self.refresh()
+        self.last_estimate=EstimateCalculator().calculate(items,vat_percent=self.vat.value(),risk_percent=self.risk.value(),profit_percent=self.profit_percent.value(),profit_mode=self.profit_mode.currentData()); self.last_report=AnalysisEngine().analyze(self.current_id,self.last_estimate['total'],self.last_estimate['protected_cost'],self.last_estimate); self.output.setPlainText(json_dumps(self.last_report)); self.refresh()
     def generate_docs(self):
         if not self.last_report or not self.last_estimate: QMessageBox.warning(self,'Пакет','Сначала выполните анализ'); return
         path=DocumentGenerator().package(self.current_id,self.last_report,self.last_estimate); self.generated_files=[Path(path)]; QMessageBox.information(self,'Пакет',f'Создан архив:\n{path}')

@@ -21,6 +21,7 @@ class CollectorProgressPhase(StrEnum):
     NORMALIZING = "normalizing"
     DEDUPLICATING = "deduplicating"
     VERIFYING = "verifying"
+    CHECKING_FRESHNESS = "checking_freshness"
     RANKING = "ranking"
     SAVING = "saving"
     COMPLETED = "completed"
@@ -50,6 +51,9 @@ class CollectorProgressEvent:
     new_count: int = 0
     changed_count: int = 0
     unchanged_count: int = 0
+    stale_count: int = 0
+    due_soon_count: int = 0
+    expired_count: int = 0
 
     def __post_init__(self) -> None:
         integer_fields = (
@@ -62,6 +66,9 @@ class CollectorProgressEvent:
             self.new_count,
             self.changed_count,
             self.unchanged_count,
+            self.stale_count,
+            self.due_soon_count,
+            self.expired_count,
         )
         if any(value < 0 for value in integer_fields):
             raise ValueError("Progress counters must be non-negative")

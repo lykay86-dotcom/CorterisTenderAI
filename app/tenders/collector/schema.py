@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 4
+COLLECTOR_SCHEMA_VERSION = 5
 
 
 class CollectorSchemaMigrator:
@@ -374,6 +374,44 @@ class CollectorSchemaMigrator:
                 ON collector_tender_verification_state(
                     status,
                     last_verified_at DESC
+                );
+
+
+            CREATE TABLE IF NOT EXISTS collector_tender_freshness_state (
+                registry_key TEXT PRIMARY KEY,
+                verification_run_id TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL,
+                last_verified_at TEXT NOT NULL DEFAULT '',
+                verification_due_at TEXT NOT NULL DEFAULT '',
+                is_stale INTEGER NOT NULL DEFAULT 0,
+                stale_reason TEXT NOT NULL DEFAULT '',
+                deadline_original TEXT NOT NULL DEFAULT '',
+                source_timezone TEXT NOT NULL DEFAULT '',
+                timezone_status TEXT NOT NULL DEFAULT 'missing',
+                deadline_utc TEXT NOT NULL DEFAULT '',
+                user_timezone TEXT NOT NULL DEFAULT '',
+                deadline_user_local TEXT NOT NULL DEFAULT '',
+                seconds_remaining INTEGER,
+                recheck_interval_minutes INTEGER NOT NULL DEFAULT 0,
+                deadline_expired INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_freshness_state_status
+                ON collector_tender_freshness_state(
+                    status,
+                    is_stale,
+                    verification_due_at
+                );
+
+            CREATE INDEX IF NOT EXISTS idx_freshness_state_due
+                ON collector_tender_freshness_state(
+                    is_stale,
+                    deadline_expired,
+                    verification_due_at
                 );
 
             CREATE TABLE IF NOT EXISTS collector_checkpoints (

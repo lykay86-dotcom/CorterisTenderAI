@@ -350,6 +350,7 @@ class CollectorScheduler:
         *,
         now: datetime | None = None,
         busy: bool = False,
+        freshness_due_at: str = "",
     ) -> ScheduledCollectorRequest | None:
         current = _local_now(now)
         settings, state = self.repository.load()
@@ -367,7 +368,14 @@ class CollectorScheduler:
             )
             self.repository.save(settings, state)
 
-        if current < due:
+        freshness_due = _parse_datetime(freshness_due_at)
+        reason = "scheduled"
+        effective_due = due
+        if freshness_due is not None and freshness_due < effective_due:
+            effective_due = freshness_due
+            reason = "freshness_due"
+
+        if current < effective_due:
             return None
 
         if busy:
@@ -387,8 +395,8 @@ class CollectorScheduler:
         return ScheduledCollectorRequest(
             profile_id=settings.profile_id,
             provider_ids=settings.provider_ids,
-            reason="scheduled",
-            due_at=due.isoformat(timespec="seconds"),
+            reason=reason,
+            due_at=effective_due.isoformat(timespec="seconds"),
         )
 
     def mark_started(

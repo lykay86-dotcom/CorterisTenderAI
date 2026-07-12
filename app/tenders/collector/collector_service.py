@@ -7,6 +7,7 @@ from typing import Sequence
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.deduplicator import TenderDeduplicator
+from app.tenders.collector.freshness import TenderFreshnessService
 from app.tenders.collector.models import (
     CollectionRunStatus,
     CollectorRunResult,
@@ -40,6 +41,7 @@ class CollectorService:
         deduplicator: TenderDeduplicator | None = None,
         ranker: CorterisParticipationRanker | None = None,
         verifier: TenderVerificationService | None = None,
+        freshness_service: TenderFreshnessService | None = None,
     ) -> None:
         self.engine = engine
         self.repository = repository
@@ -51,6 +53,9 @@ class CollectorService:
         self.verifier = verifier or TenderVerificationService(
             normalizer=self.normalizer,
             history_loader=self.repository.get_verification_history,
+        )
+        self.freshness_service = (
+            freshness_service or TenderFreshnessService()
         )
 
     async def collect(
@@ -135,6 +140,26 @@ class CollectorService:
             await emit_collector_progress(
                 progress_callback,
                 CollectorProgressEvent(
+                    phase=CollectorProgressPhase.CHECKING_FRESHNESS,
+                    total_providers=len(batch.outcomes),
+                    raw_count=verified_deduplication.raw_count,
+                    merged_count=verified_deduplication.merged_count,
+                    duplicate_count=(
+                        verified_deduplication.duplicate_count
+                    ),
+                    message=(
+                        "Нормализация сроков и расчёт повторной проверки…"
+                    ),
+                ),
+            )
+            freshness = self.freshness_service.evaluate(
+                verification,
+                now=batch.completed_at,
+            )
+
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
                     phase=CollectorProgressPhase.RANKING,
                     total_providers=len(batch.outcomes),
                     raw_count=verified_deduplication.raw_count,
@@ -169,6 +194,7 @@ class CollectorService:
                 observed_at=batch.completed_at,
                 rankings=rankings,
                 verification=verification,
+                freshness=freshness,
             )
             status = _status_for_batch(batch)
             self.repository.complete_run(
@@ -208,6 +234,12 @@ class CollectorService:
                     "verification_incomplete_count": (
                         persistence.verification_incomplete_count
                     ),
+                    "stale_count": persistence.stale_count,
+                    "due_soon_count": persistence.due_soon_count,
+                    "expired_count": persistence.expired_count,
+                    "reverification_due_count": (
+                        persistence.reverification_due_count
+                    ),
                     "ranked_count": persistence.ranked_count,
                     "recommended_count": persistence.recommended_count,
                     "manual_review_count": persistence.manual_review_count,
@@ -237,6 +269,9 @@ class CollectorService:
                     new_count=persistence.new_count,
                     changed_count=persistence.changed_count,
                     unchanged_count=persistence.unchanged_count,
+                    stale_count=persistence.stale_count,
+                    due_soon_count=persistence.due_soon_count,
+                    expired_count=persistence.expired_count,
                     message=(
                         "Сбор остановлен. Полученные данные сохранены."
                         if final_phase == CollectorProgressPhase.CANCELLED

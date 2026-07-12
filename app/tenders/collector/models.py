@@ -131,6 +131,10 @@ class CollectionPersistenceSummary:
     conflict_count: int = 0
     unresolved_conflict_count: int = 0
     verification_incomplete_count: int = 0
+    stale_count: int = 0
+    due_soon_count: int = 0
+    expired_count: int = 0
+    reverification_due_count: int = 0
 
     @property
     def observed_count(self) -> int:

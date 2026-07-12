@@ -28,6 +28,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.tenders.collector.freshness import (
+    DeadlineTimezoneStatus,
+    TenderFreshnessState,
+    TenderFreshnessStatus,
+)
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.verification import (
     TenderVerificationState,
@@ -82,6 +87,7 @@ class TenderRegistryDialog(QDialog):
         self._verification_states: dict[
             str, TenderVerificationState
         ] = {}
+        self._freshness_states: dict[str, TenderFreshnessState] = {}
 
         self.setWindowTitle("Corteris Tender AI — реестр тендеров")
         self.setModal(False)
@@ -110,12 +116,13 @@ class TenderRegistryDialog(QDialog):
 
         self.table = QTableWidget(table_frame)
         self.table.setObjectName("TenderRegistryTable")
-        self.table.setColumnCount(12)
+        self.table.setColumnCount(13)
         self.table.setHorizontalHeaderLabels(
             (
                 "Балл",
                 "Результат",
                 "Достоверность",
+                "Свежесть",
                 "Номер",
                 "Закупка",
                 "Заказчик",
@@ -142,7 +149,7 @@ class TenderRegistryDialog(QDialog):
             QHeaderView.ResizeMode.ResizeToContents
         )
         self.table.horizontalHeader().setSectionResizeMode(
-            4,
+            5,
             QHeaderView.ResizeMode.Stretch,
         )
         self.table.itemSelectionChanged.connect(
@@ -495,9 +502,17 @@ class TenderRegistryDialog(QDialog):
             query = self.current_query()
             records = self.repository.search_tenders(query)
             total_matches = self.repository.count_search_results(query)
+            registry_keys = tuple(
+                item.registry_key for item in records
+            )
             self._verification_states = dict(
                 self.verification_repository.list_verification_states(
-                    tuple(item.registry_key for item in records)
+                    registry_keys
+                )
+            )
+            self._freshness_states = dict(
+                self.verification_repository.list_freshness_states(
+                    registry_keys
                 )
             )
         except Exception as exc:
@@ -536,10 +551,15 @@ class TenderRegistryDialog(QDialog):
                 record.registry_key
             )
             verification_text = _verification_text(verification_state)
+            freshness_state = self._freshness_states.get(
+                record.registry_key
+            )
+            freshness_text = _freshness_text(freshness_state)
             values = (
                 str(record.relevance_score),
                 result_text,
                 verification_text,
+                freshness_text,
                 record.procurement_number,
                 record.title,
                 record.customer_name,
@@ -571,6 +591,18 @@ class TenderRegistryDialog(QDialog):
                     )
                     item.setToolTip(
                         _verification_tooltip(verification_state)
+                    )
+                if column == 3:
+                    item.setForeground(
+                        QColor(
+                            _freshness_color(
+                                freshness_state,
+                                get_palette(self._theme),
+                            )
+                        )
+                    )
+                    item.setToolTip(
+                        _freshness_tooltip(freshness_state)
                     )
                 self.table.setItem(row, column, item)
 
@@ -643,6 +675,9 @@ class TenderRegistryDialog(QDialog):
         verification_state = self._verification_states.get(
             record.registry_key
         )
+        freshness_state = self._freshness_states.get(
+            record.registry_key
+        )
         state = (
             "Архив"
             if record.archived
@@ -661,10 +696,14 @@ class TenderRegistryDialog(QDialog):
             f"<p><b>Цена:</b> "
             f"{escape(_format_price(record.price_amount, record.currency))}</p>"
             f"<p><b>Срок подачи:</b> "
-            f"{escape(_format_timestamp(record.application_deadline))}</p>"
+            f"{escape(_deadline_display(record.application_deadline, freshness_state))}</p>"
             f"<p><b>Состояние:</b> {escape(state)}</p>"
             f"<p><b>Достоверность данных:</b> "
             f"{escape(_verification_text(verification_state))}</p>"
+            f"<p><b>Свежесть данных:</b> "
+            f"{escape(_freshness_text(freshness_state))}</p>"
+            f"<p><b>Следующая проверка:</b> "
+            f"{escape(_freshness_due_text(freshness_state))}</p>"
             f"<p><b>Последняя релевантность:</b> "
             f"{record.relevance_score}/100 "
             f"({escape(record.relevance_grade)})</p>"
@@ -922,6 +961,84 @@ def _format_timestamp(value: str) -> str:
     if parsed.hour == 0 and parsed.minute == 0 and "T" not in value:
         return parsed.strftime("%d.%m.%Y")
     return parsed.strftime("%d.%m.%Y %H:%M")
+
+
+def _freshness_text(
+    state: TenderFreshnessState | None,
+) -> str:
+    if state is None:
+        return "Не рассчитана"
+    labels = {
+        TenderFreshnessStatus.FRESH: "Актуально",
+        TenderFreshnessStatus.DUE_SOON: "Срок менее 48 ч",
+        TenderFreshnessStatus.STALE: "Требуется проверка",
+        TenderFreshnessStatus.EXPIRED: "Подача завершена",
+        TenderFreshnessStatus.UNVERIFIED: "Не подтверждено",
+    }
+    return labels.get(state.status, state.status.value)
+
+
+def _freshness_due_text(
+    state: TenderFreshnessState | None,
+) -> str:
+    if state is None:
+        return "Не рассчитана"
+    if state.deadline_expired:
+        return "Не назначена: срок подачи завершён"
+    if state.is_stale:
+        return "Требуется сейчас"
+    return _format_timestamp(state.verification_due_at)
+
+
+def _deadline_display(
+    fallback: str,
+    state: TenderFreshnessState | None,
+) -> str:
+    if state is None or not state.deadline_user_local:
+        return _format_timestamp(fallback)
+    rendered = _format_timestamp(state.deadline_user_local)
+    return f"{rendered} ({state.user_timezone})"
+
+
+def _freshness_tooltip(
+    state: TenderFreshnessState | None,
+) -> str:
+    if state is None:
+        return "Свежесть и часовой пояс ещё не рассчитаны."
+    timezone_label = {
+        DeadlineTimezoneStatus.EXPLICIT: "указан в дате",
+        DeadlineTimezoneStatus.SOURCE_ZONE: "указан источником",
+        DeadlineTimezoneStatus.UNKNOWN: "не указан",
+        DeadlineTimezoneStatus.INVALID: "не распознан",
+        DeadlineTimezoneStatus.MISSING: "срок отсутствует",
+    }.get(state.timezone_status, state.timezone_status.value)
+    return (
+        f"{_freshness_text(state)}\n"
+        f"Причина: {state.stale_reason or '—'}\n"
+        f"Исходный срок: {state.deadline_original or '—'}\n"
+        f"Часовой пояс источника: {state.source_timezone or '—'} "
+        f"({timezone_label})\n"
+        f"UTC: {_format_timestamp(state.deadline_utc)}\n"
+        f"Локальное время: {_format_timestamp(state.deadline_user_local)} "
+        f"({state.user_timezone or '—'})\n"
+        f"Последняя проверка: {_format_timestamp(state.last_verified_at)}\n"
+        f"Следующая проверка: {_freshness_due_text(state)}"
+    )
+
+
+def _freshness_color(state, palette) -> str:
+    if state is None:
+        return palette.neutral
+    if state.status in {
+        TenderFreshnessStatus.STALE,
+        TenderFreshnessStatus.UNVERIFIED,
+    }:
+        return palette.danger
+    if state.status == TenderFreshnessStatus.DUE_SOON:
+        return palette.warning
+    if state.status == TenderFreshnessStatus.EXPIRED:
+        return palette.neutral
+    return palette.success
 
 
 def _verification_text(

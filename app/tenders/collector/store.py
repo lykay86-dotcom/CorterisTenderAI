@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 import json
@@ -24,6 +25,12 @@ from app.tenders.collector.codec import (
 from app.tenders.collector.participation_score import (
     CorterisParticipationScore,
     ParticipationRecommendation,
+)
+from app.tenders.collector.freshness import (
+    DeadlineTimezoneStatus,
+    FreshnessBatchResult,
+    TenderFreshnessState,
+    TenderFreshnessStatus,
 )
 from app.tenders.collector.models import (
     CollectionPersistenceSummary,
@@ -121,6 +128,7 @@ class CollectorStateRepository:
             CorterisParticipationScore,
         ] | None = None,
         verification: VerificationBatchResult | None = None,
+        freshness: FreshnessBatchResult | None = None,
     ) -> CollectionPersistenceSummary:
         self.initialize()
         moment = observed_at or _utc_now()
@@ -140,10 +148,19 @@ class CollectorStateRepository:
         conflict_count = 0
         unresolved_conflict_count = 0
         verification_incomplete_count = 0
+        stale_count = 0
+        due_soon_count = 0
+        expired_count = 0
+        reverification_due_count = 0
         rankings = rankings or {}
         verification_by_key = (
             verification.by_canonical_key
             if verification is not None
+            else {}
+        )
+        freshness_by_key = (
+            freshness.by_canonical_key
+            if freshness is not None
             else {}
         )
 
@@ -246,6 +263,27 @@ class CollectorStateRepository:
                                 TenderVerificationStatus.MISSING,
                                 TenderVerificationStatus.CONFLICT,
                             }
+                        )
+                    freshness_item = freshness_by_key.get(
+                        item.canonical_key
+                    )
+                    if freshness_item is not None:
+                        self._persist_freshness(
+                            connection,
+                            registry_key,
+                            freshness_item,
+                            verification_run_id=verification_run_id,
+                        )
+                        stale_count += int(freshness_item.is_stale)
+                        due_soon_count += int(
+                            freshness_item.status
+                            == TenderFreshnessStatus.DUE_SOON
+                        )
+                        expired_count += int(
+                            freshness_item.deadline_expired
+                        )
+                        reverification_due_count += int(
+                            freshness_item.requires_reverification
                         )
                     inserted_version = self._insert_version(
                         connection,
@@ -381,6 +419,10 @@ class CollectorStateRepository:
             verification_incomplete_count=(
                 verification_incomplete_count
             ),
+            stale_count=stale_count,
+            due_soon_count=due_soon_count,
+            expired_count=expired_count,
+            reverification_due_count=reverification_due_count,
         )
 
     def complete_run(
@@ -667,6 +709,97 @@ class CollectorStateRepository:
             str(row["registry_key"]): _row_to_verification_state(row)
             for row in rows
         }
+
+    def get_freshness_state(
+        self,
+        registry_key: str,
+        *,
+        now: str | None = None,
+    ) -> TenderFreshnessState | None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT *
+                FROM collector_tender_freshness_state
+                WHERE registry_key = ?
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        return _effective_freshness_state(
+            _row_to_freshness_state(row),
+            now=now,
+        )
+
+    def list_freshness_states(
+        self,
+        registry_keys: Sequence[str],
+        *,
+        now: str | None = None,
+    ) -> Mapping[str, TenderFreshnessState]:
+        normalized = tuple(
+            dict.fromkeys(
+                item.strip() for item in registry_keys if item.strip()
+            )
+        )
+        if not normalized:
+            return {}
+        self.initialize()
+        placeholders = ",".join("?" for _ in normalized)
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT *
+                FROM collector_tender_freshness_state
+                WHERE registry_key IN ({placeholders})
+                """,
+                normalized,
+            ).fetchall()
+        return {
+            str(row["registry_key"]): _effective_freshness_state(
+                _row_to_freshness_state(row),
+                now=now,
+            )
+            for row in rows
+        }
+
+    def list_due_reverification(
+        self,
+        *,
+        now: str | None = None,
+        limit: int = 500,
+    ) -> tuple[TenderFreshnessState, ...]:
+        if not 1 <= limit <= 5000:
+            raise ValueError("limit must be between 1 and 5000")
+        moment = now or _utc_now()
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM collector_tender_freshness_state
+                WHERE deadline_expired = 0
+                  AND (
+                      is_stale = 1
+                      OR (
+                          verification_due_at <> ''
+                          AND verification_due_at <= ?
+                      )
+                  )
+                ORDER BY
+                    CASE WHEN is_stale = 1 THEN 0 ELSE 1 END,
+                    verification_due_at ASC,
+                    rowid ASC
+                LIMIT ?
+                """,
+                (moment, limit),
+            ).fetchall()
+        return tuple(_row_to_freshness_state(row) for row in rows)
 
     def list_field_provenance(
         self,
@@ -1514,6 +1647,74 @@ class CollectorStateRepository:
             ),
         )
 
+    def _persist_freshness(
+        self,
+        connection: sqlite3.Connection,
+        registry_key: str,
+        freshness: TenderFreshnessState,
+        *,
+        verification_run_id: str,
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO collector_tender_freshness_state(
+                registry_key,
+                verification_run_id,
+                status,
+                last_verified_at,
+                verification_due_at,
+                is_stale,
+                stale_reason,
+                deadline_original,
+                source_timezone,
+                timezone_status,
+                deadline_utc,
+                user_timezone,
+                deadline_user_local,
+                seconds_remaining,
+                recheck_interval_minutes,
+                deadline_expired,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(registry_key) DO UPDATE SET
+                verification_run_id=excluded.verification_run_id,
+                status=excluded.status,
+                last_verified_at=excluded.last_verified_at,
+                verification_due_at=excluded.verification_due_at,
+                is_stale=excluded.is_stale,
+                stale_reason=excluded.stale_reason,
+                deadline_original=excluded.deadline_original,
+                source_timezone=excluded.source_timezone,
+                timezone_status=excluded.timezone_status,
+                deadline_utc=excluded.deadline_utc,
+                user_timezone=excluded.user_timezone,
+                deadline_user_local=excluded.deadline_user_local,
+                seconds_remaining=excluded.seconds_remaining,
+                recheck_interval_minutes=excluded.recheck_interval_minutes,
+                deadline_expired=excluded.deadline_expired,
+                updated_at=excluded.updated_at
+            """,
+            (
+                registry_key,
+                verification_run_id,
+                freshness.status.value,
+                freshness.last_verified_at,
+                freshness.verification_due_at,
+                int(freshness.is_stale),
+                freshness.stale_reason,
+                freshness.deadline_original,
+                freshness.source_timezone,
+                freshness.timezone_status.value,
+                freshness.deadline_utc,
+                freshness.user_timezone,
+                freshness.deadline_user_local,
+                freshness.seconds_remaining,
+                freshness.recheck_interval_minutes,
+                int(freshness.deadline_expired),
+                freshness.updated_at,
+            ),
+        )
+
     def save_score(
         self,
         registry_key: str,
@@ -2216,6 +2417,68 @@ def _row_to_field_resolution(
         resolved_by=str(row["resolved_by"]),
         note=str(row["note"]),
         conflict_id=str(row["conflict_id"]),
+    )
+
+
+def _effective_freshness_state(
+    state: TenderFreshnessState,
+    *,
+    now: str | None = None,
+) -> TenderFreshnessState:
+    if state.deadline_expired or not state.verification_due_at:
+        return state
+    try:
+        current = datetime.fromisoformat(
+            (now or _utc_now()).replace("Z", "+00:00")
+        )
+        due = datetime.fromisoformat(
+            state.verification_due_at.replace("Z", "+00:00")
+        )
+    except ValueError:
+        return state
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    if due.tzinfo is None:
+        due = due.replace(tzinfo=timezone.utc)
+    if current.astimezone(timezone.utc) < due.astimezone(timezone.utc):
+        return state
+    if state.is_stale and state.status == TenderFreshnessStatus.STALE:
+        return state
+    return replace(
+        state,
+        status=TenderFreshnessStatus.STALE,
+        is_stale=True,
+        stale_reason="Наступило время повторной проверки.",
+    )
+
+
+def _row_to_freshness_state(
+    row: sqlite3.Row,
+) -> TenderFreshnessState:
+    seconds = row["seconds_remaining"]
+    return TenderFreshnessState(
+        canonical_key=str(row["registry_key"]),
+        status=TenderFreshnessStatus(str(row["status"])),
+        last_verified_at=str(row["last_verified_at"]),
+        verification_due_at=str(row["verification_due_at"]),
+        is_stale=bool(row["is_stale"]),
+        stale_reason=str(row["stale_reason"]),
+        deadline_original=str(row["deadline_original"]),
+        source_timezone=str(row["source_timezone"]),
+        timezone_status=DeadlineTimezoneStatus(
+            str(row["timezone_status"])
+        ),
+        deadline_utc=str(row["deadline_utc"]),
+        user_timezone=str(row["user_timezone"]),
+        deadline_user_local=str(row["deadline_user_local"]),
+        seconds_remaining=(
+            int(seconds) if seconds is not None else None
+        ),
+        recheck_interval_minutes=int(
+            row["recheck_interval_minutes"]
+        ),
+        deadline_expired=bool(row["deadline_expired"]),
+        updated_at=str(row["updated_at"]),
     )
 
 

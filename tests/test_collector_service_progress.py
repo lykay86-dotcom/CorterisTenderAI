@@ -83,6 +83,7 @@ def test_service_emits_pipeline_stages_and_saves_result(tmp_path) -> None:
             CollectorProgressPhase.NORMALIZING,
             CollectorProgressPhase.DEDUPLICATING,
             CollectorProgressPhase.VERIFYING,
+            CollectorProgressPhase.CHECKING_FRESHNESS,
             CollectorProgressPhase.RANKING,
             CollectorProgressPhase.SAVING,
             CollectorProgressPhase.COMPLETED,

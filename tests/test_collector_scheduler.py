@@ -159,3 +159,26 @@ def test_startup_request_is_emitted_once(tmp_path) -> None:
     assert first is not None
     assert first.reason == "startup"
     assert second is None
+
+
+def test_freshness_due_preempts_regular_schedule(tmp_path) -> None:
+    scheduler = CollectorScheduler(
+        CollectorScheduleRepository(
+            tmp_path / "schedule.json"
+        )
+    )
+    scheduler.update_settings(
+        _settings(
+            frequency=CollectorScheduleFrequency.EVERY_3_HOURS
+        ),
+        now=_now(),
+    )
+
+    request = scheduler.poll(
+        now=_now(10, 30),
+        freshness_due_at=_now(10, 15).isoformat(),
+    )
+
+    assert request is not None
+    assert request.reason == "freshness_due"
+    assert datetime.fromisoformat(request.due_at) == _now(10, 15).astimezone()
