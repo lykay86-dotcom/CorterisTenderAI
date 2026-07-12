@@ -28,6 +28,10 @@ from app.tenders.collector.stop_factor import (
     StopFactorEngine,
     StopFactorStatus,
 )
+from app.tenders.collector.aggregator_discovery import (
+    AggregatorDiscoveryRepository,
+    is_aggregator_discovery,
+)
 from app.tenders.collector.verification import (
     TenderVerificationService,
 )
@@ -48,6 +52,7 @@ class CollectorService:
         verifier: TenderVerificationService | None = None,
         freshness_service: TenderFreshnessService | None = None,
         stop_factor_engine: StopFactorEngine | None = None,
+        aggregator_discovery_repository: AggregatorDiscoveryRepository | None = None,
     ) -> None:
         self.engine = engine
         self.repository = repository
@@ -64,6 +69,10 @@ class CollectorService:
             freshness_service or TenderFreshnessService()
         )
         self.stop_factor_engine = stop_factor_engine
+        self.aggregator_discovery_repository = (
+            aggregator_discovery_repository
+            or AggregatorDiscoveryRepository(self.repository.path)
+        )
 
     async def collect(
         self,
@@ -112,7 +121,22 @@ class CollectorService:
                     ),
                 ),
             )
-            normalized = self.normalizer.normalize_many(batch.raw_items)
+            discovery_items = tuple(
+                item for item in batch.raw_items
+                if is_aggregator_discovery(item)
+            )
+            authoritative_items = tuple(
+                item for item in batch.raw_items
+                if not is_aggregator_discovery(item)
+            )
+            discovery_records = tuple(
+                self.aggregator_discovery_repository.enqueue(
+                    item,
+                    discovered_at=batch.completed_at,
+                )
+                for item in discovery_items
+            )
+            normalized = self.normalizer.normalize_many(authoritative_items)
 
             await emit_collector_progress(
                 progress_callback,
@@ -272,6 +296,12 @@ class CollectorService:
                     "high_score_count": sum(
                         score.total_score >= 80
                         for score in rankings.values()
+                    ),
+                    "aggregator_discovery_count": len(discovery_records),
+                    "official_verification_queue_count": len(
+                        self.aggregator_discovery_repository.list_pending(
+                            limit=1000
+                        )
                     ),
                     "stop_factor_blocked_count": sum(
                         item.status

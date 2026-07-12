@@ -79,6 +79,10 @@ from app.ui.company_capability_dialog import CompanyCapabilityDialog
 from app.ui.matching_catalog_dialog import MatchingCatalogDialog
 from app.ui.commercial_estimator_dialog import CommercialEstimatorDialog
 from app.tenders.commercial_estimator import CommercialEstimateRepository
+from app.tenders.collector.aggregator_discovery import (
+    AggregatorDiscoveryRepository,
+)
+from app.ui.aggregator_discovery_dialog import AggregatorDiscoveryDialog
 from app.ui.tender_collector_scheduler_controller import (
     TenderCollectorSchedulerUiController,
 )
@@ -460,6 +464,7 @@ class TenderSearchUiController(QObject):
         self._company_capability_dialog: CompanyCapabilityDialog | None = None
         self._matching_catalog_dialog: MatchingCatalogDialog | None = None
         self._commercial_estimate_dialogs: dict[str, CommercialEstimatorDialog] = {}
+        self._aggregator_discovery_dialog: AggregatorDiscoveryDialog | None = None
         self._provider_check_worker: _ProviderCheckWorker | None = None
         self._provider_check_ids: tuple[str, ...] = ()
         self._collector_dialog: TenderCollectorDialog | None = None
@@ -596,6 +601,20 @@ class TenderSearchUiController(QObject):
             self.open_matching_catalog_dialog
         )
 
+        self.aggregator_discovery_action = QAction(
+            "Очередь официальной проверки…",
+            self,
+        )
+        self.aggregator_discovery_action.setObjectName(
+            "actionAggregatorDiscoveryQueue"
+        )
+        self.aggregator_discovery_action.setStatusTip(
+            "Показать обнаружения агрегаторов, ожидающие официальной проверки"
+        )
+        self.aggregator_discovery_action.triggered.connect(
+            self.open_aggregator_discovery_dialog
+        )
+
         self.scheduler_ui_controller = (
             TenderCollectorSchedulerUiController(
                 self.data_directory,
@@ -675,6 +694,8 @@ class TenderSearchUiController(QObject):
                 menu.addAction(self.company_capability_action)
             if self.matching_catalog_action not in menu.actions():
                 menu.addAction(self.matching_catalog_action)
+            if self.aggregator_discovery_action not in menu.actions():
+                menu.addAction(self.aggregator_discovery_action)
 
             toolbar = self._find_or_create_tender_toolbar(
                 main_window
@@ -697,6 +718,8 @@ class TenderSearchUiController(QObject):
                 toolbar.addAction(self.company_capability_action)
             if self.matching_catalog_action not in toolbar.actions():
                 toolbar.addAction(self.matching_catalog_action)
+            if self.aggregator_discovery_action not in toolbar.actions():
+                toolbar.addAction(self.aggregator_discovery_action)
             toolbar.setVisible(True)
         else:
             # Fallback for a QWidget-based shell: shortcuts still work.
@@ -712,6 +735,8 @@ class TenderSearchUiController(QObject):
                 main_window.addAction(self.company_capability_action)
             if self.matching_catalog_action not in main_window.actions():
                 main_window.addAction(self.matching_catalog_action)
+            if self.aggregator_discovery_action not in main_window.actions():
+                main_window.addAction(self.aggregator_discovery_action)
 
         self.scheduler_ui_controller.install_on_main_window(
             main_window,
@@ -787,6 +812,26 @@ class TenderSearchUiController(QObject):
         self._matching_catalog_dialog.open()
         self._matching_catalog_dialog.raise_()
         self._matching_catalog_dialog.activateWindow()
+
+    @Slot()
+    def open_aggregator_discovery_dialog(self) -> None:
+        parent = self.parent()
+        parent_widget = parent if isinstance(parent, QWidget) else None
+        repository = (
+            self.runtime.aggregator_discovery_repository
+            or AggregatorDiscoveryRepository(
+                self.data_directory / "tender_registry.sqlite3"
+            )
+        )
+        if self._aggregator_discovery_dialog is None:
+            self._aggregator_discovery_dialog = AggregatorDiscoveryDialog(
+                repository,
+                parent=parent_widget,
+            )
+        self._aggregator_discovery_dialog.refresh()
+        self._aggregator_discovery_dialog.open()
+        self._aggregator_discovery_dialog.raise_()
+        self._aggregator_discovery_dialog.activateWindow()
 
     @Slot(object)
     def _apply_matching_catalog(self, catalog: MatchingCatalog) -> None:

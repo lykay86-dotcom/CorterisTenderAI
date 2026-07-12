@@ -90,12 +90,24 @@ def test_service_verifies_before_ranking_and_persistence(tmp_path) -> None:
             CollectorProgressPhase.VERIFYING
         ) < phases.index(CollectorProgressPhase.RANKING)
         assert result.persistence.verification_run_id
-        assert result.metadata["field_conflict_count"] >= 1
+        assert result.metadata["field_conflict_count"] == 0
+        assert result.metadata["aggregator_discovery_count"] == 1
+        assert result.metadata["official_verification_queue_count"] == 1
         tender = result.deduplication.items[0].tender
         assert str(tender.price.amount) == "1500000.00"
+        assert all(
+            item.tender.source != TenderSource.CUSTOM
+            for item in result.deduplication.items
+        )
         state = repository.get_verification_state(
             result.deduplication.items[0].canonical_key
         )
         assert state is not None
+        with repository._connect() as connection:
+            aggregator_records = connection.execute(
+                "SELECT COUNT(*) AS total FROM tender_records WHERE source=?",
+                (TenderSource.CUSTOM.value,),
+            ).fetchone()["total"]
+        assert aggregator_records == 0
 
     asyncio.run(scenario())

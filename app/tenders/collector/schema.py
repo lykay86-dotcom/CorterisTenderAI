@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 10
+COLLECTOR_SCHEMA_VERSION = 11
 
 
 class CollectorSchemaMigrator:
@@ -304,6 +304,28 @@ class CollectorSchemaMigrator:
                 ON collector_vertical_source_verifications(
                     provider_id,
                     completed_at DESC
+                );
+
+            CREATE TABLE IF NOT EXISTS collector_aggregator_discoveries (
+                discovery_id TEXT PRIMARY KEY,
+                aggregator_source TEXT NOT NULL,
+                aggregator_external_id TEXT NOT NULL,
+                source_url TEXT NOT NULL,
+                title TEXT NOT NULL,
+                procurement_number_hint TEXT NOT NULL DEFAULT '',
+                official_query TEXT NOT NULL,
+                status TEXT NOT NULL,
+                first_discovered_at TEXT NOT NULL,
+                last_discovered_at TEXT NOT NULL,
+                candidate_json TEXT NOT NULL,
+                official_registry_key TEXT NOT NULL DEFAULT '',
+                verification_note TEXT NOT NULL DEFAULT '',
+                UNIQUE(aggregator_source, aggregator_external_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_aggregator_discovery_queue
+                ON collector_aggregator_discoveries(
+                    status,
+                    last_discovered_at
                 );
             CREATE INDEX IF NOT EXISTS idx_collector_scores_run
                 ON collector_tender_scores(run_id);

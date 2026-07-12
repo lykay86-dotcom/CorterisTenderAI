@@ -11,6 +11,9 @@ if TYPE_CHECKING:
         CorterisParticipationScoreService,
     )
     from app.tenders.full_analysis import TenderFullAnalysisService
+    from app.tenders.collector.aggregator_discovery import (
+        AggregatorDiscoveryRepository,
+    )
 from app.tenders.corteris_search import CorterisTenderSearchService
 from app.tenders.corteris_filter import (
     CorterisTenderClassifier,
@@ -63,6 +66,7 @@ class TenderSearchRuntime:
     full_analysis_service: "TenderFullAnalysisService | None" = None
     matching_catalog_repository: MatchingCatalogRepository | None = None
     commercial_estimate_repository: CommercialEstimateRepository | None = None
+    aggregator_discovery_repository: "AggregatorDiscoveryRepository | None" = None
 
 
 def create_tender_search_runtime(
@@ -154,6 +158,13 @@ def create_tender_search_runtime(
         data_path / "tender_registry.sqlite3"
     )
     commercial_estimate_repository.initialize()
+    from app.tenders.collector.aggregator_discovery import (
+        AggregatorDiscoveryRepository,
+    )
+    aggregator_discovery_repository = AggregatorDiscoveryRepository(
+        data_path / "tender_registry.sqlite3"
+    )
+    aggregator_discovery_repository.initialize()
     participation_score_service = CorterisParticipationScoreService(
         tender_registry,
         collector_state_repository,
@@ -200,6 +211,7 @@ def create_tender_search_runtime(
         full_analysis_service=full_analysis_service,
         matching_catalog_repository=matching_catalog_repository,
         commercial_estimate_repository=commercial_estimate_repository,
+        aggregator_discovery_repository=aggregator_discovery_repository,
     )
 
 

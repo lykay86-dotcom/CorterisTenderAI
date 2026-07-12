@@ -335,6 +335,22 @@ __all__ += [
     "VerticalSourceVerificationRepository",
 ]
 
+from app.tenders.collector.aggregator_discovery import (
+    AggregatorDiscoveryRecord,
+    AggregatorDiscoveryRepository,
+    AggregatorDiscoveryStatus,
+    AggregatorOfficialVerificationService,
+    is_aggregator_discovery,
+)
+
+__all__ += [
+    "AggregatorDiscoveryRecord",
+    "AggregatorDiscoveryRepository",
+    "AggregatorDiscoveryStatus",
+    "AggregatorOfficialVerificationService",
+    "is_aggregator_discovery",
+]
+
 from app.tenders.collector.verification import (
     FieldCandidate,
     FieldConflict,
