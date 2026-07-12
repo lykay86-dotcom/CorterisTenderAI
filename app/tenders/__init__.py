@@ -94,6 +94,9 @@ from app.tenders.participation_decision import (
 from app.tenders.participation_decision_service import (
     ParticipationDecisionService,
 )
+from app.tenders.participation_decision_policy import (
+    ParticipationDecisionPolicy,
+)
 from app.tenders.requirement_analysis import (
     AnalysisRiskLevel,
     AnalyzedDocument,
@@ -183,6 +186,7 @@ __all__ = [
     "ParticipationDecisionInput",
     "ParticipationDecisionRecommendation",
     "ParticipationDecisionService",
+    "ParticipationDecisionPolicy",
     "MatchingCatalog",
     "MatchingCatalogEntry",
     "MatchingCatalogRepository",

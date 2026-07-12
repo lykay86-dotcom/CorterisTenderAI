@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.tenders.collector.participation_score import ParticipationRecommendation
-from app.tenders.collector.stop_factor import StopFactorStatus
 from app.tenders.collector.verification import TenderVerificationStatus
 from app.tenders.commercial_estimator import CommercialEstimateStatus
 from app.tenders.participation_decision import (
@@ -15,6 +13,7 @@ from app.tenders.participation_decision import (
     ParticipationDecisionInput,
     ParticipationDecisionRecommendation,
 )
+from app.tenders.participation_decision_policy import ParticipationDecisionPolicy
 
 
 class ParticipationDecisionService:
@@ -25,10 +24,13 @@ class ParticipationDecisionService:
         score_service: object,
         state_repository: object,
         commercial_estimate_repository: object,
+        *,
+        policy: ParticipationDecisionPolicy | None = None,
     ) -> None:
         self.score_service = score_service
         self.state_repository = state_repository
         self.commercial_estimate_repository = commercial_estimate_repository
+        self.policy = policy or ParticipationDecisionPolicy()
 
     def evaluate(self, registry_key: str) -> ParticipationDecision:
         key = registry_key.strip()
@@ -57,7 +59,7 @@ class ParticipationDecisionService:
             evidence=tuple(evidence),
             input=decision_input,
             decided_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            policy_version="rm-107-assembly-v1",
+            policy_version=self.policy.policy_version,
         )
 
     def _decide(
@@ -71,15 +73,18 @@ class ParticipationDecisionService:
         evidence: list[ParticipationDecisionEvidence] = []
         stop = decision_input.stop_factor_assessment
         if stop is not None:
-            if stop.status == StopFactorStatus.BLOCKED_BY_REQUIREMENT:
+            stop_recommendation = self.policy.recommendation_for_stop_factor(
+                stop.status
+            )
+            if stop_recommendation == ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE:
                 return (
                     ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE,
                     "Участие заблокировано обязательным требованием.",
                     [_evidence("blocked_requirement", "Стоп-фактор", "Обнаружено обязательное требование, которое не выполнено.", "stop_factor", 1.0)],
                 )
-            if stop.status == StopFactorStatus.DATA_INSUFFICIENT:
+            if stop_recommendation == ParticipationDecisionRecommendation.DATA_INSUFFICIENT:
                 evidence.append(_evidence("stop_data_insufficient", "Стоп-факторы", "Недостаточно подтверждённых данных для снятия стоп-факторов.", "stop_factor", 0.4))
-            elif stop.status == StopFactorStatus.CONDITIONAL:
+            elif stop_recommendation == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW:
                 evidence.append(_evidence("conditional_stop_factor", "Стоп-факторы", "Участие возможно только после выполнения условий.", "stop_factor", 0.7))
 
         if decision_input.score is None:
@@ -108,17 +113,13 @@ class ParticipationDecisionService:
 
         if any(item.confidence == 0.0 for item in evidence):
             return (ParticipationDecisionRecommendation.DATA_INSUFFICIENT, "Недостаточно данных для решения об участии.", evidence)
-        if stop is not None and stop.status == StopFactorStatus.CONDITIONAL:
+        if stop is not None and self.policy.recommendation_for_stop_factor(
+            stop.status
+        ) == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW:
             return (ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW, "Участие возможно после ручной проверки условий.", evidence)
         score = decision_input.score
         assert score is not None
-        mapping = {
-            ParticipationRecommendation.RECOMMENDED: ParticipationDecisionRecommendation.PARTICIPATE,
-            ParticipationRecommendation.MANUAL_REVIEW: ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
-            ParticipationRecommendation.POSSIBLE_WITH_CONDITIONS: ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
-            ParticipationRecommendation.NOT_RECOMMENDED: ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE,
-        }
-        recommendation = mapping[score.recommendation]
+        recommendation = self.policy.recommendation_for_score(score.total_score)
         return (recommendation, score.recommendation_text, evidence)
 
 
