@@ -1,0 +1,129 @@
+"""RM-107.3 conservative assembly service for participation decisions."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from app.tenders.collector.participation_score import ParticipationRecommendation
+from app.tenders.collector.stop_factor import StopFactorStatus
+from app.tenders.collector.verification import TenderVerificationStatus
+from app.tenders.commercial_estimator import CommercialEstimateStatus
+from app.tenders.participation_decision import (
+    ParticipationDecision,
+    ParticipationDecisionEvidence,
+    ParticipationDecisionInput,
+    ParticipationDecisionRecommendation,
+)
+
+
+class ParticipationDecisionService:
+    """Assemble existing evidence; RM-107.4 will own detailed policy rules."""
+
+    def __init__(
+        self,
+        score_service: object,
+        state_repository: object,
+        commercial_estimate_repository: object,
+    ) -> None:
+        self.score_service = score_service
+        self.state_repository = state_repository
+        self.commercial_estimate_repository = commercial_estimate_repository
+
+    def evaluate(self, registry_key: str) -> ParticipationDecision:
+        key = registry_key.strip()
+        if not key:
+            raise ValueError("registry_key must not be empty")
+        score = self.score_service.latest(key)
+        stop = self.state_repository.get_latest_stop_factor_assessment(key)
+        verification = self.state_repository.get_verification_state(key)
+        latest_estimate = self.commercial_estimate_repository.latest(key)
+        estimate = latest_estimate[1] if latest_estimate is not None else None
+        decision_input = ParticipationDecisionInput(
+            registry_key=key,
+            score=score,
+            stop_factor_assessment=stop,
+            commercial_estimate=estimate,
+            verification=verification,
+        )
+        recommendation, summary, evidence = self._decide(decision_input)
+        confidence = min(item.confidence for item in evidence)
+        return ParticipationDecision(
+            decision_id=uuid4().hex,
+            registry_key=key,
+            recommendation=recommendation,
+            confidence=confidence,
+            summary=summary,
+            evidence=tuple(evidence),
+            input=decision_input,
+            decided_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            policy_version="rm-107-assembly-v1",
+        )
+
+    def _decide(
+        self,
+        decision_input: ParticipationDecisionInput,
+    ) -> tuple[
+        ParticipationDecisionRecommendation,
+        str,
+        list[ParticipationDecisionEvidence],
+    ]:
+        evidence: list[ParticipationDecisionEvidence] = []
+        stop = decision_input.stop_factor_assessment
+        if stop is not None:
+            if stop.status == StopFactorStatus.BLOCKED_BY_REQUIREMENT:
+                return (
+                    ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE,
+                    "Участие заблокировано обязательным требованием.",
+                    [_evidence("blocked_requirement", "Стоп-фактор", "Обнаружено обязательное требование, которое не выполнено.", "stop_factor", 1.0)],
+                )
+            if stop.status == StopFactorStatus.DATA_INSUFFICIENT:
+                evidence.append(_evidence("stop_data_insufficient", "Стоп-факторы", "Недостаточно подтверждённых данных для снятия стоп-факторов.", "stop_factor", 0.4))
+            elif stop.status == StopFactorStatus.CONDITIONAL:
+                evidence.append(_evidence("conditional_stop_factor", "Стоп-факторы", "Участие возможно только после выполнения условий.", "stop_factor", 0.7))
+
+        if decision_input.score is None:
+            evidence.append(_evidence("score_missing", "Рейтинг", "Предварительный рейтинг ещё не рассчитан.", "participation_score", 0.0))
+        else:
+            evidence.append(_evidence("score_available", "Рейтинг", f"Предварительный балл: {decision_input.score.total_score}/100.", "participation_score", 0.75))
+
+        estimate = decision_input.commercial_estimate
+        if estimate is None or estimate.status != CommercialEstimateStatus.COMPLETE:
+            evidence.append(_evidence("estimate_incomplete", "Коммерческий расчёт", "Полный коммерческий расчёт отсутствует или содержит незаполненные данные.", "commercial_estimator", 0.0))
+        else:
+            evidence.append(_evidence("estimate_complete", "Коммерческий расчёт", "Коммерческий расчёт заполнен.", "commercial_estimator", 0.9))
+
+        verification = decision_input.verification
+        unverified = {
+            TenderVerificationStatus.MISSING,
+            TenderVerificationStatus.UNVERIFIED,
+            TenderVerificationStatus.AGGREGATOR_ONLY,
+            TenderVerificationStatus.INCOMPLETE,
+            TenderVerificationStatus.CONFLICT,
+        }
+        if verification is None or verification.status in unverified:
+            evidence.append(_evidence("verification_incomplete", "Достоверность данных", "Критичные поля не подтверждены официальным источником.", "verification", 0.0))
+        else:
+            evidence.append(_evidence("verification_available", "Достоверность данных", "Данные подтверждены доступным источником.", "verification", verification.minimum_confidence))
+
+        if any(item.confidence == 0.0 for item in evidence):
+            return (ParticipationDecisionRecommendation.DATA_INSUFFICIENT, "Недостаточно данных для решения об участии.", evidence)
+        if stop is not None and stop.status == StopFactorStatus.CONDITIONAL:
+            return (ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW, "Участие возможно после ручной проверки условий.", evidence)
+        score = decision_input.score
+        assert score is not None
+        mapping = {
+            ParticipationRecommendation.RECOMMENDED: ParticipationDecisionRecommendation.PARTICIPATE,
+            ParticipationRecommendation.MANUAL_REVIEW: ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
+            ParticipationRecommendation.POSSIBLE_WITH_CONDITIONS: ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
+            ParticipationRecommendation.NOT_RECOMMENDED: ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE,
+        }
+        recommendation = mapping[score.recommendation]
+        return (recommendation, score.recommendation_text, evidence)
+
+
+def _evidence(code: str, title: str, detail: str, source: str, confidence: float) -> ParticipationDecisionEvidence:
+    return ParticipationDecisionEvidence(code, title, detail, confidence, source)
+
+
+__all__ = ["ParticipationDecisionService"]
