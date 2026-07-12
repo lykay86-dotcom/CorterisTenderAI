@@ -49,6 +49,9 @@ from app.tenders.search_runtime import (
     create_tender_search_runtime,
 )
 from app.ui.tender_collector_dialog import TenderCollectorDialog
+from app.ui.tender_collector_scheduler_controller import (
+    TenderCollectorSchedulerUiController,
+)
 from app.ui.tender_documents_dialog import TenderDocumentsDialog
 from app.ui.tender_provider_manager_dialog import (
     TenderProviderManagerDialog,
@@ -401,6 +404,22 @@ class TenderSearchUiController(QObject):
             self.open_collector_dialog
         )
 
+        self.scheduler_ui_controller = (
+            TenderCollectorSchedulerUiController(
+                self.data_directory,
+                profile_repository=self.runtime.repository,
+                provider_manager=self.provider_manager,
+                start_collector=self.try_start_collector,
+                is_collector_busy=(
+                    lambda: self._collector_worker is not None
+                ),
+                collector_finished_signal=self.collector_finished,
+                collector_failed_signal=self.collector_failed,
+                theme=self._theme,
+                parent=self,
+            )
+        )
+
     @property
     def profiles_dialog(self) -> TenderSearchProfilesDialog | None:
         return self._profiles_dialog
@@ -483,6 +502,12 @@ class TenderSearchUiController(QObject):
                 main_window.addAction(self.providers_action)
             if self.collector_action not in main_window.actions():
                 main_window.addAction(self.collector_action)
+
+        self.scheduler_ui_controller.install_on_main_window(
+            main_window,
+            menu=self._tender_menu,
+            toolbar=self._tender_toolbar,
+        )
 
         # Keep the controller alive for the whole window lifetime.
         setattr(
@@ -599,15 +624,27 @@ class TenderSearchUiController(QObject):
         profile_id: str,
         provider_ids: object,
     ) -> None:
+        self.try_start_collector(
+            profile_id,
+            provider_ids,
+        )
+
+    def try_start_collector(
+        self,
+        profile_id: str,
+        provider_ids: object,
+    ) -> bool:
+        """Start one collector run and report whether it was accepted."""
+
         normalized = profile_id.strip().casefold()
         if not normalized:
-            return
+            return False
         if self._collector_worker is not None:
             if self._collector_dialog is not None:
                 self._collector_dialog.set_status(
                     "Сборщик уже выполняется."
                 )
-            return
+            return False
 
         try:
             profile = self.runtime.repository.get(normalized)
@@ -616,13 +653,13 @@ class TenderSearchUiController(QObject):
                 self._collector_dialog.set_error(
                     f"Не удалось загрузить профиль: {exc}"
                 )
-            return
+            return False
         if not profile.enabled:
             if self._collector_dialog is not None:
                 self._collector_dialog.set_error(
                     "Выбранный профиль отключён."
                 )
-            return
+            return False
 
         selected = tuple(
             dict.fromkeys(
@@ -644,7 +681,7 @@ class TenderSearchUiController(QObject):
                 self._collector_dialog.set_error(
                     "Нет включённых источников для запуска."
                 )
-            return
+            return False
 
         worker = _CollectorRunWorker(
             self.collector_session,
@@ -670,6 +707,7 @@ class TenderSearchUiController(QObject):
             )
         self.collector_started.emit(normalized)
         self._thread_pool.start(worker)
+        return True
 
     @Slot()
     def stop_collector(self) -> None:

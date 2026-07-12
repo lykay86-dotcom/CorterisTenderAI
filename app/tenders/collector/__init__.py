@@ -210,3 +210,32 @@ __all__ += [
     "CollectorRunSession",
     "emit_collector_progress",
 ]
+
+
+from app.tenders.collector.notifications import (
+    CollectorNotification,
+    CollectorNotificationKind,
+    CollectorNotificationRepository,
+    CollectorNotificationService,
+)
+from app.tenders.collector.scheduler import (
+    CollectorScheduleFrequency,
+    CollectorScheduleRepository,
+    CollectorScheduleSettings,
+    CollectorScheduleState,
+    CollectorScheduler,
+    ScheduledCollectorRequest,
+)
+
+__all__ += [
+    "CollectorNotification",
+    "CollectorNotificationKind",
+    "CollectorNotificationRepository",
+    "CollectorNotificationService",
+    "CollectorScheduleFrequency",
+    "CollectorScheduleRepository",
+    "CollectorScheduleSettings",
+    "CollectorScheduleState",
+    "CollectorScheduler",
+    "ScheduledCollectorRequest",
+]
