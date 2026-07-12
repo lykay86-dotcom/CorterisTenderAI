@@ -23,4 +23,7 @@ def test_empty_token_is_not_configured() -> None:
     config = MosSupplierApiConfig.from_environment({})
 
     assert not config.configured
+    assert config.get_url == (
+        "https://api.zakupki.mos.ru/api/v2/auction/public/Get"
+    )
     assert config.masked_token == ""

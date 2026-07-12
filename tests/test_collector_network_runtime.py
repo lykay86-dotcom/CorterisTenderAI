@@ -31,3 +31,12 @@ def test_network_runtime_builds_without_external_requests() -> None:
         await raw_client.aclose()
 
     asyncio.run(scenario())
+
+
+def test_network_runtime_disables_system_proxy_by_default() -> None:
+    async def scenario() -> None:
+        runtime = create_collector_network_runtime()
+        assert runtime.http_client.config.trust_env is False
+        await runtime.aclose()
+
+    asyncio.run(scenario())

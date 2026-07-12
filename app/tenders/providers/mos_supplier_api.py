@@ -248,6 +248,9 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
                     "Authorization": f"Bearer {self.config.api_token}",
                     "Accept": "application/json",
                     "Accept-Language": "ru-RU,ru;q=0.9",
+                    # The portal may mark an uncompressed response as gzip.
+                    # Requesting identity avoids false decompression failures.
+                    "Accept-Encoding": "identity",
                     "Cache-Control": "no-cache",
                 },
                 timeouts=self.network_settings.timeouts,

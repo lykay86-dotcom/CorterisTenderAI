@@ -15,7 +15,7 @@ class MosSupplierApiConfig:
         "https://api.zakupki.mos.ru/api/v2/auction/public/Search"
     )
     get_url: str = (
-        "https://api.zakupki.mos.ru/api/api/v2/auction/public/Get"
+        "https://api.zakupki.mos.ru/api/v2/auction/public/Get"
     )
     homepage_url: str = "https://zakupki.mos.ru/"
     auction_url_template: str = "https://zakupki.mos.ru/auction/{id}"
