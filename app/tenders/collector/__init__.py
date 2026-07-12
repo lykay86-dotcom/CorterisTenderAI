@@ -44,6 +44,15 @@ from app.tenders.collector.currency import (
     ExchangeRateBook,
     ExchangeRateQuote,
 )
+from app.tenders.collector.currency_store import (
+    CBR_DAILY_RATES_URL,
+    CBR_SOURCE_NAME,
+    CbrDailyRatesImporter,
+    CbrRatesParseError,
+    ExchangeRateImportResult,
+    ExchangeRateRepository,
+    parse_cbr_daily_xml,
+)
 from app.tenders.collector.models import (
     CollectionPersistenceSummary,
     CollectionRunRecord,
@@ -109,6 +118,8 @@ from app.tenders.collector.rate_limiter import (
 
 __all__ = [
     "COLLECTOR_SCHEMA_VERSION",
+    "CBR_DAILY_RATES_URL",
+    "CBR_SOURCE_NAME",
     "CollectionPersistenceSummary",
     "CollectionRunRecord",
     "CollectionRunStatus",
@@ -118,13 +129,17 @@ __all__ = [
     "CollectorService",
     "CollectorSourceReference",
     "CollectorStateRepository",
+    "CbrDailyRatesImporter",
+    "CbrRatesParseError",
     "CurrencyConversion",
     "CurrencyRateUnavailableError",
     "DeduplicationGroup",
     "DeduplicationMatchLevel",
     "DeduplicationResult",
     "ExchangeRateBook",
+    "ExchangeRateImportResult",
     "ExchangeRateQuote",
+    "ExchangeRateRepository",
     "NormalizedTender",
     "TenderAliasType",
     "TenderChange",
@@ -179,6 +194,7 @@ __all__ = [
     "create_collector_network_runtime",
     "default_collector_network_settings",
     "parse_retry_after",
+    "parse_cbr_daily_xml",
     "sanitize_url",
 ]
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 5
+COLLECTOR_SCHEMA_VERSION = 6
 
 
 class CollectorSchemaMigrator:
@@ -412,6 +412,34 @@ class CollectorSchemaMigrator:
                     is_stale,
                     deadline_expired,
                     verification_due_at
+                );
+
+            CREATE TABLE IF NOT EXISTS collector_exchange_rate_quotes (
+                quote_id TEXT PRIMARY KEY,
+                base_currency TEXT NOT NULL,
+                quote_currency TEXT NOT NULL,
+                rate TEXT NOT NULL,
+                effective_date TEXT NOT NULL,
+                source TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL,
+                source_url TEXT NOT NULL DEFAULT '',
+                imported_at TEXT NOT NULL
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_exchange_rate_identity
+                ON collector_exchange_rate_quotes(
+                    base_currency,
+                    quote_currency,
+                    effective_date,
+                    source,
+                    rate
+                );
+
+            CREATE INDEX IF NOT EXISTS idx_exchange_rate_lookup
+                ON collector_exchange_rate_quotes(
+                    base_currency,
+                    quote_currency,
+                    effective_date DESC
                 );
 
             CREATE TABLE IF NOT EXISTS collector_checkpoints (
