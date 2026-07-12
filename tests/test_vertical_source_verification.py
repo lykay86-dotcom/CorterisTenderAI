@@ -42,7 +42,7 @@ def test_only_live_pass_of_every_stage_can_be_working(tmp_path) -> None:
     assert len(verification.steps) == len(REQUIRED_VERTICAL_STAGES)
 
 
-def test_fixture_pass_cannot_promote_source_to_working(tmp_path) -> None:
+def test_fixture_pass_is_unverified_and_cannot_promote_source(tmp_path) -> None:
     repository = VerticalSourceVerificationRepository(
         tmp_path / "registry.sqlite3"
     )
@@ -53,7 +53,7 @@ def test_fixture_pass_cannot_promote_source_to_working(tmp_path) -> None:
         live=False,
     )
 
-    assert verification.status == VerticalSourceStatus.FAILED
+    assert verification.status == VerticalSourceStatus.UNVERIFIED
     assert not verification.qualifies_as_working
     assert not repository.is_working("eis")
 

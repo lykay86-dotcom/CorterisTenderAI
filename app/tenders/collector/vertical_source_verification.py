@@ -254,14 +254,24 @@ class VerifiedVerticalSourceSmokeService:
                     max(0, int((perf_counter() - started) * 1000)),
                 ))
                 break
-        qualifies = live and len(steps) == len(REQUIRED_VERTICAL_STAGES) and all(
+        all_stages_passed = len(steps) == len(REQUIRED_VERTICAL_STAGES) and all(
             item.passed for item in steps
+        )
+        qualifies = live and all_stages_passed
+        status = (
+            VerticalSourceStatus.WORKING
+            if qualifies
+            else (
+                VerticalSourceStatus.UNVERIFIED
+                if all_stages_passed
+                else VerticalSourceStatus.FAILED
+            )
         )
         verification = VerticalSourceVerification(
             verification_id=uuid4().hex,
             provider_id=provider_id.strip().casefold(),
             connection_mode=connection_mode,
-            status=(VerticalSourceStatus.WORKING if qualifies else VerticalSourceStatus.FAILED),
+            status=status,
             started_at=started_at,
             completed_at=_now(),
             live=live,
