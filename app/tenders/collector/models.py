@@ -126,6 +126,11 @@ class CollectionPersistenceSummary:
     manual_review_count: int = 0
     possible_count: int = 0
     not_recommended_count: int = 0
+    verification_run_id: str = ""
+    verified_field_count: int = 0
+    conflict_count: int = 0
+    unresolved_conflict_count: int = 0
+    verification_incomplete_count: int = 0
 
     @property
     def observed_count(self) -> int:

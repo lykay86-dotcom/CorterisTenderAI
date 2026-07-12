@@ -401,11 +401,13 @@ class TenderCollectorDialog(QDialog):
         elif event.phase == CollectorProgressPhase.NORMALIZING:
             self.progress_bar.setValue(max(self.progress_bar.value(), 76))
         elif event.phase == CollectorProgressPhase.DEDUPLICATING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 84))
+            self.progress_bar.setValue(max(self.progress_bar.value(), 80))
+        elif event.phase == CollectorProgressPhase.VERIFYING:
+            self.progress_bar.setValue(max(self.progress_bar.value(), 86))
         elif event.phase == CollectorProgressPhase.RANKING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 89))
+            self.progress_bar.setValue(max(self.progress_bar.value(), 91))
         elif event.phase == CollectorProgressPhase.SAVING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 94))
+            self.progress_bar.setValue(max(self.progress_bar.value(), 95))
             self.duplicate_value.setText(str(event.duplicate_count))
         elif event.phase in {
             CollectorProgressPhase.COMPLETED,

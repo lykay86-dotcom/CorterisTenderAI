@@ -264,3 +264,31 @@ __all__ += [
     "ParticipationScoringContext",
     "CorterisParticipationScoreService",
 ]
+
+from app.tenders.collector.verification import (
+    FieldCandidate,
+    FieldConflict,
+    FieldConflictType,
+    FieldProvenance,
+    SourceTrustLevel,
+    TenderVerificationHistory,
+    TenderVerificationResult,
+    TenderVerificationService,
+    TenderVerificationState,
+    TenderVerificationStatus,
+    VerificationBatchResult,
+)
+
+__all__ += [
+    "FieldCandidate",
+    "FieldConflict",
+    "FieldConflictType",
+    "FieldProvenance",
+    "SourceTrustLevel",
+    "TenderVerificationHistory",
+    "TenderVerificationResult",
+    "TenderVerificationService",
+    "TenderVerificationState",
+    "TenderVerificationStatus",
+    "VerificationBatchResult",
+]

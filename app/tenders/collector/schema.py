@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 2
+COLLECTOR_SCHEMA_VERSION = 3
 
 
 class CollectorSchemaMigrator:
@@ -173,6 +173,158 @@ class CollectorSchemaMigrator:
                 ON collector_tender_scores(run_id);
             CREATE INDEX IF NOT EXISTS idx_collector_scores_total
                 ON collector_tender_scores(total_score DESC);
+
+            CREATE TABLE IF NOT EXISTS collector_verification_runs (
+                verification_run_id TEXT PRIMARY KEY,
+                collector_run_id TEXT NOT NULL DEFAULT '',
+                started_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                item_count INTEGER NOT NULL DEFAULT 0,
+                verified_field_count INTEGER NOT NULL DEFAULT 0,
+                conflict_count INTEGER NOT NULL DEFAULT 0,
+                unresolved_conflict_count INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (collector_run_id)
+                    REFERENCES collector_runs(run_id)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_verification_runs_collector
+                ON collector_verification_runs(
+                    collector_run_id,
+                    completed_at DESC
+                );
+
+            CREATE TABLE IF NOT EXISTS collector_tender_field_values (
+                candidate_id TEXT PRIMARY KEY,
+                verification_run_id TEXT NOT NULL,
+                registry_key TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                value_json TEXT NOT NULL,
+                normalized_value TEXT NOT NULL,
+                value_hash TEXT NOT NULL,
+                selected INTEGER NOT NULL DEFAULT 0,
+                historical INTEGER NOT NULL DEFAULT 0,
+                trust_level INTEGER NOT NULL,
+                confidence REAL NOT NULL,
+                official INTEGER NOT NULL DEFAULT 0,
+                verified INTEGER NOT NULL DEFAULT 0,
+                source_id TEXT NOT NULL,
+                source_url TEXT NOT NULL DEFAULT '',
+                retrieved_at TEXT NOT NULL,
+                FOREIGN KEY (verification_run_id)
+                    REFERENCES collector_verification_runs(
+                        verification_run_id
+                    )
+                    ON DELETE CASCADE,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_field_values_registry
+                ON collector_tender_field_values(
+                    registry_key,
+                    field_name,
+                    selected,
+                    retrieved_at DESC
+                );
+            CREATE INDEX IF NOT EXISTS idx_field_values_verification
+                ON collector_tender_field_values(
+                    verification_run_id,
+                    registry_key
+                );
+
+            CREATE TABLE IF NOT EXISTS collector_tender_field_provenance (
+                provenance_id TEXT PRIMARY KEY,
+                candidate_id TEXT NOT NULL UNIQUE,
+                verification_run_id TEXT NOT NULL,
+                registry_key TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                value_hash TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                source_url TEXT NOT NULL DEFAULT '',
+                retrieved_at TEXT NOT NULL,
+                verified INTEGER NOT NULL DEFAULT 0,
+                official INTEGER NOT NULL DEFAULT 0,
+                confidence REAL NOT NULL,
+                trust_level INTEGER NOT NULL,
+                FOREIGN KEY (candidate_id)
+                    REFERENCES collector_tender_field_values(candidate_id)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (verification_run_id)
+                    REFERENCES collector_verification_runs(
+                        verification_run_id
+                    )
+                    ON DELETE CASCADE,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_provenance_registry
+                ON collector_tender_field_provenance(
+                    registry_key,
+                    field_name,
+                    retrieved_at DESC
+                );
+
+            CREATE TABLE IF NOT EXISTS collector_tender_field_conflicts (
+                conflict_id TEXT PRIMARY KEY,
+                verification_run_id TEXT NOT NULL,
+                registry_key TEXT NOT NULL,
+                field_name TEXT NOT NULL,
+                conflict_type TEXT NOT NULL,
+                candidate_ids_json TEXT NOT NULL,
+                selected_candidate_id TEXT NOT NULL,
+                detected_at TEXT NOT NULL,
+                critical INTEGER NOT NULL DEFAULT 1,
+                unresolved INTEGER NOT NULL DEFAULT 0,
+                message TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (verification_run_id)
+                    REFERENCES collector_verification_runs(
+                        verification_run_id
+                    )
+                    ON DELETE CASCADE,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_field_conflicts_registry
+                ON collector_tender_field_conflicts(
+                    registry_key,
+                    unresolved,
+                    detected_at DESC
+                );
+
+            CREATE TABLE IF NOT EXISTS collector_tender_verification_state (
+                registry_key TEXT PRIMARY KEY,
+                verification_run_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                last_verified_at TEXT NOT NULL,
+                critical_field_count INTEGER NOT NULL DEFAULT 0,
+                verified_field_count INTEGER NOT NULL DEFAULT 0,
+                official_field_count INTEGER NOT NULL DEFAULT 0,
+                missing_fields_json TEXT NOT NULL DEFAULT '[]',
+                conflict_count INTEGER NOT NULL DEFAULT 0,
+                unresolved_conflict_count INTEGER NOT NULL DEFAULT 0,
+                minimum_confidence REAL NOT NULL DEFAULT 0,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (verification_run_id)
+                    REFERENCES collector_verification_runs(
+                        verification_run_id
+                    )
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_verification_state_status
+                ON collector_tender_verification_state(
+                    status,
+                    last_verified_at DESC
+                );
 
             CREATE TABLE IF NOT EXISTS collector_checkpoints (
                 provider_id TEXT NOT NULL,

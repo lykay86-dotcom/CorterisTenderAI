@@ -22,6 +22,9 @@ from app.tenders.collector.progress import (
     emit_collector_progress,
 )
 from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.collector.verification import (
+    TenderVerificationService,
+)
 from app.tenders.provider_base import TenderSearchQuery
 
 
@@ -36,6 +39,7 @@ class CollectorService:
         normalizer: TenderNormalizer | None = None,
         deduplicator: TenderDeduplicator | None = None,
         ranker: CorterisParticipationRanker | None = None,
+        verifier: TenderVerificationService | None = None,
     ) -> None:
         self.engine = engine
         self.repository = repository
@@ -44,6 +48,10 @@ class CollectorService:
             self.normalizer
         )
         self.ranker = ranker or CorterisParticipationRanker()
+        self.verifier = verifier or TenderVerificationService(
+            normalizer=self.normalizer,
+            history_loader=self.repository.get_verification_history,
+        )
 
     async def collect(
         self,
@@ -108,17 +116,38 @@ class CollectorService:
             await emit_collector_progress(
                 progress_callback,
                 CollectorProgressEvent(
-                    phase=CollectorProgressPhase.RANKING,
+                    phase=CollectorProgressPhase.VERIFYING,
                     total_providers=len(batch.outcomes),
                     raw_count=deduplicated.raw_count,
                     merged_count=deduplicated.merged_count,
                     duplicate_count=deduplicated.duplicate_count,
+                    message=(
+                        "Проверка критичных полей и происхождения данных…"
+                    ),
+                ),
+            )
+            verification = self.verifier.verify(
+                deduplicated,
+                observed_at=batch.completed_at,
+            )
+            verified_deduplication = verification.deduplication
+
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
+                    phase=CollectorProgressPhase.RANKING,
+                    total_providers=len(batch.outcomes),
+                    raw_count=verified_deduplication.raw_count,
+                    merged_count=verified_deduplication.merged_count,
+                    duplicate_count=(
+                        verified_deduplication.duplicate_count
+                    ),
                     message="Расчёт объяснимого рейтинга Кортерис…",
                 ),
             )
             rankings = {
                 item.canonical_key: self.ranker.score(item.tender)
-                for item in deduplicated.items
+                for item in verified_deduplication.items
             }
 
             await emit_collector_progress(
@@ -126,17 +155,20 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.SAVING,
                     total_providers=len(batch.outcomes),
-                    raw_count=deduplicated.raw_count,
-                    merged_count=deduplicated.merged_count,
-                    duplicate_count=deduplicated.duplicate_count,
+                    raw_count=verified_deduplication.raw_count,
+                    merged_count=verified_deduplication.merged_count,
+                    duplicate_count=(
+                        verified_deduplication.duplicate_count
+                    ),
                     message="Сохранение результатов в локальный реестр…",
                 ),
             )
             persistence = self.repository.save_batch(
                 run_id,
-                deduplicated,
+                verified_deduplication,
                 observed_at=batch.completed_at,
                 rankings=rankings,
+                verification=verification,
             )
             status = _status_for_batch(batch)
             self.repository.complete_run(
@@ -155,12 +187,27 @@ class CollectorService:
                 run_id=run_id,
                 status=status,
                 batch_result=batch,
-                deduplication=deduplicated,
+                deduplication=verified_deduplication,
                 persistence=persistence,
                 warnings=warnings,
                 metadata={
                     "partial_failures": batch.has_partial_failures,
                     "cancelled": batch.cancelled,
+                    "verification_run_id": (
+                        persistence.verification_run_id
+                    ),
+                    "verified_field_count": (
+                        persistence.verified_field_count
+                    ),
+                    "field_conflict_count": (
+                        persistence.conflict_count
+                    ),
+                    "unresolved_field_conflict_count": (
+                        persistence.unresolved_conflict_count
+                    ),
+                    "verification_incomplete_count": (
+                        persistence.verification_incomplete_count
+                    ),
                     "ranked_count": persistence.ranked_count,
                     "recommended_count": persistence.recommended_count,
                     "manual_review_count": persistence.manual_review_count,
@@ -184,7 +231,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=final_phase,
                     total_providers=len(batch.outcomes),
-                    raw_count=deduplicated.raw_count,
+                    raw_count=verified_deduplication.raw_count,
                     merged_count=persistence.merged_count,
                     duplicate_count=persistence.duplicate_count,
                     new_count=persistence.new_count,

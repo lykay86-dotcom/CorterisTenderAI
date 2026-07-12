@@ -35,6 +35,18 @@ from app.tenders.collector.models import (
     TenderObservationStatus,
 )
 from app.tenders.collector.schema import CollectorSchemaMigrator
+from app.tenders.collector.verification import (
+    FieldCandidate,
+    FieldConflict,
+    FieldConflictType,
+    FieldProvenance,
+    SourceTrustLevel,
+    TenderVerificationHistory,
+    TenderVerificationResult,
+    TenderVerificationState,
+    TenderVerificationStatus,
+    VerificationBatchResult,
+)
 from app.tenders.models import UnifiedTender
 from app.tenders.provider_base import TenderSearchQuery
 from app.tenders.tender_registry import TenderRegistryRepository
@@ -103,6 +115,7 @@ class CollectorStateRepository:
             str,
             CorterisParticipationScore,
         ] | None = None,
+        verification: VerificationBatchResult | None = None,
     ) -> CollectionPersistenceSummary:
         self.initialize()
         moment = observed_at or _utc_now()
@@ -117,7 +130,17 @@ class CollectorStateRepository:
         manual_review_count = 0
         possible_count = 0
         not_recommended_count = 0
+        verification_run_id = ""
+        verified_field_count = 0
+        conflict_count = 0
+        unresolved_conflict_count = 0
+        verification_incomplete_count = 0
         rankings = rankings or {}
+        verification_by_key = (
+            verification.by_canonical_key
+            if verification is not None
+            else {}
+        )
 
         groups_by_key = {
             group.item.canonical_key: group
@@ -127,6 +150,34 @@ class CollectorStateRepository:
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
+                if verification is not None:
+                    verification_run_id = uuid4().hex
+                    connection.execute(
+                        """
+                        INSERT INTO collector_verification_runs(
+                            verification_run_id,
+                            collector_run_id,
+                            started_at,
+                            completed_at,
+                            status,
+                            item_count,
+                            verified_field_count,
+                            conflict_count,
+                            unresolved_conflict_count
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            verification_run_id,
+                            run_id,
+                            verification.verified_at,
+                            verification.verified_at,
+                            "completed",
+                            len(verification.items),
+                            verification.verified_field_count,
+                            verification.conflict_count,
+                            verification.unresolved_conflict_count,
+                        ),
+                    )
                 for item in result.items:
                     registry_key, conflicts = self._resolve_registry_key(
                         connection,
@@ -161,6 +212,36 @@ class CollectorStateRepository:
                         item,
                         observed_at=moment,
                     )
+                    verification_item = verification_by_key.get(
+                        item.canonical_key
+                    )
+                    if (
+                        verification_item is not None
+                        and verification_run_id
+                    ):
+                        self._persist_verification(
+                            connection,
+                            verification_run_id,
+                            registry_key,
+                            verification_item,
+                        )
+                        verified_field_count += (
+                            verification_item.verified_field_count
+                        )
+                        conflict_count += (
+                            verification_item.conflict_count
+                        )
+                        unresolved_conflict_count += (
+                            verification_item.unresolved_conflict_count
+                        )
+                        verification_incomplete_count += int(
+                            verification_item.status
+                            in {
+                                TenderVerificationStatus.INCOMPLETE,
+                                TenderVerificationStatus.MISSING,
+                                TenderVerificationStatus.CONFLICT,
+                            }
+                        )
                     inserted_version = self._insert_version(
                         connection,
                         registry_key,
@@ -288,6 +369,13 @@ class CollectorStateRepository:
             manual_review_count=manual_review_count,
             possible_count=possible_count,
             not_recommended_count=not_recommended_count,
+            verification_run_id=verification_run_id,
+            verified_field_count=verified_field_count,
+            conflict_count=conflict_count,
+            unresolved_conflict_count=unresolved_conflict_count,
+            verification_incomplete_count=(
+                verification_incomplete_count
+            ),
         )
 
     def complete_run(
@@ -451,6 +539,381 @@ class CollectorStateRepository:
                 active=bool(row["active"]),
             )
             for row in rows
+        )
+
+    def get_verification_history(
+        self,
+        item: NormalizedTender,
+    ) -> TenderVerificationHistory | None:
+        """Load the latest selected field evidence for downgrade protection."""
+
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            registry_key, _ = self._resolve_registry_key(
+                connection,
+                item,
+            )
+            tender = self._load_existing_tender(
+                connection,
+                registry_key,
+            )
+            if tender is None:
+                return None
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM collector_tender_field_values
+                WHERE registry_key = ? AND selected = 1
+                ORDER BY rowid DESC
+                """,
+                (registry_key,),
+            ).fetchall()
+        selected: dict[str, FieldCandidate] = {}
+        for row in rows:
+            field_name = str(row["field_name"])
+            if field_name in selected:
+                continue
+            try:
+                payload = json.loads(str(row["value_json"]))
+            except json.JSONDecodeError:
+                payload = str(row["value_json"])
+            selected[field_name] = FieldCandidate(
+                candidate_id=str(row["candidate_id"]),
+                field_name=field_name,
+                value=payload,
+                normalized_value=str(row["normalized_value"]),
+                value_hash=str(row["value_hash"]),
+                source_id=str(row["source_id"]),
+                source_url=str(row["source_url"]),
+                retrieved_at=str(row["retrieved_at"]),
+                trust_level=SourceTrustLevel(
+                    int(row["trust_level"])
+                ),
+                official=bool(row["official"]),
+                verified=bool(row["verified"]),
+                confidence=float(row["confidence"]),
+                selected=True,
+                historical=True,
+            )
+        if not selected:
+            return None
+        return TenderVerificationHistory(
+            registry_key=registry_key,
+            tender=tender,
+            selected_candidates=selected,
+        )
+
+    def get_verification_state(
+        self,
+        registry_key: str,
+    ) -> TenderVerificationState | None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT *
+                FROM collector_tender_verification_state
+                WHERE registry_key = ?
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            missing = json.loads(
+                str(row["missing_fields_json"] or "[]")
+            )
+        except json.JSONDecodeError:
+            missing = []
+        if not isinstance(missing, list):
+            missing = []
+        return TenderVerificationState(
+            registry_key=str(row["registry_key"]),
+            verification_run_id=str(
+                row["verification_run_id"]
+            ),
+            status=TenderVerificationStatus(str(row["status"])),
+            last_verified_at=str(row["last_verified_at"]),
+            critical_field_count=int(
+                row["critical_field_count"]
+            ),
+            verified_field_count=int(row["verified_field_count"]),
+            official_field_count=int(row["official_field_count"]),
+            missing_fields=tuple(str(item) for item in missing),
+            conflict_count=int(row["conflict_count"]),
+            unresolved_conflict_count=int(
+                row["unresolved_conflict_count"]
+            ),
+            minimum_confidence=float(row["minimum_confidence"]),
+        )
+
+    def list_field_provenance(
+        self,
+        registry_key: str,
+        *,
+        field_name: str = "",
+    ) -> tuple[FieldProvenance, ...]:
+        self.initialize()
+        sql = """
+            SELECT *
+            FROM collector_tender_field_provenance
+            WHERE registry_key = ?
+        """
+        params: list[object] = [registry_key.strip()]
+        if field_name.strip():
+            sql += " AND field_name = ?"
+            params.append(field_name.strip())
+        sql += " ORDER BY retrieved_at DESC, rowid DESC"
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(sql, tuple(params)).fetchall()
+        return tuple(
+            FieldProvenance(
+                field_name=str(row["field_name"]),
+                value_hash=str(row["value_hash"]),
+                source_id=str(row["source_id"]),
+                source_url=str(row["source_url"]),
+                retrieved_at=str(row["retrieved_at"]),
+                verified=bool(row["verified"]),
+                official=bool(row["official"]),
+                confidence=float(row["confidence"]),
+                trust_level=SourceTrustLevel(
+                    int(row["trust_level"])
+                ),
+                candidate_id=str(row["candidate_id"]),
+            )
+            for row in rows
+        )
+
+    def list_field_conflicts(
+        self,
+        registry_key: str,
+        *,
+        unresolved_only: bool = False,
+    ) -> tuple[FieldConflict, ...]:
+        self.initialize()
+        sql = """
+            SELECT *
+            FROM collector_tender_field_conflicts
+            WHERE registry_key = ?
+        """
+        if unresolved_only:
+            sql += " AND unresolved = 1"
+        sql += " ORDER BY detected_at DESC, rowid DESC"
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                sql,
+                (registry_key.strip(),),
+            ).fetchall()
+        result: list[FieldConflict] = []
+        for row in rows:
+            try:
+                ids = json.loads(str(row["candidate_ids_json"]))
+            except json.JSONDecodeError:
+                ids = []
+            if not isinstance(ids, list) or len(ids) < 2:
+                continue
+            result.append(
+                FieldConflict(
+                    conflict_id=str(row["conflict_id"]),
+                    field_name=str(row["field_name"]),
+                    conflict_type=FieldConflictType(
+                        str(row["conflict_type"])
+                    ),
+                    candidate_ids=tuple(str(item) for item in ids),
+                    selected_candidate_id=str(
+                        row["selected_candidate_id"]
+                    ),
+                    detected_at=str(row["detected_at"]),
+                    critical=bool(row["critical"]),
+                    unresolved=bool(row["unresolved"]),
+                    message=str(row["message"]),
+                )
+            )
+        return tuple(result)
+
+    @staticmethod
+    def _persist_verification(
+        connection: sqlite3.Connection,
+        verification_run_id: str,
+        registry_key: str,
+        verification: TenderVerificationResult,
+    ) -> None:
+        candidate_ids: dict[str, str] = {}
+        for candidate in verification.candidates:
+            storage_id = _verification_storage_id(
+                verification_run_id,
+                candidate.candidate_id,
+            )
+            candidate_ids[candidate.candidate_id] = storage_id
+            connection.execute(
+                """
+                INSERT INTO collector_tender_field_values(
+                    candidate_id,
+                    verification_run_id,
+                    registry_key,
+                    field_name,
+                    value_json,
+                    normalized_value,
+                    value_hash,
+                    selected,
+                    historical,
+                    trust_level,
+                    confidence,
+                    official,
+                    verified,
+                    source_id,
+                    source_url,
+                    retrieved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    storage_id,
+                    verification_run_id,
+                    registry_key,
+                    candidate.field_name,
+                    stable_json(candidate.value_payload()),
+                    candidate.normalized_value,
+                    candidate.value_hash,
+                    int(candidate.selected),
+                    int(candidate.historical),
+                    int(candidate.trust_level),
+                    candidate.confidence,
+                    int(candidate.official),
+                    int(candidate.verified),
+                    candidate.source_id,
+                    candidate.source_url,
+                    candidate.retrieved_at,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO collector_tender_field_provenance(
+                    provenance_id,
+                    candidate_id,
+                    verification_run_id,
+                    registry_key,
+                    field_name,
+                    value_hash,
+                    source_id,
+                    source_url,
+                    retrieved_at,
+                    verified,
+                    official,
+                    confidence,
+                    trust_level
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    _verification_storage_id(
+                        verification_run_id,
+                        f"provenance:{candidate.candidate_id}",
+                    ),
+                    storage_id,
+                    verification_run_id,
+                    registry_key,
+                    candidate.field_name,
+                    candidate.value_hash,
+                    candidate.source_id,
+                    candidate.source_url,
+                    candidate.retrieved_at,
+                    int(candidate.verified),
+                    int(candidate.official),
+                    candidate.confidence,
+                    int(candidate.trust_level),
+                ),
+            )
+
+        for conflict in verification.conflicts:
+            storage_ids = tuple(
+                candidate_ids[item]
+                for item in conflict.candidate_ids
+                if item in candidate_ids
+            )
+            selected_id = candidate_ids.get(
+                conflict.selected_candidate_id,
+                "",
+            )
+            if len(storage_ids) < 2 or not selected_id:
+                continue
+            connection.execute(
+                """
+                INSERT INTO collector_tender_field_conflicts(
+                    conflict_id,
+                    verification_run_id,
+                    registry_key,
+                    field_name,
+                    conflict_type,
+                    candidate_ids_json,
+                    selected_candidate_id,
+                    detected_at,
+                    critical,
+                    unresolved,
+                    message
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    _verification_storage_id(
+                        verification_run_id,
+                        conflict.conflict_id,
+                    ),
+                    verification_run_id,
+                    registry_key,
+                    conflict.field_name,
+                    conflict.conflict_type.value,
+                    stable_json(list(storage_ids)),
+                    selected_id,
+                    conflict.detected_at,
+                    int(conflict.critical),
+                    int(conflict.unresolved),
+                    conflict.message,
+                ),
+            )
+
+        connection.execute(
+            """
+            INSERT INTO collector_tender_verification_state(
+                registry_key,
+                verification_run_id,
+                status,
+                last_verified_at,
+                critical_field_count,
+                verified_field_count,
+                official_field_count,
+                missing_fields_json,
+                conflict_count,
+                unresolved_conflict_count,
+                minimum_confidence
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(registry_key) DO UPDATE SET
+                verification_run_id=excluded.verification_run_id,
+                status=excluded.status,
+                last_verified_at=excluded.last_verified_at,
+                critical_field_count=excluded.critical_field_count,
+                verified_field_count=excluded.verified_field_count,
+                official_field_count=excluded.official_field_count,
+                missing_fields_json=excluded.missing_fields_json,
+                conflict_count=excluded.conflict_count,
+                unresolved_conflict_count=(
+                    excluded.unresolved_conflict_count
+                ),
+                minimum_confidence=excluded.minimum_confidence
+            """,
+            (
+                registry_key,
+                verification_run_id,
+                verification.status.value,
+                verification.verified_at,
+                verification.critical_field_count,
+                verification.verified_field_count,
+                verification.official_field_count,
+                stable_json(list(verification.missing_fields)),
+                verification.conflict_count,
+                verification.unresolved_conflict_count,
+                verification.minimum_confidence,
+            ),
         )
 
     def save_score(
@@ -1136,6 +1599,17 @@ def _enum_value(value: object) -> str:
 
 def _iso(value: object) -> str:
     return value.isoformat() if value is not None else ""
+
+
+def _verification_storage_id(
+    verification_run_id: str,
+    identity: str,
+) -> str:
+    import hashlib
+
+    return hashlib.sha256(
+        f"{verification_run_id}|{identity}".encode("utf-8")
+    ).hexdigest()
 
 
 def _utc_now() -> str:

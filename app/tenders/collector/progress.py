@@ -20,6 +20,7 @@ class CollectorProgressPhase(StrEnum):
     PROVIDER_COMPLETED = "provider_completed"
     NORMALIZING = "normalizing"
     DEDUPLICATING = "deduplicating"
+    VERIFYING = "verifying"
     RANKING = "ranking"
     SAVING = "saving"
     COMPLETED = "completed"
