@@ -12,6 +12,11 @@ if TYPE_CHECKING:
     )
     from app.tenders.full_analysis import TenderFullAnalysisService
 from app.tenders.corteris_search import CorterisTenderSearchService
+from app.tenders.corteris_filter import (
+    CorterisTenderClassifier,
+    CorterisTenderFilter,
+)
+from app.tenders.matching_catalog import MatchingCatalogRepository
 from app.tenders.document_storage import (
     TenderDocumentDownloadService,
     TenderDocumentStore,
@@ -55,6 +60,7 @@ class TenderSearchRuntime:
         CorterisParticipationScoreService | None
     ) = None
     full_analysis_service: "TenderFullAnalysisService | None" = None
+    matching_catalog_repository: MatchingCatalogRepository | None = None
 
 
 def create_tender_search_runtime(
@@ -85,11 +91,22 @@ def create_tender_search_runtime(
         max_workers=max_workers,
         timeout_seconds=timeout_seconds,
     )
-    search_service = CorterisTenderSearchService(engine)
     tender_registry = TenderRegistryRepository(
         data_path / "tender_registry.sqlite3"
     )
     tender_registry.initialize()
+    matching_catalog_repository = MatchingCatalogRepository(
+        data_path / "tender_registry.sqlite3"
+    )
+    matching_catalog_repository.initialize()
+    search_service = CorterisTenderSearchService(
+        engine,
+        CorterisTenderFilter(
+            CorterisTenderClassifier(
+                matching_catalog_repository.load_profile()
+            )
+        ),
+    )
     runner = TenderSearchProfileRunner(
         repository,
         search_service,
@@ -139,6 +156,7 @@ def create_tender_search_runtime(
         capability_repository=CompanyCapabilityProfileRepository(
             data_path / "company_capability_profile.json"
         ),
+        matching_catalog_repository=matching_catalog_repository,
     )
     from app.tenders.full_analysis import TenderFullAnalysisService
     from app.tenders.legacy_analysis_bridge import LegacyAnalysisBridge
@@ -173,6 +191,7 @@ def create_tender_search_runtime(
             participation_score_service
         ),
         full_analysis_service=full_analysis_service,
+        matching_catalog_repository=matching_catalog_repository,
     )
 
 

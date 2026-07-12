@@ -61,7 +61,7 @@ def test_current_schema_contains_review_and_freshness_tables(tmp_path) -> None:
             )
         }
 
-    assert version == COLLECTOR_SCHEMA_VERSION == 7
+    assert version == COLLECTOR_SCHEMA_VERSION == 8
     assert {
         "collector_verification_runs",
         "collector_tender_field_values",

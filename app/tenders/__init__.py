@@ -68,6 +68,13 @@ from app.tenders.corteris_search import (
     CorterisTenderSearchResult,
     CorterisTenderSearchService,
 )
+from app.tenders.matching_catalog import (
+    MatchingCatalog,
+    MatchingCatalogEntry,
+    MatchingCatalogRepository,
+    MatchingCatalogSettings,
+    MatchingEntryKind,
+)
 from app.tenders.requirement_analysis import (
     AnalysisRiskLevel,
     AnalyzedDocument,
@@ -144,6 +151,11 @@ __all__ = [
     "CorterisTenderSearchResult",
     "CorterisTenderSearchService",
     "EvaluatedTender",
+    "MatchingCatalog",
+    "MatchingCatalogEntry",
+    "MatchingCatalogRepository",
+    "MatchingCatalogSettings",
+    "MatchingEntryKind",
     "RelevanceGrade",
     "SearchProfileNotFoundError",
     "StoredTenderDocument",
@@ -213,4 +225,3 @@ from app.tenders.full_analysis import (
     TenderFullAnalysisResult, TenderFullAnalysisService,
 )
 from app.tenders.safe_archive import SafeArchiveExtractor
-

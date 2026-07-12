@@ -13,6 +13,8 @@ from app.tenders.collector.company_capability import (
 )
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.stop_factor import StopFactorEngine
+from app.tenders.matching_catalog import MatchingCatalogRepository
+from app.tenders.corteris_filter import CorterisTenderClassifier
 from app.tenders.document_text_extractor import TenderDocumentTextService
 from app.tenders.requirement_analysis import (
     TenderRequirementAnalysisService,
@@ -35,6 +37,7 @@ class CorterisParticipationScoreService:
         ranker: CorterisParticipationRanker | None = None,
         capability_repository: CompanyCapabilityProfileRepository | None = None,
         stop_factor_engine: StopFactorEngine | None = None,
+        matching_catalog_repository: MatchingCatalogRepository | None = None,
         max_document_characters: int = 2_000_000,
     ) -> None:
         if max_document_characters < 1000:
@@ -48,6 +51,7 @@ class CorterisParticipationScoreService:
         self.ranker = ranker
         self.capability_repository = capability_repository
         self.stop_factor_engine = stop_factor_engine
+        self.matching_catalog_repository = matching_catalog_repository
         self.max_document_characters = int(
             max_document_characters
         )
@@ -116,7 +120,14 @@ class CorterisParticipationScoreService:
         if ranker is None:
             ranker = (
                 CorterisParticipationRanker(
-                    CorterisCompanyProfile.from_capability(capability)
+                    CorterisCompanyProfile.from_capability(capability),
+                    classifier=(
+                        CorterisTenderClassifier(
+                            self.matching_catalog_repository.load_profile()
+                        )
+                        if self.matching_catalog_repository is not None
+                        else None
+                    ),
                 )
                 if capability is not None
                 else CorterisParticipationRanker()

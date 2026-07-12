@@ -39,6 +39,7 @@ class DirectionRule:
     direction: TenderDirection
     strong_terms: tuple[str, ...]
     weak_terms: tuple[str, ...] = ()
+    okpd2_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,16 @@ class CorterisSearchProfile:
     minimum_score: int = 24
     medium_score: int = 40
     high_score: int = 65
+    title_strong_weight: int = 18
+    title_weak_weight: int = 7
+    body_strong_weight: int = 8
+    body_weak_weight: int = 3
+    tag_strong_weight: int = 12
+    tag_weak_weight: int = 5
+    action_bonus: int = 6
+    multi_direction_bonus: int = 8
+    okpd2_weight: int = 10
+    term_weight_percent: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         if not 0 <= self.minimum_score <= 100:
@@ -62,6 +73,17 @@ class CorterisSearchProfile:
             <= 100
         ):
             raise ValueError("Invalid relevance score thresholds")
+        weights = (
+            self.title_strong_weight, self.title_weak_weight,
+            self.body_strong_weight, self.body_weak_weight,
+            self.tag_strong_weight, self.tag_weak_weight,
+            self.action_bonus, self.multi_direction_bonus,
+            self.okpd2_weight,
+        )
+        if any(not 0 <= item <= 100 for item in weights):
+            raise ValueError("matching weights must be between 0 and 100")
+        if any(not 0 <= int(weight) <= 500 for _, weight in self.term_weight_percent):
+            raise ValueError("term weight percent must be between 0 and 500")
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +97,7 @@ class TenderRelevance:
     matched_exclusion_terms: tuple[str, ...]
     reasons: tuple[str, ...]
     hard_excluded: bool = False
+    matched_okpd2: tuple[str, ...] = ()
 
     @property
     def relevant(self) -> bool:
@@ -329,6 +352,21 @@ DEFAULT_CORTERIS_PROFILE = CorterisSearchProfile(
         "фотокамера",
         "доступ к информационной системе",
         "предоставление доступа к базе данных",
+        "капитальное строительство здания целиком",
+        "строительство здания под ключ",
+        "строительство автомобильной дороги",
+        "строительство дорог",
+        "генеральный подряд",
+        "генподряд",
+        "строительство метро",
+        "медицинская видеокамера",
+        "медицинские видеокамеры",
+        "бытовая веб камера",
+        "аренда съемочного оборудования",
+        "видеосъемка мероприятий",
+        "ремонт автомобилей",
+        "телестудийное оборудование",
+        "оборудование телестудии",
     ),
 )
 
@@ -376,6 +414,7 @@ class CorterisTenderClassifier:
         directions: list[TenderDirection] = []
         strong_matches: list[str] = []
         weak_matches: list[str] = []
+        okpd2_matches: list[str] = []
         reasons: list[str] = []
 
         for rule in self.profile.rules:
@@ -386,26 +425,37 @@ class CorterisTenderClassifier:
             for term in rule.strong_terms:
                 normalized_term = normalize_text(term)
                 if _contains_phrase(title, normalized_term):
-                    rule_score += self.TITLE_STRONG_WEIGHT
+                    rule_score += self._term_score(term, self.profile.title_strong_weight)
                     rule_strong.append(term)
                 elif _contains_phrase(tags, normalized_term):
-                    rule_score += self.TAG_STRONG_WEIGHT
+                    rule_score += self._term_score(term, self.profile.tag_strong_weight)
                     rule_strong.append(term)
                 elif _contains_phrase(body, normalized_term):
-                    rule_score += self.BODY_STRONG_WEIGHT
+                    rule_score += self._term_score(term, self.profile.body_strong_weight)
                     rule_strong.append(term)
 
             for term in rule.weak_terms:
                 normalized_term = normalize_text(term)
                 if _contains_phrase(title, normalized_term):
-                    rule_score += self.TITLE_WEAK_WEIGHT
+                    rule_score += self._term_score(term, self.profile.title_weak_weight)
                     rule_weak.append(term)
                 elif _contains_phrase(tags, normalized_term):
-                    rule_score += self.TAG_WEAK_WEIGHT
+                    rule_score += self._term_score(term, self.profile.tag_weak_weight)
                     rule_weak.append(term)
                 elif _contains_phrase(body, normalized_term):
-                    rule_score += self.BODY_WEAK_WEIGHT
+                    rule_score += self._term_score(term, self.profile.body_weak_weight)
                     rule_weak.append(term)
+
+            rule_okpd2 = tuple(
+                code for code in tender.classification_codes
+                if any(
+                    code.replace(" ", "").startswith(prefix.replace(" ", ""))
+                    for prefix in rule.okpd2_codes
+                )
+            )
+            if rule_okpd2:
+                rule_score += self.profile.okpd2_weight
+                okpd2_matches.extend(rule_okpd2)
 
             rule_score = min(rule_score, 42)
             if rule_score:
@@ -422,21 +472,18 @@ class CorterisTenderClassifier:
             self.profile.action_terms,
         )
         if directions and action_matches:
-            score += self.ACTION_BONUS
+            score += self.profile.action_bonus
             reasons.append(
                 "Есть работы/поставка по профильному направлению."
             )
 
         if len(directions) >= 2:
-            score += self.MULTI_DIRECTION_BONUS
+            score += self.profile.multi_direction_bonus
             reasons.append(
                 "Закупка объединяет несколько направлений Кортерис."
             )
 
-        has_strong_security_match = bool(strong_matches)
-        hard_excluded = bool(
-            exclusion_matches and not has_strong_security_match
-        )
+        hard_excluded = bool(exclusion_matches)
         if hard_excluded:
             score = 0
             reasons.append(
@@ -458,7 +505,15 @@ class CorterisTenderClassifier:
             ),
             reasons=tuple(reasons),
             hard_excluded=hard_excluded,
+            matched_okpd2=_ordered_unique(okpd2_matches),
         )
+
+    def _term_score(self, term: str, base: int) -> int:
+        configured = {
+            normalize_text(key): int(value)
+            for key, value in self.profile.term_weight_percent
+        }.get(normalize_text(term), 100)
+        return max(0, round(base * configured / 100))
 
     def _grade(
         self,

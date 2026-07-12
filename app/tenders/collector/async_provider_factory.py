@@ -15,6 +15,8 @@ from app.tenders.collector.participation_score import (
     CorterisParticipationRanker,
 )
 from app.tenders.collector.stop_factor import StopFactorEngine
+from app.tenders.matching_catalog import MatchingCatalogRepository
+from app.tenders.corteris_filter import CorterisTenderClassifier
 from app.tenders.collector.provider_settings import (
     ProviderEnablementRepository,
 )
@@ -138,11 +140,15 @@ def create_default_collector_service(
     capability = CompanyCapabilityProfileRepository(
         data_path / "company_capability_profile.json"
     ).load()
+    matching_profile = MatchingCatalogRepository(
+        data_path / "tender_registry.sqlite3"
+    ).load_profile()
     return CollectorService(
         engine,
         repository,
         ranker=CorterisParticipationRanker(
-            CorterisCompanyProfile.from_capability(capability)
+            CorterisCompanyProfile.from_capability(capability),
+            classifier=CorterisTenderClassifier(matching_profile),
         ),
         stop_factor_engine=StopFactorEngine(capability),
     )

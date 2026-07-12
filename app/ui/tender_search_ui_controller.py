@@ -53,6 +53,14 @@ from app.tenders.document_storage import (
     TenderDocumentDownloadService,
 )
 from app.tenders.models import UnifiedTender
+from app.tenders.corteris_filter import (
+    CorterisTenderClassifier,
+    CorterisTenderFilter,
+)
+from app.tenders.matching_catalog import (
+    MatchingCatalog,
+    MatchingCatalogRepository,
+)
 from app.tenders.requirement_analysis import (
     TenderRequirementAnalysis,
     TenderRequirementAnalysisService,
@@ -68,6 +76,7 @@ from app.tenders.search_runtime import (
 )
 from app.ui.tender_collector_dialog import TenderCollectorDialog
 from app.ui.company_capability_dialog import CompanyCapabilityDialog
+from app.ui.matching_catalog_dialog import MatchingCatalogDialog
 from app.ui.tender_collector_scheduler_controller import (
     TenderCollectorSchedulerUiController,
 )
@@ -447,6 +456,7 @@ class TenderSearchUiController(QObject):
         self._registry_dialog: TenderRegistryDialog | None = None
         self._provider_dialog: TenderProviderManagerDialog | None = None
         self._company_capability_dialog: CompanyCapabilityDialog | None = None
+        self._matching_catalog_dialog: MatchingCatalogDialog | None = None
         self._provider_check_worker: _ProviderCheckWorker | None = None
         self._provider_check_ids: tuple[str, ...] = ()
         self._collector_dialog: TenderCollectorDialog | None = None
@@ -569,6 +579,20 @@ class TenderSearchUiController(QObject):
             self.open_company_capability_dialog
         )
 
+        self.matching_catalog_action = QAction(
+            "Каталог сопоставления…",
+            self,
+        )
+        self.matching_catalog_action.setObjectName(
+            "actionMatchingCatalog"
+        )
+        self.matching_catalog_action.setStatusTip(
+            "Настроить ключевые слова, синонимы, ОКПД2, исключения и веса"
+        )
+        self.matching_catalog_action.triggered.connect(
+            self.open_matching_catalog_dialog
+        )
+
         self.scheduler_ui_controller = (
             TenderCollectorSchedulerUiController(
                 self.data_directory,
@@ -646,6 +670,8 @@ class TenderSearchUiController(QObject):
                 menu.addAction(self.collector_action)
             if self.company_capability_action not in menu.actions():
                 menu.addAction(self.company_capability_action)
+            if self.matching_catalog_action not in menu.actions():
+                menu.addAction(self.matching_catalog_action)
 
             toolbar = self._find_or_create_tender_toolbar(
                 main_window
@@ -666,6 +692,8 @@ class TenderSearchUiController(QObject):
                 toolbar.addAction(self.collector_action)
             if self.company_capability_action not in toolbar.actions():
                 toolbar.addAction(self.company_capability_action)
+            if self.matching_catalog_action not in toolbar.actions():
+                toolbar.addAction(self.matching_catalog_action)
             toolbar.setVisible(True)
         else:
             # Fallback for a QWidget-based shell: shortcuts still work.
@@ -679,6 +707,8 @@ class TenderSearchUiController(QObject):
                 main_window.addAction(self.collector_action)
             if self.company_capability_action not in main_window.actions():
                 main_window.addAction(self.company_capability_action)
+            if self.matching_catalog_action not in main_window.actions():
+                main_window.addAction(self.matching_catalog_action)
 
         self.scheduler_ui_controller.install_on_main_window(
             main_window,
@@ -731,6 +761,35 @@ class TenderSearchUiController(QObject):
         self._company_capability_dialog.open()
         self._company_capability_dialog.raise_()
         self._company_capability_dialog.activateWindow()
+
+    @Slot()
+    def open_matching_catalog_dialog(self) -> None:
+        parent = self.parent()
+        parent_widget = parent if isinstance(parent, QWidget) else None
+        repository = (
+            self.runtime.matching_catalog_repository
+            or MatchingCatalogRepository(
+                self.data_directory / "tender_registry.sqlite3"
+            )
+        )
+        if self._matching_catalog_dialog is None:
+            self._matching_catalog_dialog = MatchingCatalogDialog(
+                repository,
+                parent=parent_widget,
+            )
+            self._matching_catalog_dialog.catalog_saved.connect(
+                self._apply_matching_catalog
+            )
+        self._matching_catalog_dialog.load_catalog()
+        self._matching_catalog_dialog.open()
+        self._matching_catalog_dialog.raise_()
+        self._matching_catalog_dialog.activateWindow()
+
+    @Slot(object)
+    def _apply_matching_catalog(self, catalog: MatchingCatalog) -> None:
+        self.runtime.search_service.tender_filter = CorterisTenderFilter(
+            CorterisTenderClassifier(catalog.to_search_profile())
+        )
 
     @Slot()
     def open_registry_dialog(self) -> None:

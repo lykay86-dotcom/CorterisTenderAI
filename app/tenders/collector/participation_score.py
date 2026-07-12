@@ -337,36 +337,6 @@ class ParticipationScoringContext:
 
 DEFAULT_CORTERIS_COMPANY_PROFILE = CorterisCompanyProfile()
 
-_HARD_EXCLUSION_TERMS = (
-    "капитальное строительство здания целиком",
-    "строительство здания под ключ",
-    "строительство автомобильной дороги",
-    "строительство дорог",
-    "генеральный подряд",
-    "генподряд",
-    "строительство метро",
-    "медицинская видеокамера",
-    "медицинские видеокамеры",
-    "эндоскопическая камера",
-    "бытовая веб камера",
-    "веб камера",
-    "аренда съемочного оборудования",
-    "видеосъемка мероприятий",
-    "ремонт автомобилей",
-    "телестудийное оборудование",
-    "оборудование телестудии",
-)
-
-_PROTECTED_SECURITY_PHRASES = (
-    "капитальный ремонт системы видеонаблюдения",
-    "капитальный ремонт видеонаблюдения",
-    "ремонт скуд",
-    "модернизация пожарной сигнализации",
-    "проектирование и монтаж систем безопасности",
-    "капитальный ремонт системы контроля доступа",
-    "ремонт охранно пожарной сигнализации",
-)
-
 _SOFT_RISK_TERMS = (
     "общестроительные работы",
     "благоустройство территории",
@@ -440,15 +410,8 @@ class CorterisParticipationRanker:
             f"{metadata_text}\n{document_text}"
         )
 
-        protected = _find_terms(
-            normalized,
-            _PROTECTED_SECURITY_PHRASES,
-        )
-        hard_matches = _find_terms(
-            normalized,
-            _HARD_EXCLUSION_TERMS,
-        )
-        hard_excluded = bool(hard_matches and not protected)
+        hard_matches = relevance.matched_exclusion_terms
+        hard_excluded = relevance.hard_excluded
 
         matched_keywords = _ordered_unique(
             (
@@ -662,8 +625,7 @@ class CorterisParticipationRanker:
             normalized,
             context.requirement_analysis,
             missing_documents,
-            hard_matches,
-            protected,
+            hard_matches if hard_excluded else (),
         )
         components.append(
             ParticipationScoreComponent(
@@ -991,7 +953,6 @@ def _risk_score(
     analysis: TenderRequirementAnalysis | None,
     missing_documents: tuple[str, ...],
     hard_matches: tuple[str, ...],
-    protected: tuple[str, ...],
 ) -> tuple[int, str, tuple[str, ...]]:
     penalty = 0
     reasons: list[str] = []
@@ -1016,7 +977,7 @@ def _risk_score(
             reasons.append(
                 f"предупреждения анализа: {analysis.warning_count}"
             )
-    if hard_matches and not protected:
+    if hard_matches:
         penalty = 20
         reasons.append("жёсткое непрофильное исключение")
         stops.extend(hard_matches)
