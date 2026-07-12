@@ -39,7 +39,7 @@ def _save(repository, tender, run_id: str):
     return verification, summary
 
 
-def test_schema_v5_contains_review_and_freshness_tables(tmp_path) -> None:
+def test_current_schema_contains_review_and_freshness_tables(tmp_path) -> None:
     path = tmp_path / "tender_registry.sqlite3"
     repository = CollectorStateRepository(path)
     repository.initialize()

@@ -70,5 +70,10 @@ def test_registry_shows_verification_column_and_signal(tmp_path) -> None:
     assert dialog.table.horizontalHeaderItem(2).text() == "Достоверность"
     assert dialog.table.horizontalHeaderItem(3).text() == "Свежесть"
     assert dialog.table.item(0, 3).text() != "Не рассчитана"
+    freshness_tooltip = dialog.table.item(0, 3).toolTip()
+    assert "Исходный срок:" in freshness_tooltip
+    assert "Часовой пояс источника:" in freshness_tooltip
+    assert "UTC:" in freshness_tooltip
+    assert "Время пользователя:" in freshness_tooltip
     assert requested
     app.processEvents()

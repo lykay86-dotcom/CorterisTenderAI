@@ -46,7 +46,7 @@ def _save(
     return verification, freshness, summary
 
 
-def test_schema_v5_contains_freshness_state(tmp_path) -> None:
+def test_current_schema_contains_freshness_state(tmp_path) -> None:
     path = tmp_path / "tender_registry.sqlite3"
     repository = CollectorStateRepository(path)
     repository.initialize()

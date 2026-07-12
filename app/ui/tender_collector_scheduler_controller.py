@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal, Slot
@@ -40,6 +41,9 @@ from app.ui.tender_collector_schedule_dialog import (
     TenderCollectorScheduleDialog,
 )
 from app.ui.theme.colors import ThemeName
+
+
+LOGGER = logging.getLogger("corteris.tenders.collector.scheduler_ui")
 
 
 StartCollectorCallback = Callable[
@@ -317,9 +321,13 @@ class TenderCollectorSchedulerUiController(QObject):
                     due_items[0].verification_due_at
                     or due_items[0].updated_at
                 )
-        except Exception:
+        except Exception as exc:
             # The regular schedule must remain operational even when the
             # registry is temporarily locked or has not been created yet.
+            LOGGER.warning(
+                "Freshness queue is temporarily unavailable: %s",
+                exc,
+            )
             freshness_due_at = ""
         request = self.scheduler.poll(
             busy=self.is_collector_busy(),

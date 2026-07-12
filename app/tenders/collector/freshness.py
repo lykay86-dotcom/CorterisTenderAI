@@ -374,7 +374,21 @@ def _metadata_flag(
     metadata: Mapping[str, object],
     *keys: str,
 ) -> bool:
-    return any(bool(metadata.get(key)) for key in keys)
+    return any(_metadata_bool(metadata.get(key)) for key in keys)
+
+
+def _metadata_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        rendered = value.strip().casefold()
+        if rendered in {"1", "true", "yes", "да", "on"}:
+            return True
+        if rendered in {"", "0", "false", "no", "нет", "off", "none", "null"}:
+            return False
+    return False
 
 
 def _parse_timezone(value: str) -> tzinfo | None:

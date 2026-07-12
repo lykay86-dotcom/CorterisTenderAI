@@ -1019,7 +1019,7 @@ def _freshness_tooltip(
         f"Часовой пояс источника: {state.source_timezone or '—'} "
         f"({timezone_label})\n"
         f"UTC: {_format_timestamp(state.deadline_utc)}\n"
-        f"Локальное время: {_format_timestamp(state.deadline_user_local)} "
+        f"Время пользователя: {_format_timestamp(state.deadline_user_local)} "
         f"({state.user_timezone or '—'})\n"
         f"Последняя проверка: {_format_timestamp(state.last_verified_at)}\n"
         f"Следующая проверка: {_freshness_due_text(state)}"
