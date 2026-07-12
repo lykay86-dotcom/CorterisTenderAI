@@ -12,9 +12,13 @@ from app.tenders.collector.network_runtime import (
     create_collector_network_runtime,
 )
 from app.tenders.providers.eis_async import AsyncEisTenderProvider
+from app.tenders.providers.mos_supplier_api import (
+    AsyncMosSupplierTenderProvider,
+    MosSupplierApiConfig,
+)
 
 
-def test_factory_registers_only_real_native_eis(tmp_path) -> None:
+def test_factory_registers_eis_and_moscow_supplier(tmp_path) -> None:
     async def scenario() -> None:
         raw = httpx.AsyncClient(
             transport=httpx.MockTransport(
@@ -22,14 +26,25 @@ def test_factory_registers_only_real_native_eis(tmp_path) -> None:
             )
         )
         runtime = create_collector_network_runtime(client=raw)
-        service = create_default_collector_service(tmp_path, runtime)
+        service = create_default_collector_service(
+            tmp_path,
+            runtime,
+            mos_supplier_config=MosSupplierApiConfig(api_token=""),
+        )
         providers = service.engine.providers
 
-        assert len(providers) == 1
+        assert len(providers) == 2
         assert isinstance(providers[0], AsyncEisTenderProvider)
-        assert providers[0].descriptor.id == "eis"
-        assert providers[0].descriptor.implementation_status == (
-            "public_html_async"
+        assert isinstance(providers[1], AsyncMosSupplierTenderProvider)
+        assert [item.descriptor.id for item in providers] == [
+            "eis",
+            "mos_supplier",
+        ]
+        assert providers[1].descriptor.implementation_status == (
+            "official_api_token_required"
+        )
+        assert providers[1].validate_configuration()[0].startswith(
+            "Требуется bearer-токен"
         )
         await raw.aclose()
 
@@ -44,9 +59,19 @@ def test_provider_factory_has_no_commercial_placeholders() -> None:
             )
         )
         runtime = create_collector_network_runtime(client=raw)
-        providers = create_default_async_providers(runtime)
+        providers = create_default_async_providers(
+            runtime,
+            mos_supplier_config=MosSupplierApiConfig(api_token="token"),
+        )
 
-        assert [item.descriptor.id for item in providers] == ["eis"]
+        assert [item.descriptor.id for item in providers] == [
+            "eis",
+            "mos_supplier",
+        ]
+        assert all(
+            item.descriptor.implementation_status != "placeholder"
+            for item in providers
+        )
         await raw.aclose()
 
     asyncio.run(scenario())

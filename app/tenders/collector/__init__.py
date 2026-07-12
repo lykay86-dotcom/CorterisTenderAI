@@ -83,9 +83,10 @@ from app.tenders.collector.eis_checkpoint import (
     EisCheckpointPolicy,
     EisPreparedQuery,
 )
-from app.tenders.collector.async_provider_factory import (
-    create_default_async_providers,
-    create_default_collector_service,
+from app.tenders.collector.mos_supplier_checkpoint import (
+    MosSupplierCheckpointCoordinator,
+    MosSupplierCheckpointPolicy,
+    MosSupplierPreparedQuery,
 )
 from app.tenders.collector.health_monitor import (
     ProviderCircuitOpenError,
@@ -109,6 +110,26 @@ from app.tenders.collector.rate_limiter import (
     RateLimitPolicy,
     RateLimitSnapshot,
 )
+
+
+def create_default_async_providers(*args, **kwargs):
+    """Lazy composition import avoiding provider/package cycles."""
+
+    from app.tenders.collector.async_provider_factory import (
+        create_default_async_providers as factory,
+    )
+
+    return factory(*args, **kwargs)
+
+
+def create_default_collector_service(*args, **kwargs):
+    """Lazy composition import avoiding provider/package cycles."""
+
+    from app.tenders.collector.async_provider_factory import (
+        create_default_collector_service as factory,
+    )
+
+    return factory(*args, **kwargs)
 
 __all__ = [
     "COLLECTOR_SCHEMA_VERSION",
@@ -169,6 +190,9 @@ __all__ = [
     "EisCheckpointPolicy",
     "EisPreparedQuery",
     "LegacySyncProviderAdapter",
+    "MosSupplierCheckpointCoordinator",
+    "MosSupplierCheckpointPolicy",
+    "MosSupplierPreparedQuery",
     "ProviderCircuitOpenError",
     "ProviderHealthMonitor",
     "ProviderHealthPolicy",

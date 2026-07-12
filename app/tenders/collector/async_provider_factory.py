@@ -9,12 +9,17 @@ from app.tenders.collector.collector_service import CollectorService
 from app.tenders.collector.network_runtime import CollectorNetworkRuntime
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.providers.eis_async import AsyncEisTenderProvider
+from app.tenders.providers.mos_supplier_api import (
+    AsyncMosSupplierTenderProvider,
+    MosSupplierApiConfig,
+)
 
 
 def create_default_async_providers(
     network_runtime: CollectorNetworkRuntime,
     *,
     repository: CollectorStateRepository | None = None,
+    mos_supplier_config: MosSupplierApiConfig | None = None,
 ):
     """Return only providers that are genuinely implemented.
 
@@ -28,6 +33,17 @@ def create_default_async_providers(
             network_settings=network_runtime.settings.get("eis"),
             checkpoint_repository=repository,
         ),
+        AsyncMosSupplierTenderProvider(
+            network_runtime.http_client,
+            config=(
+                mos_supplier_config
+                or MosSupplierApiConfig.from_environment()
+            ),
+            network_settings=network_runtime.settings.get(
+                "mos_supplier"
+            ),
+            checkpoint_repository=repository,
+        ),
     )
 
 
@@ -36,6 +52,7 @@ def create_default_collector_service(
     network_runtime: CollectorNetworkRuntime,
     *,
     provider_timeout_seconds: float = 90.0,
+    mos_supplier_config: MosSupplierApiConfig | None = None,
 ) -> CollectorService:
     """Build the first production collector pipeline without network I/O."""
 
@@ -48,6 +65,7 @@ def create_default_collector_service(
     providers = create_default_async_providers(
         network_runtime,
         repository=repository,
+        mos_supplier_config=mos_supplier_config,
     )
     engine = AsyncProviderSearchEngine(
         providers,

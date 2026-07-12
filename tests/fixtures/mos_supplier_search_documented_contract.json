@@ -1,0 +1,44 @@
+{
+  "_fixture_note": "Documentation-derived contract fixture. It contains only fields named in the official Portal documentation and is not a captured live response.",
+  "result": {
+    "items": [
+      {
+        "id": 9294080,
+        "number": "КС-9294080",
+        "name": "Поставка и монтаж системы видеонаблюдения",
+        "status": {"name": "Прием предложений"},
+        "customer": {
+          "name": "ГБУ города Москвы «Тестовый заказчик»",
+          "inn": "7701234567",
+          "region": "Москва"
+        },
+        "startPrice": "1250000.50",
+        "publishDate": "2026-07-01T09:00:00+03:00",
+        "endDate": "2026-07-15T12:00:00+03:00",
+        "description": "Поставка 12 IP-камер, видеорегистратора и монтажные работы.",
+        "okpd2Codes": ["26.40.33.110", "43.21.10.290"],
+        "documents": [
+          {
+            "id": "260360731",
+            "fileName": "Техническое задание.pdf",
+            "mimeType": "application/pdf",
+            "sizeBytes": 154321
+          }
+        ]
+      },
+      {
+        "id": 9294081,
+        "number": "КС-9294081",
+        "name": "Строительство автомобильной дороги",
+        "statusName": "Опубликована",
+        "customerName": "ГКУ города Москвы «Дороги»",
+        "customerInn": "7707654321",
+        "regionName": "Москва",
+        "initialPrice": 9000000,
+        "publicationDate": "2026-07-02T10:00:00+03:00",
+        "applicationEndDate": "2026-07-20T12:00:00+03:00"
+      }
+    ],
+    "totalCount": 2
+  }
+}

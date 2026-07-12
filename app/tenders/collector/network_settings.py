@@ -117,11 +117,30 @@ def default_collector_network_settings() -> CollectorNetworkSettings:
         ),
         "mos_supplier": ProviderNetworkSettings(
             provider_id="mos_supplier",
-            domains=("zakupki.mos.ru",),
-            timeouts=generic_timeouts,
-            retry=generic_retry,
-            rate_limit=generic_rate,
-            health=generic_health,
+            domains=("api.zakupki.mos.ru", "zakupki.mos.ru"),
+            timeouts=AsyncHttpTimeouts(
+                connect_seconds=15,
+                read_seconds=40,
+                write_seconds=30,
+                pool_seconds=10,
+            ),
+            retry=AsyncRetryPolicy(
+                max_attempts=3,
+                base_delay_seconds=1.0,
+                max_delay_seconds=20,
+            ),
+            rate_limit=RateLimitPolicy(
+                requests_per_second=1.0,
+                max_concurrent=1,
+                min_interval_seconds=1.0,
+                max_retries=2,
+                block_after_429_seconds=120,
+            ),
+            health=ProviderHealthPolicy(
+                failure_threshold=3,
+                cooldown_seconds=600,
+                unavailable_threshold=8,
+            ),
         ),
     }
     return CollectorNetworkSettings(providers=providers)

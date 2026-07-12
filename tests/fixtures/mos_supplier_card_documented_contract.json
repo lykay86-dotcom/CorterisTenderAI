@@ -1,0 +1,37 @@
+{
+  "_fixture_note": "Documentation-derived contract fixture. It is intentionally not labelled as a live API capture.",
+  "data": {
+    "id": "9294080",
+    "auctionNumber": "КС-9294080",
+    "auctionName": "Поставка и монтаж системы видеонаблюдения",
+    "auctionStatus": "Прием предложений",
+    "organization": {
+      "fullName": "ГБУ города Москвы «Тестовый заказчик»",
+      "INN": "7701234567",
+      "regionName": "Москва"
+    },
+    "initialContractPrice": {"amount": "1250000.50"},
+    "datePublished": "01.07.2026 09:00",
+    "proposalEndDate": "15.07.2026 12:00",
+    "conditions": "Поставка, монтаж, настройка и ввод в эксплуатацию.",
+    "auctionUrl": "/auction/9294080",
+    "files": [
+      {
+        "fileId": "260360731",
+        "originalName": "Техническое задание.pdf",
+        "contentType": "application/pdf",
+        "fileSize": 154321
+      },
+      {
+        "fileId": "260360732",
+        "originalName": "Проект договора.docx",
+        "downloadUrl": "/newapi/api/FileStorage/Download?id=260360732",
+        "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      }
+    ],
+    "products": [
+      {"code": "26.40.33.110"},
+      {"okpd2": "43.21.10.290"}
+    ]
+  }
+}

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 class TenderSource(StrEnum):
     EIS = "eis"
+    MOS_SUPPLIER = "mos_supplier"
     SBER_A = "sber_a"
     RTS_TENDER = "rts_tender"
     ROSELTORG = "roseltorg"
