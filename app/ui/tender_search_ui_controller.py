@@ -42,7 +42,7 @@ from app.tenders.providers.mos_supplier_config import (
     MOS_SUPPLIER_KEYRING_SECRET,
     MosSupplierApiConfig,
 )
-from app.security.secrets import save_secret
+from app.security.secrets import load_secret, save_secret
 from app.tenders.collector.run_session import CollectorRunSession
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.verification_review import (
@@ -1169,10 +1169,18 @@ class TenderSearchUiController(QObject):
             return
         try:
             save_secret(MOS_SUPPLIER_KEYRING_SECRET, dialog.token)
+            saved_token = load_secret(MOS_SUPPLIER_KEYRING_SECRET)
         except Exception as exc:
             if self._provider_dialog is not None:
                 self._provider_dialog.set_status(
                     f"Не удалось сохранить API-ключ: {type(exc).__name__}",
+                    error=True,
+                )
+            return
+        if saved_token != dialog.token:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Хранилище Windows не подтвердило сохранение API-ключа.",
                     error=True,
                 )
             return
