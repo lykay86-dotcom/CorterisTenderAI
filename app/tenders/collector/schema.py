@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 6
+COLLECTOR_SCHEMA_VERSION = 7
 
 
 class CollectorSchemaMigrator:
@@ -169,6 +169,55 @@ class CollectorSchemaMigrator:
 
             CREATE INDEX IF NOT EXISTS idx_collector_scores_registry
                 ON collector_tender_scores(registry_key, scored_at DESC);
+
+            CREATE TABLE IF NOT EXISTS collector_stop_factor_assessments (
+                assessment_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL DEFAULT '',
+                registry_key TEXT NOT NULL,
+                status TEXT NOT NULL,
+                evaluated_at TEXT NOT NULL,
+                input_fingerprint TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                UNIQUE (registry_key, input_fingerprint),
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_collector_stop_assessments_registry
+                ON collector_stop_factor_assessments(
+                    registry_key,
+                    evaluated_at DESC
+                );
+            CREATE INDEX IF NOT EXISTS idx_collector_stop_assessments_status
+                ON collector_stop_factor_assessments(status, evaluated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS collector_stop_factors (
+                factor_id TEXT NOT NULL,
+                assessment_id TEXT NOT NULL,
+                registry_key TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                status TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                criticality TEXT NOT NULL,
+                document_name TEXT NOT NULL,
+                page_reference TEXT NOT NULL,
+                section_name TEXT NOT NULL,
+                quote_fragment TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                remediation TEXT NOT NULL,
+                PRIMARY KEY (assessment_id, factor_id),
+                FOREIGN KEY (assessment_id)
+                    REFERENCES collector_stop_factor_assessments(assessment_id)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_collector_stop_factors_registry
+                ON collector_stop_factors(registry_key, status, kind);
             CREATE INDEX IF NOT EXISTS idx_collector_scores_run
                 ON collector_tender_scores(run_id);
             CREATE INDEX IF NOT EXISTS idx_collector_scores_total

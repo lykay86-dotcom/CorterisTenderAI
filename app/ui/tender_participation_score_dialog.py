@@ -271,8 +271,11 @@ def _render_details(score: CorterisParticipationScore) -> str:
         )
         return f"<h3>{escape(title)}</h3><ul>{rendered}</ul>"
 
+    stop_evidence = _render_stop_factor_evidence(score)
+
     return (
-        section("Положительные факторы", score.positive_factors)
+        stop_evidence
+        + section("Положительные факторы", score.positive_factors)
         + section("Отрицательные факторы", score.negative_factors)
         + section("Найденные ключевые слова", score.matched_keywords)
         + section("Совпадения ОКПД2", score.matched_okpd2)
@@ -280,6 +283,46 @@ def _render_details(score: CorterisParticipationScore) -> str:
         + section("Недостающие документы", score.missing_documents)
         + section("Источники доказательств", score.evidence_sources)
     )
+
+
+def _render_stop_factor_evidence(score: CorterisParticipationScore) -> str:
+    assessment = score.stop_factor_assessment
+    if assessment is None:
+        return ""
+    status_text = {
+        "clear": "CLEAR — блокирующие условия не выявлены",
+        "conditional": "CONDITIONAL — участие возможно после устранения условий",
+        "data_insufficient": "DATA_INSUFFICIENT — данных недостаточно для решения",
+        "blocked_by_requirement": (
+            "BLOCKED_BY_REQUIREMENT — участие заблокировано требованием"
+        ),
+    }[assessment.status.value]
+    cards = []
+    for factor in assessment.factors:
+        evidence = factor.evidence
+        cards.append(
+            "<li><b>{}</b> [{}]<br>{}<br>"
+            "<b>Файл:</b> {} · <b>Страница:</b> {} · "
+            "<b>Раздел:</b> {}<br><b>Фрагмент:</b> «{}»<br>"
+            "<b>Confidence:</b> {:.0%}<br>"
+            "<b>Способ устранения:</b> {}</li>".format(
+                escape(factor.title),
+                escape(factor.status.value),
+                escape(factor.description),
+                escape(evidence.document),
+                escape(evidence.page),
+                escape(evidence.section),
+                escape(evidence.quote),
+                evidence.confidence,
+                escape(evidence.remediation),
+            )
+        )
+    details = (
+        f"<ul>{''.join(cards)}</ul>"
+        if cards
+        else "<p>Факторы не выявлены.</p>"
+    )
+    return f"<h2>Решение Stop-Factor: {escape(status_text)}</h2>{details}"
 
 
 __all__ = ["TenderParticipationScoreDialog"]

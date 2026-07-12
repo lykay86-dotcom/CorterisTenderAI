@@ -297,6 +297,24 @@ __all__ += [
     "CorterisParticipationScoreService",
 ]
 
+from app.tenders.collector.stop_factor import (
+    StopFactor,
+    StopFactorAssessment,
+    StopFactorEngine,
+    StopFactorEvidence,
+    StopFactorKind,
+    StopFactorStatus,
+)
+
+__all__ += [
+    "StopFactor",
+    "StopFactorAssessment",
+    "StopFactorEngine",
+    "StopFactorEvidence",
+    "StopFactorKind",
+    "StopFactorStatus",
+]
+
 from app.tenders.collector.verification import (
     FieldCandidate,
     FieldConflict,

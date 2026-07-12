@@ -10,7 +10,9 @@ from PySide6.QtWidgets import QApplication
 
 from app.tenders.collector.participation_score import (
     CorterisParticipationRanker,
+    ParticipationScoringContext,
 )
+from app.tenders.collector.stop_factor import StopFactorEngine
 from app.ui.tender_participation_score_dialog import (
     TenderParticipationScoreDialog,
 )
@@ -35,4 +37,29 @@ def test_dialog_renders_components_and_recalculate_signal() -> None:
 
     assert dialog.components_table.rowCount() == len(score.components)
     assert requested == ["procurement:test"]
+    app.processEvents()
+
+
+def test_dialog_renders_structured_stop_factor_evidence() -> None:
+    app = _app()
+    tender = make_tender()
+    assessment = StopFactorEngine().evaluate(
+        "procurement:test",
+        tender,
+    )
+    score = CorterisParticipationRanker().score(
+        tender,
+        ParticipationScoringContext(stop_factor_assessment=assessment),
+    )
+    dialog = TenderParticipationScoreDialog(
+        "procurement:test",
+        score=score,
+    )
+
+    rendered = dialog.details.toPlainText()
+    assert "DATA_INSUFFICIENT" in rendered
+    assert "Файл:" in rendered
+    assert "Страница:" in rendered
+    assert "Confidence:" in rendered
+    assert "Способ устранения:" in rendered
     app.processEvents()

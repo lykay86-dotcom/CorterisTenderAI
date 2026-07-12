@@ -21,6 +21,10 @@ from app.tenders.collector.currency import (
     CurrencyRateUnavailableError,
     ExchangeRateBook,
 )
+from app.tenders.collector.stop_factor import (
+    StopFactorAssessment,
+    StopFactorStatus,
+)
 from app.tenders.models import UnifiedTender, normalize_currency_code
 from app.tenders.requirement_analysis import (
     FindingSeverity,
@@ -72,6 +76,7 @@ class CorterisParticipationScore:
     profile_version: str
     input_fingerprint: str
     evidence_sources: tuple[str, ...] = ()
+    stop_factor_assessment: StopFactorAssessment | None = None
 
     def __post_init__(self) -> None:
         if not 0 <= self.total_score <= 100:
@@ -83,6 +88,10 @@ class CorterisParticipationScore:
     def accepted_for_registry(self) -> bool:
         return (
             not self.hard_excluded
+            and (
+                self.stop_factor_assessment is None
+                or not self.stop_factor_assessment.blocks_participation
+            )
             and self.recommendation
             != ParticipationRecommendation.NOT_RECOMMENDED
         )
@@ -114,6 +123,11 @@ class CorterisParticipationScore:
             "profile_version": self.profile_version,
             "input_fingerprint": self.input_fingerprint,
             "evidence_sources": list(self.evidence_sources),
+            "stop_factor_assessment": (
+                self.stop_factor_assessment.to_payload()
+                if self.stop_factor_assessment is not None
+                else None
+            ),
         }
 
     @classmethod
@@ -136,6 +150,7 @@ class CorterisParticipationScore:
                         explanation=str(raw.get("explanation", "")),
                     )
                 )
+        raw_stop_assessment = payload.get("stop_factor_assessment")
         return cls(
             total_score=int(payload.get("total_score", 0)),
             recommendation=ParticipationRecommendation(
@@ -177,6 +192,11 @@ class CorterisParticipationScore:
             ),
             evidence_sources=_string_tuple(
                 payload.get("evidence_sources", ())
+            ),
+            stop_factor_assessment=(
+                StopFactorAssessment.from_payload(dict(raw_stop_assessment))
+                if isinstance(raw_stop_assessment, Mapping)
+                else None
             ),
         )
 
@@ -306,6 +326,7 @@ class ParticipationScoringContext:
     now: datetime | None = None
     evidence_sources: tuple[str, ...] = ()
     exchange_rates: ExchangeRateBook | None = None
+    stop_factor_assessment: StopFactorAssessment | None = None
 
     @property
     def document_text(self) -> str:
@@ -675,7 +696,17 @@ class CorterisParticipationRanker:
                 + "."
             )
             total = min(total, 64)
+        structured_stop = context.stop_factor_assessment
+        if structured_stop is not None:
+            stop_factors.extend(item.title for item in structured_stop.factors)
         recommendation = _recommendation(total, hard_excluded)
+        if structured_stop is not None:
+            if structured_stop.status == StopFactorStatus.BLOCKED_BY_REQUIREMENT:
+                recommendation = ParticipationRecommendation.NOT_RECOMMENDED
+            elif structured_stop.status == StopFactorStatus.DATA_INSUFFICIENT:
+                recommendation = ParticipationRecommendation.MANUAL_REVIEW
+            elif structured_stop.status == StopFactorStatus.CONDITIONAL:
+                recommendation = ParticipationRecommendation.POSSIBLE_WITH_CONDITIONS
 
         if missing_documents:
             negative.append(
@@ -710,6 +741,7 @@ class CorterisParticipationRanker:
             evidence_sources=_ordered_unique(
                 context.evidence_sources
             ),
+            stop_factor_assessment=structured_stop,
         )
 
     def _region_score(
@@ -1141,6 +1173,11 @@ def _input_fingerprint(
         "exchange_rates": (
             context.exchange_rates.fingerprint
             if context.exchange_rates is not None
+            else ""
+        ),
+        "stop_factor_assessment": (
+            context.stop_factor_assessment.input_fingerprint
+            if context.stop_factor_assessment is not None
             else ""
         ),
         "profile": profile_version,

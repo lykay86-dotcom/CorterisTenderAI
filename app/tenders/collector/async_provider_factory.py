@@ -14,6 +14,7 @@ from app.tenders.collector.participation_score import (
     CorterisCompanyProfile,
     CorterisParticipationRanker,
 )
+from app.tenders.collector.stop_factor import StopFactorEngine
 from app.tenders.collector.provider_settings import (
     ProviderEnablementRepository,
 )
@@ -143,6 +144,7 @@ def create_default_collector_service(
         ranker=CorterisParticipationRanker(
             CorterisCompanyProfile.from_capability(capability)
         ),
+        stop_factor_engine=StopFactorEngine(capability),
     )
 
 

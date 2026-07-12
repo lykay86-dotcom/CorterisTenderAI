@@ -15,6 +15,7 @@ from app.tenders.collector.models import (
 from app.tenders.collector.normalizer import TenderNormalizer
 from app.tenders.collector.participation_score import (
     CorterisParticipationRanker,
+    ParticipationScoringContext,
 )
 from app.tenders.collector.progress import (
     CollectorProgressCallback,
@@ -23,6 +24,10 @@ from app.tenders.collector.progress import (
     emit_collector_progress,
 )
 from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.collector.stop_factor import (
+    StopFactorEngine,
+    StopFactorStatus,
+)
 from app.tenders.collector.verification import (
     TenderVerificationService,
 )
@@ -42,6 +47,7 @@ class CollectorService:
         ranker: CorterisParticipationRanker | None = None,
         verifier: TenderVerificationService | None = None,
         freshness_service: TenderFreshnessService | None = None,
+        stop_factor_engine: StopFactorEngine | None = None,
     ) -> None:
         self.engine = engine
         self.repository = repository
@@ -57,6 +63,7 @@ class CollectorService:
         self.freshness_service = (
             freshness_service or TenderFreshnessService()
         )
+        self.stop_factor_engine = stop_factor_engine
 
     async def collect(
         self,
@@ -170,8 +177,23 @@ class CollectorService:
                     message="Расчёт объяснимого рейтинга Кортерис…",
                 ),
             )
+            stop_assessments = {
+                item.canonical_key: self.stop_factor_engine.evaluate(
+                    item.canonical_key,
+                    item.tender,
+                    now=None,
+                )
+                for item in verified_deduplication.items
+            } if self.stop_factor_engine is not None else {}
             rankings = {
-                item.canonical_key: self.ranker.score(item.tender)
+                item.canonical_key: self.ranker.score(
+                    item.tender,
+                    ParticipationScoringContext(
+                        stop_factor_assessment=stop_assessments.get(
+                            item.canonical_key
+                        )
+                    ),
+                )
                 for item in verified_deduplication.items
             }
 
@@ -250,6 +272,19 @@ class CollectorService:
                     "high_score_count": sum(
                         score.total_score >= 80
                         for score in rankings.values()
+                    ),
+                    "stop_factor_blocked_count": sum(
+                        item.status
+                        == StopFactorStatus.BLOCKED_BY_REQUIREMENT
+                        for item in stop_assessments.values()
+                    ),
+                    "stop_factor_data_insufficient_count": sum(
+                        item.status == StopFactorStatus.DATA_INSUFFICIENT
+                        for item in stop_assessments.values()
+                    ),
+                    "stop_factor_conditional_count": sum(
+                        item.status == StopFactorStatus.CONDITIONAL
+                        for item in stop_assessments.values()
                     ),
                 },
             )

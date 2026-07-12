@@ -32,6 +32,7 @@ from app.tenders.collector.freshness import (
     TenderFreshnessState,
     TenderFreshnessStatus,
 )
+from app.tenders.collector.stop_factor import StopFactorAssessment
 from app.tenders.collector.models import (
     CollectionPersistenceSummary,
     CollectionRunRecord,
@@ -1780,6 +1781,34 @@ class CollectorStateRepository:
             return None
         return CorterisParticipationScore.from_payload(payload)
 
+    def get_latest_stop_factor_assessment(
+        self,
+        registry_key: str,
+    ) -> StopFactorAssessment | None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT payload_json
+                FROM collector_stop_factor_assessments
+                WHERE registry_key = ?
+                ORDER BY evaluated_at DESC, rowid DESC
+                LIMIT 1
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = json.loads(str(row["payload_json"]))
+        return (
+            StopFactorAssessment.from_payload(dict(payload))
+            if isinstance(payload, Mapping)
+            else None
+        )
+
     def list_run_scores(
         self,
         run_id: str,
@@ -1856,6 +1885,13 @@ class CollectorStateRepository:
                 payload,
             ),
         )
+        if score.stop_factor_assessment is not None:
+            CollectorStateRepository._upsert_stop_factor_assessment(
+                connection,
+                registry_key,
+                score.stop_factor_assessment,
+                run_id=run_id,
+            )
         connection.execute(
             """
             UPDATE tender_records
@@ -1871,6 +1907,80 @@ class CollectorStateRepository:
                 registry_key,
             ),
         )
+
+    @staticmethod
+    def _upsert_stop_factor_assessment(
+        connection: sqlite3.Connection,
+        registry_key: str,
+        assessment: StopFactorAssessment,
+        *,
+        run_id: str,
+    ) -> None:
+        assessment_id = uuid4().hex
+        existing = connection.execute(
+            """
+            SELECT assessment_id
+            FROM collector_stop_factor_assessments
+            WHERE registry_key = ? AND input_fingerprint = ?
+            """,
+            (registry_key, assessment.input_fingerprint),
+        ).fetchone()
+        if existing is not None:
+            assessment_id = str(existing["assessment_id"])
+        connection.execute(
+            """
+            INSERT INTO collector_stop_factor_assessments(
+                assessment_id, run_id, registry_key, status,
+                evaluated_at, input_fingerprint, payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(registry_key, input_fingerprint) DO UPDATE SET
+                run_id=excluded.run_id,
+                status=excluded.status,
+                evaluated_at=excluded.evaluated_at,
+                payload_json=excluded.payload_json
+            """,
+            (
+                assessment_id,
+                run_id.strip(),
+                registry_key,
+                assessment.status.value,
+                assessment.evaluated_at,
+                assessment.input_fingerprint,
+                stable_json(assessment.to_payload()),
+            ),
+        )
+        connection.execute(
+            "DELETE FROM collector_stop_factors WHERE assessment_id = ?",
+            (assessment_id,),
+        )
+        for factor in assessment.factors:
+            evidence = factor.evidence
+            connection.execute(
+                """
+                INSERT INTO collector_stop_factors(
+                    factor_id, assessment_id, registry_key, kind, status,
+                    title, description, criticality, document_name,
+                    page_reference, section_name, quote_fragment,
+                    confidence, remediation
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    factor.factor_id,
+                    assessment_id,
+                    registry_key,
+                    factor.kind.value,
+                    factor.status.value,
+                    factor.title,
+                    factor.description,
+                    factor.criticality,
+                    evidence.document,
+                    evidence.page,
+                    evidence.section,
+                    evidence.quote,
+                    evidence.confidence,
+                    evidence.remediation,
+                ),
+            )
 
     def save_checkpoint(
         self,

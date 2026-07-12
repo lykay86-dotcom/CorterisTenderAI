@@ -12,6 +12,7 @@ from app.tenders.collector.company_capability import (
     CompanyCapabilityProfileRepository,
 )
 from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.collector.stop_factor import StopFactorEngine
 from app.tenders.document_text_extractor import TenderDocumentTextService
 from app.tenders.requirement_analysis import (
     TenderRequirementAnalysisService,
@@ -33,6 +34,7 @@ class CorterisParticipationScoreService:
         ) = None,
         ranker: CorterisParticipationRanker | None = None,
         capability_repository: CompanyCapabilityProfileRepository | None = None,
+        stop_factor_engine: StopFactorEngine | None = None,
         max_document_characters: int = 2_000_000,
     ) -> None:
         if max_document_characters < 1000:
@@ -45,6 +47,7 @@ class CorterisParticipationScoreService:
         self.requirement_analysis_service = requirement_analysis_service
         self.ranker = ranker
         self.capability_repository = capability_repository
+        self.stop_factor_engine = stop_factor_engine
         self.max_document_characters = int(
             max_document_characters
         )
@@ -105,12 +108,12 @@ class CorterisParticipationScoreService:
             sources.append("Структурированный анализ требований")
 
         ranker = self.ranker
+        capability = (
+            self.capability_repository.load()
+            if self.capability_repository is not None
+            else None
+        )
         if ranker is None:
-            capability = (
-                self.capability_repository.load()
-                if self.capability_repository is not None
-                else None
-            )
             ranker = (
                 CorterisParticipationRanker(
                     CorterisCompanyProfile.from_capability(capability)
@@ -118,12 +121,21 @@ class CorterisParticipationScoreService:
                 if capability is not None
                 else CorterisParticipationRanker()
             )
+        stop_engine = self.stop_factor_engine
+        if stop_engine is None and capability is not None:
+            stop_engine = StopFactorEngine(capability)
+        stop_assessment = (
+            stop_engine.evaluate(normalized, tender, analysis=analysis)
+            if stop_engine is not None
+            else None
+        )
         score = ranker.score(
             tender,
             ParticipationScoringContext(
                 document_texts=tuple(texts),
                 requirement_analysis=analysis,
                 evidence_sources=tuple(sources),
+                stop_factor_assessment=stop_assessment,
             ),
         )
         if persist:
