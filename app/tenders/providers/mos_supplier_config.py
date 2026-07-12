@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import os
-from typing import Mapping
+from typing import Callable, Mapping
+
+from app.security.secrets import load_secret
+
+
+SecretLoader = Callable[[str], str | None]
+MOS_SUPPLIER_KEYRING_SECRET = "collector.mos_supplier.api_key"
 
 @dataclass(frozen=True, slots=True)
 class MosSupplierApiConfig:
@@ -30,13 +36,19 @@ class MosSupplierApiConfig:
     def from_environment(
         cls,
         environment: Mapping[str, str] | None = None,
+        *,
+        secret_loader: SecretLoader | None = None,
     ) -> "MosSupplierApiConfig":
         env = environment if environment is not None else os.environ
         defaults = cls()
+        api_token = str(
+            env.get(defaults.token_environment_variable, "")
+        ).strip()
+        if not api_token:
+            loader = secret_loader or _load_keyring_secret_safely
+            api_token = str(loader(MOS_SUPPLIER_KEYRING_SECRET) or "").strip()
         return cls(
-            api_token=str(
-                env.get(defaults.token_environment_variable, "")
-            ).strip(),
+            api_token=api_token,
             search_url=str(
                 env.get(
                     defaults.search_url_environment_variable,
@@ -63,8 +75,15 @@ class MosSupplierApiConfig:
         if len(token) <= 8:
             return "*" * len(token)
         return f"{token[:4]}…{token[-4:]}"
+def _load_keyring_secret_safely(name: str) -> str | None:
+    """Do not prevent startup when the OS credential backend is unavailable."""
+    try:
+        return load_secret(name)
+    except Exception:
+        return None
 
 
-
-
-__all__ = ["MosSupplierApiConfig"]
+__all__ = [
+    "MOS_SUPPLIER_KEYRING_SECRET",
+    "MosSupplierApiConfig",
+]

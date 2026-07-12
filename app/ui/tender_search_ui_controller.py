@@ -38,6 +38,11 @@ from app.tenders.collector.provider_control import (
     CollectorProviderManager,
     ProviderDisplayState,
 )
+from app.tenders.providers.mos_supplier_config import (
+    MOS_SUPPLIER_KEYRING_SECRET,
+    MosSupplierApiConfig,
+)
+from app.security.secrets import save_secret
 from app.tenders.collector.run_session import CollectorRunSession
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.verification_review import (
@@ -94,6 +99,7 @@ from app.ui.tender_participation_score_dialog import (
 from app.ui.tender_provider_manager_dialog import (
     TenderProviderManagerDialog,
 )
+from app.ui.provider_credentials_dialog import ProviderCredentialsDialog
 from app.ui.tender_registry_dialog import TenderRegistryDialog
 from app.ui.tender_verification_dialog import TenderVerificationDialog
 from app.ui.tender_requirement_analysis_dialog import (
@@ -1085,6 +1091,9 @@ class TenderSearchUiController(QObject):
             self._provider_dialog.provider_check_requested.connect(
                 self.check_provider_connection
             )
+            self._provider_dialog.provider_configuration_requested.connect(
+                self.configure_provider_credentials
+            )
             self._provider_dialog.check_all_requested.connect(
                 self.check_all_provider_connections
             )
@@ -1129,11 +1138,49 @@ class TenderSearchUiController(QObject):
         self.refresh_provider_states()
         if self._provider_dialog is not None:
             self._provider_dialog.set_status(
-                (
-                    "Источник включён."
-                    if enabled
-                    else "Источник отключён."
+                "Источник включён." if enabled else "Источник отключён."
+            )
+
+    @Slot(str)
+    def configure_provider_credentials(self, provider_id: str) -> None:
+        if provider_id.strip().casefold() != "mos_supplier":
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Настройка API пока доступна для Портала поставщиков."
                 )
+            return
+
+        state = next(
+            (
+                item
+                for item in self.provider_manager.states()
+                if item.provider_id == "mos_supplier"
+            ),
+            None,
+        )
+        parent = self._provider_dialog
+        dialog = ProviderCredentialsDialog(
+            "mos_supplier",
+            state.display_name if state is not None else "Портал поставщиков",
+            configured=MosSupplierApiConfig.from_environment().configured,
+            parent=parent,
+        )
+        if dialog.exec() != ProviderCredentialsDialog.DialogCode.Accepted:
+            return
+        try:
+            save_secret(MOS_SUPPLIER_KEYRING_SECRET, dialog.token)
+        except Exception as exc:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    f"Не удалось сохранить API-ключ: {type(exc).__name__}",
+                    error=True,
+                )
+            return
+
+        self.refresh_provider_states()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_status(
+                "API-ключ сохранён в защищённом хранилище Windows."
             )
 
     @Slot(str)

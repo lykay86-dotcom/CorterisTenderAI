@@ -35,6 +35,7 @@ class TenderProviderManagerDialog(QDialog):
 
     provider_enabled_changed = Signal(str, bool)
     provider_check_requested = Signal(str)
+    provider_configuration_requested = Signal(str)
     check_all_requested = Signal()
 
     def __init__(
@@ -151,6 +152,13 @@ class TenderProviderManagerDialog(QDialog):
         root.addWidget(details_frame)
 
         actions = QHBoxLayout()
+        self.configure_button = QPushButton("Настроить API", self)
+        self.configure_button.setObjectName("ConfigureProviderButton")
+        self.configure_button.clicked.connect(
+            lambda: self.provider_configuration_requested.emit(
+                self.selected_provider_id()
+            )
+        )
         self.check_all_button = QPushButton(
             "Проверить все включённые",
             self,
@@ -165,6 +173,7 @@ class TenderProviderManagerDialog(QDialog):
             "Обновить состояния",
             self,
         )
+        actions.addWidget(self.configure_button)
         actions.addWidget(self.check_all_button)
         actions.addWidget(self.refresh_button)
         actions.addStretch(1)
@@ -363,7 +372,12 @@ class TenderProviderManagerDialog(QDialog):
         state = self._state_by_id(provider_id)
         if state is None:
             self.details.clear()
+            self.configure_button.setEnabled(False)
             return
+
+        self.configure_button.setEnabled(
+            state.provider_id == "mos_supplier"
+        )
 
         latency = (
             f"{state.latency_ms} мс"
