@@ -24,6 +24,12 @@ from PySide6.QtWidgets import (
 
 from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.models import CollectorRunResult
+from app.tenders.collector.participation_score import (
+    CorterisParticipationScore,
+)
+from app.tenders.collector.participation_score_service import (
+    CorterisParticipationScoreService,
+)
 from app.tenders.collector.progress import CollectorProgressEvent
 from app.tenders.collector.provider_control import (
     CollectorProviderManager,
@@ -53,6 +59,9 @@ from app.ui.tender_collector_scheduler_controller import (
     TenderCollectorSchedulerUiController,
 )
 from app.ui.tender_documents_dialog import TenderDocumentsDialog
+from app.ui.tender_participation_score_dialog import (
+    TenderParticipationScoreDialog,
+)
 from app.ui.tender_provider_manager_dialog import (
     TenderProviderManagerDialog,
 )
@@ -185,6 +194,44 @@ class _TenderRequirementAnalysisWorker(QRunnable):
         self.signals.succeeded.emit(self.registry_key, result)
 
 
+
+class _ParticipationScoreWorkerSignals(QObject):
+    succeeded = Signal(str, object)
+    failed = Signal(str, str, str)
+
+
+class _ParticipationScoreWorker(QRunnable):
+    def __init__(
+        self,
+        service: CorterisParticipationScoreService,
+        registry_key: str,
+    ) -> None:
+        super().__init__()
+        self.service = service
+        self.registry_key = registry_key.strip()
+        self.signals = _ParticipationScoreWorkerSignals()
+        self.setAutoDelete(True)
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = self.service.evaluate(
+                self.registry_key,
+                persist=True,
+            )
+        except Exception as exc:
+            self.signals.failed.emit(
+                self.registry_key,
+                type(exc).__name__,
+                str(exc),
+            )
+            return
+        self.signals.succeeded.emit(
+            self.registry_key,
+            result,
+        )
+
+
 class _CollectorRunWorkerSignals(QObject):
     progress = Signal(object)
     succeeded = Signal(object)
@@ -281,6 +328,9 @@ class TenderSearchUiController(QObject):
     collector_started = Signal(str)
     collector_finished = Signal(object)
     collector_failed = Signal(str)
+    score_started = Signal(str)
+    score_finished = Signal(str, object)
+    score_failed = Signal(str, str)
 
     def __init__(
         self,
@@ -334,6 +384,14 @@ class TenderSearchUiController(QObject):
         self._analysis_workers: dict[
             str,
             _TenderRequirementAnalysisWorker,
+        ] = {}
+        self._score_dialogs: dict[
+            str,
+            TenderParticipationScoreDialog,
+        ] = {}
+        self._score_workers: dict[
+            str,
+            _ParticipationScoreWorker,
         ] = {}
         # PySide6 can release a QMenu wrapper created by QMenuBar.addMenu()
         # when no Python-side strong reference is retained, especially with
@@ -452,6 +510,12 @@ class TenderSearchUiController(QObject):
     ) -> tuple[TenderRequirementAnalysisDialog, ...]:
         return tuple(self._analysis_dialogs.values())
 
+    @property
+    def score_dialogs(
+        self,
+    ) -> tuple[TenderParticipationScoreDialog, ...]:
+        return tuple(self._score_dialogs.values())
+
     def install_on_main_window(
         self,
         main_window: QWidget,
@@ -566,6 +630,9 @@ class TenderSearchUiController(QObject):
             )
             self._registry_dialog.analysis_requested.connect(
                 self.open_requirement_analysis
+            )
+            self._registry_dialog.score_requested.connect(
+                self.open_participation_score
             )
 
         self._registry_dialog.refresh_records()
@@ -1189,6 +1256,131 @@ class TenderSearchUiController(QObject):
         )
 
     @Slot(str)
+    def open_participation_score(
+        self,
+        registry_key: str,
+    ) -> None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return
+        service = self.runtime.participation_score_service
+        if service is None:
+            self._set_score_status(
+                "Сервис оценки участия недоступен."
+            )
+            return
+
+        dialog = self._score_dialogs.get(normalized)
+        if dialog is None:
+            parent = self.parent()
+            parent_widget = (
+                parent if isinstance(parent, QWidget) else None
+            )
+            dialog = TenderParticipationScoreDialog(
+                normalized,
+                score=service.latest(normalized),
+                theme=self._theme,
+                parent=parent_widget,
+            )
+            dialog.recalculate_requested.connect(
+                self.run_participation_score
+            )
+            dialog.finished.connect(
+                lambda _result, key=normalized, current=dialog: (
+                    self._forget_score_dialog(key, current)
+                )
+            )
+            self._score_dialogs[normalized] = dialog
+        else:
+            latest = service.latest(normalized)
+            if latest is not None:
+                dialog.set_score(latest)
+
+        dialog.open()
+        dialog.raise_()
+        dialog.activateWindow()
+        self.run_participation_score(normalized)
+
+    @Slot(str)
+    def run_participation_score(
+        self,
+        registry_key: str,
+    ) -> None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return
+        service = self.runtime.participation_score_service
+        if service is None:
+            self._set_score_status(
+                "Сервис оценки участия недоступен."
+            )
+            return
+        dialog = self._score_dialogs.get(normalized)
+        if normalized in self._score_workers:
+            if dialog is not None:
+                dialog.set_status(
+                    "Оценка этой закупки уже выполняется."
+                )
+            return
+
+        worker = _ParticipationScoreWorker(
+            service,
+            normalized,
+        )
+        worker.signals.succeeded.connect(
+            self._on_participation_score_succeeded
+        )
+        worker.signals.failed.connect(
+            self._on_participation_score_failed
+        )
+        self._score_workers[normalized] = worker
+        if dialog is not None:
+            dialog.set_busy(
+                True,
+                message=(
+                    "Расчёт рейтинга по карточке, документам "
+                    "и анализу требований…"
+                ),
+            )
+        self.score_started.emit(normalized)
+        self._thread_pool.start(worker)
+
+    @Slot(str, object)
+    def _on_participation_score_succeeded(
+        self,
+        registry_key: str,
+        result: object,
+    ) -> None:
+        self._score_workers.pop(registry_key, None)
+        dialog = self._score_dialogs.get(registry_key)
+        if isinstance(result, CorterisParticipationScore):
+            if dialog is not None:
+                dialog.set_score(result)
+            if self._registry_dialog is not None:
+                self._registry_dialog.refresh_records()
+            self.score_finished.emit(registry_key, result)
+            return
+
+        message = "Сервис вернул неподдерживаемую оценку."
+        if dialog is not None:
+            dialog.set_error(message)
+        self.score_failed.emit(registry_key, message)
+
+    @Slot(str, str, str)
+    def _on_participation_score_failed(
+        self,
+        registry_key: str,
+        error_type: str,
+        message: str,
+    ) -> None:
+        self._score_workers.pop(registry_key, None)
+        rendered = message or error_type
+        dialog = self._score_dialogs.get(registry_key)
+        if dialog is not None:
+            dialog.set_error(rendered)
+        self.score_failed.emit(registry_key, rendered)
+
+    @Slot(str)
     def open_requirement_analysis(self, registry_key: str) -> None:
         normalized = registry_key.strip()
         if not normalized:
@@ -1358,6 +1550,18 @@ class TenderSearchUiController(QObject):
                 error=True,
             )
 
+    def _set_score_status(self, message: str) -> None:
+        if self._registry_dialog is not None:
+            self._registry_dialog.set_status(
+                message,
+                error=True,
+            )
+        elif self._profiles_dialog is not None:
+            self._profiles_dialog.set_status(
+                message,
+                error=True,
+            )
+
     def _set_analysis_status(self, message: str) -> None:
         if self._registry_dialog is not None:
             self._registry_dialog.set_status(
@@ -1369,6 +1573,15 @@ class TenderSearchUiController(QObject):
                 message,
                 error=True,
             )
+
+    def _forget_score_dialog(
+        self,
+        registry_key: str,
+        dialog: TenderParticipationScoreDialog,
+    ) -> None:
+        current = self._score_dialogs.get(registry_key)
+        if current is dialog:
+            self._score_dialogs.pop(registry_key, None)
 
     def _forget_analysis_dialog(
         self,

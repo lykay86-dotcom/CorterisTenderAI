@@ -1,0 +1,118 @@
+"""Registry-based participation scoring using available local evidence."""
+
+from __future__ import annotations
+
+from app.tenders.collector.participation_score import (
+    CorterisParticipationRanker,
+    CorterisParticipationScore,
+    ParticipationScoringContext,
+)
+from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.document_text_extractor import TenderDocumentTextService
+from app.tenders.requirement_analysis import (
+    TenderRequirementAnalysisService,
+)
+from app.tenders.tender_registry import TenderRegistryRepository
+
+
+class CorterisParticipationScoreService:
+    """Recalculate one registry tender and persist the latest score."""
+
+    def __init__(
+        self,
+        tender_registry: TenderRegistryRepository,
+        score_repository: CollectorStateRepository,
+        *,
+        text_service: TenderDocumentTextService | None = None,
+        requirement_analysis_service: (
+            TenderRequirementAnalysisService | None
+        ) = None,
+        ranker: CorterisParticipationRanker | None = None,
+        max_document_characters: int = 2_000_000,
+    ) -> None:
+        if max_document_characters < 1000:
+            raise ValueError(
+                "max_document_characters must be at least 1000"
+            )
+        self.tender_registry = tender_registry
+        self.score_repository = score_repository
+        self.text_service = text_service
+        self.requirement_analysis_service = requirement_analysis_service
+        self.ranker = ranker or CorterisParticipationRanker()
+        self.max_document_characters = int(
+            max_document_characters
+        )
+
+    def latest(
+        self,
+        registry_key: str,
+    ) -> CorterisParticipationScore | None:
+        return self.score_repository.get_latest_score(registry_key)
+
+    def evaluate(
+        self,
+        registry_key: str,
+        *,
+        persist: bool = True,
+    ) -> CorterisParticipationScore:
+        normalized = registry_key.strip()
+        if not normalized:
+            raise ValueError("registry_key must not be empty")
+
+        tender = self.tender_registry.get_tender(normalized)
+        if tender is None:
+            raise KeyError(
+                f"Тендер не найден в реестре: {normalized}"
+            )
+
+        texts: list[str] = []
+        sources: list[str] = ["Карточка закупки"]
+        if self.text_service is not None:
+            latest_by_document = {}
+            for result in self.text_service.list_results(normalized):
+                if result.document_key not in latest_by_document:
+                    latest_by_document[result.document_key] = result
+
+            remaining = self.max_document_characters
+            for result in latest_by_document.values():
+                if not result.available_locally or remaining <= 0:
+                    continue
+                text = self.text_service.read_text(result)
+                if not text:
+                    continue
+                excerpt = text[:remaining]
+                texts.append(excerpt)
+                remaining -= len(excerpt)
+                source_name = (
+                    result.source_path.name
+                    if result.source_path is not None
+                    else result.document_key
+                )
+                sources.append(source_name)
+
+        analysis = (
+            self.requirement_analysis_service.latest(normalized)
+            if self.requirement_analysis_service is not None
+            else None
+        )
+        if analysis is not None:
+            sources.append("Структурированный анализ требований")
+
+        score = self.ranker.score(
+            tender,
+            ParticipationScoringContext(
+                document_texts=tuple(texts),
+                requirement_analysis=analysis,
+                evidence_sources=tuple(sources),
+            ),
+        )
+        if persist:
+            self.score_repository.save_score(
+                normalized,
+                score,
+                source="manual_recalculation",
+            )
+        return score
+
+
+__all__ = ["CorterisParticipationScoreService"]

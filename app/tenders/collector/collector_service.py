@@ -12,6 +12,9 @@ from app.tenders.collector.models import (
     CollectorRunResult,
 )
 from app.tenders.collector.normalizer import TenderNormalizer
+from app.tenders.collector.participation_score import (
+    CorterisParticipationRanker,
+)
 from app.tenders.collector.progress import (
     CollectorProgressCallback,
     CollectorProgressEvent,
@@ -32,6 +35,7 @@ class CollectorService:
         *,
         normalizer: TenderNormalizer | None = None,
         deduplicator: TenderDeduplicator | None = None,
+        ranker: CorterisParticipationRanker | None = None,
     ) -> None:
         self.engine = engine
         self.repository = repository
@@ -39,6 +43,7 @@ class CollectorService:
         self.deduplicator = deduplicator or TenderDeduplicator(
             self.normalizer
         )
+        self.ranker = ranker or CorterisParticipationRanker()
 
     async def collect(
         self,
@@ -103,6 +108,22 @@ class CollectorService:
             await emit_collector_progress(
                 progress_callback,
                 CollectorProgressEvent(
+                    phase=CollectorProgressPhase.RANKING,
+                    total_providers=len(batch.outcomes),
+                    raw_count=deduplicated.raw_count,
+                    merged_count=deduplicated.merged_count,
+                    duplicate_count=deduplicated.duplicate_count,
+                    message="Расчёт объяснимого рейтинга Кортерис…",
+                ),
+            )
+            rankings = {
+                item.canonical_key: self.ranker.score(item.tender)
+                for item in deduplicated.items
+            }
+
+            await emit_collector_progress(
+                progress_callback,
+                CollectorProgressEvent(
                     phase=CollectorProgressPhase.SAVING,
                     total_providers=len(batch.outcomes),
                     raw_count=deduplicated.raw_count,
@@ -115,6 +136,7 @@ class CollectorService:
                 run_id,
                 deduplicated,
                 observed_at=batch.completed_at,
+                rankings=rankings,
             )
             status = _status_for_batch(batch)
             self.repository.complete_run(
@@ -139,6 +161,17 @@ class CollectorService:
                 metadata={
                     "partial_failures": batch.has_partial_failures,
                     "cancelled": batch.cancelled,
+                    "ranked_count": persistence.ranked_count,
+                    "recommended_count": persistence.recommended_count,
+                    "manual_review_count": persistence.manual_review_count,
+                    "possible_count": persistence.possible_count,
+                    "not_recommended_count": (
+                        persistence.not_recommended_count
+                    ),
+                    "high_score_count": sum(
+                        score.total_score >= 80
+                        for score in rankings.values()
+                    ),
                 },
             )
             final_phase = (

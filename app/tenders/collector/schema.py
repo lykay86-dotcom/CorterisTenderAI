@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 1
+COLLECTOR_SCHEMA_VERSION = 2
 
 
 class CollectorSchemaMigrator:
@@ -147,6 +147,32 @@ class CollectorSchemaMigrator:
                 ON collector_tender_changes(registry_key, detected_at DESC);
             CREATE INDEX IF NOT EXISTS idx_collector_changes_run
                 ON collector_tender_changes(run_id);
+
+
+            CREATE TABLE IF NOT EXISTS collector_tender_scores (
+                score_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL DEFAULT '',
+                registry_key TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'collector',
+                scored_at TEXT NOT NULL,
+                total_score INTEGER NOT NULL,
+                recommendation TEXT NOT NULL,
+                hard_excluded INTEGER NOT NULL DEFAULT 0,
+                profile_version TEXT NOT NULL,
+                input_fingerprint TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                UNIQUE(registry_key, source, input_fingerprint),
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_collector_scores_registry
+                ON collector_tender_scores(registry_key, scored_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_collector_scores_run
+                ON collector_tender_scores(run_id);
+            CREATE INDEX IF NOT EXISTS idx_collector_scores_total
+                ON collector_tender_scores(total_score DESC);
 
             CREATE TABLE IF NOT EXISTS collector_checkpoints (
                 provider_id TEXT NOT NULL,

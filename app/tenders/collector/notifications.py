@@ -225,6 +225,24 @@ class CollectorNotificationService:
         items: list[CollectorNotification] = []
         summary = result.persistence
 
+        high_score_count = int(
+            result.metadata.get("high_score_count", 0) or 0
+        )
+        if settings.notify_new and high_score_count:
+            items.append(
+                CollectorNotification(
+                    id=f"{run_id}:high-score",
+                    created_at=created_at,
+                    title="Тендеры с высокой оценкой",
+                    message=(
+                        f"{high_score_count} тендеров имеют "
+                        "оценку участия 80 баллов и выше."
+                    ),
+                    kind=CollectorNotificationKind.SUCCESS,
+                    run_id=run_id,
+                )
+            )
+
         if settings.notify_new and summary.new_count:
             items.append(
                 CollectorNotification(

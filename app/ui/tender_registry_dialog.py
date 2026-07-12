@@ -49,6 +49,7 @@ class TenderRegistryDialog(QDialog):
     profiles_requested = Signal()
     documents_requested = Signal(str)
     analysis_requested = Signal(str)
+    score_requested = Signal(str)
 
     def __init__(
         self,
@@ -210,6 +211,15 @@ class TenderRegistryDialog(QDialog):
             self._request_selected_analysis
         )
 
+        self.score_button = QPushButton(
+            "Оценка участия",
+            self,
+        )
+        self.score_button.setObjectName("PrimaryActionButton")
+        self.score_button.clicked.connect(
+            self._request_selected_score
+        )
+
         self.documents_button = QPushButton(
             "Скачать документацию",
             self,
@@ -242,6 +252,7 @@ class TenderRegistryDialog(QDialog):
 
         action_row.addWidget(self.open_source_button)
         action_row.addWidget(self.analysis_button)
+        action_row.addWidget(self.score_button)
         action_row.addWidget(self.documents_button)
         action_row.addWidget(self.archive_button)
         action_row.addWidget(self.refresh_button)
@@ -651,6 +662,12 @@ class TenderRegistryDialog(QDialog):
         if record is None:
             return
         self.analysis_requested.emit(record.registry_key)
+
+    def _request_selected_score(self) -> None:
+        record = self.selected_record()
+        if record is None:
+            return
+        self.score_requested.emit(record.registry_key)
 
     def _request_selected_documents(self) -> None:
         record = self.selected_record()

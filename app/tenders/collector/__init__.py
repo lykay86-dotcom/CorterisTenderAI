@@ -239,3 +239,28 @@ __all__ += [
     "CollectorScheduler",
     "ScheduledCollectorRequest",
 ]
+
+
+from app.tenders.collector.participation_score import (
+    CorterisCompanyProfile,
+    CorterisParticipationRanker,
+    CorterisParticipationScore,
+    DEFAULT_CORTERIS_COMPANY_PROFILE,
+    ParticipationRecommendation,
+    ParticipationScoreComponent,
+    ParticipationScoringContext,
+)
+from app.tenders.collector.participation_score_service import (
+    CorterisParticipationScoreService,
+)
+
+__all__ += [
+    "CorterisCompanyProfile",
+    "CorterisParticipationRanker",
+    "CorterisParticipationScore",
+    "DEFAULT_CORTERIS_COMPANY_PROFILE",
+    "ParticipationRecommendation",
+    "ParticipationScoreComponent",
+    "ParticipationScoringContext",
+    "CorterisParticipationScoreService",
+]

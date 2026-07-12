@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from app.tenders.collector.participation_score_service import (
+        CorterisParticipationScoreService,
+    )
 from app.tenders.corteris_search import CorterisTenderSearchService
 from app.tenders.document_storage import (
     TenderDocumentDownloadService,
@@ -44,6 +49,9 @@ class TenderSearchRuntime:
     text_extraction_service: TenderDocumentTextService | None = None
     requirement_analysis_service: (
         TenderRequirementAnalysisService | None
+    ) = None
+    participation_score_service: (
+        CorterisParticipationScoreService | None
     ) = None
 
 
@@ -109,6 +117,21 @@ def create_tender_search_runtime(
             analysis_repository,
         )
     )
+    from app.tenders.collector.participation_score_service import (
+        CorterisParticipationScoreService,
+    )
+    from app.tenders.collector.store import CollectorStateRepository
+
+    collector_state_repository = CollectorStateRepository(
+        data_path / "tender_registry.sqlite3"
+    )
+    collector_state_repository.initialize()
+    participation_score_service = CorterisParticipationScoreService(
+        tender_registry,
+        collector_state_repository,
+        text_service=text_extraction_service,
+        requirement_analysis_service=requirement_analysis_service,
+    )
 
     return TenderSearchRuntime(
         data_directory=data_path,
@@ -123,6 +146,9 @@ def create_tender_search_runtime(
         text_extraction_service=text_extraction_service,
         requirement_analysis_service=(
             requirement_analysis_service
+        ),
+        participation_score_service=(
+            participation_score_service
         ),
     )
 

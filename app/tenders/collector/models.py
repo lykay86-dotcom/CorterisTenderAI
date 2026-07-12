@@ -121,6 +121,11 @@ class CollectionPersistenceSummary:
     change_count: int
     version_count: int
     alias_conflict_count: int = 0
+    ranked_count: int = 0
+    recommended_count: int = 0
+    manual_review_count: int = 0
+    possible_count: int = 0
+    not_recommended_count: int = 0
 
     @property
     def observed_count(self) -> int:

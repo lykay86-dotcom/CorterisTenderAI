@@ -21,6 +21,10 @@ from app.tenders.collector.codec import (
     tender_from_payload,
     tender_to_payload,
 )
+from app.tenders.collector.participation_score import (
+    CorterisParticipationScore,
+    ParticipationRecommendation,
+)
 from app.tenders.collector.models import (
     CollectionPersistenceSummary,
     CollectionRunRecord,
@@ -95,6 +99,10 @@ class CollectorStateRepository:
         result: DeduplicationResult,
         *,
         observed_at: str | None = None,
+        rankings: Mapping[
+            str,
+            CorterisParticipationScore,
+        ] | None = None,
     ) -> CollectionPersistenceSummary:
         self.initialize()
         moment = observed_at or _utc_now()
@@ -104,6 +112,12 @@ class CollectorStateRepository:
         change_count = 0
         version_count = 0
         alias_conflicts = 0
+        ranked_count = 0
+        recommended_count = 0
+        manual_review_count = 0
+        possible_count = 0
+        not_recommended_count = 0
+        rankings = rankings or {}
 
         groups_by_key = {
             group.item.canonical_key: group
@@ -179,6 +193,34 @@ class CollectorStateRepository:
                     duplicate_count = (
                         group.duplicate_count if group is not None else 0
                     )
+                    ranking = rankings.get(item.canonical_key)
+                    if ranking is not None:
+                        self._upsert_score(
+                            connection,
+                            registry_key,
+                            ranking,
+                            run_id=run_id,
+                            source="collector",
+                        )
+                        ranked_count += 1
+                        if (
+                            ranking.recommendation
+                            == ParticipationRecommendation.RECOMMENDED
+                        ):
+                            recommended_count += 1
+                        elif (
+                            ranking.recommendation
+                            == ParticipationRecommendation.MANUAL_REVIEW
+                        ):
+                            manual_review_count += 1
+                        elif (
+                            ranking.recommendation
+                            == ParticipationRecommendation.POSSIBLE_WITH_CONDITIONS
+                        ):
+                            possible_count += 1
+                        else:
+                            not_recommended_count += 1
+
                     connection.execute(
                         """
                         INSERT INTO collector_run_items(
@@ -241,6 +283,11 @@ class CollectorStateRepository:
             change_count=change_count,
             version_count=version_count,
             alias_conflict_count=alias_conflicts,
+            ranked_count=ranked_count,
+            recommended_count=recommended_count,
+            manual_review_count=manual_review_count,
+            possible_count=possible_count,
+            not_recommended_count=not_recommended_count,
         )
 
     def complete_run(
@@ -404,6 +451,163 @@ class CollectorStateRepository:
                 active=bool(row["active"]),
             )
             for row in rows
+        )
+
+    def save_score(
+        self,
+        registry_key: str,
+        score: CorterisParticipationScore,
+        *,
+        run_id: str = "",
+        source: str = "manual",
+    ) -> CorterisParticipationScore:
+        """Persist a recalculated score and update registry summary fields."""
+
+        normalized = registry_key.strip()
+        if not normalized:
+            raise ValueError("registry_key must not be empty")
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                exists = connection.execute(
+                    """
+                    SELECT 1 FROM tender_records
+                    WHERE registry_key = ?
+                    """,
+                    (normalized,),
+                ).fetchone()
+                if exists is None:
+                    raise KeyError(normalized)
+                self._upsert_score(
+                    connection,
+                    normalized,
+                    score,
+                    run_id=run_id,
+                    source=source,
+                )
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
+        return score
+
+    def get_latest_score(
+        self,
+        registry_key: str,
+    ) -> CorterisParticipationScore | None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT payload_json
+                FROM collector_tender_scores
+                WHERE registry_key = ?
+                ORDER BY scored_at DESC, rowid DESC
+                LIMIT 1
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = json.loads(str(row["payload_json"]))
+        if not isinstance(payload, Mapping):
+            return None
+        return CorterisParticipationScore.from_payload(payload)
+
+    def list_run_scores(
+        self,
+        run_id: str,
+    ) -> tuple[CorterisParticipationScore, ...]:
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload_json
+                FROM collector_tender_scores
+                WHERE run_id = ?
+                ORDER BY total_score DESC, scored_at DESC
+                """,
+                (run_id.strip(),),
+            ).fetchall()
+        result = []
+        for row in rows:
+            payload = json.loads(str(row["payload_json"]))
+            if isinstance(payload, Mapping):
+                result.append(
+                    CorterisParticipationScore.from_payload(payload)
+                )
+        return tuple(result)
+
+    @staticmethod
+    def _upsert_score(
+        connection: sqlite3.Connection,
+        registry_key: str,
+        score: CorterisParticipationScore,
+        *,
+        run_id: str,
+        source: str,
+    ) -> None:
+        payload = stable_json(score.to_payload())
+        connection.execute(
+            """
+            INSERT INTO collector_tender_scores(
+                score_id,
+                run_id,
+                registry_key,
+                source,
+                scored_at,
+                total_score,
+                recommendation,
+                hard_excluded,
+                profile_version,
+                input_fingerprint,
+                payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(
+                registry_key,
+                source,
+                input_fingerprint
+            ) DO UPDATE SET
+                run_id=excluded.run_id,
+                scored_at=excluded.scored_at,
+                total_score=excluded.total_score,
+                recommendation=excluded.recommendation,
+                hard_excluded=excluded.hard_excluded,
+                profile_version=excluded.profile_version,
+                payload_json=excluded.payload_json
+            """,
+            (
+                uuid4().hex,
+                run_id.strip(),
+                registry_key,
+                source.strip() or "manual",
+                score.scored_at,
+                score.total_score,
+                score.recommendation.value,
+                int(score.hard_excluded),
+                score.profile_version,
+                score.input_fingerprint,
+                payload,
+            ),
+        )
+        connection.execute(
+            """
+            UPDATE tender_records
+            SET last_relevance_score = ?,
+                last_relevance_grade = ?,
+                last_accepted = ?
+            WHERE registry_key = ?
+            """,
+            (
+                score.total_score,
+                score.recommendation.value,
+                int(score.accepted_for_registry),
+                registry_key,
+            ),
         )
 
     def save_checkpoint(

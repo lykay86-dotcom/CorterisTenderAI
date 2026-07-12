@@ -402,8 +402,10 @@ class TenderCollectorDialog(QDialog):
             self.progress_bar.setValue(max(self.progress_bar.value(), 76))
         elif event.phase == CollectorProgressPhase.DEDUPLICATING:
             self.progress_bar.setValue(max(self.progress_bar.value(), 84))
+        elif event.phase == CollectorProgressPhase.RANKING:
+            self.progress_bar.setValue(max(self.progress_bar.value(), 89))
         elif event.phase == CollectorProgressPhase.SAVING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 92))
+            self.progress_bar.setValue(max(self.progress_bar.value(), 94))
             self.duplicate_value.setText(str(event.duplicate_count))
         elif event.phase in {
             CollectorProgressPhase.COMPLETED,
@@ -453,14 +455,16 @@ class TenderCollectorDialog(QDialog):
                 "Сбор завершён с ошибками отдельных источников. "
                 f"Новых: {persistence.new_count}, изменённых: "
                 f"{persistence.changed_count}, дублей: "
-                f"{persistence.duplicate_count}."
+                f"{persistence.duplicate_count}, рекомендовано: "
+                f"{persistence.recommended_count}."
             )
         else:
             message = (
                 "Сбор завершён. "
                 f"Новых: {persistence.new_count}, изменённых: "
                 f"{persistence.changed_count}, дублей: "
-                f"{persistence.duplicate_count}."
+                f"{persistence.duplicate_count}, рекомендовано: "
+                f"{persistence.recommended_count}."
             )
         self.set_status(message)
         self.set_running(False)
