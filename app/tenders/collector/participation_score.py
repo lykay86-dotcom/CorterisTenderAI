@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 import hashlib
@@ -13,6 +13,10 @@ from typing import Iterable, Mapping, Sequence
 from app.tenders.corteris_filter import (
     CorterisTenderClassifier,
     normalize_text,
+)
+from app.tenders.collector.currency import (
+    CurrencyRateUnavailableError,
+    ExchangeRateBook,
 )
 from app.tenders.models import UnifiedTender, normalize_currency_code
 from app.tenders.requirement_analysis import (
@@ -245,6 +249,7 @@ class ParticipationScoringContext:
     requirement_analysis: TenderRequirementAnalysis | None = None
     now: datetime | None = None
     evidence_sources: tuple[str, ...] = ()
+    exchange_rates: ExchangeRateBook | None = None
 
     @property
     def document_text(self) -> str:
@@ -421,7 +426,11 @@ class CorterisParticipationRanker:
         elif region_score <= 3:
             negative.append(region_reason)
 
-        price_score, price_reason = self._price_score(tender)
+        price_score, price_reason = self._price_score(
+            tender,
+            context=context,
+            as_of=now.date(),
+        )
         components.append(
             ParticipationScoreComponent(
                 "price",
@@ -629,30 +638,65 @@ class CorterisParticipationRanker:
     def _price_score(
         self,
         tender: UnifiedTender,
+        *,
+        context: ParticipationScoringContext,
+        as_of: date,
     ) -> tuple[int, str]:
         if tender.price is None:
             return 4, "НМЦК не указана — финансовая оценка неполная."
-        if tender.price.currency != self.profile.price_currency:
-            return (
-                4,
-                "НМЦК указана в валюте "
-                f"{tender.price.currency}; рабочий диапазон задан в "
-                f"{self.profile.price_currency}. Требуется ручной курс.",
-            )
+        conversion_note = ""
         amount = tender.price.amount
+        if tender.price.currency != self.profile.price_currency:
+            if context.exchange_rates is None:
+                return (
+                    4,
+                    "НМЦК указана в валюте "
+                    f"{tender.price.currency}; рабочий диапазон задан в "
+                    f"{self.profile.price_currency}. Требуется ручной курс.",
+                )
+            try:
+                conversion = context.exchange_rates.convert(
+                    tender.price,
+                    self.profile.price_currency,
+                    as_of=as_of,
+                )
+            except CurrencyRateUnavailableError:
+                return (
+                    4,
+                    "Для НМЦК в валюте "
+                    f"{tender.price.currency} нет действующего "
+                    "подтверждённого курса. Требуется ручная проверка.",
+                )
+            amount = conversion.converted.amount
+            conversion_note = conversion.audit_text() + ". "
         if (
             self.profile.preferred_price_min
             <= amount
             <= self.profile.preferred_price_max
         ):
-            return 10, f"НМЦК {amount} входит в основной рабочий диапазон."
+            return 10, (
+                conversion_note
+                + f"НМЦК {amount} входит в основной рабочий диапазон."
+            )
         if amount < Decimal("50000"):
-            return 2, f"НМЦК {amount} слишком мала для типового проекта."
+            return 2, (
+                conversion_note
+                + f"НМЦК {amount} слишком мала для типового проекта."
+            )
         if amount < self.profile.preferred_price_min:
-            return 6, f"НМЦК {amount} ниже основного диапазона."
+            return 6, (
+                conversion_note
+                + f"НМЦК {amount} ниже основного диапазона."
+            )
         if amount <= self.profile.extended_price_max:
-            return 6, f"НМЦК {amount} требует оценки ресурсов и финансирования."
-        return 3, f"НМЦК {amount} существенно выше типового диапазона."
+            return 6, (
+                conversion_note
+                + f"НМЦК {amount} требует оценки ресурсов и финансирования."
+            )
+        return 3, (
+            conversion_note
+            + f"НМЦК {amount} существенно выше типового диапазона."
+        )
 
     def _license_score(
         self,
@@ -971,6 +1015,11 @@ def _input_fingerprint(
             if item
         ],
         "analysis": analysis_fingerprint,
+        "exchange_rates": (
+            context.exchange_rates.fingerprint
+            if context.exchange_rates is not None
+            else ""
+        ),
         "profile": profile_version,
     }
     rendered = json.dumps(

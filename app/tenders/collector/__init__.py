@@ -38,6 +38,12 @@ from app.tenders.collector.codec import (
 )
 from app.tenders.collector.collector_service import CollectorService
 from app.tenders.collector.deduplicator import TenderDeduplicator
+from app.tenders.collector.currency import (
+    CurrencyConversion,
+    CurrencyRateUnavailableError,
+    ExchangeRateBook,
+    ExchangeRateQuote,
+)
 from app.tenders.collector.models import (
     CollectionPersistenceSummary,
     CollectionRunRecord,
@@ -112,9 +118,13 @@ __all__ = [
     "CollectorService",
     "CollectorSourceReference",
     "CollectorStateRepository",
+    "CurrencyConversion",
+    "CurrencyRateUnavailableError",
     "DeduplicationGroup",
     "DeduplicationMatchLevel",
     "DeduplicationResult",
+    "ExchangeRateBook",
+    "ExchangeRateQuote",
     "NormalizedTender",
     "TenderAliasType",
     "TenderChange",

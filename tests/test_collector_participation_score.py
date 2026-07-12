@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 
 from app.tenders.collector.participation_score import (
     CorterisParticipationRanker,
     ParticipationRecommendation,
     ParticipationScoringContext,
+)
+from app.tenders.collector.currency import (
+    ExchangeRateBook,
+    ExchangeRateQuote,
 )
 from tests.collector_c3_helpers import make_tender
 
@@ -126,3 +131,64 @@ def test_foreign_currency_requires_manual_financial_review() -> None:
 
     assert price.score == 4
     assert "Требуется ручной курс" in price.explanation
+
+
+def test_verified_rate_enables_foreign_currency_scoring() -> None:
+    tender = make_tender(title="Монтаж видеонаблюдения", amount="100000")
+    tender = replace(
+        tender,
+        price=replace(tender.price, currency="USD"),
+    )
+    rates = ExchangeRateBook(
+        (
+            ExchangeRateQuote(
+                base_currency="USD",
+                quote_currency="RUB",
+                rate=Decimal("90"),
+                effective_date=date(2026, 7, 12),
+                source="Банк России",
+                retrieved_at="2026-07-12T09:00:00+03:00",
+            ),
+        )
+    )
+
+    score = CorterisParticipationRanker().score(
+        tender,
+        ParticipationScoringContext(
+            now=_now(),
+            exchange_rates=rates,
+        ),
+    )
+    price = next(
+        item for item in score.components if item.key == "price"
+    )
+
+    assert price.score == 10
+    assert "100000 USD → 9000000.00 RUB" in price.explanation
+    assert "Банк России" in price.explanation
+
+
+def test_rate_book_changes_score_fingerprint() -> None:
+    tender = make_tender(title="Монтаж видеонаблюдения")
+    quote = ExchangeRateQuote(
+        base_currency="USD",
+        quote_currency="RUB",
+        rate="90",
+        effective_date=date(2026, 7, 12),
+        source="Банк России",
+        retrieved_at="2026-07-12T09:00:00+03:00",
+    )
+
+    without_rates = CorterisParticipationRanker().score(
+        tender,
+        ParticipationScoringContext(now=_now()),
+    )
+    with_rates = CorterisParticipationRanker().score(
+        tender,
+        ParticipationScoringContext(
+            now=_now(),
+            exchange_rates=ExchangeRateBook((quote,)),
+        ),
+    )
+
+    assert without_rates.input_fingerprint != with_rates.input_fingerprint
