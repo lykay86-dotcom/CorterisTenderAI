@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from app.tenders.collector.participation_score import (
+    CorterisCompanyProfile,
     CorterisParticipationRanker,
     CorterisParticipationScore,
     ParticipationScoringContext,
+)
+from app.tenders.collector.company_capability import (
+    CompanyCapabilityProfileRepository,
 )
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.document_text_extractor import TenderDocumentTextService
@@ -28,6 +32,7 @@ class CorterisParticipationScoreService:
             TenderRequirementAnalysisService | None
         ) = None,
         ranker: CorterisParticipationRanker | None = None,
+        capability_repository: CompanyCapabilityProfileRepository | None = None,
         max_document_characters: int = 2_000_000,
     ) -> None:
         if max_document_characters < 1000:
@@ -38,7 +43,8 @@ class CorterisParticipationScoreService:
         self.score_repository = score_repository
         self.text_service = text_service
         self.requirement_analysis_service = requirement_analysis_service
-        self.ranker = ranker or CorterisParticipationRanker()
+        self.ranker = ranker
+        self.capability_repository = capability_repository
         self.max_document_characters = int(
             max_document_characters
         )
@@ -98,7 +104,21 @@ class CorterisParticipationScoreService:
         if analysis is not None:
             sources.append("Структурированный анализ требований")
 
-        score = self.ranker.score(
+        ranker = self.ranker
+        if ranker is None:
+            capability = (
+                self.capability_repository.load()
+                if self.capability_repository is not None
+                else None
+            )
+            ranker = (
+                CorterisParticipationRanker(
+                    CorterisCompanyProfile.from_capability(capability)
+                )
+                if capability is not None
+                else CorterisParticipationRanker()
+            )
+        score = ranker.score(
             tender,
             ParticipationScoringContext(
                 document_texts=tuple(texts),

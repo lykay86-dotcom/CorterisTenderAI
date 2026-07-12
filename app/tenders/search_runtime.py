@@ -123,6 +123,9 @@ def create_tender_search_runtime(
         CorterisParticipationScoreService,
     )
     from app.tenders.collector.store import CollectorStateRepository
+    from app.tenders.collector.company_capability import (
+        CompanyCapabilityProfileRepository,
+    )
 
     collector_state_repository = CollectorStateRepository(
         data_path / "tender_registry.sqlite3"
@@ -133,6 +136,9 @@ def create_tender_search_runtime(
         collector_state_repository,
         text_service=text_extraction_service,
         requirement_analysis_service=requirement_analysis_service,
+        capability_repository=CompanyCapabilityProfileRepository(
+            data_path / "company_capability_profile.json"
+        ),
     )
     from app.tenders.full_analysis import TenderFullAnalysisService
     from app.tenders.legacy_analysis_bridge import LegacyAnalysisBridge

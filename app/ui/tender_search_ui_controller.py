@@ -23,6 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.tenders.collector.cancellation import CollectorCancellationToken
+from app.tenders.collector.company_capability import (
+    CompanyCapabilityProfileRepository,
+)
 from app.tenders.collector.models import CollectorRunResult
 from app.tenders.collector.participation_score import (
     CorterisParticipationScore,
@@ -64,6 +67,7 @@ from app.tenders.search_runtime import (
     create_tender_search_runtime,
 )
 from app.ui.tender_collector_dialog import TenderCollectorDialog
+from app.ui.company_capability_dialog import CompanyCapabilityDialog
 from app.ui.tender_collector_scheduler_controller import (
     TenderCollectorSchedulerUiController,
 )
@@ -442,6 +446,7 @@ class TenderSearchUiController(QObject):
         self._profiles_dialog: TenderSearchProfilesDialog | None = None
         self._registry_dialog: TenderRegistryDialog | None = None
         self._provider_dialog: TenderProviderManagerDialog | None = None
+        self._company_capability_dialog: CompanyCapabilityDialog | None = None
         self._provider_check_worker: _ProviderCheckWorker | None = None
         self._provider_check_ids: tuple[str, ...] = ()
         self._collector_dialog: TenderCollectorDialog | None = None
@@ -550,6 +555,20 @@ class TenderSearchUiController(QObject):
             self.open_collector_dialog
         )
 
+        self.company_capability_action = QAction(
+            "Возможности компании…",
+            self,
+        )
+        self.company_capability_action.setObjectName(
+            "actionCompanyCapabilityProfile"
+        )
+        self.company_capability_action.setStatusTip(
+            "Настроить подтверждённые возможности компании для рейтинга"
+        )
+        self.company_capability_action.triggered.connect(
+            self.open_company_capability_dialog
+        )
+
         self.scheduler_ui_controller = (
             TenderCollectorSchedulerUiController(
                 self.data_directory,
@@ -625,6 +644,8 @@ class TenderSearchUiController(QObject):
                 menu.addAction(self.providers_action)
             if self.collector_action not in menu.actions():
                 menu.addAction(self.collector_action)
+            if self.company_capability_action not in menu.actions():
+                menu.addAction(self.company_capability_action)
 
             toolbar = self._find_or_create_tender_toolbar(
                 main_window
@@ -643,6 +664,8 @@ class TenderSearchUiController(QObject):
                 toolbar.addAction(self.providers_action)
             if self.collector_action not in toolbar.actions():
                 toolbar.addAction(self.collector_action)
+            if self.company_capability_action not in toolbar.actions():
+                toolbar.addAction(self.company_capability_action)
             toolbar.setVisible(True)
         else:
             # Fallback for a QWidget-based shell: shortcuts still work.
@@ -654,6 +677,8 @@ class TenderSearchUiController(QObject):
                 main_window.addAction(self.providers_action)
             if self.collector_action not in main_window.actions():
                 main_window.addAction(self.collector_action)
+            if self.company_capability_action not in main_window.actions():
+                main_window.addAction(self.company_capability_action)
 
         self.scheduler_ui_controller.install_on_main_window(
             main_window,
@@ -690,6 +715,22 @@ class TenderSearchUiController(QObject):
         self._profiles_dialog.open()
         self._profiles_dialog.raise_()
         self._profiles_dialog.activateWindow()
+
+    @Slot()
+    def open_company_capability_dialog(self) -> None:
+        parent = self.parent()
+        parent_widget = parent if isinstance(parent, QWidget) else None
+        if self._company_capability_dialog is None:
+            self._company_capability_dialog = CompanyCapabilityDialog(
+                CompanyCapabilityProfileRepository(
+                    self.data_directory / "company_capability_profile.json"
+                ),
+                parent=parent_widget,
+            )
+        self._company_capability_dialog.load_profile()
+        self._company_capability_dialog.open()
+        self._company_capability_dialog.raise_()
+        self._company_capability_dialog.activateWindow()
 
     @Slot()
     def open_registry_dialog(self) -> None:

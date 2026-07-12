@@ -6,7 +6,14 @@ from pathlib import Path
 
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.collector_service import CollectorService
+from app.tenders.collector.company_capability import (
+    CompanyCapabilityProfileRepository,
+)
 from app.tenders.collector.network_runtime import CollectorNetworkRuntime
+from app.tenders.collector.participation_score import (
+    CorterisCompanyProfile,
+    CorterisParticipationRanker,
+)
 from app.tenders.collector.provider_settings import (
     ProviderEnablementRepository,
 )
@@ -127,7 +134,16 @@ def create_default_collector_service(
         health_monitor=network_runtime.health_monitor,
         provider_timeout_seconds=provider_timeout_seconds,
     )
-    return CollectorService(engine, repository)
+    capability = CompanyCapabilityProfileRepository(
+        data_path / "company_capability_profile.json"
+    ).load()
+    return CollectorService(
+        engine,
+        repository,
+        ranker=CorterisParticipationRanker(
+            CorterisCompanyProfile.from_capability(capability)
+        ),
+    )
 
 
 __all__ = [

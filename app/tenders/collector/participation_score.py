@@ -8,7 +8,10 @@ from decimal import Decimal
 from enum import StrEnum
 import hashlib
 import json
-from typing import Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from app.tenders.collector.company_capability import CompanyCapabilityProfile
 
 from app.tenders.corteris_filter import (
     CorterisTenderClassifier,
@@ -180,7 +183,7 @@ class CorterisParticipationScore:
 
 @dataclass(frozen=True, slots=True)
 class CorterisCompanyProfile:
-    """Configurable assumptions, not a claim of legal eligibility."""
+    """Scoring projection of the editable capability profile."""
 
     version: str = "corteris-security-v1"
     priority_regions: tuple[str, ...] = (
@@ -226,6 +229,12 @@ class CorterisCompanyProfile:
         "71.12",
         "80.20",
     )
+    configured: bool = True
+    missing_capability_fields: tuple[str, ...] = ()
+    business_directions: tuple[str, ...] = ()
+    confirmed_experience: tuple[str, ...] = ()
+    financial_confirmed: bool = True
+    strict_capabilities: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -241,6 +250,53 @@ class CorterisCompanyProfile:
             raise ValueError("invalid preferred price range")
         if self.extended_price_max < self.preferred_price_max:
             raise ValueError("invalid extended price range")
+
+    @classmethod
+    def from_capability(
+        cls,
+        capability: "CompanyCapabilityProfile",
+    ) -> "CorterisCompanyProfile":
+        max_project = capability.max_project_amount or Decimal("0")
+        terms = _ordered_unique(
+            (
+                *capability.equipment,
+                *capability.brands,
+                *capability.suppliers,
+                *capability.stock_items,
+            )
+        )
+        licenses = _ordered_unique(
+            (
+                *capability.licenses,
+                *capability.license_work_types,
+                *capability.sro_memberships,
+            )
+        )
+        return cls(
+            version=(
+                "company-capability:"
+                + (capability.updated_at or capability.confirmed_at or "empty")
+            ),
+            priority_regions=_ordered_unique(
+                (*capability.self_install_regions, *capability.partner_regions)
+            ),
+            nationwide_regions=(),
+            preferred_price_min=Decimal("0"),
+            preferred_price_max=max_project,
+            extended_price_max=max_project,
+            known_licenses=licenses,
+            equipment_terms=terms,
+            okpd2_prefixes=(),
+            configured=capability.is_configured,
+            missing_capability_fields=capability.missing_sections,
+            business_directions=capability.business_directions,
+            confirmed_experience=capability.confirmed_experience,
+            financial_confirmed=(
+                capability.max_project_amount is not None
+                and capability.working_capital is not None
+            ),
+            strict_capabilities=True,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -397,6 +453,26 @@ class CorterisParticipationRanker:
             f"направления: "
             f"{', '.join(item.value for item in relevance.directions) or 'не определены'}."
         )
+        if self.profile.business_directions:
+            matched_directions = _find_terms(
+                normalized,
+                self.profile.business_directions,
+            )
+            if not matched_directions:
+                direction_score = 0
+                direction_reason = (
+                    "Предмет закупки не совпал с подтверждёнными "
+                    "направлениями компании."
+                )
+            else:
+                direction_reason += (
+                    " Подтверждённые направления: "
+                    + ", ".join(matched_directions)
+                    + "."
+                )
+        elif self.profile.strict_capabilities and not self.profile.configured:
+            direction_score = 0
+            direction_reason = "Недостаточно данных о направлениях компании."
         components.append(
             ParticipationScoreComponent(
                 "direction",
@@ -465,6 +541,11 @@ class CorterisParticipationRanker:
                 "; совпадения ОКПД2: "
                 + ", ".join(matched_okpd2)
             )
+        if self.profile.strict_capabilities and not self.profile.configured:
+            equipment_score = 0
+            equipment_reason = (
+                "Недостаточно данных об оборудовании и поставщиках компании."
+            )
         components.append(
             ParticipationScoreComponent(
                 "equipment",
@@ -480,7 +561,10 @@ class CorterisParticipationRanker:
             negative.append(equipment_reason)
 
         experience_score, experience_reason = _experience_score(
-            context.requirement_analysis
+            context.requirement_analysis,
+            confirmed_experience=self.profile.confirmed_experience,
+            profile_configured=self.profile.configured,
+            strict_capabilities=self.profile.strict_capabilities,
         )
         components.append(
             ParticipationScoreComponent(
@@ -513,6 +597,9 @@ class CorterisParticipationRanker:
         financial_score, financial_reason = _financial_score(
             normalized,
             context.requirement_analysis,
+            profile_configured=self.profile.configured,
+            financial_confirmed=self.profile.financial_confirmed,
+            strict_capabilities=self.profile.strict_capabilities,
         )
         components.append(
             ParticipationScoreComponent(
@@ -578,6 +665,16 @@ class CorterisParticipationRanker:
                 "Обнаружено жёсткое непрофильное исключение."
             )
         total = max(0, min(100, raw_total))
+        if self.profile.strict_capabilities and not self.profile.configured:
+            negative.append(
+                "Недостаточно данных о возможностях компании: "
+                + ", ".join(
+                    self.profile.missing_capability_fields
+                    or ("профиль не заполнен",)
+                )
+                + "."
+            )
+            total = min(total, 64)
         recommendation = _recommendation(total, hard_excluded)
 
         if missing_documents:
@@ -619,6 +716,10 @@ class CorterisParticipationRanker:
         self,
         tender: UnifiedTender,
     ) -> tuple[int, str]:
+        if self.profile.strict_capabilities and (not self.profile.configured or not (
+            self.profile.priority_regions or self.profile.nationwide_regions
+        )):
+            return 4, "Недостаточно данных о регионах работы компании."
         raw_region = tender.region or tender.customer.region
         region = normalize_text(raw_region)
         if not region:
@@ -644,6 +745,10 @@ class CorterisParticipationRanker:
     ) -> tuple[int, str]:
         if tender.price is None:
             return 4, "НМЦК не указана — финансовая оценка неполная."
+        if self.profile.strict_capabilities and (
+            not self.profile.configured or not self.profile.financial_confirmed
+        ):
+            return 4, "Недостаточно данных о финансовых возможностях компании."
         conversion_note = ""
         amount = tender.price.amount
         if tender.price.currency != self.profile.price_currency:
@@ -702,6 +807,8 @@ class CorterisParticipationRanker:
         self,
         analysis: TenderRequirementAnalysis | None,
     ) -> tuple[int, str, tuple[str, ...]]:
+        if self.profile.strict_capabilities and not self.profile.configured:
+            return 4, "Недостаточно данных о лицензиях и допусках компании.", ()
         if analysis is None:
             return (
                 7,
@@ -762,7 +869,15 @@ def _direction_score(relevance_score: int) -> int:
 
 def _experience_score(
     analysis: TenderRequirementAnalysis | None,
+    *,
+    confirmed_experience: tuple[str, ...] = (),
+    profile_configured: bool = True,
+    strict_capabilities: bool = False,
 ) -> tuple[int, str]:
+    if strict_capabilities and (
+        not profile_configured or not confirmed_experience
+    ):
+        return 4, "Недостаточно данных о подтверждённом опыте компании."
     if analysis is None:
         return 7, "Требования к опыту ещё не извлечены из документации."
     findings = analysis.experience_requirements
@@ -781,7 +896,15 @@ def _experience_score(
 def _financial_score(
     text: str,
     analysis: TenderRequirementAnalysis | None,
+    *,
+    profile_configured: bool = True,
+    financial_confirmed: bool = True,
+    strict_capabilities: bool = False,
 ) -> tuple[int, str]:
+    if strict_capabilities and (
+        not profile_configured or not financial_confirmed
+    ):
+        return 4, "Недостаточно данных о финансовых возможностях компании."
     score = 6
     factors: list[str] = []
     advance = _find_terms(text, _ADVANCE_TERMS)

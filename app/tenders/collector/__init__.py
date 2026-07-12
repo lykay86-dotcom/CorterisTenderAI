@@ -53,6 +53,10 @@ from app.tenders.collector.currency_store import (
     ExchangeRateRepository,
     parse_cbr_daily_xml,
 )
+from app.tenders.collector.company_capability import (
+    CompanyCapabilityProfile,
+    CompanyCapabilityProfileRepository,
+)
 from app.tenders.collector.models import (
     CollectionPersistenceSummary,
     CollectionRunRecord,
@@ -124,6 +128,8 @@ __all__ = [
     "CollectionRunRecord",
     "CollectionRunStatus",
     "CollectorCheckpoint",
+    "CompanyCapabilityProfile",
+    "CompanyCapabilityProfileRepository",
     "CollectorRunResult",
     "CollectorSchemaMigrator",
     "CollectorService",
