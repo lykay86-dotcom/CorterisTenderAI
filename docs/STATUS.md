@@ -19,14 +19,8 @@
 
 ## Текущее действие
 
-Провести аудит уже существующих механизмов:
-
-- explainable participation scoring;
-- company capability profile;
-- stop-factor engine;
-- commercial estimator;
-- verification and provenance;
-- requirement analysis.
+Аудит существующих механизмов завершён: [RM-107 audit](RM_107_AUDIT.md).
+Следующая подзадача — RM-107.2, единая модель результата.
 
 ## Ближайшая контрольная точка
 
@@ -34,14 +28,14 @@
 
 | Требование RM-107 | Существующий модуль | Состояние | Требуемая доработка |
 |---|---|---|---|
-| Итоговый балл 0–100 |  |  |  |
-| Жёсткие стоп-факторы |  |  |  |
-| Финансовая оценка |  |  |  |
-| Уровень уверенности |  |  |  |
-| Объяснение решения |  |  |  |
-| Сохранение результата |  |  |  |
-| Интерфейс |  |  |  |
-| Тесты |  |  |  |
+| Итоговый балл 0–100 | participation score | PARTIAL | привести пороги и собрать единое решение |
+| Жёсткие стоп-факторы | stop-factor engine | DONE | — |
+| Финансовая оценка | commercial estimator | PARTIAL | включить в решение |
+| Уровень уверенности | verification + freshness | PARTIAL | единый confidence решения |
+| Объяснение решения | score components | PARTIAL | reason-code решения |
+| Сохранение результата | collector state store | DONE | — |
+| Интерфейс | participation score dialog | PARTIAL | decision, confidence, финансы |
+| Тесты | collector score tests | PARTIAL | интеграционные сценарии |
 
 ## Рабочая ветка
 
