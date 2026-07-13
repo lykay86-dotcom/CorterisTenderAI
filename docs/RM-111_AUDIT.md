@@ -1,113 +1,155 @@
-# RM-111 — аудит и бизнес-границы AI Orchestrator
+# RM-111 — аудит существующих AI execution paths
 
-Дата: 13 июля 2026 года. Статус: `IN PROGRESS`.
+Дата: 13 июля 2026 года. Исходный HEAD: `ebc36f4`. Статус RM-111:
+`IN PROGRESS`.
 
-## Цель
+## Цель аудита
 
-RM-111 должен определить единый orchestration contract для уже существующих
-AI-возможностей без создания второго analyzer, repository, decision engine или
-параллельного full-analysis flow.
+Определить единственную application-service точку входа для AI-части полного
+анализа тендера без создания второго analyzer, repository, Decision Engine,
+exporter или параллельного full-analysis workflow.
 
-Orchestrator должен координировать существующие детерминированные и AI-сервисы,
-сохраняя следующие инварианты:
+## Выполненный поиск
 
-- критический стоп-фактор имеет приоритет над score и AI;
-- AI не изменяет подтверждённое решение RM-107;
-- отсутствующие факты не создаются;
-- вывод без проверяемого evidence не повышает уверенность решения;
-- offline/fallback режим остаётся рабочим без API;
-- ошибки provider, schema, cache и SQLite деградируют безопасно.
+Проверены production-код и тесты по символам:
+
+- `AIProvider`, `DisabledProvider`, `OpenAICompatibleProvider`;
+- `TenderDocumentAiAnalyzer`, `TenderDocumentAiAnalysisService`;
+- `AiDocumentAnalysisRepository`;
+- `TenderAIService`, `structured_analysis`;
+- `ai_document_analysis`;
+- `ParticipationDecisionService`.
+
+Также отдельно проверены прямые вызовы `provider.analyze`, чтения
+`repository.latest`, composition roots, UI и exporters.
+
+## Канонический production workflow
+
+Единственная действующая production-цепочка находится в следующих компонентах:
+
+1. `app/tenders/search_runtime.py` создаёт composition root;
+2. `TenderDocumentContextBuilder` формирует ограниченный локальный контекст;
+3. `TenderDocumentAiAnalysisService` управляет reuse текущего fingerprint и
+   безопасным persistence;
+4. `TenderDocumentAiAnalyzer` является единственным каноническим местом прямого
+   вызова `AIProvider.analyze`;
+5. `AiDocumentAnalysisRepository` хранит версионированную append-only историю;
+6. `TenderFullAnalysisService` вызывает task-service и явно передаёт результат
+   текущего запуска в `ParticipationDecisionService.evaluate`;
+7. `DeterministicTenderSummaryGenerator` формирует итоговое резюме из уже
+   существующих детерминированных данных и решения RM-107;
+8. `TenderFullAnalysisDialog` и `TenderAiAnalysisExporter` только отображают и
+   экспортируют готовый `AiDocumentAnalysis`.
+
+Production composition root один: `create_tender_search_runtime()` в
+`app/tenders/search_runtime.py`. UI создаёт его через
+`TenderSearchUiController`, но не создаёт provider, analyzer или repository.
+По умолчанию root использует `DisabledProvider`; выбор provider, модели,
+base URL и credentials не выполняется.
+
+## Прямые вызовы AI provider
+
+Найдены два места:
+
+- `app/core/ai/analyzer.py` — канонический production-вызов, после которого
+  выполняются нормализация, проверка точной цитаты и безопасные статусы;
+- `app/ai/structured_analysis.py` — старый независимый путь с собственным
+  prompt, JSON parsing, `score` и `recommendation`.
+
+Второй путь не имеет production-потребителей. Единственная ссылка вне самого
+модуля — `tests/test_v14.py`, который импортирует только `_extract_json` и
+`validate_citations`. Класс `TenderAIService`, его модели результата и прямой
+provider-вызов являются legacy-дублированием. В RM-111 они должны быть удалены,
+а две совместимые helper-функции могут временно остаться без provider
+orchestration, score, recommendation и repository.
+
+## Repository и cache reads
+
+- `TenderDocumentAiAnalysisService` использует
+  `AiDocumentAnalysisRepository.reusable(registry_key, fingerprint)` и
+  возвращает кеш только при совпадении текущего контекста и версий.
+- `ParticipationDecisionService` умеет читать
+  `ai_analysis_repository.latest(registry_key)`, если вызывающая сторона не
+  передала AI-результат явно.
+- Текущий `TenderFullAnalysisService` уже передаёт
+  `ai_document_analysis=...` явно, поэтому старый успешный cache не заменяет
+  ошибку текущего запуска.
+
+После RM-111 полный анализ обязан сохранить явную передачу
+`orchestration.document_analysis` в RM-107. Orchestrator не должен вызывать
+`repository.latest()` после ошибки и не должен иметь собственный repository.
+
+## Consumers
+
+- UI: `app/ui/tender_full_analysis_dialog.py` читает существующее поле
+  `TenderFullAnalysisResult.ai_document_analysis`, отображает все безопасные
+  статусы и запускает экспорт;
+- HTML/JSON: `app/reporting/tender_ai_analysis.py` экспортирует
+  `AiDocumentAnalysis.to_payload()` либо экранированный HTML;
+- RM-107: `app/tenders/participation_decision_service.py` учитывает только
+  findings с `verified=True` и непустым evidence;
+- deterministic summary: `app/tenders/tender_summary.py` использует готовое
+  решение RM-107, а не рассчитывает AI recommendation.
+
+Публичное поле `TenderFullAnalysisResult.ai_document_analysis` должно быть
+сохранено для обратной совместимости UI и exporter.
+
+## Существующие fallback-механизмы
+
+- `DisabledProvider` возвращает безопасный status без сети;
+- analyzer преобразует provider exception/error/invalid response в безопасный
+  `AiDocumentAnalysis`;
+- task-service изолирует ошибки context builder и repository, не раскрывая
+  исходный exception;
+- corrupt/incompatible cache не становится подтверждённым результатом;
+- full analysis продолжает score, RM-107 и deterministic summary при ошибке AI;
+- неподтверждённые findings не влияют на решение;
+- критический stop-factor возвращается из Decision Engine до анализа score и AI.
+
+В `app/tenders/full_analysis.py` при этом дублируются последняя граница exception
+и преобразование AI status в пользовательское предупреждение. Эта политика
+должна перейти в Orchestrator.
 
 ## Переиспользуемые компоненты
 
-- `app/core/ai/analyzer.py` и `app/core/ai/schemas.py`;
+- `app/core/ai/schemas.py`;
+- `app/core/ai/analyzer.py`;
 - `app/core/ai/document_context.py`;
 - `app/core/ai/repository.py`;
-- `app/tenders/full_analysis.py`;
+- `app/core/ai/prompts.py`;
+- `app/ai/provider.py`;
 - `app/tenders/participation_decision_service.py`;
-- `app/tenders/participation_decision_policy.py`;
 - `app/tenders/tender_summary.py`;
-- текущие UI и HTML/JSON exporters.
+- `app/tenders/full_analysis.py` как единственный end-to-end workflow;
+- текущие UI и HTML/JSON exporter.
 
-До отдельного design-аудита не допускается создание параллельного механизма с
-той же ответственностью.
+## Изменения БД
 
-## Обязательный prerequisite
+Миграция БД не требуется. Orchestrator является stateless application service,
+не создаёт таблицу запусков и переиспользует существующий
+`AiDocumentAnalysisRepository`. Формат `AiDocumentAnalysis` и его payload не
+меняются.
 
-По решению владельца к RM-111 назначен отдельный технический work package:
+## Границы RM-111
 
-1. offline-тесты не читают Windows Credential Manager;
-2. offline-тесты не выполняют сетевые обращения;
-3. сохранённые пользовательские credentials не меняют результат тестов;
-4. полный pytest проходит в обычном и изолированном окружении;
-5. добавлен фиксированный mypy-контур без глобального `ignore_errors`;
-6. опубликован Windows GitHub Actions gate для Python 3.12 и 3.13;
-7. Ruff check и format check входят в обязательные проверки;
-8. C19 live-run вынесен в отдельную ручную/разрешённую операцию.
+В RM-111 входят только:
 
-Фактическое основание назначения: на чистом `b4c1cc7` обычный baseline дал
-`719 passed, 2 failed`, потому что два offline-теста прочитали системный keyring,
-а один из них выполнил реальный запрос. При временно пустом keyring получено
-`721 passed`.
+- `TenderAiOrchestrator` и `TenderAiOrchestrationResult`;
+- единая последняя граница unexpected exception;
+- централизованная status-to-warning policy;
+- wiring одного Orchestrator в production runtime;
+- маршрутизация AI-этапа полного анализа через Orchestrator;
+- presentation новой стадии при сохранении существующего payload;
+- удаление неиспользуемого legacy provider workflow;
+- unit/integration/UI/export regression tests.
 
-До закрытия prerequisite реализация AI Orchestrator не начинается.
+Не входят provider selection, local runtime, новая OpenAI integration/schema,
+новые agents, retries, failover, parallel execution, новые citations,
+специализированные анализаторы, новая БД, AI score или AI recommendation.
+C17 canonicalization и C19 live verification также не изменяются.
 
-### Результат реализации prerequisite
+## Безопасный следующий шаг
 
-В отдельном quality-gate пакете подготовлены:
-
-- явная изоляция конфигурации providers от Windows Credential Manager при
-  передаче тестового environment;
-- безопасный диагностический режим `--no-keyring` без вывода токена;
-- проверка отслеживаемых файлов на секреты и очистка отслеживаемых generated
-  artifacts;
-- фиксированный mypy-контур для четырёх критичных модулей без `ignore_errors`;
-- Windows GitHub Actions matrix для Python 3.12 и 3.13 с Ruff, pytest,
-  migration/build/import smoke checks и аудитом зависимостей;
-- обновление уязвимых версий `cryptography`, `Pillow` и `py7zr`.
-
-Локальная приёмка 13 июля 2026 года:
-
-- обычный Windows Credential Manager: `725 passed`;
-- принудительно пустой keyring: `725 passed`;
-- Ruff check и format check: успешно;
-- mypy: успешно для 4 файлов;
-- security scan: успешно;
-- dependency audit: известных уязвимостей нет;
-- migration, composition-root, public-import и build/release smoke checks:
-  успешно.
-
-Prerequisite закрыт после merge PR #22 (`ebfdf01`). GitHub Actions matrix
-успешно прошла на Python 3.12 и 3.13 как в PR, так и повторно на `main`.
-Branch protection требует обязательный PR, актуальную ветку и оба стабильных
-quality-gate check context; force-push и удаление `main` запрещены. Статус
-prerequisite: `DONE`; сам RM-111 остаётся `IN PROGRESS`.
-
-## Вне области RM-111
-
-- выбор конкретного AI-провайдера — RM-112;
-- локальная AI-модель — RM-113;
-- OpenAI-compatible API — RM-114;
-- новая строгая схема ответа — RM-115;
-- новый механизм citations/provenance — RM-116;
-- анализ ТЗ/договора/заявки и отдельных рисков — RM-117–RM-123;
-- C17 canonicalization — будущий RM-137 или RM-140;
-- C19 connection/live verification — будущий RM-136 или RM-139;
-- изменение БД без отдельной миграции;
-- исправление `.gitignore`, mypy и CI вне назначенного prerequisite.
-
-## Acceptance аудита RM-111
-
-- описана одна ответственность Orchestrator;
-- перечислены существующие компоненты для переиспользования;
-- зафиксированы детерминированные инварианты;
-- отсутствует реализация функций следующих RM;
-- назначенный quality-gate prerequisite имеет воспроизводимый исходный baseline;
-- открытые C17/C19 пробелы не объявлены закрытыми;
-- бизнес-код и БД в docs-only PR не изменены.
-
-## Следующий разрешённый шаг
-
-Перейти к design/implementation этапу AI Orchestrator, переиспользуя
-перечисленные существующие компоненты и сохраняя зафиксированные инварианты.
-Следующий RM не назначать до выполнения Definition of Done RM-111.
+После принятия этого документального аудита реализовать требования из
+`docs/RM-111_REQUIREMENTS.md` в той же ветке отдельными коммитами. RM-112 не
+назначать до полного Definition of Done и merge RM-111.
