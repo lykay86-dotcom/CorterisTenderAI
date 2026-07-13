@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from app.core.ai.orchestrator import TenderAiOrchestrator
     from app.tenders.collector.participation_score_service import (
         CorterisParticipationScoreService,
     )
@@ -63,6 +64,7 @@ class TenderSearchRuntime:
     requirement_analysis_service: TenderRequirementAnalysisService | None = None
     participation_score_service: CorterisParticipationScoreService | None = None
     participation_decision_service: "ParticipationDecisionService | None" = None
+    ai_orchestrator: "TenderAiOrchestrator | None" = None
     full_analysis_service: "TenderFullAnalysisService | None" = None
     matching_catalog_repository: MatchingCatalogRepository | None = None
     commercial_estimate_repository: CommercialEstimateRepository | None = None
@@ -170,17 +172,20 @@ def create_tender_search_runtime(
     )
     from app.core.ai.document_context import TenderDocumentContextBuilder
     from app.core.ai.repository import AiDocumentAnalysisRepository
+    from app.core.ai.orchestrator import TenderAiOrchestrator
 
+    ai_analysis_repository = AiDocumentAnalysisRepository(data_path / "tender_ai_analysis.sqlite3")
     ai_document_analysis_service = TenderDocumentAiAnalysisService(
         TenderDocumentContextBuilder(text_extraction_service),
         TenderDocumentAiAnalyzer(DisabledProvider()),
-        AiDocumentAnalysisRepository(data_path / "tender_ai_analysis.sqlite3"),
+        ai_analysis_repository,
     )
+    ai_orchestrator = TenderAiOrchestrator(ai_document_analysis_service)
     participation_decision_service = ParticipationDecisionService(
         participation_score_service,
         collector_state_repository,
         commercial_estimate_repository,
-        ai_analysis_repository=ai_document_analysis_service.repository,
+        ai_analysis_repository=ai_analysis_repository,
     )
     full_analysis_service = TenderFullAnalysisService(
         tender_registry,
@@ -195,7 +200,7 @@ def create_tender_search_runtime(
         summary_repository=collector_state_repository,
         participation_decision_service=participation_decision_service,
         capability_repository=capability_repository,
-        ai_document_analysis_service=ai_document_analysis_service,
+        ai_orchestrator=ai_orchestrator,
     )
 
     return TenderSearchRuntime(
@@ -212,6 +217,7 @@ def create_tender_search_runtime(
         requirement_analysis_service=(requirement_analysis_service),
         participation_score_service=(participation_score_service),
         participation_decision_service=participation_decision_service,
+        ai_orchestrator=ai_orchestrator,
         full_analysis_service=full_analysis_service,
         matching_catalog_repository=matching_catalog_repository,
         commercial_estimate_repository=commercial_estimate_repository,
