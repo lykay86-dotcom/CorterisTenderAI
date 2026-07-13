@@ -1,25 +1,39 @@
-# Created by pytest automatically.
-@'
 .venv/
 venv/
 env/
+
 build/
 dist/
 installer/output/
+*.egg-info/
+
 __pycache__/
 .pytest_cache/
+.pytest_tmp*/
+.pytest_tmp*
+.mypy_cache/
+.ruff_cache/
+.worktrees/
 *.pyc
 *.pyo
 *.pyd
+
 *.log
 *.tmp
 *.db
 *.sqlite
 *.sqlite3
+
 .env
 .env.*
 .vscode/
 .idea/
 Thumbs.db
 .DS_Store
-'@ | Out-File -Encoding utf8 .gitignore
+
+# Generated demos only; source templates and fixtures remain tracked.
+demo_output/*.docx
+demo_output/*.xlsx
+demo_output_v1_1/*.docx
+demo_output_v1_1/*.xlsx
+demo_output_v1_4/backups/*.zip

@@ -36,10 +36,18 @@ class MosSupplierApiConfig:
         *,
         secret_loader: SecretLoader | None = None,
     ) -> "MosSupplierApiConfig":
+        """Build config without consulting keyring for an explicit environment.
+
+        Production callers omit ``environment`` and retain the environment →
+        Windows Credential Manager fallback. Tests and offline tools pass an
+        explicit mapping; that mapping is a complete, hermetic configuration
+        unless a ``secret_loader`` is deliberately injected.
+        """
+
         env = environment if environment is not None else os.environ
         defaults = cls()
         api_token = str(env.get(defaults.token_environment_variable, "")).strip()
-        if not api_token:
+        if not api_token and (environment is None or secret_loader is not None):
             loader = secret_loader or _load_keyring_secret_safely
             api_token = str(loader(MOS_SUPPLIER_KEYRING_SECRET) or "").strip()
         return cls(

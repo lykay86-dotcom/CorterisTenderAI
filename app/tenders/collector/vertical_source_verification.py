@@ -118,8 +118,8 @@ class VerticalSourceVerification:
                     stage=VerticalSmokeStage(str(item["stage"])),
                     passed=bool(item["passed"]),
                     details=str(item["details"]),
-                    artifact_count=int(item.get("artifact_count", 0)),
-                    elapsed_ms=int(item.get("elapsed_ms", 0)),
+                    artifact_count=_payload_int(item.get("artifact_count", 0)),
+                    elapsed_ms=_payload_int(item.get("elapsed_ms", 0)),
                 )
                 for item in raw_steps
                 if isinstance(item, Mapping)
@@ -128,6 +128,12 @@ class VerticalSourceVerification:
             else (),
             error_message=str(payload.get("error_message", "")),
         )
+
+
+def _payload_int(value: object) -> int:
+    if isinstance(value, (bool, int, float, str)):
+        return int(value)
+    raise ValueError("smoke counter must be numeric")
 
 
 class VerticalSourceVerificationRepository:

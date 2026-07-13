@@ -174,7 +174,7 @@ SecretLoader = Callable[[str], str | None]
 
 
 class CommercialSecretResolver:
-    """Resolve a secret from environment first and Windows keyring second."""
+    """Resolve production secrets without leaking host keyring into tests."""
 
     def __init__(
         self,
@@ -183,7 +183,11 @@ class CommercialSecretResolver:
         keyring_loader: SecretLoader | None = None,
     ) -> None:
         self.environment = environment if environment is not None else os.environ
-        self._keyring_loader = keyring_loader
+        self._keyring_loader = (
+            keyring_loader
+            if keyring_loader is not None
+            else (_load_keyring_secret_safely if environment is None else None)
+        )
         self.last_error = ""
 
     def resolve(
@@ -197,7 +201,8 @@ class CommercialSecretResolver:
 
         loader = self._keyring_loader
         if loader is None:
-            loader = _load_keyring_secret_safely
+            self.last_error = ""
+            return ""
         try:
             self.last_error = ""
             return str(loader(keyring_name) or "").strip()

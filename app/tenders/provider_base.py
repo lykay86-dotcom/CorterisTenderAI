@@ -81,37 +81,31 @@ class TenderSearchQuery:
     price_currency: str = "RUB"
 
     def __post_init__(self) -> None:
+        normalized_min_price = (
+            normalize_money_amount(self.min_price, field_name="min_price")
+            if self.min_price is not None
+            else None
+        )
+        normalized_max_price = (
+            normalize_money_amount(self.max_price, field_name="max_price")
+            if self.max_price is not None
+            else None
+        )
         object.__setattr__(
             self,
             "price_currency",
             normalize_currency_code(self.price_currency),
         )
-        if self.min_price is not None:
-            object.__setattr__(
-                self,
-                "min_price",
-                normalize_money_amount(
-                    self.min_price,
-                    field_name="min_price",
-                ),
-            )
-        if self.max_price is not None:
-            object.__setattr__(
-                self,
-                "max_price",
-                normalize_money_amount(
-                    self.max_price,
-                    field_name="max_price",
-                ),
-            )
+        object.__setattr__(self, "min_price", normalized_min_price)
+        object.__setattr__(self, "max_price", normalized_max_price)
         if self.page < 1:
             raise ValueError("page must be at least 1")
         if not 1 <= self.page_size <= 500:
             raise ValueError("page_size must be between 1 and 500")
         if (
-            self.min_price is not None
-            and self.max_price is not None
-            and self.min_price > self.max_price
+            normalized_min_price is not None
+            and normalized_max_price is not None
+            and normalized_min_price > normalized_max_price
         ):
             raise ValueError("min_price cannot be greater than max_price")
         if (

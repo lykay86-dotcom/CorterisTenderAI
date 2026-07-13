@@ -20,11 +20,29 @@ def test_config_reads_token_and_endpoint_overrides() -> None:
 
 
 def test_empty_token_is_not_configured() -> None:
-    config = MosSupplierApiConfig.from_environment({}, secret_loader=lambda _name: None)
+    config = MosSupplierApiConfig.from_environment({})
 
     assert not config.configured
     assert config.get_url == ("https://api.zakupki.mos.ru/api/v2/auction/public/Get")
     assert config.masked_token == ""
+
+
+def test_explicit_environment_never_reads_host_credential_store(monkeypatch) -> None:
+    requested_names: list[str] = []
+
+    def unexpected_loader(name: str) -> str | None:
+        requested_names.append(name)
+        return "host-secret"
+
+    monkeypatch.setattr(
+        "app.tenders.providers.mos_supplier_config._load_keyring_secret_safely",
+        unexpected_loader,
+    )
+
+    config = MosSupplierApiConfig.from_environment({})
+
+    assert not config.configured
+    assert requested_names == []
 
 
 def test_config_reads_token_from_windows_credential_store() -> None:
