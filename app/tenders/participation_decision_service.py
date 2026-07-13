@@ -26,11 +26,13 @@ class ParticipationDecisionService:
         commercial_estimate_repository: object,
         *,
         policy: ParticipationDecisionPolicy | None = None,
+        ai_analysis_repository: object | None = None,
     ) -> None:
         self.score_service = score_service
         self.state_repository = state_repository
         self.commercial_estimate_repository = commercial_estimate_repository
         self.policy = policy or ParticipationDecisionPolicy()
+        self.ai_analysis_repository = ai_analysis_repository
 
     def evaluate(self, registry_key: str) -> ParticipationDecision:
         key = registry_key.strip()
@@ -41,12 +43,18 @@ class ParticipationDecisionService:
         verification = self.state_repository.get_verification_state(key)
         latest_estimate = self.commercial_estimate_repository.latest(key)
         estimate = latest_estimate[1] if latest_estimate is not None else None
+        ai_analysis = (
+            self.ai_analysis_repository.latest(key)
+            if self.ai_analysis_repository is not None
+            else None
+        )
         decision_input = ParticipationDecisionInput(
             registry_key=key,
             score=score,
             stop_factor_assessment=stop,
             commercial_estimate=estimate,
             verification=verification,
+            ai_document_analysis=ai_analysis,
         )
         recommendation, summary, evidence = self._decide(decision_input)
         confidence = min(item.confidence for item in evidence)
@@ -111,12 +119,33 @@ class ParticipationDecisionService:
         else:
             evidence.append(_evidence("verification_available", "Достоверность данных", "Данные подтверждены доступным источником.", "verification", verification.minimum_confidence))
 
+        ai_analysis = decision_input.ai_document_analysis
+        verified_ai_findings = tuple(
+            item
+            for item in (
+                (*ai_analysis.risks, *ai_analysis.suspicious_conditions, *ai_analysis.contradictions)
+                if ai_analysis is not None else ()
+            )
+            if item.verified and item.evidence is not None
+        )
+        for item in verified_ai_findings:
+            evidence.append(_evidence(
+                "ai_document_risk", "AI-анализ документации", item.statement,
+                "ai_document_analysis", item.evidence.confidence,
+            ))
+
         if any(item.confidence == 0.0 for item in evidence):
             return (ParticipationDecisionRecommendation.DATA_INSUFFICIENT, "Недостаточно данных для решения об участии.", evidence)
         if stop is not None and self.policy.recommendation_for_stop_factor(
             stop.status
         ) == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW:
             return (ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW, "Участие возможно после ручной проверки условий.", evidence)
+        if verified_ai_findings:
+            return (
+                ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
+                "AI-анализ выявил подтверждённые документами условия, требующие ручной проверки.",
+                evidence,
+            )
         score = decision_input.score
         assert score is not None
         recommendation = self.policy.recommendation_for_score(score.total_score)
