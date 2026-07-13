@@ -39,6 +39,20 @@ def test_catalog_is_disabled_by_default_and_never_claims_working() -> None:
     assert all(not item.is_working for item in resolved)
 
 
+def test_explicit_environment_does_not_read_host_keyring(monkeypatch) -> None:
+    requested_names: list[str] = []
+    monkeypatch.setattr(
+        "app.tenders.providers.commercial_catalog._load_keyring_secret_safely",
+        lambda name: requested_names.append(name) or "host-secret",
+    )
+
+    catalog = create_commercial_provider_catalog(environment={})
+
+    assert catalog.resolve_all()
+    assert requested_names == []
+    assert all(not item.api_key for item in catalog.resolve_all())
+
+
 def test_readiness_progresses_without_marking_provider_available() -> None:
     base = {
         "CORTERIS_B2B_ENABLED": "true",

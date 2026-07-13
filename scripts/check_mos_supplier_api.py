@@ -48,7 +48,9 @@ def _json_default(value):
 
 
 async def _run(args: argparse.Namespace) -> int:
-    config = MosSupplierApiConfig.from_environment()
+    config = MosSupplierApiConfig.from_environment(
+        secret_loader=(lambda _name: None) if args.no_keyring else None,
+    )
     if not config.configured:
         print(
             "Портал поставщиков не настроен. Задайте CORTERIS_MOS_API_KEY в текущем окружении.",
@@ -70,7 +72,6 @@ async def _run(args: argparse.Namespace) -> int:
             "message": health.message,
             "latency_ms": health.latency_ms,
             "connection_mode": provider.connection_mode,
-            "token": config.masked_token,
         }
         if args.id:
             output["tender"] = await provider.get_tender(args.id)
@@ -115,6 +116,11 @@ def main() -> int:
     parser.add_argument(
         "--save",
         help="Сохранить нормализованный диагностический результат в JSON",
+    )
+    parser.add_argument(
+        "--no-keyring",
+        action="store_true",
+        help="Не читать Windows Credential Manager (для offline smoke/tests)",
     )
     args = parser.parse_args()
     return asyncio.run(_run(args))

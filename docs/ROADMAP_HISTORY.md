@@ -11,6 +11,13 @@
 - До закрытия prerequisite бизнес-логика AI Orchestrator не реализуется.
 - C17 canonicalization и C19 live verification остаются отдельными будущими
   work packages и не включаются в RM-111.
+- В отдельной ветке `fix/rm-111-quality-gate` устранено чтение host keyring в
+  offline-тестах, добавлены secret/dependency gates, фиксированный mypy-контур
+  и Windows GitHub Actions matrix для Python 3.12/3.13.
+- Локальный полный регресс прошёл в обычном и изолированном режимах:
+  `725 passed` в каждом; Ruff, mypy, security scan и dependency audit успешны.
+- Prerequisite остаётся `IN PROGRESS` до зелёной серверной matrix и принятия
+  отдельного PR; AI Orchestrator, C17 и C19 не реализовывались.
 
 ## 2026-07-13 — Roadmap v2
 - RM-107 переведён в `DONE`.

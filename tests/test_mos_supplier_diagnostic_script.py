@@ -31,7 +31,7 @@ def test_mos_diagnostic_runs_from_scripts_path_without_app_error(
     environment.pop("CORTERIS_MOS_BEARER_TOKEN", None)
 
     completed = subprocess.run(
-        [sys.executable, str(script)],
+        [sys.executable, str(script), "--no-keyring"],
         cwd=tmp_path,
         env=environment,
         text=True,
@@ -43,3 +43,4 @@ def test_mos_diagnostic_runs_from_scripts_path_without_app_error(
     assert completed.returncode == 2
     assert "Портал поставщиков не настроен" in combined
     assert "No module named 'app'" not in combined
+    assert "token" not in completed.stdout.casefold()
