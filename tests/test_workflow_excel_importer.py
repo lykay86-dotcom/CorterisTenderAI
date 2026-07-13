@@ -98,19 +98,14 @@ def test_preview_rejects_invalid_type_status_and_numbers(
 
     assert not preview.can_import
     assert len(preview.invalid_rows) == 1
-    messages = " ".join(
-        issue.message
-        for issue in preview.invalid_rows[0].issues
-    )
+    messages = " ".join(issue.message for issue in preview.invalid_rows[0].issues)
     assert "Неизвестный тип" in messages
     assert "Не указан тендер" in messages
     assert "Неверная дата" in messages
 
 
 def test_apply_creates_updates_and_archives_records(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     existing = repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-1",
@@ -155,9 +150,7 @@ def test_apply_creates_updates_and_archives_records(tmp_path) -> None:
     importer = WorkflowExcelImporter()
     preview = importer.preview(
         path,
-        existing_records=repository.list_records(
-            include_archived=True
-        ),
+        existing_records=repository.list_records(include_archived=True),
     )
     result = importer.apply(preview, repository)
 
@@ -168,11 +161,7 @@ def test_apply_creates_updates_and_archives_records(tmp_path) -> None:
 
     records = repository.list_records(include_archived=True)
     updated = next(item for item in records if item.id == existing.id)
-    project = next(
-        item
-        for item in records
-        if item.kind == BusinessRecordKind.PROJECT.value
-    )
+    project = next(item for item in records if item.kind == BusinessRecordKind.PROJECT.value)
     assert updated.title == "Обновлённое КП"
     assert updated.status == BusinessStatus.READY.value
     assert project.is_archived

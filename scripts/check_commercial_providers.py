@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Show commercial-provider readiness without making network requests."""
 
 from __future__ import annotations
@@ -34,12 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    settings_path = (
-        get_settings().data_dir / "commercial_providers.json"
-    )
-    catalog = create_commercial_provider_catalog(
-        settings_path=settings_path
-    )
+    settings_path = get_settings().data_dir / "commercial_providers.json"
+    catalog = create_commercial_provider_catalog(settings_path=settings_path)
     payload = catalog.public_payload()
 
     if args.json:
@@ -50,15 +47,9 @@ def main() -> int:
     print(f"Настройки: {settings_path}")
     print("Сетевые запросы не выполняются.\n")
     for item in payload:
-        print(
-            f"[{item['state']}] {item['display_name']} "
-            f"({item['provider_id']})"
-        )
+        print(f"[{item['state']}] {item['display_name']} ({item['provider_id']})")
         print(f"  {item['message']}")
-        print(
-            "  API key: "
-            + ("настроен" if item["api_key_configured"] else "не настроен")
-        )
+        print("  API key: " + ("настроен" if item["api_key_configured"] else "не настроен"))
         print(f"  Рабочее подключение: {item['working']}")
         print()
     return 0

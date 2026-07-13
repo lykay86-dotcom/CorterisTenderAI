@@ -74,9 +74,7 @@ class Engine:
 def test_service_verifies_before_ranking_and_persistence(tmp_path) -> None:
     async def scenario():
         events = []
-        repository = CollectorStateRepository(
-            tmp_path / "tender_registry.sqlite3"
-        )
+        repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
         result = await CollectorService(
             Engine(),
             repository,
@@ -86,22 +84,17 @@ def test_service_verifies_before_ranking_and_persistence(tmp_path) -> None:
         )
 
         phases = [event.phase for event in events]
-        assert phases.index(
-            CollectorProgressPhase.VERIFYING
-        ) < phases.index(CollectorProgressPhase.RANKING)
+        assert phases.index(CollectorProgressPhase.VERIFYING) < phases.index(
+            CollectorProgressPhase.RANKING
+        )
         assert result.persistence.verification_run_id
         assert result.metadata["field_conflict_count"] == 0
         assert result.metadata["aggregator_discovery_count"] == 1
         assert result.metadata["official_verification_queue_count"] == 1
         tender = result.deduplication.items[0].tender
         assert str(tender.price.amount) == "1500000.00"
-        assert all(
-            item.tender.source != TenderSource.CUSTOM
-            for item in result.deduplication.items
-        )
-        state = repository.get_verification_state(
-            result.deduplication.items[0].canonical_key
-        )
+        assert all(item.tender.source != TenderSource.CUSTOM for item in result.deduplication.items)
+        state = repository.get_verification_state(result.deduplication.items[0].canonical_key)
         assert state is not None
         with repository._connect() as connection:
             aggregator_records = connection.execute(

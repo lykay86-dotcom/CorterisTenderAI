@@ -82,7 +82,9 @@ def test_migration_history_is_written(tmp_path):
     database, _ = _init(tmp_path)
     with get_engine().connect() as connection:
         count = int(connection.scalar(text("SELECT COUNT(*) FROM migration_history")) or 0)
-        status = connection.scalar(text("SELECT status FROM migration_history ORDER BY id DESC LIMIT 1"))
+        status = connection.scalar(
+            text("SELECT status FROM migration_history ORDER BY id DESC LIMIT 1")
+        )
     assert count >= 1
     assert status == "success"
     reset_database_state()

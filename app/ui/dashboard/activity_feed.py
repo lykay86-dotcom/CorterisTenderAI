@@ -130,15 +130,9 @@ class ActivityFeedItem(QFrame):
 
         self.action_button = QPushButton(entry.action_text, self)
         self.action_button.setObjectName("ActivityFeedAction")
-        self.action_button.setCursor(
-            QCursor(Qt.CursorShape.PointingHandCursor)
-        )
-        self.action_button.setVisible(
-            bool(entry.action_text and entry.action_key)
-        )
-        self.action_button.clicked.connect(
-            lambda: self.action_requested.emit(entry.action_key)
-        )
+        self.action_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.action_button.setVisible(bool(entry.action_text and entry.action_key))
+        self.action_button.clicked.connect(lambda: self.action_requested.emit(entry.action_key))
         root.addWidget(
             self.action_button,
             0,
@@ -158,11 +152,7 @@ class ActivityFeedItem(QFrame):
             ActivityTone.DANGER: palette.danger,
             ActivityTone.NEUTRAL: palette.text_secondary,
         }[self.entry.tone]
-        background = (
-            palette.hover_background
-            if self._focused
-            else palette.input_background
-        )
+        background = palette.hover_background if self._focused else palette.input_background
         border = tone_color if self._focused else palette.border_subtle
         border_width = 2 if self._focused else 1
 
@@ -236,9 +226,8 @@ class ActivityFeedItem(QFrame):
         super().keyPressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if (
-            event.button() == Qt.MouseButton.LeftButton
-            and self.rect().contains(event.position().toPoint())
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(
+            event.position().toPoint()
         ):
             self.activated.emit(self.entry.key)
             event.accept()
@@ -285,9 +274,7 @@ class ActivityFeed(QWidget):
         self.scroll.setAccessibleName("Лента событий")
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.canvas = QWidget(self.scroll)
         self.canvas.setObjectName("ActivityFeedCanvas")
@@ -325,13 +312,9 @@ class ActivityFeed(QWidget):
     def focus_first(self) -> None:
         """Move keyboard focus to the newest event."""
         if self._items:
-            self._items[0].setFocus(
-                Qt.FocusReason.ShortcutFocusReason
-            )
+            self._items[0].setFocus(Qt.FocusReason.ShortcutFocusReason)
         else:
-            self.scroll.setFocus(
-                Qt.FocusReason.ShortcutFocusReason
-            )
+            self.scroll.setFocus(Qt.FocusReason.ShortcutFocusReason)
 
     def set_entries(self, entries: Iterable[ActivityEntry]) -> None:
         """Replace entries and render newest events first."""

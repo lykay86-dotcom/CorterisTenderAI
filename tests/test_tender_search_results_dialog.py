@@ -24,9 +24,7 @@ def test_results_dialog_displays_ranked_tender() -> None:
 
     assert dialog.table.rowCount() == 1
     assert dialog.table.item(0, 0).text() == "88"
-    assert dialog.table.item(0, 3).text() == (
-        "Монтаж системы видеонаблюдения"
-    )
+    assert dialog.table.item(0, 3).text() == ("Монтаж системы видеонаблюдения")
     assert dialog.selected_evaluated() is not None
     assert "ГБУ города Москвы" in dialog.details.toPlainText()
     assert "ЕИС Закупки" in dialog.provider_status.text()
@@ -35,9 +33,7 @@ def test_results_dialog_displays_ranked_tender() -> None:
 
 def test_empty_results_dialog_shows_empty_state() -> None:
     _app()
-    dialog = TenderSearchResultsDialog(
-        make_profile_run(include_tender=False)
-    )
+    dialog = TenderSearchResultsDialog(make_profile_run(include_tender=False))
 
     assert dialog.table.rowCount() == 0
     assert not dialog.open_source_button.isEnabled()

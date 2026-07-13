@@ -86,9 +86,7 @@ def test_partial_run_creates_warning() -> None:
 def test_repository_deduplicates_by_notification_id(
     tmp_path,
 ) -> None:
-    repository = CollectorNotificationRepository(
-        tmp_path / "notifications.json"
-    )
+    repository = CollectorNotificationRepository(tmp_path / "notifications.json")
     items = CollectorNotificationService().for_result(
         _result(),
         _settings(),
@@ -102,9 +100,7 @@ def test_repository_deduplicates_by_notification_id(
 
 
 def test_mark_all_read(tmp_path) -> None:
-    repository = CollectorNotificationRepository(
-        tmp_path / "notifications.json"
-    )
+    repository = CollectorNotificationRepository(tmp_path / "notifications.json")
     repository.add_many(
         CollectorNotificationService().for_result(
             _result(),

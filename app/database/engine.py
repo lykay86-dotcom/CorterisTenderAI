@@ -1,4 +1,5 @@
 """Создание и настройка SQLAlchemy Engine."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,6 +36,7 @@ def create_database_engine(url_or_path: str | Path, *, echo: bool = False) -> En
     )
 
     if parsed.drivername.startswith("sqlite"):
+
         @event.listens_for(engine, "connect")
         def _set_sqlite_pragmas(dbapi_connection, _connection_record) -> None:  # type: ignore[no-untyped-def]
             cursor = dbapi_connection.cursor()

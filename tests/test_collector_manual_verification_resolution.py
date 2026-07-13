@@ -12,9 +12,7 @@ from tests.collector_c3_helpers import make_tender
 
 
 def _conflicted_repository(tmp_path):
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     repository.start_run(TenderSearchQuery(), run_id="run-c14")
     eis = make_tender(
         source=TenderSource.EIS,
@@ -47,9 +45,7 @@ def test_manual_selection_updates_record_and_audit(tmp_path) -> None:
         registry_key,
         field_name="price",
     )
-    aggregator = next(
-        item for item in candidates if item.source_id == "custom"
-    )
+    aggregator = next(item for item in candidates if item.source_id == "custom")
 
     resolution = repository.resolve_field_candidate(
         registry_key,
@@ -60,9 +56,7 @@ def test_manual_selection_updates_record_and_audit(tmp_path) -> None:
         resolved_at="2026-07-12T13:00:00+00:00",
     )
 
-    record = TenderRegistryRepository(repository.path).get_record(
-        registry_key
-    )
+    record = TenderRegistryRepository(repository.path).get_record(registry_key)
     assert record is not None
     assert str(record.price_amount) == "1900000.00"
     current = repository.list_field_candidates(
@@ -81,9 +75,7 @@ def test_manual_selection_updates_record_and_audit(tmp_path) -> None:
 def test_manual_resolution_hides_effective_unresolved_conflict(
     tmp_path,
 ) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     repository.start_run(
         TenderSearchQuery(),
         run_id="run-c14-unresolved",
@@ -98,9 +90,7 @@ def test_manual_resolution_hides_effective_unresolved_conflict(
         external_id="eis-c14-second",
         amount="1900000.00",
     )
-    deduplicated = TenderDeduplicator().deduplicate(
-        (first, second)
-    )
+    deduplicated = TenderDeduplicator().deduplicate((first, second))
     verification = TenderVerificationService().verify(
         deduplicated,
         observed_at="2026-07-12T12:00:00+00:00",
@@ -110,9 +100,7 @@ def test_manual_resolution_hides_effective_unresolved_conflict(
         verification.deduplication,
         verification=verification,
     )
-    registry_key = (
-        verification.deduplication.items[0].canonical_key
-    )
+    registry_key = verification.deduplication.items[0].canonical_key
     conflict_before = repository.list_field_conflicts(
         registry_key,
         unresolved_only=True,
@@ -121,11 +109,7 @@ def test_manual_resolution_hides_effective_unresolved_conflict(
         registry_key,
         field_name="price",
     )
-    selected = next(
-        item
-        for item in candidates
-        if item.source_url.endswith("/eis-c14-first")
-    )
+    selected = next(item for item in candidates if item.source_url.endswith("/eis-c14-first"))
 
     repository.resolve_field_candidate(
         registry_key,
@@ -149,9 +133,7 @@ def test_clear_manual_resolution_restores_automatic_priority(tmp_path) -> None:
         registry_key,
         field_name="price",
     )
-    aggregator = next(
-        item for item in candidates if item.source_id == "custom"
-    )
+    aggregator = next(item for item in candidates if item.source_id == "custom")
     repository.resolve_field_candidate(
         registry_key,
         "price",
@@ -172,8 +154,6 @@ def test_clear_manual_resolution_restores_automatic_priority(tmp_path) -> None:
     selected = next(item for item in current if item.selected)
     assert selected.source_id == "eis"
     assert not selected.manual_override
-    record = TenderRegistryRepository(repository.path).get_record(
-        registry_key
-    )
+    record = TenderRegistryRepository(repository.path).get_record(registry_key)
     assert record is not None
     assert str(record.price_amount) == "1500000.00"

@@ -25,7 +25,10 @@ def test_default_catalog_is_seeded_and_versioned(tmp_path) -> None:
 
     assert catalog.revision == 1
     assert catalog.entries
-    assert any(item.kind == MatchingEntryKind.ABBREVIATION or item.term == "скуд" for item in catalog.entries)
+    assert any(
+        item.kind == MatchingEntryKind.ABBREVIATION or item.term == "скуд"
+        for item in catalog.entries
+    )
     assert any(item.kind == MatchingEntryKind.OKPD2 for item in catalog.entries)
     assert any(item.kind == MatchingEntryKind.EXCLUSION for item in catalog.entries)
 
@@ -70,11 +73,16 @@ def test_okpd2_can_match_without_keyword_and_exclusion_is_separate(tmp_path) -> 
     initial = repository.load()
     entries = (
         MatchingCatalogEntry(
-            "okpd", "video", "26.40.33", MatchingEntryKind.OKPD2,
+            "okpd",
+            "video",
+            "26.40.33",
+            MatchingEntryKind.OKPD2,
             TenderDirection.VIDEO_SURVEILLANCE,
         ),
         MatchingCatalogEntry(
-            "exclude", "exceptions", "медицинская камера",
+            "exclude",
+            "exceptions",
+            "медицинская камера",
             MatchingEntryKind.EXCLUSION,
         ),
     )

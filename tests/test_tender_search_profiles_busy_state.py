@@ -22,9 +22,7 @@ def _app() -> QApplication:
 
 def test_profile_panel_disables_editing_during_search(tmp_path) -> None:
     _app()
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     panel = TenderSearchProfilesPanel(repository)
 
     panel.set_search_busy(True, profile_id="all-corteris")

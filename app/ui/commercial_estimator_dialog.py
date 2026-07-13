@@ -59,8 +59,7 @@ class CommercialEstimatorDialog(QDialog):
             else "Справочная НМЦК отсутствует. "
         )
         note = QLabel(
-            reference
-            + "НМЦК не подставляется как цена предложения. Заполняйте только "
+            reference + "НМЦК не подставляется как цена предложения. Заполняйте только "
             "подтверждённые суммы; неизвестные значения оставляйте пустыми.",
             self,
         )
@@ -107,8 +106,12 @@ class CommercialEstimatorDialog(QDialog):
         self.target_margin = QLineEdit(self)
         self.target_margin.setPlaceholderText("Целевая маржа, %")
         for widget in (
-            self.revenue, self.revenue_source, self.advance,
-            self.payment_days, self.payment_source, self.target_margin,
+            self.revenue,
+            self.revenue_source,
+            self.advance,
+            self.payment_days,
+            self.payment_source,
+            self.target_margin,
         ):
             commercial.addWidget(widget)
         root.addLayout(commercial)
@@ -139,22 +142,16 @@ class CommercialEstimatorDialog(QDialog):
         for line in draft.lines:
             if line.category in self._amounts and line.unit_cost is not None:
                 self._amounts[line.category].setText(str(line.total))
-                self._sources[line.category].setText(
-                    line.evidence.source if line.evidence else ""
-                )
+                self._sources[line.category].setText(line.evidence.source if line.evidence else "")
         for category in draft.confirmed_zero_categories:
             self._zeros[category].setChecked(True)
         self.revenue.setText(_text_decimal(draft.proposed_revenue))
-        self.revenue_source.setText(
-            draft.revenue_evidence.source if draft.revenue_evidence else ""
-        )
+        self.revenue_source.setText(draft.revenue_evidence.source if draft.revenue_evidence else "")
         self.advance.setText(_text_decimal(draft.advance_percent))
         self.payment_days.setValue(
             draft.payment_delay_days if draft.payment_delay_days is not None else -1
         )
-        self.payment_source.setText(
-            draft.payment_evidence.source if draft.payment_evidence else ""
-        )
+        self.payment_source.setText(draft.payment_evidence.source if draft.payment_evidence else "")
         self.target_margin.setText(_text_decimal(draft.target_margin_percent))
         self._show_result(result)
 
@@ -169,10 +166,12 @@ class CommercialEstimatorDialog(QDialog):
                         f"Для нулевой статьи «{_category_label(category)}» укажите основание."
                     )
                 zeroes.append(category)
-                zero_evidence.append((
-                    category,
-                    CommercialEvidence(self._sources[category].text().strip()),
-                ))
+                zero_evidence.append(
+                    (
+                        category,
+                        CommercialEvidence(self._sources[category].text().strip()),
+                    )
+                )
                 continue
             amount = _optional_decimal(self._amounts[category].text())
             source = self._sources[category].text().strip()
@@ -181,14 +180,16 @@ class CommercialEstimatorDialog(QDialog):
                     f"Для статьи «{_category_label(category)}» укажите источник суммы."
                 )
             if amount is not None or source:
-                lines.append(CommercialCostLine(
-                    line_id=category.value,
-                    category=category,
-                    description=_category_label(category),
-                    quantity=Decimal("1"),
-                    unit_cost=amount,
-                    evidence=CommercialEvidence(source) if source else None,
-                ))
+                lines.append(
+                    CommercialCostLine(
+                        line_id=category.value,
+                        category=category,
+                        description=_category_label(category),
+                        quantity=Decimal("1"),
+                        unit_cost=amount,
+                        evidence=CommercialEvidence(source) if source else None,
+                    )
+                )
         revenue = _optional_decimal(self.revenue.text())
         revenue_source = self.revenue_source.text().strip()
         advance = _optional_decimal(self.advance.text())
@@ -221,7 +222,9 @@ class CommercialEstimatorDialog(QDialog):
         self._show_result(result)
 
     def _show_result(self, result: CommercialEstimateResult) -> None:
-        missing = "".join(f"<li>{escape(item)}</li>" for item in result.missing_data) or "<li>Нет</li>"
+        missing = (
+            "".join(f"<li>{escape(item)}</li>" for item in result.missing_data) or "<li>Нет</li>"
+        )
         warnings = "".join(f"<li>{escape(item)}</li>" for item in result.warnings) or "<li>Нет</li>"
         self.result_view.setHtml(
             f"<h2>{escape(result.status.value)}</h2>"

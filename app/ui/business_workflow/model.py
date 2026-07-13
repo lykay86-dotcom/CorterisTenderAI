@@ -127,9 +127,7 @@ ALLOWED_TRANSITIONS: dict[
         BusinessStatus.BLOCKED,
         BusinessStatus.CANCELLED,
     ),
-    (BusinessRecordKind.PROPOSAL, BusinessStatus.ACCEPTED): (
-        BusinessStatus.COMPLETED,
-    ),
+    (BusinessRecordKind.PROPOSAL, BusinessStatus.ACCEPTED): (BusinessStatus.COMPLETED,),
     (BusinessRecordKind.PROPOSAL, BusinessStatus.BLOCKED): (
         BusinessStatus.REVIEW,
         BusinessStatus.CANCELLED,
@@ -326,11 +324,9 @@ class WorkflowTableModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return int(
-                Qt.AlignmentFlag.AlignRight
-                | Qt.AlignmentFlag.AlignVCenter
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 if column.numeric
-                else Qt.AlignmentFlag.AlignLeft
-                | Qt.AlignmentFlag.AlignVCenter
+                else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
 
         if role == Qt.ItemDataRole.ToolTipRole:
@@ -344,17 +340,11 @@ class WorkflowTableModel(QAbstractTableModel):
             "title": record.title,
             "tender_id": record.tender_id or "—",
             "status": (
-                f"Архив · {status_label(status)}"
-                if record.is_archived
-                else status_label(status)
+                f"Архив · {status_label(status)}" if record.is_archived else status_label(status)
             ),
             "total": self._money(record.total),
             "profit": self._money(record.profit),
-            "margin": (
-                f"{record.margin_percent:.1f}%"
-                if record.margin_percent
-                else "—"
-            ),
+            "margin": (f"{record.margin_percent:.1f}%" if record.margin_percent else "—"),
             "due_date": record.due_date or "—",
             "updated_at": self._format_datetime(record.updated_at),
         }
@@ -419,9 +409,7 @@ class WorkflowTableModel(QAbstractTableModel):
             f"Статус: {status_label(record.status)}",
         ]
         if record.is_archived:
-            parts.append(
-                f"В архиве с: {record.archived_at or '—'}"
-            )
+            parts.append(f"В архиве с: {record.archived_at or '—'}")
         if record.file_path:
             parts.append(f"Файл: {record.file_path}")
         return "\n".join(parts)
@@ -447,22 +435,14 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         self,
         kind: BusinessRecordKind | str | None,
     ) -> None:
-        self._kind = (
-            BusinessRecordKind(kind).value
-            if kind not in {None, ""}
-            else ""
-        )
+        self._kind = BusinessRecordKind(kind).value if kind not in {None, ""} else ""
         self._refresh_rows()
 
     def set_status(
         self,
         status: BusinessStatus | str | None,
     ) -> None:
-        self._status = (
-            BusinessStatus(status).value
-            if status not in {None, ""}
-            else ""
-        )
+        self._status = BusinessStatus(status).value if status not in {None, ""} else ""
         self._refresh_rows()
 
     def set_archive_mode(
@@ -507,15 +487,9 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         if record is None:
             return False
 
-        if (
-            self._archive_mode == WorkflowArchiveMode.ACTIVE
-            and record.is_archived
-        ):
+        if self._archive_mode == WorkflowArchiveMode.ACTIVE and record.is_archived:
             return False
-        if (
-            self._archive_mode == WorkflowArchiveMode.ARCHIVED
-            and not record.is_archived
-        ):
+        if self._archive_mode == WorkflowArchiveMode.ARCHIVED and not record.is_archived:
             return False
 
         if self._kind and record.kind != self._kind:
@@ -573,9 +547,7 @@ class WorkflowStatusDelegate(QStyledItemDelegate):
         option_copy.text = ""
 
         style = (
-            option_copy.widget.style()
-            if option_copy.widget is not None
-            else QApplication.style()
+            option_copy.widget.style() if option_copy.widget is not None else QApplication.style()
         )
         style.drawControl(
             QStyle.ControlElement.CE_ItemViewItem,
@@ -589,18 +561,18 @@ class WorkflowStatusDelegate(QStyledItemDelegate):
             palette.text_muted
             if is_archived
             else {
-            BusinessStatus.COMPLETED.value: palette.success,
-            BusinessStatus.ACCEPTED.value: palette.success,
-            BusinessStatus.APPROVED.value: palette.success,
-            BusinessStatus.READY.value: palette.info,
-            BusinessStatus.SENT.value: palette.info,
-            BusinessStatus.ACTIVE.value: palette.info,
-            BusinessStatus.INSTALLATION.value: palette.warning,
-            BusinessStatus.COMMISSIONING.value: palette.warning,
-            BusinessStatus.REVIEW.value: palette.warning,
-            BusinessStatus.BLOCKED.value: palette.danger,
-            BusinessStatus.CANCELLED.value: palette.danger,
-        }.get(raw_status, palette.neutral)
+                BusinessStatus.COMPLETED.value: palette.success,
+                BusinessStatus.ACCEPTED.value: palette.success,
+                BusinessStatus.APPROVED.value: palette.success,
+                BusinessStatus.READY.value: palette.info,
+                BusinessStatus.SENT.value: palette.info,
+                BusinessStatus.ACTIVE.value: palette.info,
+                BusinessStatus.INSTALLATION.value: palette.warning,
+                BusinessStatus.COMMISSIONING.value: palette.warning,
+                BusinessStatus.REVIEW.value: palette.warning,
+                BusinessStatus.BLOCKED.value: palette.danger,
+                BusinessStatus.CANCELLED.value: palette.danger,
+            }.get(raw_status, palette.neutral)
         )
 
         accent = QColor(color)

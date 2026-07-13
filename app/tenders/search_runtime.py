@@ -60,12 +60,8 @@ class TenderSearchRuntime:
     document_store: TenderDocumentStore | None = None
     document_service: TenderDocumentDownloadService | None = None
     text_extraction_service: TenderDocumentTextService | None = None
-    requirement_analysis_service: (
-        TenderRequirementAnalysisService | None
-    ) = None
-    participation_score_service: (
-        CorterisParticipationScoreService | None
-    ) = None
+    requirement_analysis_service: TenderRequirementAnalysisService | None = None
+    participation_score_service: CorterisParticipationScoreService | None = None
     participation_decision_service: "ParticipationDecisionService | None" = None
     full_analysis_service: "TenderFullAnalysisService | None" = None
     matching_catalog_repository: MatchingCatalogRepository | None = None
@@ -88,43 +84,29 @@ def create_tender_search_runtime(
     data_path = Path(data_directory).expanduser()
     data_path.mkdir(parents=True, exist_ok=True)
 
-    repository = TenderSearchProfileRepository(
-        data_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(data_path / "search_profiles.json")
     repository.initialize()
 
-    registry = create_default_provider_registry(
-        http_transport=http_transport
-    )
+    registry = create_default_provider_registry(http_transport=http_transport)
     engine = TenderSearchEngine(
         registry,
         max_workers=max_workers,
         timeout_seconds=timeout_seconds,
     )
-    tender_registry = TenderRegistryRepository(
-        data_path / "tender_registry.sqlite3"
-    )
+    tender_registry = TenderRegistryRepository(data_path / "tender_registry.sqlite3")
     tender_registry.initialize()
-    matching_catalog_repository = MatchingCatalogRepository(
-        data_path / "tender_registry.sqlite3"
-    )
+    matching_catalog_repository = MatchingCatalogRepository(data_path / "tender_registry.sqlite3")
     matching_catalog_repository.initialize()
     search_service = CorterisTenderSearchService(
         engine,
-        CorterisTenderFilter(
-            CorterisTenderClassifier(
-                matching_catalog_repository.load_profile()
-            )
-        ),
+        CorterisTenderFilter(CorterisTenderClassifier(matching_catalog_repository.load_profile())),
     )
     runner = TenderSearchProfileRunner(
         repository,
         search_service,
         tender_registry,
     )
-    document_store = TenderDocumentStore(
-        data_path / "tender_documents"
-    )
+    document_store = TenderDocumentStore(data_path / "tender_documents")
     document_store.initialize()
     document_service = TenderDocumentDownloadService(
         registry,
@@ -136,15 +118,11 @@ def create_tender_search_runtime(
         data_path / "tender_text",
     )
     text_extraction_service.initialize()
-    analysis_repository = TenderAnalysisRepository(
-        data_path / "tender_analysis.sqlite3"
-    )
+    analysis_repository = TenderAnalysisRepository(data_path / "tender_analysis.sqlite3")
     analysis_repository.initialize()
-    requirement_analysis_service = (
-        TenderRequirementAnalysisService(
-            text_extraction_service,
-            analysis_repository,
-        )
+    requirement_analysis_service = TenderRequirementAnalysisService(
+        text_extraction_service,
+        analysis_repository,
     )
     from app.tenders.collector.participation_score_service import (
         CorterisParticipationScoreService,
@@ -154,9 +132,7 @@ def create_tender_search_runtime(
         CompanyCapabilityProfileRepository,
     )
 
-    collector_state_repository = CollectorStateRepository(
-        data_path / "tender_registry.sqlite3"
-    )
+    collector_state_repository = CollectorStateRepository(data_path / "tender_registry.sqlite3")
     collector_state_repository.initialize()
     commercial_estimate_repository = CommercialEstimateRepository(
         data_path / "tender_registry.sqlite3"
@@ -165,6 +141,7 @@ def create_tender_search_runtime(
     from app.tenders.collector.aggregator_discovery import (
         AggregatorDiscoveryRepository,
     )
+
     aggregator_discovery_repository = AggregatorDiscoveryRepository(
         data_path / "tender_registry.sqlite3"
     )
@@ -232,12 +209,8 @@ def create_tender_search_runtime(
         document_store=document_store,
         document_service=document_service,
         text_extraction_service=text_extraction_service,
-        requirement_analysis_service=(
-            requirement_analysis_service
-        ),
-        participation_score_service=(
-            participation_score_service
-        ),
+        requirement_analysis_service=(requirement_analysis_service),
+        participation_score_service=(participation_score_service),
         participation_decision_service=participation_decision_service,
         full_analysis_service=full_analysis_service,
         matching_catalog_repository=matching_catalog_repository,

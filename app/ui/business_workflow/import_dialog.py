@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 
 from app.reporting.workflow_excel_import import (
-    WorkflowImportLevel,
     WorkflowImportPreview,
     WorkflowImportRow,
 )
@@ -84,12 +83,8 @@ class WorkflowImportPreviewDialog(QDialog):
                 "Комментарии",
             )
         )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(True)
         self.table.verticalHeader().hide()
@@ -135,20 +130,13 @@ class WorkflowImportPreviewDialog(QDialog):
         root.addWidget(self.table, 1)
 
         self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
-        self.import_button = self.buttons.button(
-            QDialogButtonBox.StandardButton.Ok
-        )
-        self.import_button.setText(
-            f"Импортировать {len(preview.valid_rows)}"
-        )
+        self.import_button = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.import_button.setText(f"Импортировать {len(preview.valid_rows)}")
         self.import_button.setEnabled(preview.can_import)
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Cancel
-        ).setText("Отмена")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         root.addWidget(self.buttons)
@@ -180,13 +168,8 @@ class WorkflowImportPreviewDialog(QDialog):
 
         for column, value in enumerate(values):
             item = QTableWidgetItem(value)
-            alignment = (
-                Qt.AlignmentFlag.AlignTop
-                | (
-                    Qt.AlignmentFlag.AlignRight
-                    if column in {0, 6}
-                    else Qt.AlignmentFlag.AlignLeft
-                )
+            alignment = Qt.AlignmentFlag.AlignTop | (
+                Qt.AlignmentFlag.AlignRight if column in {0, 6} else Qt.AlignmentFlag.AlignLeft
             )
             item.setTextAlignment(alignment)
             self.table.setItem(table_row, column, item)
@@ -203,19 +186,13 @@ class WorkflowImportPreviewDialog(QDialog):
         )
 
     def _fatal_text(self) -> str:
-        return "\n".join(
-            f"• {issue.message}"
-            for issue in self.preview.fatal_issues
-        )
+        return "\n".join(f"• {issue.message}" for issue in self.preview.fatal_issues)
 
     @staticmethod
     def _issues_text(row: WorkflowImportRow) -> str:
         if not row.issues:
             return "Проверка пройдена"
-        return "\n".join(
-            f"• {issue.message}"
-            for issue in row.issues
-        )
+        return "\n".join(f"• {issue.message}" for issue in row.issues)
 
     @staticmethod
     def _money(value: Decimal) -> str:

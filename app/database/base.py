@@ -1,4 +1,5 @@
 """Базовые классы SQLAlchemy для всех моделей Corteris Tender AI."""
+
 from __future__ import annotations
 
 import uuid
@@ -38,9 +39,7 @@ class Base(DeclarativeBase):
 class UUIDAuditMixin:
     """UUID, аудит времени, soft delete и версия записи."""
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

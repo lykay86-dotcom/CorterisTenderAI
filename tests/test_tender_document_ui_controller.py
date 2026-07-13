@@ -60,13 +60,9 @@ class FailingDocumentService:
 
 
 def _runtime(tmp_path, service=None) -> TenderSearchRuntime:
-    profiles = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    profiles = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     profiles.initialize()
-    registry_repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    registry_repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     registry_repository.record_profile_run(
         _run(_evaluated_tender()),
         run_id="run-documents",
@@ -123,9 +119,7 @@ def test_controller_forwards_force_download(tmp_path) -> None:
         parent=window,
     )
     tender = runtime.tender_registry.search_tenders()[0]
-    unified = runtime.tender_registry.get_tender(
-        tender.registry_key
-    )
+    unified = runtime.tender_registry.get_tender(tender.registry_key)
 
     controller.open_tender_documents(unified)
     dialog = controller.document_dialogs[0]

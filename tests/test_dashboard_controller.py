@@ -86,11 +86,7 @@ def test_snapshot_uses_latest_analysis_profit() -> None:
         now=NOW,
     )
 
-    profit = next(
-        item
-        for item in snapshot.kpis
-        if item.key == "potential_profit"
-    )
+    profit = next(item for item in snapshot.kpis if item.key == "potential_profit")
     assert profit.value == "240 000 ₽"
 
 

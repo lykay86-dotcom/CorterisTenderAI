@@ -4,11 +4,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from PySide6.QtCore import QObject, Signal
 
+
 @dataclass(frozen=True, slots=True)
 class AiAdvisorMetrics:
     new_tenders: int = 0
     recommended: int = 0
     attention: int = 0
+
 
 @dataclass(frozen=True, slots=True)
 class AiAdvisorFocus:
@@ -17,11 +19,13 @@ class AiAdvisorFocus:
     amount: str = ""
     score: int | None = None
 
+
 @dataclass(frozen=True, slots=True)
 class AiAdvisorAction:
     text: str = "Найти тендеры"
     key: str = "find_tenders"
     enabled: bool = True
+
 
 @dataclass(frozen=True, slots=True)
 class AiAdvisorState:
@@ -32,6 +36,7 @@ class AiAdvisorState:
     reasons: tuple[str, ...] = ()
     warning: str = ""
     action: AiAdvisorAction = field(default_factory=AiAdvisorAction)
+
 
 class AiAdvisorViewModel(QObject):
     state_changed = Signal(object)
@@ -116,6 +121,7 @@ class AiAdvisorViewModel(QObject):
         self.warning_changed.emit(self._state.warning)
         self.action_changed.emit(self._state.action)
         self.state_changed.emit(self._state)
+
 
 __all__ = [
     "AiAdvisorAction",

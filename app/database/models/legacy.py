@@ -1,4 +1,5 @@
 """Совместимые модели MVP, переведённые на UUID."""
+
 from __future__ import annotations
 
 from decimal import Decimal

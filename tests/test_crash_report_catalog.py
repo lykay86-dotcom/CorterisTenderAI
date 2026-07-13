@@ -46,9 +46,7 @@ def test_catalog_lists_valid_and_invalid_reports(tmp_path) -> None:
     damaged = directory / "damaged.ctcrash"
     damaged.write_text("broken", encoding="utf-8")
 
-    entries = CrashReportCatalogService(
-        service
-    ).list_reports([directory])
+    entries = CrashReportCatalogService(service).list_reports([directory])
 
     assert entries[0].path == newer.path
     assert entries[1].path == older.path

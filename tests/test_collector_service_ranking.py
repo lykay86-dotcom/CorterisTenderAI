@@ -49,15 +49,11 @@ class Engine:
 
 def test_collector_automatically_scores_saved_tenders(tmp_path) -> None:
     async def scenario() -> None:
-        repository = CollectorStateRepository(
-            tmp_path / "tender_registry.sqlite3"
-        )
+        repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
         result = await CollectorService(
             Engine(),
             repository,
-        ).collect(
-            TenderSearchQuery(keywords=("видеонаблюдение",))
-        )
+        ).collect(TenderSearchQuery(keywords=("видеонаблюдение",)))
 
         assert result.persistence.ranked_count == 1
         assert result.metadata["ranked_count"] == 1

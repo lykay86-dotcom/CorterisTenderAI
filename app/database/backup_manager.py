@@ -85,9 +85,7 @@ class BackupManager:
     def _snapshot(self, source: Path, destination: Path) -> None:
         """Создаёт согласованный снимок SQLite через штатный backup API."""
         destination.parent.mkdir(parents=True, exist_ok=True)
-        temporary = destination.with_name(
-            f".{destination.name}.{os.getpid()}.tmp"
-        )
+        temporary = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
         self._files.safe_delete(temporary)
 
         source_connection = sqlite3.connect(
@@ -141,9 +139,7 @@ class BackupManager:
 
         integrity = self._integrity(destination)
         if integrity.lower() != "ok":
-            raise RuntimeError(
-                f"Восстановленная база не прошла integrity_check: {integrity}"
-            )
+            raise RuntimeError(f"Восстановленная база не прошла integrity_check: {integrity}")
 
     def _write_metadata(self, record: BackupRecord) -> None:
         payload: dict[str, Any] = {

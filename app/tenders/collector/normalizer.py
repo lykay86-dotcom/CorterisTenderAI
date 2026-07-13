@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-import hashlib
 import re
 import unicodedata
 from typing import Iterable, Mapping
 
-from app.tenders.collector.codec import stable_hash, tender_to_payload
+from app.tenders.collector.codec import stable_hash
 from app.tenders.collector.models import (
     NormalizedTender,
     TenderAliasType,
@@ -34,16 +32,12 @@ class TenderNormalizer:
         title = normalize_text(tender.title)
         customer = normalize_text(tender.customer.name)
         customer_inn = normalize_digits(tender.customer.inn)
-        procurement_number = normalize_identifier(
-            tender.procurement_number
-        )
+        procurement_number = normalize_identifier(tender.procurement_number)
         external_id = normalize_identifier(tender.external_id)
         source = tender.source.value.casefold()
 
         official_number = _official_number(tender.raw_metadata)
-        if not official_number and _looks_like_eis_number(
-            procurement_number
-        ):
+        if not official_number and _looks_like_eis_number(procurement_number):
             official_number = procurement_number
 
         duplicate_payload = {
@@ -58,9 +52,7 @@ class TenderNormalizer:
             ),
         }
         duplicate_hash = stable_hash(duplicate_payload)
-        content_hash = stable_hash(
-            _content_payload(tender, title, customer, customer_inn)
-        )
+        content_hash = stable_hash(_content_payload(tender, title, customer, customer_inn))
 
         aliases: list[TenderIdentityAlias] = []
         if official_number:
@@ -77,17 +69,13 @@ class TenderNormalizer:
                 aliases.append(
                     TenderIdentityAlias(
                         key=f"procurement:{procurement_number}",
-                        alias_type=(
-                            TenderAliasType.PROCUREMENT_NUMBER
-                        ),
+                        alias_type=(TenderAliasType.PROCUREMENT_NUMBER),
                         strength=95,
                     )
                 )
             aliases.append(
                 TenderIdentityAlias(
-                    key=(
-                        f"platform:{source}:{procurement_number}"
-                    ),
+                    key=(f"platform:{source}:{procurement_number}"),
                     alias_type=TenderAliasType.PLATFORM_NUMBER,
                     strength=85,
                 )
@@ -120,9 +108,7 @@ class TenderNormalizer:
         unique_aliases = _unique_aliases(aliases)
         if official_number:
             canonical = f"procurement:{official_number}"
-        elif procurement_number and _looks_cross_source_number(
-            procurement_number
-        ):
+        elif procurement_number and _looks_cross_source_number(procurement_number):
             canonical = f"procurement:{procurement_number}"
         else:
             canonical = min(
@@ -200,10 +186,7 @@ def _price_value(tender: UnifiedTender) -> str:
 def _dedupe_content_hash(tender: UnifiedTender) -> str:
     payload = {
         "title": normalize_text(tender.title),
-        "customer": (
-            normalize_digits(tender.customer.inn)
-            or normalize_text(tender.customer.name)
-        ),
+        "customer": (normalize_digits(tender.customer.inn) or normalize_text(tender.customer.name)),
         "price": _price_value(tender),
         "deadline": (
             tender.application_deadline.isoformat()
@@ -245,9 +228,7 @@ def _content_payload(
         "customer_inn": customer_inn,
         "price": _price_value(tender),
         "published_at": (
-            tender.published_at.isoformat()
-            if tender.published_at is not None
-            else ""
+            tender.published_at.isoformat() if tender.published_at is not None else ""
         ),
         "application_deadline": (
             tender.application_deadline.isoformat()
@@ -255,9 +236,7 @@ def _content_payload(
             else ""
         ),
         "execution_deadline": (
-            tender.execution_deadline.isoformat()
-            if tender.execution_deadline is not None
-            else ""
+            tender.execution_deadline.isoformat() if tender.execution_deadline is not None else ""
         ),
         "status": tender.status.value,
         "procedure_type": tender.procedure_type.value,
@@ -265,8 +244,7 @@ def _content_payload(
         "region": normalize_text(tender.region),
         "description": normalize_text(tender.description),
         "classification_codes": sorted(
-            normalize_identifier(item)
-            for item in tender.classification_codes
+            normalize_identifier(item) for item in tender.classification_codes
         ),
         "documents": documents,
     }

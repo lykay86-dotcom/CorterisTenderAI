@@ -43,18 +43,27 @@ def _record(
 
 
 def test_proposal_normal_status_flow() -> None:
-    assert preferred_next_status(
-        BusinessRecordKind.PROPOSAL,
-        BusinessStatus.DRAFT,
-    ) == BusinessStatus.REVIEW
-    assert preferred_next_status(
-        BusinessRecordKind.PROPOSAL,
-        BusinessStatus.REVIEW,
-    ) == BusinessStatus.READY
-    assert preferred_next_status(
-        BusinessRecordKind.PROPOSAL,
-        BusinessStatus.READY,
-    ) == BusinessStatus.SENT
+    assert (
+        preferred_next_status(
+            BusinessRecordKind.PROPOSAL,
+            BusinessStatus.DRAFT,
+        )
+        == BusinessStatus.REVIEW
+    )
+    assert (
+        preferred_next_status(
+            BusinessRecordKind.PROPOSAL,
+            BusinessStatus.REVIEW,
+        )
+        == BusinessStatus.READY
+    )
+    assert (
+        preferred_next_status(
+            BusinessRecordKind.PROPOSAL,
+            BusinessStatus.READY,
+        )
+        == BusinessStatus.SENT
+    )
 
 
 def test_project_can_be_blocked_during_installation() -> None:

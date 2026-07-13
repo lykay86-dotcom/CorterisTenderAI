@@ -103,9 +103,7 @@ class TenderRequirementAnalysisDialog(QDialog):
         self._visible_findings: tuple[RequirementFinding, ...] = ()
         self._busy = False
 
-        self.setWindowTitle(
-            "Corteris Tender AI — анализ требований тендера"
-        )
+        self.setWindowTitle("Corteris Tender AI — анализ требований тендера")
         self.setModal(False)
         self.resize(1480, 880)
 
@@ -154,9 +152,7 @@ class TenderRequirementAnalysisDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
@@ -164,9 +160,7 @@ class TenderRequirementAnalysisDialog(QDialog):
         self.status_label = QLabel("", self)
         self.status_label.setObjectName("TenderAnalysisStatus")
         self.status_label.setWordWrap(True)
-        self.status_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         root.addWidget(self.status_label)
 
         self.apply_theme(self._theme)
@@ -202,26 +196,16 @@ class TenderRequirementAnalysisDialog(QDialog):
             frame,
         )
         subtitle.setObjectName("TenderAnalysisSubtitle")
-        subtitle.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        subtitle.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         heading.addWidget(title)
         heading.addWidget(subtitle)
         layout.addLayout(heading, 1)
 
         self.risk_metric = self._add_metric(layout, frame, "Риск")
-        self.documents_metric = self._add_metric(
-            layout, frame, "Документов"
-        )
-        self.findings_metric = self._add_metric(
-            layout, frame, "Требований"
-        )
-        self.critical_metric = self._add_metric(
-            layout, frame, "Критичных"
-        )
-        self.missing_metric = self._add_metric(
-            layout, frame, "Не хватает"
-        )
+        self.documents_metric = self._add_metric(layout, frame, "Документов")
+        self.findings_metric = self._add_metric(layout, frame, "Требований")
+        self.critical_metric = self._add_metric(layout, frame, "Критичных")
+        self.missing_metric = self._add_metric(layout, frame, "Не хватает")
         return frame
 
     @staticmethod
@@ -250,9 +234,7 @@ class TenderRequirementAnalysisDialog(QDialog):
         layout.setSpacing(8)
 
         self.search_edit = QLineEdit(frame)
-        self.search_edit.setPlaceholderText(
-            "Поиск по требованию, значению, документу и фрагменту…"
-        )
+        self.search_edit.setPlaceholderText("Поиск по требованию, значению, документу и фрагменту…")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self.refresh_findings)
 
@@ -263,9 +245,7 @@ class TenderRequirementAnalysisDialog(QDialog):
                 _CATEGORY_LABELS.get(category, category.value),
                 category.value,
             )
-        self.category_combo.currentIndexChanged.connect(
-            self.refresh_findings
-        )
+        self.category_combo.currentIndexChanged.connect(self.refresh_findings)
 
         self.severity_combo = QComboBox(frame)
         self.severity_combo.addItem("Любая важность", "")
@@ -278,9 +258,7 @@ class TenderRequirementAnalysisDialog(QDialog):
                 _SEVERITY_LABELS[severity],
                 severity.value,
             )
-        self.severity_combo.currentIndexChanged.connect(
-            self.refresh_findings
-        )
+        self.severity_combo.currentIndexChanged.connect(self.refresh_findings)
 
         layout.addWidget(self.search_edit, 1)
         layout.addWidget(self.category_combo)
@@ -314,15 +292,9 @@ class TenderRequirementAnalysisDialog(QDialog):
                 "Доверие",
             )
         )
-        self.findings_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.findings_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.findings_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.findings_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.findings_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.findings_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.findings_table.setAlternatingRowColors(True)
         self.findings_table.verticalHeader().setVisible(False)
         self.findings_table.horizontalHeader().setSectionResizeMode(
@@ -336,9 +308,7 @@ class TenderRequirementAnalysisDialog(QDialog):
             3,
             QHeaderView.ResizeMode.Stretch,
         )
-        self.findings_table.itemSelectionChanged.connect(
-            self._show_selected_finding
-        )
+        self.findings_table.itemSelectionChanged.connect(self._show_selected_finding)
         table_layout.addWidget(self.findings_table, 1)
         splitter.addWidget(table_frame)
 
@@ -375,12 +345,8 @@ class TenderRequirementAnalysisDialog(QDialog):
                 "Предупреждения",
             )
         )
-        self.documents_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.NoSelection
-        )
-        self.documents_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.documents_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.documents_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.documents_table.setAlternatingRowColors(True)
         self.documents_table.verticalHeader().setVisible(False)
         self.documents_table.horizontalHeader().setSectionResizeMode(
@@ -430,19 +396,14 @@ class TenderRequirementAnalysisDialog(QDialog):
         self.severity_combo.setEnabled(not busy)
         self.tabs.setEnabled(not busy)
         if busy:
-            self.set_status(
-                message
-                or "Извлечение текста и анализ требований выполняются в фоне…"
-            )
+            self.set_status(message or "Извлечение текста и анализ требований выполняются в фоне…")
 
     def set_analysis(
         self,
         analysis: TenderRequirementAnalysis,
     ) -> None:
         if analysis.registry_key != self.registry_key:
-            raise ValueError(
-                "analysis registry_key does not match dialog registry_key"
-            )
+            raise ValueError("analysis registry_key does not match dialog registry_key")
         self._analysis = analysis
         self.set_analysis_busy(False)
 
@@ -466,9 +427,7 @@ class TenderRequirementAnalysisDialog(QDialog):
             f"требований — {len(analysis.findings)}",
         ]
         if analysis.warnings:
-            status_parts.append(
-                "предупреждения: " + "; ".join(analysis.warnings)
-            )
+            status_parts.append("предупреждения: " + "; ".join(analysis.warnings))
         self.set_status("; ".join(status_parts))
 
     def set_analysis_error(self, message: str) -> None:
@@ -535,9 +494,7 @@ class TenderRequirementAnalysisDialog(QDialog):
                 item = QTableWidgetItem(value)
                 if column == 0:
                     item.setData(Qt.ItemDataRole.UserRole, row)
-                    item.setTextAlignment(
-                        Qt.AlignmentFlag.AlignCenter
-                    )
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.findings_table.setItem(row, column, item)
 
         if findings:
@@ -607,9 +564,7 @@ class TenderRequirementAnalysisDialog(QDialog):
             self.missing_list.addItem("Анализ ещё не выполнен")
             return
         if not analysis.missing_documents:
-            self.missing_list.addItem(
-                "Основные документы распознаны: ТЗ и проект контракта."
-            )
+            self.missing_list.addItem("Основные документы распознаны: ТЗ и проект контракта.")
             return
         for document in analysis.missing_documents:
             self.missing_list.addItem(document)

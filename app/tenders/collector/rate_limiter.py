@@ -84,8 +84,7 @@ class AsyncRateLimiter:
     ) -> None:
         self.default_policy = default_policy or RateLimitPolicy()
         self._domain_policies = {
-            self.normalize_domain(key): value
-            for key, value in (domain_policies or {}).items()
+            self.normalize_domain(key): value for key, value in (domain_policies or {}).items()
         }
         self._clock = clock
         self._day_provider = day_provider
@@ -139,9 +138,7 @@ class AsyncRateLimiter:
                     0.0,
                     state.blocked_until - self._clock(),
                 ),
-                effective_interval_seconds=(
-                    state.policy.effective_interval_seconds
-                ),
+                effective_interval_seconds=(state.policy.effective_interval_seconds),
             )
 
     @asynccontextmanager
@@ -225,17 +222,14 @@ class AsyncRateLimiter:
                     policy.daily_limit is not None
                     and state.request_count_today >= policy.daily_limit
                 ):
-                    raise DailyRateLimitExceeded(
-                        "Дневной лимит запросов к источнику исчерпан."
-                    )
+                    raise DailyRateLimitExceeded("Дневной лимит запросов к источнику исчерпан.")
 
                 now = self._clock()
                 wait_for = max(0.0, state.blocked_until - now)
                 if state.last_started_at is not None:
                     wait_for = max(
                         wait_for,
-                        policy.effective_interval_seconds
-                        - (now - state.last_started_at),
+                        policy.effective_interval_seconds - (now - state.last_started_at),
                     )
 
                 if wait_for <= 0:

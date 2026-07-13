@@ -54,16 +54,11 @@ class FakeTextService:
 def test_service_extracts_then_analyzes_and_persists(tmp_path) -> None:
     text_path = tmp_path / "Техническое задание.txt"
     text_path.write_text(
-        (
-            "Техническое задание. Требуется лицензия МЧС. "
-            "Срок выполнения работ 30 календарных дней."
-        ),
+        ("Техническое задание. Требуется лицензия МЧС. Срок выполнения работ 30 календарных дней."),
         encoding="utf-8",
     )
     text_service = FakeTextService(text_path)
-    repository = TenderAnalysisRepository(
-        tmp_path / "analysis.sqlite3"
-    )
+    repository = TenderAnalysisRepository(tmp_path / "analysis.sqlite3")
     service = TenderRequirementAnalysisService(
         text_service,
         repository,
@@ -71,9 +66,7 @@ def test_service_extracts_then_analyzes_and_persists(tmp_path) -> None:
 
     analysis = service.analyze("procurement:001")
 
-    assert text_service.extract_calls == [
-        ("procurement:001", False)
-    ]
+    assert text_service.extract_calls == [("procurement:001", False)]
     assert analysis.license_requirements
     assert analysis.deadlines
     assert service.latest("procurement:001") is not None
@@ -97,6 +90,4 @@ def test_force_extraction_is_forwarded(tmp_path) -> None:
         persist=False,
     )
 
-    assert text_service.extract_calls == [
-        ("procurement:002", True)
-    ]
+    assert text_service.extract_calls == [("procurement:002", True)]

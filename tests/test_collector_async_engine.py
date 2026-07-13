@@ -91,10 +91,7 @@ def test_engine_keeps_success_when_another_provider_fails() -> None:
             provider_timeout_seconds=1,
         )
         result = await engine.search(TenderSearchQuery())
-        statuses = {
-            outcome.provider_id: outcome.status
-            for outcome in result.outcomes
-        }
+        statuses = {outcome.provider_id: outcome.status for outcome in result.outcomes}
         assert statuses["good"] == AsyncProviderSearchStatus.SUCCESS
         assert statuses["bad"] == AsyncProviderSearchStatus.FAILED
         assert len(result.raw_items) == 1
@@ -120,8 +117,6 @@ def test_engine_cancels_active_collection() -> None:
         token.cancel("Остановлено из интерфейса")
         result = await asyncio.wait_for(task, timeout=0.5)
         assert result.cancelled
-        assert result.outcomes[0].status == (
-            AsyncProviderSearchStatus.CANCELLED
-        )
+        assert result.outcomes[0].status == (AsyncProviderSearchStatus.CANCELLED)
 
     asyncio.run(scenario())

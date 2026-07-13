@@ -74,16 +74,27 @@ def test_dialog_renders_structured_stop_factor_evidence() -> None:
 def test_dialog_renders_explainable_decision_and_action_plan() -> None:
     dialog = TenderParticipationScoreDialog("procurement:test")
     decision = ParticipationDecision(
-        decision_id="decision", registry_key="procurement:test",
+        decision_id="decision",
+        registry_key="procurement:test",
         recommendation=ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
-        confidence=0.65, summary="Review required.",
-        evidence=(ParticipationDecisionEvidence(
-            "missing_contract", "Project contract", "Document is missing.",
-            0.65, "documents", -8,
-        ),),
+        confidence=0.65,
+        summary="Review required.",
+        evidence=(
+            ParticipationDecisionEvidence(
+                "missing_contract",
+                "Project contract",
+                "Document is missing.",
+                0.65,
+                "documents",
+                -8,
+            ),
+        ),
         input=ParticipationDecisionInput(registry_key="procurement:test"),
-        decided_at="2026-07-13T00:00:00+00:00", policy_version="rm-107-v2",
-        score=71, stop_factors=("License check",), missing=("Project contract",),
+        decided_at="2026-07-13T00:00:00+00:00",
+        policy_version="rm-107-v2",
+        score=71,
+        stop_factors=("License check",),
+        missing=("Project contract",),
         actions=("Request project contract",),
     )
 

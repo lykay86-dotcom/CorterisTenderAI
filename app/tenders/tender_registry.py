@@ -448,12 +448,7 @@ class TenderRegistryRepository:
                         int(item.accepted),
                         item.relevance.score,
                         item.relevance.grade.value,
-                        _json_dumps(
-                            [
-                                direction.value
-                                for direction in item.relevance.directions
-                            ]
-                        ),
+                        _json_dumps([direction.value for direction in item.relevance.directions]),
                         _json_dumps(list(item.relevance.reasons)),
                         _json_dumps(list(item.rejection_reasons)),
                         position,
@@ -481,15 +476,10 @@ class TenderRegistryRepository:
             conditions.append("archived = 0")
         if accepted_only:
             conditions.append("last_accepted = 1")
-        where_clause = (
-            " WHERE " + " AND ".join(conditions)
-            if conditions
-            else ""
-        )
+        where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
         with self._lock, self._connect() as connection:
             row = connection.execute(
-                "SELECT COUNT(*) AS total FROM tender_records"
-                + where_clause
+                "SELECT COUNT(*) AS total FROM tender_records" + where_clause
             ).fetchone()
         return int(row["total"] if row is not None else 0)
 
@@ -513,11 +503,7 @@ class TenderRegistryRepository:
             conditions.append("archived = 0")
         if accepted_only:
             conditions.append("last_accepted = 1")
-        where_clause = (
-            " WHERE " + " AND ".join(conditions)
-            if conditions
-            else ""
-        )
+        where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
         parameters.extend((limit, offset))
 
         with self._lock, self._connect() as connection:
@@ -627,11 +613,7 @@ class TenderRegistryRepository:
         effective = query or TenderRegistryQuery()
         self.initialize()
         conditions, parameters = _registry_query_conditions(effective)
-        where_clause = (
-            " WHERE " + " AND ".join(conditions)
-            if conditions
-            else ""
-        )
+        where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
         order_clause = _registry_order_clause(effective.sort)
         parameters.extend((effective.limit, effective.offset))
 
@@ -656,15 +638,10 @@ class TenderRegistryRepository:
         effective = query or TenderRegistryQuery()
         self.initialize()
         conditions, parameters = _registry_query_conditions(effective)
-        where_clause = (
-            " WHERE " + " AND ".join(conditions)
-            if conditions
-            else ""
-        )
+        where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
         with self._lock, self._connect() as connection:
             row = connection.execute(
-                "SELECT COUNT(*) AS total FROM tender_records"
-                + where_clause,
+                "SELECT COUNT(*) AS total FROM tender_records" + where_clause,
                 tuple(parameters),
             ).fetchone()
         return int(row["total"] if row is not None else 0)
@@ -766,13 +743,9 @@ class TenderRegistryRepository:
                 accepted=bool(row["accepted"]),
                 relevance_score=int(row["relevance_score"]),
                 relevance_grade=str(row["relevance_grade"]),
-                directions=_json_string_tuple(
-                    row["directions_json"]
-                ),
+                directions=_json_string_tuple(row["directions_json"]),
                 reasons=_json_string_tuple(row["reasons_json"]),
-                rejection_reasons=_json_string_tuple(
-                    row["rejection_reasons_json"]
-                ),
+                rejection_reasons=_json_string_tuple(row["rejection_reasons_json"]),
             )
             for row in rows
         )
@@ -840,7 +813,6 @@ class TenderRegistryRepository:
         return connection
 
 
-
 def _registry_query_conditions(
     query: TenderRegistryQuery,
 ) -> tuple[list[str], list[object]]:
@@ -859,11 +831,7 @@ def _registry_query_conditions(
         conditions.append("last_relevance_score >= ?")
         parameters.append(query.minimum_score)
 
-    for term in (
-        item
-        for item in query.text.casefold().split()
-        if item.strip()
-    ):
+    for term in (item for item in query.text.casefold().split() if item.strip()):
         conditions.append(
             """
             CASEFOLD(
@@ -893,20 +861,14 @@ def _registry_order_clause(sort: TenderRegistrySort) -> str:
             "CASE WHEN application_deadline = '' THEN 1 ELSE 0 END, "
             "application_deadline ASC, last_relevance_score DESC"
         ),
-        TenderRegistrySort.LAST_SEEN_DESC: (
-            "last_seen_at DESC, last_relevance_score DESC"
-        ),
-        TenderRegistrySort.FIRST_SEEN_DESC: (
-            "first_seen_at DESC, last_relevance_score DESC"
-        ),
+        TenderRegistrySort.LAST_SEEN_DESC: ("last_seen_at DESC, last_relevance_score DESC"),
+        TenderRegistrySort.FIRST_SEEN_DESC: ("first_seen_at DESC, last_relevance_score DESC"),
         TenderRegistrySort.PRICE_DESC: (
             "CASE WHEN price_amount IS NULL OR price_amount = '' "
             "THEN 1 ELSE 0 END, "
             "CAST(price_amount AS REAL) DESC, last_relevance_score DESC"
         ),
-        TenderRegistrySort.TITLE_ASC: (
-            "CASEFOLD(title) ASC, last_relevance_score DESC"
-        ),
+        TenderRegistrySort.TITLE_ASC: ("CASEFOLD(title) ASC, last_relevance_score DESC"),
     }
     return mapping[TenderRegistrySort(sort)]
 
@@ -922,10 +884,9 @@ def _json_string_tuple(value: object) -> tuple[str, ...]:
         return ()
     return tuple(str(item) for item in payload)
 
+
 def tender_registry_key(tender: UnifiedTender) -> str:
-    procurement_number = normalize_registry_component(
-        tender.procurement_number
-    )
+    procurement_number = normalize_registry_component(tender.procurement_number)
     if procurement_number:
         return f"procurement:{procurement_number}"
     return f"identity:{normalize_registry_component(tender.identity_key)}"
@@ -968,11 +929,7 @@ def _record_values(
     last_seen_at: str,
 ) -> tuple[object, ...]:
     tender = item.tender
-    price_amount = (
-        str(tender.price.amount)
-        if tender.price is not None
-        else None
-    )
+    price_amount = str(tender.price.amount) if tender.price is not None else None
     currency = tender.price.currency if tender.price is not None else ""
     includes_vat = (
         None
@@ -1025,9 +982,7 @@ def _tender_payload(tender: UnifiedTender) -> dict[str, Any]:
         },
         "source_url": tender.source_url,
         "published_at": _optional_iso(tender.published_at),
-        "application_deadline": _optional_iso(
-            tender.application_deadline
-        ),
+        "application_deadline": _optional_iso(tender.application_deadline),
         "execution_deadline": _optional_iso(tender.execution_deadline),
         "price": (
             {
@@ -1087,18 +1042,10 @@ def _payload_to_tender(payload: Mapping[str, Any]) -> UnifiedTender:
                 url=str(item.get("url", "")),
                 mime_type=str(item.get("mime_type", "")),
                 size_bytes=(
-                    int(item["size_bytes"])
-                    if item.get("size_bytes") is not None
-                    else None
+                    int(item["size_bytes"]) if item.get("size_bytes") is not None else None
                 ),
-                published_at=(
-                    datetime.fromisoformat(published_raw)
-                    if published_raw
-                    else None
-                ),
-                checksum_sha256=str(
-                    item.get("checksum_sha256", "")
-                ),
+                published_at=(datetime.fromisoformat(published_raw) if published_raw else None),
+                checksum_sha256=str(item.get("checksum_sha256", "")),
             )
         )
 
@@ -1119,33 +1066,16 @@ def _payload_to_tender(payload: Mapping[str, Any]) -> UnifiedTender:
             address=str(customer_payload.get("address", "")),
         ),
         source_url=str(payload["source_url"]),
-        published_at=(
-            datetime.fromisoformat(published_at)
-            if published_at
-            else None
-        ),
-        application_deadline=(
-            datetime.fromisoformat(deadline)
-            if deadline
-            else None
-        ),
-        execution_deadline=(
-            date.fromisoformat(execution)
-            if execution
-            else None
-        ),
+        published_at=(datetime.fromisoformat(published_at) if published_at else None),
+        application_deadline=(datetime.fromisoformat(deadline) if deadline else None),
+        execution_deadline=(date.fromisoformat(execution) if execution else None),
         price=price,
         status=TenderStatus(str(payload.get("status", "unknown"))),
-        procedure_type=TenderProcedureType(
-            str(payload.get("procedure_type", "unknown"))
-        ),
+        procedure_type=TenderProcedureType(str(payload.get("procedure_type", "unknown"))),
         law=str(payload.get("law", "")),
         region=str(payload.get("region", "")),
         description=str(payload.get("description", "")),
-        classification_codes=tuple(
-            str(item)
-            for item in payload.get("classification_codes", ())
-        ),
+        classification_codes=tuple(str(item) for item in payload.get("classification_codes", ())),
         tags=tuple(str(item) for item in payload.get("tags", ())),
         documents=tuple(documents),
         raw_metadata=(
@@ -1168,11 +1098,7 @@ def _row_to_tender_record(row: sqlite3.Row) -> TenderRegistryRecord:
         customer_name=str(row["customer_name"]),
         customer_inn=str(row["customer_inn"]),
         region=str(row["region"] or row["customer_region"]),
-        price_amount=(
-            Decimal(str(amount_raw))
-            if amount_raw not in (None, "")
-            else None
-        ),
+        price_amount=(Decimal(str(amount_raw)) if amount_raw not in (None, "") else None),
         currency=str(row["currency"]),
         status=str(row["status"]),
         application_deadline=str(row["application_deadline"]),
@@ -1219,10 +1145,7 @@ def _json_safe(value: object) -> object:
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):
-        return {
-            str(key): _json_safe(item)
-            for key, item in value.items()
-        }
+        return {str(key): _json_safe(item) for key, item in value.items()}
     if isinstance(value, (list, tuple, set, frozenset)):
         return [_json_safe(item) for item in value]
     return str(value)

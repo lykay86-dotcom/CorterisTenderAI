@@ -113,11 +113,7 @@ class TenderVerificationReviewService:
         for conflict in conflicts:
             conflict_by_field.setdefault(conflict.field_name, conflict)
         ordered_fields = list(CRITICAL_FIELD_NAMES)
-        ordered_fields.extend(
-            field
-            for field in sorted(by_field)
-            if field not in ordered_fields
-        )
+        ordered_fields.extend(field for field in sorted(by_field) if field not in ordered_fields)
         fields: list[VerificationFieldReview] = []
         for field_name in ordered_fields:
             field_candidates = tuple(by_field.get(field_name, ()))
@@ -130,13 +126,9 @@ class TenderVerificationReviewService:
                     field_name=field_name,
                     label=FIELD_LABELS.get(field_name, field_name),
                     candidates=field_candidates,
-                    selected_candidate_id=(
-                        selected.candidate_id if selected is not None else ""
-                    ),
+                    selected_candidate_id=(selected.candidate_id if selected is not None else ""),
                     conflict=conflict_by_field.get(field_name),
-                    manually_selected=any(
-                        item.manual_override for item in field_candidates
-                    ),
+                    manually_selected=any(item.manual_override for item in field_candidates),
                 )
             )
         return TenderVerificationReview(

@@ -50,9 +50,7 @@ class NormalizedTender:
         if not self.aliases:
             raise ValueError("NormalizedTender.aliases must not be empty")
         if not 0 <= self.completeness_score <= 100:
-            raise ValueError(
-                "completeness_score must be between 0 and 100"
-            )
+            raise ValueError("completeness_score must be between 0 and 100")
 
     @property
     def alias_keys(self) -> tuple[str, ...]:

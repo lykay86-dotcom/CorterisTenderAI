@@ -63,8 +63,5 @@ def test_service_uses_local_text_and_persists(tmp_path) -> None:
 
     score = service.evaluate(normalized.canonical_key)
 
-    assert any(
-        item.casefold() == "скуд"
-        for item in score.matched_keywords
-    )
+    assert any(item.casefold() == "скуд" for item in score.matched_keywords)
     assert service.latest(normalized.canonical_key) == score

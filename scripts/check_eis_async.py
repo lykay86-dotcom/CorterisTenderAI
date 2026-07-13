@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Manual connectivity check for the native asynchronous EIS provider."""
 
 from __future__ import annotations
@@ -44,10 +45,7 @@ async def _run(search_text: str) -> int:
         print(f"items={len(result.items)}")
         print(f"total={result.total}")
         for item in result.items[:5]:
-            print(
-                f"- {item.procurement_number}: {item.title} "
-                f"[{item.source_url}]"
-            )
+            print(f"- {item.procurement_number}: {item.title} [{item.source_url}]")
         for warning in result.warnings:
             print(f"warning={warning}")
         return 0

@@ -13,30 +13,22 @@ from tests.test_tender_registry import _evaluated_tender, _run
 def test_registry_search_matches_russian_text_case_insensitively(
     tmp_path,
 ) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     repository.record_profile_run(
         _run(_evaluated_tender()),
         run_id="run-1",
     )
 
-    records = repository.search_tenders(
-        TenderRegistryQuery(text="ВИДЕОНАБЛЮДЕНИЯ")
-    )
+    records = repository.search_tenders(TenderRegistryQuery(text="ВИДЕОНАБЛЮДЕНИЯ"))
 
     assert len(records) == 1
-    assert records[0].procurement_number == (
-        "0373100000126000001"
-    )
+    assert records[0].procurement_number == ("0373100000126000001")
 
 
 def test_registry_query_filters_score_acceptance_and_archive(
     tmp_path,
 ) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     accepted = _evaluated_tender(score=88)
     rejected = _evaluated_tender(
         procurement_number="0373100000126000002",
@@ -61,9 +53,7 @@ def test_registry_query_filters_score_acceptance_and_archive(
 
     repository.set_archived(high[0].registry_key, True)
 
-    assert repository.search_tenders(
-        TenderRegistryQuery(accepted_only=True)
-    ) == ()
+    assert repository.search_tenders(TenderRegistryQuery(accepted_only=True)) == ()
     archived = repository.search_tenders(
         TenderRegistryQuery(
             archived_only=True,
@@ -75,9 +65,7 @@ def test_registry_query_filters_score_acceptance_and_archive(
 
 
 def test_registry_sort_and_count_use_same_query(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     first = _evaluated_tender(
         procurement_number="0373100000126000001",
         external_id="eis-1",
@@ -109,9 +97,7 @@ def test_registry_sort_and_count_use_same_query(tmp_path) -> None:
 
 
 def test_registry_occurrences_show_profile_history(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     repository.record_profile_run(
         _run(
             _evaluated_tender(score=75),
@@ -128,9 +114,7 @@ def test_registry_occurrences_show_profile_history(tmp_path) -> None:
     )
     record = repository.list_tenders()[0]
 
-    occurrences = repository.list_tender_occurrences(
-        record.registry_key
-    )
+    occurrences = repository.list_tender_occurrences(record.registry_key)
 
     assert [item.run_id for item in occurrences] == [
         "run-2",
@@ -138,15 +122,11 @@ def test_registry_occurrences_show_profile_history(tmp_path) -> None:
     ]
     assert occurrences[0].relevance_score == 92
     assert occurrences[0].accepted
-    assert occurrences[0].directions == (
-        "video_surveillance",
-    )
+    assert occurrences[0].directions == ("video_surveillance",)
 
 
 def test_registry_statistics_include_runs_and_archive(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     accepted = _evaluated_tender()
     rejected = _evaluated_tender(
         procurement_number="0373100000126000002",
@@ -158,9 +138,7 @@ def test_registry_statistics_include_runs_and_archive(tmp_path) -> None:
         _run(accepted, rejected),
         run_id="run-1",
     )
-    record = repository.get_by_procurement_number(
-        accepted.tender.procurement_number
-    )
+    record = repository.get_by_procurement_number(accepted.tender.procurement_number)
     assert record is not None
     repository.set_archived(record.registry_key, True)
 

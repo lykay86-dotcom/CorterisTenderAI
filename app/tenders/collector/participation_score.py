@@ -92,8 +92,7 @@ class CorterisParticipationScore:
                 self.stop_factor_assessment is None
                 or not self.stop_factor_assessment.blocks_participation
             )
-            and self.recommendation
-            != ParticipationRecommendation.NOT_RECOMMENDED
+            and self.recommendation != ParticipationRecommendation.NOT_RECOMMENDED
         )
 
     def to_payload(self) -> dict[str, object]:
@@ -161,38 +160,20 @@ class CorterisParticipationScore:
                     )
                 )
             ),
-            recommendation_text=str(
-                payload.get("recommendation_text", "")
-            ),
+            recommendation_text=str(payload.get("recommendation_text", "")),
             components=tuple(components),
-            positive_factors=_string_tuple(
-                payload.get("positive_factors", ())
-            ),
-            negative_factors=_string_tuple(
-                payload.get("negative_factors", ())
-            ),
-            matched_keywords=_string_tuple(
-                payload.get("matched_keywords", ())
-            ),
-            matched_okpd2=_string_tuple(
-                payload.get("matched_okpd2", ())
-            ),
-            stop_factors=_string_tuple(
-                payload.get("stop_factors", ())
-            ),
-            missing_documents=_string_tuple(
-                payload.get("missing_documents", ())
-            ),
+            positive_factors=_string_tuple(payload.get("positive_factors", ())),
+            negative_factors=_string_tuple(payload.get("negative_factors", ())),
+            matched_keywords=_string_tuple(payload.get("matched_keywords", ())),
+            matched_okpd2=_string_tuple(payload.get("matched_okpd2", ())),
+            stop_factors=_string_tuple(payload.get("stop_factors", ())),
+            missing_documents=_string_tuple(payload.get("missing_documents", ())),
             directions=_string_tuple(payload.get("directions", ())),
             hard_excluded=bool(payload.get("hard_excluded", False)),
             scored_at=str(payload.get("scored_at", "")),
             profile_version=str(payload.get("profile_version", "")),
-            input_fingerprint=str(
-                payload.get("input_fingerprint", "")
-            ),
-            evidence_sources=_string_tuple(
-                payload.get("evidence_sources", ())
-            ),
+            input_fingerprint=str(payload.get("input_fingerprint", "")),
+            evidence_sources=_string_tuple(payload.get("evidence_sources", ())),
             stop_factor_assessment=(
                 StopFactorAssessment.from_payload(dict(raw_stop_assessment))
                 if isinstance(raw_stop_assessment, Mapping)
@@ -312,8 +293,7 @@ class CorterisCompanyProfile:
             business_directions=capability.business_directions,
             confirmed_experience=capability.confirmed_experience,
             financial_confirmed=(
-                capability.max_project_amount is not None
-                and capability.working_capital is not None
+                capability.max_project_amount is not None and capability.working_capital is not None
             ),
             strict_capabilities=True,
         )
@@ -330,9 +310,7 @@ class ParticipationScoringContext:
 
     @property
     def document_text(self) -> str:
-        return "\n".join(
-            item for item in self.document_texts if item.strip()
-        )
+        return "\n".join(item for item in self.document_texts if item.strip())
 
 
 DEFAULT_CORTERIS_COMPANY_PROFILE = CorterisCompanyProfile()
@@ -375,9 +353,7 @@ class CorterisParticipationRanker:
 
     def __init__(
         self,
-        profile: CorterisCompanyProfile = (
-            DEFAULT_CORTERIS_COMPANY_PROFILE
-        ),
+        profile: CorterisCompanyProfile = (DEFAULT_CORTERIS_COMPANY_PROFILE),
         *,
         classifier: CorterisTenderClassifier | None = None,
     ) -> None:
@@ -406,9 +382,7 @@ class CorterisParticipationRanker:
             )
         )
         document_text = context.document_text
-        normalized = normalize_text(
-            f"{metadata_text}\n{document_text}"
-        )
+        normalized = normalize_text(f"{metadata_text}\n{document_text}")
 
         hard_matches = relevance.matched_exclusion_terms
         hard_excluded = relevance.hard_excluded
@@ -445,14 +419,11 @@ class CorterisParticipationRanker:
             if not matched_directions:
                 direction_score = 0
                 direction_reason = (
-                    "Предмет закупки не совпал с подтверждёнными "
-                    "направлениями компании."
+                    "Предмет закупки не совпал с подтверждёнными направлениями компании."
                 )
             else:
                 direction_reason += (
-                    " Подтверждённые направления: "
-                    + ", ".join(matched_directions)
-                    + "."
+                    " Подтверждённые направления: " + ", ".join(matched_directions) + "."
                 )
         elif self.profile.strict_capabilities and not self.profile.configured:
             direction_score = 0
@@ -467,9 +438,7 @@ class CorterisParticipationRanker:
             )
         )
         if direction_score:
-            positive.append(
-                "Предмет закупки соответствует направлениям Кортерис."
-            )
+            positive.append("Предмет закупки соответствует направлениям Кортерис.")
 
         region_score, region_reason = self._region_score(tender)
         components.append(
@@ -511,25 +480,18 @@ class CorterisParticipationRanker:
         )
         equipment_score = min(
             15,
-            len(equipment_matches) * 3
-            + (3 if matched_okpd2 else 0),
+            len(equipment_matches) * 3 + (3 if matched_okpd2 else 0),
         )
         equipment_reason = (
-            "Найдены оборудование/бренды: "
-            + ", ".join(equipment_matches[:8])
+            "Найдены оборудование/бренды: " + ", ".join(equipment_matches[:8])
             if equipment_matches
             else "Конкретное оборудование из профиля Кортерис не найдено."
         )
         if matched_okpd2:
-            equipment_reason += (
-                "; совпадения ОКПД2: "
-                + ", ".join(matched_okpd2)
-            )
+            equipment_reason += "; совпадения ОКПД2: " + ", ".join(matched_okpd2)
         if self.profile.strict_capabilities and not self.profile.configured:
             equipment_score = 0
-            equipment_reason = (
-                "Недостаточно данных об оборудовании и поставщиках компании."
-            )
+            equipment_reason = "Недостаточно данных об оборудовании и поставщиках компании."
         components.append(
             ParticipationScoreComponent(
                 "equipment",
@@ -562,8 +524,8 @@ class CorterisParticipationRanker:
         if experience_score <= 4:
             negative.append(experience_reason)
 
-        license_score, license_reason, license_stops = (
-            self._license_score(context.requirement_analysis)
+        license_score, license_reason, license_stops = self._license_score(
+            context.requirement_analysis
         )
         components.append(
             ParticipationScoreComponent(
@@ -644,17 +606,12 @@ class CorterisParticipationRanker:
         if hard_excluded:
             raw_total = 0
             stop_factors.extend(hard_matches)
-            negative.append(
-                "Обнаружено жёсткое непрофильное исключение."
-            )
+            negative.append("Обнаружено жёсткое непрофильное исключение.")
         total = max(0, min(100, raw_total))
         if self.profile.strict_capabilities and not self.profile.configured:
             negative.append(
                 "Недостаточно данных о возможностях компании: "
-                + ", ".join(
-                    self.profile.missing_capability_fields
-                    or ("профиль не заполнен",)
-                )
+                + ", ".join(self.profile.missing_capability_fields or ("профиль не заполнен",))
                 + "."
             )
             total = min(total, 64)
@@ -671,17 +628,12 @@ class CorterisParticipationRanker:
                 recommendation = ParticipationRecommendation.POSSIBLE_WITH_CONDITIONS
 
         if missing_documents:
-            negative.append(
-                "Недостающие документы: "
-                + ", ".join(missing_documents)
-            )
+            negative.append("Недостающие документы: " + ", ".join(missing_documents))
 
         return CorterisParticipationScore(
             total_score=total,
             recommendation=recommendation,
-            recommendation_text=_recommendation_text(
-                recommendation
-            ),
+            recommendation_text=_recommendation_text(recommendation),
             components=tuple(components),
             positive_factors=_ordered_unique(positive),
             negative_factors=_ordered_unique(negative),
@@ -689,9 +641,7 @@ class CorterisParticipationRanker:
             matched_okpd2=matched_okpd2,
             stop_factors=_ordered_unique(stop_factors),
             missing_documents=missing_documents,
-            directions=tuple(
-                item.value for item in relevance.directions
-            ),
+            directions=tuple(item.value for item in relevance.directions),
             hard_excluded=hard_excluded,
             scored_at=now.isoformat(timespec="seconds"),
             profile_version=self.profile.version,
@@ -700,9 +650,7 @@ class CorterisParticipationRanker:
                 context,
                 self.profile.version,
             ),
-            evidence_sources=_ordered_unique(
-                context.evidence_sources
-            ),
+            evidence_sources=_ordered_unique(context.evidence_sources),
             stop_factor_assessment=structured_stop,
         )
 
@@ -710,23 +658,18 @@ class CorterisParticipationRanker:
         self,
         tender: UnifiedTender,
     ) -> tuple[int, str]:
-        if self.profile.strict_capabilities and (not self.profile.configured or not (
-            self.profile.priority_regions or self.profile.nationwide_regions
-        )):
+        if self.profile.strict_capabilities and (
+            not self.profile.configured
+            or not (self.profile.priority_regions or self.profile.nationwide_regions)
+        ):
             return 4, "Недостаточно данных о регионах работы компании."
         raw_region = tender.region or tender.customer.region
         region = normalize_text(raw_region)
         if not region:
             return 4, "Регион не указан — требуется ручная проверка."
-        if any(
-            normalize_text(item) in region
-            for item in self.profile.priority_regions
-        ):
+        if any(normalize_text(item) in region for item in self.profile.priority_regions):
             return 10, f"Приоритетный регион: {raw_region}."
-        if any(
-            normalize_text(item) in region
-            for item in self.profile.nationwide_regions
-        ):
+        if any(normalize_text(item) in region for item in self.profile.nationwide_regions):
             return 7, "Закупка допускает выполнение по России."
         return 6, f"Регион вне основного приоритета: {raw_region}."
 
@@ -768,34 +711,15 @@ class CorterisParticipationRanker:
                 )
             amount = conversion.converted.amount
             conversion_note = conversion.audit_text() + ". "
-        if (
-            self.profile.preferred_price_min
-            <= amount
-            <= self.profile.preferred_price_max
-        ):
-            return 10, (
-                conversion_note
-                + f"НМЦК {amount} входит в основной рабочий диапазон."
-            )
+        if self.profile.preferred_price_min <= amount <= self.profile.preferred_price_max:
+            return 10, (conversion_note + f"НМЦК {amount} входит в основной рабочий диапазон.")
         if amount < Decimal("50000"):
-            return 2, (
-                conversion_note
-                + f"НМЦК {amount} слишком мала для типового проекта."
-            )
+            return 2, (conversion_note + f"НМЦК {amount} слишком мала для типового проекта.")
         if amount < self.profile.preferred_price_min:
-            return 6, (
-                conversion_note
-                + f"НМЦК {amount} ниже основного диапазона."
-            )
+            return 6, (conversion_note + f"НМЦК {amount} ниже основного диапазона.")
         if amount <= self.profile.extended_price_max:
-            return 6, (
-                conversion_note
-                + f"НМЦК {amount} требует оценки ресурсов и финансирования."
-            )
-        return 3, (
-            conversion_note
-            + f"НМЦК {amount} существенно выше типового диапазона."
-        )
+            return 6, (conversion_note + f"НМЦК {amount} требует оценки ресурсов и финансирования.")
+        return 3, (conversion_note + f"НМЦК {amount} существенно выше типового диапазона.")
 
     def _license_score(
         self,
@@ -820,29 +744,15 @@ class CorterisParticipationRanker:
             )
             for finding in findings
         )
-        known = {
-            normalize_text(item)
-            for item in self.profile.known_licenses
-        }
-        unknown = tuple(
-            item
-            for item in required
-            if normalize_text(item) not in known
-        )
-        critical = any(
-            finding.severity == FindingSeverity.CRITICAL
-            for finding in findings
-        )
+        known = {normalize_text(item) for item in self.profile.known_licenses}
+        unknown = tuple(item for item in required if normalize_text(item) not in known)
+        critical = any(finding.severity == FindingSeverity.CRITICAL for finding in findings)
         if unknown:
             score = 1 if critical else 4
             return (
                 score,
-                "Требуется подтвердить допуски: "
-                + ", ".join(unknown),
-                tuple(
-                    f"Не подтверждён допуск: {item}"
-                    for item in unknown
-                ),
+                "Требуется подтвердить допуски: " + ", ".join(unknown),
+                tuple(f"Не подтверждён допуск: {item}" for item in unknown),
             )
         return 9, "Требуемые допуски отмечены в профиле компании.", ()
 
@@ -868,19 +778,14 @@ def _experience_score(
     profile_configured: bool = True,
     strict_capabilities: bool = False,
 ) -> tuple[int, str]:
-    if strict_capabilities and (
-        not profile_configured or not confirmed_experience
-    ):
+    if strict_capabilities and (not profile_configured or not confirmed_experience):
         return 4, "Недостаточно данных о подтверждённом опыте компании."
     if analysis is None:
         return 7, "Требования к опыту ещё не извлечены из документации."
     findings = analysis.experience_requirements
     if not findings:
         return 10, "Специальные требования к опыту не выявлены."
-    if any(
-        item.severity == FindingSeverity.CRITICAL
-        for item in findings
-    ):
+    if any(item.severity == FindingSeverity.CRITICAL for item in findings):
         return 2, "Выявлены критические требования к подтверждённому опыту."
     if len(findings) >= 3:
         return 4, "Несколько требований к опыту требуют документальной проверки."
@@ -895,9 +800,7 @@ def _financial_score(
     financial_confirmed: bool = True,
     strict_capabilities: bool = False,
 ) -> tuple[int, str]:
-    if strict_capabilities and (
-        not profile_configured or not financial_confirmed
-    ):
+    if strict_capabilities and (not profile_configured or not financial_confirmed):
         return 4, "Недостаточно данных о финансовых возможностях компании."
     score = 6
     factors: list[str] = []
@@ -968,15 +871,11 @@ def _risk_score(
     if analysis is not None:
         if analysis.critical_count:
             penalty += min(10, analysis.critical_count * 5)
-            reasons.append(
-                f"критические требования: {analysis.critical_count}"
-            )
+            reasons.append(f"критические требования: {analysis.critical_count}")
             stops.extend(item.title for item in analysis.stop_factors)
         if analysis.warning_count:
             penalty += min(6, analysis.warning_count)
-            reasons.append(
-                f"предупреждения анализа: {analysis.warning_count}"
-            )
+            reasons.append(f"предупреждения анализа: {analysis.warning_count}")
     if hard_matches:
         penalty = 20
         reasons.append("жёсткое непрофильное исключение")
@@ -1073,18 +972,12 @@ def _recommendation_text(
     recommendation: ParticipationRecommendation,
 ) -> str:
     return {
-        ParticipationRecommendation.RECOMMENDED: (
-            "Рекомендуется участвовать"
-        ),
-        ParticipationRecommendation.MANUAL_REVIEW: (
-            "Требуется ручная проверка"
-        ),
+        ParticipationRecommendation.RECOMMENDED: ("Рекомендуется участвовать"),
+        ParticipationRecommendation.MANUAL_REVIEW: ("Требуется ручная проверка"),
         ParticipationRecommendation.POSSIBLE_WITH_CONDITIONS: (
             "Возможно участие при дополнительных условиях"
         ),
-        ParticipationRecommendation.NOT_RECOMMENDED: (
-            "Не рекомендуется"
-        ),
+        ParticipationRecommendation.NOT_RECOMMENDED: ("Не рекомендуется"),
     }[recommendation]
 
 
@@ -1104,16 +997,8 @@ def _input_fingerprint(
         "title": tender.title,
         "description": tender.description,
         "region": tender.region,
-        "price": (
-            str(tender.price.amount)
-            if tender.price is not None
-            else ""
-        ),
-        "price_currency": (
-            tender.price.currency
-            if tender.price is not None
-            else ""
-        ),
+        "price": (str(tender.price.amount) if tender.price is not None else ""),
+        "price_currency": (tender.price.currency if tender.price is not None else ""),
         "deadline": (
             tender.application_deadline.isoformat()
             if tender.application_deadline is not None
@@ -1121,10 +1006,7 @@ def _input_fingerprint(
         ),
         "codes": list(tender.classification_codes),
         "tags": list(tender.tags),
-        "documents": [
-            (item.id, item.name, item.checksum_sha256)
-            for item in tender.documents
-        ],
+        "documents": [(item.id, item.name, item.checksum_sha256) for item in tender.documents],
         "document_text_hashes": [
             hashlib.sha256(item.encode("utf-8")).hexdigest()
             for item in context.document_texts
@@ -1132,9 +1014,7 @@ def _input_fingerprint(
         ],
         "analysis": analysis_fingerprint,
         "exchange_rates": (
-            context.exchange_rates.fingerprint
-            if context.exchange_rates is not None
-            else ""
+            context.exchange_rates.fingerprint if context.exchange_rates is not None else ""
         ),
         "stop_factor_assessment": (
             context.stop_factor_assessment.input_fingerprint

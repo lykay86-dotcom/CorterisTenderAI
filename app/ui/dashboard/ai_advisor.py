@@ -65,9 +65,7 @@ class AiAdvisor(QFrame):
         )
         self.setMinimumWidth(320)
         self.setAccessibleName("AI Advisor")
-        self.setAccessibleDescription(
-            "Рекомендации, приоритетный тендер и следующий шаг"
-        )
+        self.setAccessibleDescription("Рекомендации, приоритетный тендер и следующий шаг")
 
         self._root = QVBoxLayout(self)
         self._root.setContentsMargins(20, 18, 20, 18)
@@ -320,8 +318,7 @@ class AiAdvisor(QFrame):
         if state.kind == DataStateKind.EMPTY:
             self.set_empty_state()
             self.set_focus(
-                title=state.title
-                or "Запустите поиск тендеров, чтобы получить рекомендацию"
+                title=state.title or "Запустите поиск тендеров, чтобы получить рекомендацию"
             )
             self.set_warning(state.message)
             self.set_action(
@@ -330,9 +327,7 @@ class AiAdvisor(QFrame):
             )
         elif state.kind == DataStateKind.ERROR:
             self.set_status(AiStatus.OFFLINE)
-            self.set_focus(
-                title=state.title or "AI-рекомендации недоступны"
-            )
+            self.set_focus(title=state.title or "AI-рекомендации недоступны")
             self.set_reasons([])
             self.set_warning(state.message or "Повторите загрузку данных.")
             self.set_action(
@@ -341,9 +336,7 @@ class AiAdvisor(QFrame):
             )
         elif state.kind == DataStateKind.PARTIAL:
             self.set_status(AiStatus.WARNING)
-            self.set_warning(
-                state.message or "Часть рекомендаций недоступна."
-            )
+            self.set_warning(state.message or "Часть рекомендаций недоступна.")
             if state.has_action:
                 self.set_action(
                     text=state.action_text,
@@ -411,14 +404,10 @@ class AiAdvisor(QFrame):
 
         normalized_score = 0 if score is None else max(0, min(score, 100))
         self.score_bar.setValue(normalized_score)
-        self.score_value.setText(
-            "—" if score is None else f"{normalized_score}/100"
-        )
+        self.score_value.setText("—" if score is None else f"{normalized_score}/100")
         self.score_bar.setAccessibleName("AI Score")
         self.score_bar.setAccessibleDescription(
-            "Оценка отсутствует"
-            if score is None
-            else f"Оценка тендера {normalized_score} из 100"
+            "Оценка отсутствует" if score is None else f"Оценка тендера {normalized_score} из 100"
         )
         self.apply_theme(self._theme)
 
@@ -451,9 +440,7 @@ class AiAdvisor(QFrame):
         self._action_key = action_key.strip()
         self.action_button.setText(text.strip() or "Продолжить")
         self.action_button.setEnabled(bool(enabled))
-        self.action_button.setAccessibleDescription(
-            f"Действие AI: {self.action_button.text()}"
-        )
+        self.action_button.setAccessibleDescription(f"Действие AI: {self.action_button.text()}")
 
     def set_empty_state(self) -> None:
         """Show a useful state before AI data is available."""
@@ -485,9 +472,7 @@ class AiAdvisor(QFrame):
             AiStatus.WARNING: palette.warning,
         }[self._status]
 
-        warning_foreground, warning_background = palette.semantic(
-            SemanticColor.WARNING
-        )
+        warning_foreground, warning_background = palette.semantic(SemanticColor.WARNING)
 
         score = self.score_bar.value()
         if score >= 80:

@@ -9,13 +9,20 @@ from app.core.ai.document_context import TenderDocumentContextBuilder
 class TextService:
     def __init__(self) -> None:
         self.available = SimpleNamespace(
-            document_key="doc-1", source_path=Path("C:/docs/specification.pdf"),
-            extracted_at="2026-07-13T00:00:00+00:00", status=SimpleNamespace(value="extracted"),
-            checksum_sha256="abc", available_locally=True,
+            document_key="doc-1",
+            source_path=Path("C:/docs/specification.pdf"),
+            extracted_at="2026-07-13T00:00:00+00:00",
+            status=SimpleNamespace(value="extracted"),
+            checksum_sha256="abc",
+            available_locally=True,
         )
         self.unavailable = SimpleNamespace(
-            document_key="doc-2", source_path=None, extracted_at="", status=SimpleNamespace(value="failed"),
-            checksum_sha256="", available_locally=False,
+            document_key="doc-2",
+            source_path=None,
+            extracted_at="",
+            status=SimpleNamespace(value="failed"),
+            checksum_sha256="",
+            available_locally=False,
         )
 
     def list_results(self, _key):

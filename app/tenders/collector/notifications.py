@@ -41,13 +41,9 @@ class CollectorNotification:
         if not self.id.strip():
             raise ValueError("notification id must not be empty")
         if not self.title.strip():
-            raise ValueError(
-                "notification title must not be empty"
-            )
+            raise ValueError("notification title must not be empty")
         if not self.message.strip():
-            raise ValueError(
-                "notification message must not be empty"
-            )
+            raise ValueError("notification message must not be empty")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -70,9 +66,7 @@ class CollectorNotification:
             created_at=str(payload.get("created_at", "")),
             title=str(payload.get("title", "")),
             message=str(payload.get("message", "")),
-            kind=CollectorNotificationKind(
-                str(payload.get("kind", "info"))
-            ),
+            kind=CollectorNotificationKind(str(payload.get("kind", "info"))),
             read=bool(payload.get("read", False)),
             run_id=str(payload.get("run_id", "")),
         )
@@ -103,15 +97,11 @@ class CollectorNotificationRepository:
         with self._lock:
             items = self._load_unlocked()
         if unread_only:
-            items = [
-                item for item in items if not item.read
-            ]
+            items = [item for item in items if not item.read]
         return tuple(items)
 
     def unread_count(self) -> int:
-        return len(
-            self.list_notifications(unread_only=True)
-        )
+        return len(self.list_notifications(unread_only=True))
 
     def add_many(
         self,
@@ -121,10 +111,7 @@ class CollectorNotificationRepository:
         if not incoming:
             return ()
         with self._lock:
-            existing = {
-                item.id: item
-                for item in self._load_unlocked()
-            }
+            existing = {item.id: item for item in self._load_unlocked()}
             for item in incoming:
                 existing[item.id] = item
             ordered = sorted(
@@ -140,10 +127,7 @@ class CollectorNotificationRepository:
             items = self._load_unlocked()
             unread = sum(not item.read for item in items)
             if unread:
-                items = [
-                    replace(item, read=True)
-                    for item in items
-                ]
+                items = [replace(item, read=True) for item in items]
                 self._write_unlocked(items)
             return unread
 
@@ -157,20 +141,14 @@ class CollectorNotificationRepository:
         if not self.path.is_file():
             return []
         try:
-            payload = json.loads(
-                self.path.read_text(encoding="utf-8")
-            )
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (
             OSError,
             TypeError,
             json.JSONDecodeError,
         ):
             return []
-        raw_items = (
-            payload.get("notifications", [])
-            if isinstance(payload, dict)
-            else []
-        )
+        raw_items = payload.get("notifications", []) if isinstance(payload, dict) else []
         if not isinstance(raw_items, list):
             return []
         result: list[CollectorNotification] = []
@@ -178,9 +156,7 @@ class CollectorNotificationRepository:
             if not isinstance(raw, dict):
                 continue
             try:
-                result.append(
-                    CollectorNotification.from_dict(raw)
-                )
+                result.append(CollectorNotification.from_dict(raw))
             except (ValueError, TypeError):
                 continue
         return result
@@ -193,16 +169,12 @@ class CollectorNotificationRepository:
             parents=True,
             exist_ok=True,
         )
-        temporary = self.path.with_suffix(
-            self.path.suffix + ".tmp"
-        )
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
         temporary.write_text(
             json.dumps(
                 {
                     "schema_version": self.SCHEMA_VERSION,
-                    "notifications": [
-                        item.to_dict() for item in items
-                    ],
+                    "notifications": [item.to_dict() for item in items],
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -225,19 +197,14 @@ class CollectorNotificationService:
         items: list[CollectorNotification] = []
         summary = result.persistence
 
-        high_score_count = int(
-            result.metadata.get("high_score_count", 0) or 0
-        )
+        high_score_count = int(result.metadata.get("high_score_count", 0) or 0)
         if settings.notify_new and high_score_count:
             items.append(
                 CollectorNotification(
                     id=f"{run_id}:high-score",
                     created_at=created_at,
                     title="Тендеры с высокой оценкой",
-                    message=(
-                        f"{high_score_count} тендеров имеют "
-                        "оценку участия 80 баллов и выше."
-                    ),
+                    message=(f"{high_score_count} тендеров имеют оценку участия 80 баллов и выше."),
                     kind=CollectorNotificationKind.SUCCESS,
                     run_id=run_id,
                 )
@@ -249,50 +216,32 @@ class CollectorNotificationService:
                     id=f"{run_id}:new",
                     created_at=created_at,
                     title="Новые тендеры",
-                    message=(
-                        f"Найдено {summary.new_count} "
-                        "новых тендеров."
-                    ),
+                    message=(f"Найдено {summary.new_count} новых тендеров."),
                     kind=CollectorNotificationKind.SUCCESS,
                     run_id=run_id,
                 )
             )
 
-        if (
-            settings.notify_changed
-            and summary.changed_count
-        ):
+        if settings.notify_changed and summary.changed_count:
             items.append(
                 CollectorNotification(
                     id=f"{run_id}:changed",
                     created_at=created_at,
                     title="Тендеры изменены",
-                    message=(
-                        f"Изменения обнаружены у "
-                        f"{summary.changed_count} тендеров."
-                    ),
+                    message=(f"Изменения обнаружены у {summary.changed_count} тендеров."),
                     kind=CollectorNotificationKind.INFO,
                     run_id=run_id,
                 )
             )
 
-        if (
-            settings.notify_failures
-            and result.status
-            in {
-                CollectionRunStatus.PARTIAL,
-                CollectionRunStatus.CANCELLED,
-            }
-        ):
+        if settings.notify_failures and result.status in {
+            CollectionRunStatus.PARTIAL,
+            CollectionRunStatus.CANCELLED,
+        }:
             text = (
-                "Сбор завершён частично. Проверьте "
-                "состояние источников."
-                if result.status
-                == CollectionRunStatus.PARTIAL
-                else (
-                    "Сбор был остановлен. Уже полученные "
-                    "данные сохранены."
-                )
+                "Сбор завершён частично. Проверьте состояние источников."
+                if result.status == CollectionRunStatus.PARTIAL
+                else ("Сбор был остановлен. Уже полученные данные сохранены.")
             )
             items.append(
                 CollectorNotification(
@@ -316,18 +265,13 @@ class CollectorNotificationService:
     ) -> tuple[CollectorNotification, ...]:
         if not settings.notify_failures:
             return ()
-        identifier = (
-            f"{run_id}:failed"
-            if run_id
-            else f"failed:{uuid4().hex}"
-        )
+        identifier = f"{run_id}:failed" if run_id else f"failed:{uuid4().hex}"
         return (
             CollectorNotification(
                 id=identifier,
                 created_at=_now_iso(),
                 title="Ошибка сборщика тендеров",
-                message=message.strip()
-                or "Сбор завершился ошибкой.",
+                message=message.strip() or "Сбор завершился ошибкой.",
                 kind=CollectorNotificationKind.ERROR,
                 run_id=run_id,
             ),
@@ -335,9 +279,7 @@ class CollectorNotificationService:
 
 
 def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(
-        timespec="seconds"
-    )
+    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 __all__ = [

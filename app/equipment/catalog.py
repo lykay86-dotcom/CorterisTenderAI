@@ -6,6 +6,7 @@ import csv
 import json
 from openpyxl import load_workbook
 
+
 @dataclass(slots=True)
 class EquipmentItem:
     category: str
@@ -43,7 +44,10 @@ class EquipmentCatalog:
 
     def save(self) -> None:
         self.storage.parent.mkdir(parents=True, exist_ok=True)
-        self.storage.write_text(json.dumps([asdict(x) for x in self.items], ensure_ascii=False, indent=2), encoding="utf-8")
+        self.storage.write_text(
+            json.dumps([asdict(x) for x in self.items], ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     def upsert(self, item: EquipmentItem) -> None:
         for i, current in enumerate(self.items):
@@ -73,22 +77,33 @@ class EquipmentCatalog:
             model = str(normalized.get("модель") or normalized.get("model") or "").strip()
             if not brand or not model:
                 continue
+
             def num(*keys: str) -> float:
-                value = next((normalized.get(k) for k in keys if normalized.get(k) not in (None, "")), 0)
-                try: return float(str(value).replace(" ", "").replace(",", "."))
-                except ValueError: return 0.0
-            self.upsert(EquipmentItem(
-                category=str(normalized.get("категория") or normalized.get("category") or "Прочее"),
-                brand=brand, model=model,
-                article=str(normalized.get("артикул") or normalized.get("article") or ""),
-                supplier=str(normalized.get("поставщик") or normalized.get("supplier") or ""),
-                purchase_price=num("закупочная цена", "purchase_price", "цена"),
-                retail_price=num("розничная цена", "retail_price"),
-                stock=num("остаток", "stock"),
-                lead_time_days=int(num("срок поставки", "lead_time_days")),
-                warranty_months=int(num("гарантия", "warranty_months")),
-                country=str(normalized.get("страна") or normalized.get("country") or ""),
-            ))
+                value = next(
+                    (normalized.get(k) for k in keys if normalized.get(k) not in (None, "")), 0
+                )
+                try:
+                    return float(str(value).replace(" ", "").replace(",", "."))
+                except ValueError:
+                    return 0.0
+
+            self.upsert(
+                EquipmentItem(
+                    category=str(
+                        normalized.get("категория") or normalized.get("category") or "Прочее"
+                    ),
+                    brand=brand,
+                    model=model,
+                    article=str(normalized.get("артикул") or normalized.get("article") or ""),
+                    supplier=str(normalized.get("поставщик") or normalized.get("supplier") or ""),
+                    purchase_price=num("закупочная цена", "purchase_price", "цена"),
+                    retail_price=num("розничная цена", "retail_price"),
+                    stock=num("остаток", "stock"),
+                    lead_time_days=int(num("срок поставки", "lead_time_days")),
+                    warranty_months=int(num("гарантия", "warranty_months")),
+                    country=str(normalized.get("страна") or normalized.get("country") or ""),
+                )
+            )
             count += 1
         return count
 
@@ -96,4 +111,8 @@ class EquipmentCatalog:
         q = query.strip().lower()
         if not q:
             return self.items[:limit]
-        return [x for x in self.items if q in f"{x.category} {x.brand} {x.model} {x.article} {x.supplier}".lower()][:limit]
+        return [
+            x
+            for x in self.items
+            if q in f"{x.category} {x.brand} {x.model} {x.article} {x.supplier}".lower()
+        ][:limit]

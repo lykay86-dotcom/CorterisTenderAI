@@ -29,9 +29,7 @@ def test_workflow_page_exposes_periodic_health_badge(tmp_path) -> None:
     _app()
     backup = WorkflowBackupService()
     catalog = WorkflowBackupCatalogService(backup)
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
 
     page = BusinessWorkflowPage(
         repository=repository,

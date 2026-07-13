@@ -27,9 +27,7 @@ def test_backup_center_uses_existing_palette_tokens_for_both_themes(
     tmp_path,
 ) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     backup_service = WorkflowBackupService()
 
     for theme in (ThemeName.DARK, ThemeName.LIGHT):
@@ -41,9 +39,7 @@ def test_backup_center_uses_existing_palette_tokens_for_both_themes(
         dialog = WorkflowBackupCenterDialog(
             repository=repository,
             backup_service=backup_service,
-            catalog_service=WorkflowBackupCatalogService(
-                backup_service
-            ),
+            catalog_service=WorkflowBackupCatalogService(backup_service),
             directories=[tmp_path / "backups"],
             theme=theme,
         )

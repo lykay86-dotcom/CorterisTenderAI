@@ -46,13 +46,9 @@ def bootstrap() -> None:
             )
         )
 
-    launch_guard = LaunchGuardService(
-        context.paths.data_dir / "launch_history.json"
-    )
+    launch_guard = LaunchGuardService(context.paths.data_dir / "launch_history.json")
     force_safe_mode = "--safe-mode" in sys.argv
-    safe_mode_decision = launch_guard.evaluate(
-        force_safe_mode=force_safe_mode
-    )
+    safe_mode_decision = launch_guard.evaluate(force_safe_mode=force_safe_mode)
     launch_guard.begin_launch()
 
     crash_service = CrashReportService(
@@ -77,8 +73,7 @@ def bootstrap() -> None:
         from app.ui.modern_main_window import ModernMainWindow
     except ImportError as exc:
         raise SystemExit(
-            "PySide6 или UI-модули не установлены.\n"
-            "Выполните: pip install -r requirements.txt"
+            "PySide6 или UI-модули не установлены.\nВыполните: pip install -r requirements.txt"
         ) from exc
 
     application = QApplication(sys.argv)
@@ -94,10 +89,7 @@ def bootstrap() -> None:
     def handle_crash(report) -> None:
         launch_guard.mark_crash(
             crash_report=report.path,
-            details=(
-                f"{report.exception_type}: "
-                f"{report.exception_message}"
-            ),
+            details=(f"{report.exception_type}: {report.exception_message}"),
         )
         crash_bridge.notify(report)
 
@@ -110,15 +102,11 @@ def bootstrap() -> None:
             data_directory=context.paths.data_dir,
             database_file=context.paths.database_file,
             backups_directory=context.paths.backups_dir,
-            crash_reports_directory=(
-                context.paths.data_dir / "crash_reports"
-            ),
+            crash_reports_directory=(context.paths.data_dir / "crash_reports"),
         )
         safe_result = safe_dialog.exec()
         if safe_result != SafeModeDialog.NORMAL_EXIT_CODE:
-            launch_guard.mark_safe_mode_exit(
-                details="Пользователь завершил безопасный режим."
-            )
+            launch_guard.mark_safe_mode_exit(details="Пользователь завершил безопасный режим.")
             crash_handler.uninstall()
             raise SystemExit(0)
 
@@ -135,9 +123,7 @@ def bootstrap() -> None:
         raise SystemExit(1)
 
     crash_bridge.set_parent_window(window)
-    crash_bridge.set_support_bundle_provider(
-        _find_support_bundle_provider(window)
-    )
+    crash_bridge.set_support_bundle_provider(_find_support_bundle_provider(window))
 
     tender_search_controller = TenderSearchUiController(
         context.paths.data_dir,
@@ -149,9 +135,7 @@ def bootstrap() -> None:
     window.show()
     exit_code = application.exec()
 
-    launch_guard.mark_clean_exit(
-        details=f"Qt exit code: {exit_code}"
-    )
+    launch_guard.mark_clean_exit(details=f"Qt exit code: {exit_code}")
     crash_handler.uninstall()
     raise SystemExit(exit_code)
 

@@ -66,18 +66,17 @@ class CorterisSearchProfile:
     def __post_init__(self) -> None:
         if not 0 <= self.minimum_score <= 100:
             raise ValueError("minimum_score must be between 0 and 100")
-        if not (
-            self.minimum_score
-            <= self.medium_score
-            <= self.high_score
-            <= 100
-        ):
+        if not (self.minimum_score <= self.medium_score <= self.high_score <= 100):
             raise ValueError("Invalid relevance score thresholds")
         weights = (
-            self.title_strong_weight, self.title_weak_weight,
-            self.body_strong_weight, self.body_weak_weight,
-            self.tag_strong_weight, self.tag_weak_weight,
-            self.action_bonus, self.multi_direction_bonus,
+            self.title_strong_weight,
+            self.title_weak_weight,
+            self.body_strong_weight,
+            self.body_weak_weight,
+            self.tag_strong_weight,
+            self.tag_weak_weight,
+            self.action_bonus,
+            self.multi_direction_bonus,
             self.okpd2_weight,
         )
         if any(not 0 <= item <= 100 for item in weights):
@@ -101,10 +100,7 @@ class TenderRelevance:
 
     @property
     def relevant(self) -> bool:
-        return (
-            not self.hard_excluded
-            and self.grade != RelevanceGrade.EXCLUDED
-        )
+        return not self.hard_excluded and self.grade != RelevanceGrade.EXCLUDED
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,21 +139,14 @@ class TenderFilterOptions:
                     field_name="max_price",
                 ),
             )
-        if (
-            self.minimum_score is not None
-            and not 0 <= self.minimum_score <= 100
-        ):
-            raise ValueError(
-                "minimum_score must be between 0 and 100"
-            )
+        if self.minimum_score is not None and not 0 <= self.minimum_score <= 100:
+            raise ValueError("minimum_score must be between 0 and 100")
         if (
             self.min_price is not None
             and self.max_price is not None
             and self.min_price > self.max_price
         ):
-            raise ValueError(
-                "min_price cannot be greater than max_price"
-            )
+            raise ValueError("min_price cannot be greater than max_price")
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,9 +164,7 @@ class CorterisTenderFilterResult:
     total_count: int
     accepted_count: int
     rejected_count: int
-    direction_counts: Mapping[TenderDirection, int] = field(
-        default_factory=dict
-    )
+    direction_counts: Mapping[TenderDirection, int] = field(default_factory=dict)
 
     @property
     def tenders(self) -> tuple[UnifiedTender, ...]:
@@ -447,7 +434,8 @@ class CorterisTenderClassifier:
                     rule_weak.append(term)
 
             rule_okpd2 = tuple(
-                code for code in tender.classification_codes
+                code
+                for code in tender.classification_codes
                 if any(
                     code.replace(" ", "").startswith(prefix.replace(" ", ""))
                     for prefix in rule.okpd2_codes
@@ -463,9 +451,7 @@ class CorterisTenderClassifier:
                 score += rule_score
                 strong_matches.extend(rule_strong)
                 weak_matches.extend(rule_weak)
-                reasons.append(
-                    f"{rule.direction.value}: {rule_score} балл."
-                )
+                reasons.append(f"{rule.direction.value}: {rule_score} балл.")
 
         action_matches = _matched_terms(
             f" {title} {body} ",
@@ -473,22 +459,16 @@ class CorterisTenderClassifier:
         )
         if directions and action_matches:
             score += self.profile.action_bonus
-            reasons.append(
-                "Есть работы/поставка по профильному направлению."
-            )
+            reasons.append("Есть работы/поставка по профильному направлению.")
 
         if len(directions) >= 2:
             score += self.profile.multi_direction_bonus
-            reasons.append(
-                "Закупка объединяет несколько направлений Кортерис."
-            )
+            reasons.append("Закупка объединяет несколько направлений Кортерис.")
 
         hard_excluded = bool(exclusion_matches)
         if hard_excluded:
             score = 0
-            reasons.append(
-                "Обнаружена непрофильная трактовка ключевого слова."
-            )
+            reasons.append("Обнаружена непрофильная трактовка ключевого слова.")
 
         score = max(0, min(100, score))
         grade = self._grade(score, hard_excluded)
@@ -500,9 +480,7 @@ class CorterisTenderClassifier:
             matched_strong_terms=_ordered_unique(strong_matches),
             matched_weak_terms=_ordered_unique(weak_matches),
             matched_action_terms=_ordered_unique(action_matches),
-            matched_exclusion_terms=_ordered_unique(
-                exclusion_matches
-            ),
+            matched_exclusion_terms=_ordered_unique(exclusion_matches),
             reasons=tuple(reasons),
             hard_excluded=hard_excluded,
             matched_okpd2=_ordered_unique(okpd2_matches),
@@ -510,8 +488,7 @@ class CorterisTenderClassifier:
 
     def _term_score(self, term: str, base: int) -> int:
         configured = {
-            normalize_text(key): int(value)
-            for key, value in self.profile.term_weight_percent
+            normalize_text(key): int(value) for key, value in self.profile.term_weight_percent
         }.get(normalize_text(term), 100)
         return max(0, round(base * configured / 100))
 
@@ -575,9 +552,7 @@ class CorterisTenderFilter:
 
             accepted.append(evaluated)
             for direction in relevance.directions:
-                direction_counts[direction] = (
-                    direction_counts.get(direction, 0) + 1
-                )
+                direction_counts[direction] = direction_counts.get(direction, 0) + 1
 
         accepted.sort(key=self._ranking_key)
 
@@ -602,10 +577,7 @@ class CorterisTenderFilter:
         if relevance.hard_excluded:
             reasons.append("Непрофильная закупка")
         elif relevance.score < minimum_score:
-            reasons.append(
-                f"Релевантность ниже порога: "
-                f"{relevance.score} < {minimum_score}"
-            )
+            reasons.append(f"Релевантность ниже порога: {relevance.score} < {minimum_score}")
 
         if options.only_open and tender.status not in {
             TenderStatus.PUBLISHED,
@@ -619,62 +591,34 @@ class CorterisTenderFilter:
             matched = required.intersection(actual)
             if options.require_all_directions:
                 if matched != required:
-                    reasons.append(
-                        "Найдены не все обязательные направления"
-                    )
+                    reasons.append("Найдены не все обязательные направления")
             elif not matched:
-                reasons.append(
-                    "Нет требуемого направления Кортерис"
-                )
+                reasons.append("Нет требуемого направления Кортерис")
 
         if options.regions:
-            region = normalize_text(
-                tender.region or tender.customer.region
-            )
-            allowed = tuple(
-                normalize_text(value)
-                for value in options.regions
-            )
-            if not any(
-                _contains_phrase(region, value)
-                for value in allowed
-            ):
+            region = normalize_text(tender.region or tender.customer.region)
+            allowed = tuple(normalize_text(value) for value in options.regions)
+            if not any(_contains_phrase(region, value) for value in allowed):
                 reasons.append("Регион не входит в фильтр")
 
         if options.laws:
             law = normalize_text(tender.law)
-            allowed_laws = {
-                normalize_text(value)
-                for value in options.laws
-            }
+            allowed_laws = {normalize_text(value) for value in options.laws}
             if law not in allowed_laws:
                 reasons.append("Закон закупки не входит в фильтр")
 
         amount = tender.price.amount if tender.price is not None else None
-        has_price_boundary = (
-            options.min_price is not None
-            or options.max_price is not None
-        )
+        has_price_boundary = options.min_price is not None or options.max_price is not None
         if (
             has_price_boundary
             and tender.price is not None
             and tender.price.currency != options.price_currency
         ):
-            reasons.append(
-                "Валюта цены не совпадает с валютой фильтра"
-            )
+            reasons.append("Валюта цены не совпадает с валютой фильтра")
             return reasons
-        if (
-            options.min_price is not None
-            and amount is not None
-            and amount < options.min_price
-        ):
+        if options.min_price is not None and amount is not None and amount < options.min_price:
             reasons.append("Цена ниже минимальной")
-        if (
-            options.max_price is not None
-            and amount is not None
-            and amount > options.max_price
-        ):
+        if options.max_price is not None and amount is not None and amount > options.max_price:
             reasons.append("Цена выше максимальной")
 
         return reasons
@@ -806,11 +750,7 @@ def _matched_terms(
     text: str,
     terms: Sequence[str],
 ) -> tuple[str, ...]:
-    matches = [
-        term
-        for term in terms
-        if _contains_phrase(text, normalize_text(term))
-    ]
+    matches = [term for term in terms if _contains_phrase(text, normalize_text(term))]
     return _ordered_unique(matches)
 
 

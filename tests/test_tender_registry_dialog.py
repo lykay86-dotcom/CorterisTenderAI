@@ -18,9 +18,7 @@ def _app() -> QApplication:
 
 
 def _repository(tmp_path) -> TenderRegistryRepository:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     repository.record_profile_run(
         _run(_evaluated_tender()),
         run_id="run-1",

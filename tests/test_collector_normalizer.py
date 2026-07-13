@@ -23,18 +23,14 @@ def test_normalize_text_handles_russian_forms_and_spacing() -> None:
 
 
 def test_normalizer_builds_strong_official_aliases() -> None:
-    tender = make_tender(
-        raw_metadata={"eis_number": "0373100000126000001"}
-    )
+    tender = make_tender(raw_metadata={"eis_number": "0373100000126000001"})
 
     normalized = TenderNormalizer().normalize(tender)
 
     alias_types = {alias.alias_type for alias in normalized.aliases}
     assert TenderAliasType.EIS_NUMBER in alias_types
     assert TenderAliasType.SOURCE_EXTERNAL_ID in alias_types
-    assert normalized.canonical_key == (
-        "procurement:0373100000126000001"
-    )
+    assert normalized.canonical_key == ("procurement:0373100000126000001")
     assert len(normalized.content_hash) == 64
     assert 0 < normalized.completeness_score <= 100
 

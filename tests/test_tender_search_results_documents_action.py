@@ -34,9 +34,7 @@ def test_results_dialog_requests_selected_documents() -> None:
 
 def test_empty_results_disable_documents_button() -> None:
     app = _app()
-    dialog = TenderSearchResultsDialog(
-        make_profile_run(include_tender=False)
-    )
+    dialog = TenderSearchResultsDialog(make_profile_run(include_tender=False))
 
     assert not dialog.documents_button.isEnabled()
     app.processEvents()

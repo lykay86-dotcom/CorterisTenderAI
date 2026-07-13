@@ -59,9 +59,7 @@ def create_collector_network_runtime(
     )
     # Official collector sources use a direct route by default. This prevents
     # an inherited system proxy from silently breaking TLS negotiation.
-    effective_http_config = http_config or AsyncHttpClientConfig(
-        trust_env=False
-    )
+    effective_http_config = http_config or AsyncHttpClientConfig(trust_env=False)
     http_client = AsyncHttpClient(
         config=effective_http_config,
         rate_limiter=rate_limiter,

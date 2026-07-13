@@ -13,9 +13,7 @@ from app.repositories.business_metrics import (
 
 
 def test_create_record_writes_created_event(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-79",
@@ -31,9 +29,7 @@ def test_create_record_writes_created_event(tmp_path) -> None:
 
 
 def test_edit_writes_one_event_per_changed_field(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = repository.save_record(
         kind=BusinessRecordKind.ESTIMATE,
         tender_id="T-1",
@@ -51,28 +47,20 @@ def test_edit_writes_one_event_per_changed_field(tmp_path) -> None:
     )
 
     history = repository.list_history(record.id)
-    updated = [
-        event
-        for event in history
-        if event.action == BusinessAuditAction.UPDATED.value
-    ]
+    updated = [event for event in history if event.action == BusinessAuditAction.UPDATED.value]
 
     assert {event.field for event in updated} == {
         "title",
         "total",
         "profit",
     }
-    total_event = next(
-        event for event in updated if event.field == "total"
-    )
+    total_event = next(event for event in updated if event.field == "total")
     assert total_event.old_value == "100000.0"
     assert total_event.new_value == "120000.0"
 
 
 def test_status_archive_and_restore_are_audited(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = repository.save_record(
         kind=BusinessRecordKind.PROJECT,
         tender_id="T-2",
@@ -84,10 +72,7 @@ def test_status_archive_and_restore_are_audited(tmp_path) -> None:
     repository.archive_record(record.id)
     repository.restore_record(record.id)
 
-    actions = {
-        event.action
-        for event in repository.list_history(record.id)
-    }
+    actions = {event.action for event in repository.list_history(record.id)}
 
     assert BusinessAuditAction.STATUS_CHANGED.value in actions
     assert BusinessAuditAction.ARCHIVED.value in actions

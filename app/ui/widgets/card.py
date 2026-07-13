@@ -93,9 +93,7 @@ class Card(QFrame):
 
         self._title_label = QLabel(title)
         self._title_label.setObjectName("CardTitle")
-        self._title_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self._title_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._title_label.setWordWrap(True)
 
         self._subtitle_label = QLabel(subtitle)
@@ -112,9 +110,7 @@ class Card(QFrame):
 
         self._value_label = QLabel(value)
         self._value_label.setObjectName("CardValue")
-        self._value_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self._value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._value_label.setWordWrap(True)
         self._value_label.setVisible(bool(value))
         self._root_layout.addWidget(self._value_label)

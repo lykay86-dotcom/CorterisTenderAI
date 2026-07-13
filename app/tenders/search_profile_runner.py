@@ -44,9 +44,7 @@ class TenderSearchProfileRunner:
         self.tender_registry = tender_registry
         self.persistence_required = bool(persistence_required)
         self._persistence_lock = RLock()
-        self._last_save_summaries: dict[
-            str, TenderRegistrySaveSummary
-        ] = {}
+        self._last_save_summaries: dict[str, TenderRegistrySaveSummary] = {}
         self._last_persistence_errors: dict[str, str] = {}
 
     def run(
@@ -59,9 +57,7 @@ class TenderSearchProfileRunner:
     ) -> TenderSearchProfileRun:
         profile = self.repository.get(profile_id)
         if not profile.enabled:
-            raise ValueError(
-                f"Search profile is disabled: {profile.id}"
-            )
+            raise ValueError(f"Search profile is disabled: {profile.id}")
 
         result = self.search_service.search(
             profile.to_search_query(
@@ -69,23 +65,15 @@ class TenderSearchProfileRunner:
                 page=page,
             ),
             filter_options=profile.to_filter_options(),
-            provider_ids=(
-                profile.provider_ids
-                if profile.provider_ids
-                else None
-            ),
-            include_disabled=(
-                profile.include_disabled_providers
-            ),
+            provider_ids=(profile.provider_ids if profile.provider_ids else None),
+            include_disabled=(profile.include_disabled_providers),
             parallel=parallel,
         )
 
         run = TenderSearchProfileRun(
             profile=profile,
             result=result,
-            executed_at=datetime.now(timezone.utc).isoformat(
-                timespec="seconds"
-            ),
+            executed_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         )
         self._persist_run(run)
         return run
@@ -113,9 +101,7 @@ class TenderSearchProfileRunner:
         except Exception as exc:
             with self._persistence_lock:
                 self._last_save_summaries.pop(profile_id, None)
-                self._last_persistence_errors[profile_id] = (
-                    f"{type(exc).__name__}: {exc}"
-                )
+                self._last_persistence_errors[profile_id] = f"{type(exc).__name__}: {exc}"
             if self.persistence_required:
                 raise
             return

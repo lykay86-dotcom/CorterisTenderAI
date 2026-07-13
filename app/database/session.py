@@ -1,4 +1,5 @@
 """Управление сессиями и транзакциями."""
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -33,6 +34,7 @@ def init_database(
 
     if run_migrations:
         from .migration import MigrationManager
+
         MigrationManager(_engine, backup_dir=backup_dir).upgrade()
     else:
         Base.metadata.create_all(_engine)

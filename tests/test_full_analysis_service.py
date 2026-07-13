@@ -16,12 +16,17 @@ from app.core.ai.schemas import AiDocumentAnalysis
 
 
 class Registry:
-    def __init__(self, tender): self.tender = tender
-    def get_tender(self, key): return self.tender if key else None
+    def __init__(self, tender):
+        self.tender = tender
+
+    def get_tender(self, key):
+        return self.tender if key else None
 
 
 class DocumentService:
-    def __init__(self, folder): self.folder = folder
+    def __init__(self, folder):
+        self.folder = folder
+
     def download_for_tender(self, tender, **kwargs):
         callback = kwargs.get("progress_callback")
         if callback:
@@ -42,8 +47,12 @@ class ArchiveExtractor:
 class TextService:
     def extract_tender(self, key, force=False):
         return TenderTextExtractionResult(key, ())
-    def list_results(self, key): return ()
-    def extract_path(self, *args, **kwargs): raise AssertionError
+
+    def list_results(self, key):
+        return ()
+
+    def extract_path(self, *args, **kwargs):
+        raise AssertionError
 
 
 class RequirementService:
@@ -52,7 +61,9 @@ class RequirementService:
 
 
 class ScoreService:
-    def __init__(self, tender): self.tender = tender
+    def __init__(self, tender):
+        self.tender = tender
+
     def evaluate(self, key, persist=True):
         return CorterisParticipationRanker().score(self.tender)
 
@@ -87,9 +98,14 @@ def test_cancelled_before_start_returns_cancelled(tmp_path) -> None:
     token = CollectorCancellationToken()
     token.cancel("stop")
     service = TenderFullAnalysisService(
-        Registry(tender), DocumentService(tmp_path), Store(), TextService(),
-        RequirementService(), ScoreService(tender),
-        archive_extractor=ArchiveExtractor(), legacy_bridge=None,
+        Registry(tender),
+        DocumentService(tmp_path),
+        Store(),
+        TextService(),
+        RequirementService(),
+        ScoreService(tender),
+        archive_extractor=ArchiveExtractor(),
+        legacy_bridge=None,
     )
 
     result = service.run("procurement:test", cancellation_token=token)

@@ -21,22 +21,10 @@ def _app() -> QApplication:
 
 
 def test_tender_feed_density_breakpoints() -> None:
-    assert (
-        TenderFeed.density_for_width(500)
-        == TenderFeedDensity.NARROW
-    )
-    assert (
-        TenderFeed.density_for_width(650)
-        == TenderFeedDensity.COMPACT
-    )
-    assert (
-        TenderFeed.density_for_width(850)
-        == TenderFeedDensity.STANDARD
-    )
-    assert (
-        TenderFeed.density_for_width(1200)
-        == TenderFeedDensity.DETAILED
-    )
+    assert TenderFeed.density_for_width(500) == TenderFeedDensity.NARROW
+    assert TenderFeed.density_for_width(650) == TenderFeedDensity.COMPACT
+    assert TenderFeed.density_for_width(850) == TenderFeedDensity.STANDARD
+    assert TenderFeed.density_for_width(1200) == TenderFeedDensity.DETAILED
 
 
 def test_tender_feed_visible_columns_are_reduced() -> None:
@@ -59,14 +47,8 @@ def test_score_and_status_semantics() -> None:
     assert TenderFeedDelegate.score_level(94) == "success"
     assert TenderFeedDelegate.score_level(72) == "warning"
     assert TenderFeedDelegate.score_level(41) == "danger"
-    assert (
-        TenderFeedDelegate.status_level("Рекомендуется")
-        == "success"
-    )
-    assert (
-        TenderFeedDelegate.status_level("Требует внимания")
-        == "warning"
-    )
+    assert TenderFeedDelegate.status_level("Рекомендуется") == "success"
+    assert TenderFeedDelegate.status_level("Требует внимания") == "warning"
 
 
 def test_quick_actions_compact_mode_reduces_density() -> None:

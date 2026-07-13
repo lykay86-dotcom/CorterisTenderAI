@@ -56,9 +56,7 @@ class TenderProviderManagerDialog(QDialog):
         self._updating_table = False
         self._check_buttons: dict[str, QPushButton] = {}
 
-        self.setWindowTitle(
-            "Corteris Tender Collector — источники"
-        )
+        self.setWindowTitle("Corteris Tender Collector — источники")
         self.setModal(False)
         self.resize(1220, 720)
 
@@ -99,21 +97,13 @@ class TenderProviderManagerDialog(QDialog):
                 "Проверка",
             )
         )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(
             2,
             QHeaderView.ResizeMode.Stretch,
@@ -126,12 +116,8 @@ class TenderProviderManagerDialog(QDialog):
             5,
             QHeaderView.ResizeMode.Stretch,
         )
-        self.table.itemChanged.connect(
-            self._on_item_changed
-        )
-        self.table.itemSelectionChanged.connect(
-            self._render_selected_details
-        )
+        self.table.itemChanged.connect(self._on_item_changed)
+        self.table.itemSelectionChanged.connect(self._render_selected_details)
         root.addWidget(self.table, 1)
 
         details_frame = QFrame(self)
@@ -155,20 +141,14 @@ class TenderProviderManagerDialog(QDialog):
         self.configure_button = QPushButton("Настроить API", self)
         self.configure_button.setObjectName("ConfigureProviderButton")
         self.configure_button.clicked.connect(
-            lambda: self.provider_configuration_requested.emit(
-                self.selected_provider_id()
-            )
+            lambda: self.provider_configuration_requested.emit(self.selected_provider_id())
         )
         self.check_all_button = QPushButton(
             "Проверить все включённые",
             self,
         )
-        self.check_all_button.setObjectName(
-            "PrimaryActionButton"
-        )
-        self.check_all_button.clicked.connect(
-            self.check_all_requested.emit
-        )
+        self.check_all_button.setObjectName("PrimaryActionButton")
+        self.check_all_button.clicked.connect(self.check_all_requested.emit)
         self.refresh_button = QPushButton(
             "Обновить состояния",
             self,
@@ -182,9 +162,7 @@ class TenderProviderManagerDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
@@ -231,11 +209,7 @@ class TenderProviderManagerDialog(QDialog):
         provider_ids: Iterable[str],
         checking: bool,
     ) -> None:
-        normalized = {
-            item.strip().casefold()
-            for item in provider_ids
-            if item.strip()
-        }
+        normalized = {item.strip().casefold() for item in provider_ids if item.strip()}
         if checking:
             self._checking.update(normalized)
         else:
@@ -244,14 +218,8 @@ class TenderProviderManagerDialog(QDialog):
         for provider_id, button in self._check_buttons.items():
             active = provider_id in self._checking
             state = self._state_by_id(provider_id)
-            button.setEnabled(
-                not active and state is not None and state.enabled
-            )
-            button.setText(
-                "Проверка…"
-                if active
-                else "Проверить"
-            )
+            button.setEnabled(not active and state is not None and state.enabled)
+            button.setText("Проверка…" if active else "Проверить")
         self._update_check_all_state()
 
     def selected_provider_id(self) -> str:
@@ -268,12 +236,8 @@ class TenderProviderManagerDialog(QDialog):
     ) -> None:
         self.status_label.setText(message)
         self.status_label.setProperty("error", error)
-        self.status_label.style().unpolish(
-            self.status_label
-        )
-        self.status_label.style().polish(
-            self.status_label
-        )
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def _populate_row(
         self,
@@ -287,9 +251,7 @@ class TenderProviderManagerDialog(QDialog):
             | Qt.ItemFlag.ItemIsUserCheckable
         )
         enabled_item.setCheckState(
-            Qt.CheckState.Checked
-            if state.enabled
-            else Qt.CheckState.Unchecked
+            Qt.CheckState.Checked if state.enabled else Qt.CheckState.Unchecked
         )
         enabled_item.setData(
             Qt.ItemDataRole.UserRole,
@@ -297,12 +259,8 @@ class TenderProviderManagerDialog(QDialog):
         )
         self.table.setItem(row, 0, enabled_item)
 
-        status_item = QTableWidgetItem(
-            f"● {state.status_text}"
-        )
-        status_item.setForeground(
-            QColor(self._status_color(state.ui_state))
-        )
+        status_item = QTableWidgetItem(f"● {state.status_text}")
+        status_item.setForeground(QColor(self._status_color(state.ui_state)))
         status_item.setData(
             Qt.ItemDataRole.UserRole,
             state.provider_id,
@@ -322,24 +280,15 @@ class TenderProviderManagerDialog(QDialog):
         self.table.setItem(
             row,
             4,
-            QTableWidgetItem(
-                _format_timestamp(state.last_success_at)
-            ),
+            QTableWidgetItem(_format_timestamp(state.last_success_at)),
         )
-        error_item = QTableWidgetItem(
-            state.last_error or "—"
-        )
+        error_item = QTableWidgetItem(state.last_error or "—")
         error_item.setToolTip(state.last_error)
         self.table.setItem(row, 5, error_item)
 
         button = QPushButton("Проверить", self.table)
-        button.setObjectName(
-            f"checkProvider_{state.provider_id}"
-        )
-        button.setEnabled(
-            state.enabled
-            and state.provider_id not in self._checking
-        )
+        button.setObjectName(f"checkProvider_{state.provider_id}")
+        button.setEnabled(state.enabled and state.provider_id not in self._checking)
         button.clicked.connect(
             lambda _checked=False, provider_id=state.provider_id: (
                 self.provider_check_requested.emit(provider_id)
@@ -354,14 +303,10 @@ class TenderProviderManagerDialog(QDialog):
     ) -> None:
         if self._updating_table or item.column() != 0:
             return
-        provider_id = str(
-            item.data(Qt.ItemDataRole.UserRole) or ""
-        ).strip()
+        provider_id = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
         if not provider_id:
             return
-        enabled = (
-            item.checkState() == Qt.CheckState.Checked
-        )
+        enabled = item.checkState() == Qt.CheckState.Checked
         self.provider_enabled_changed.emit(
             provider_id,
             enabled,
@@ -375,19 +320,10 @@ class TenderProviderManagerDialog(QDialog):
             self.configure_button.setEnabled(False)
             return
 
-        self.configure_button.setEnabled(
-            state.provider_id == "mos_supplier"
-        )
+        self.configure_button.setEnabled(state.provider_id == "mos_supplier")
 
-        latency = (
-            f"{state.latency_ms} мс"
-            if state.latency_ms is not None
-            else "не измерена"
-        )
-        configuration = "<br>".join(
-            _escape_html(item)
-            for item in state.configuration_details
-        )
+        latency = f"{state.latency_ms} мс" if state.latency_ms is not None else "не измерена"
+        configuration = "<br>".join(_escape_html(item) for item in state.configuration_details)
         self.details.setHtml(
             (
                 f"<b>{_escape_html(state.display_name)}</b><br>"
@@ -419,12 +355,8 @@ class TenderProviderManagerDialog(QDialog):
         return None
 
     def _update_check_all_state(self) -> None:
-        enabled_count = sum(
-            state.enabled for state in self._states
-        )
-        self.check_all_button.setEnabled(
-            bool(enabled_count) and not self._checking
-        )
+        enabled_count = sum(state.enabled for state in self._states)
+        self.check_all_button.setEnabled(bool(enabled_count) and not self._checking)
 
     def _status_color(
         self,
@@ -528,14 +460,10 @@ def _format_timestamp(value: str) -> str:
     if not value:
         return "—"
     try:
-        parsed = datetime.fromisoformat(
-            value.replace("Z", "+00:00")
-        )
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return value
-    return parsed.astimezone().strftime(
-        "%d.%m.%Y %H:%M"
-    )
+    return parsed.astimezone().strftime("%d.%m.%Y %H:%M")
 
 
 def _escape_html(value: str) -> str:

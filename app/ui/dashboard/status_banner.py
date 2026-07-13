@@ -81,9 +81,7 @@ class DashboardStatusBanner(QFrame):
 
         self.action_button = QPushButton("", self)
         self.action_button.setObjectName("DashboardStatusAction")
-        self.action_button.setCursor(
-            QCursor(Qt.CursorShape.PointingHandCursor)
-        )
+        self.action_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.action_button.clicked.connect(self._emit_action)
         self.action_button.hide()
 
@@ -92,9 +90,7 @@ class DashboardStatusBanner(QFrame):
         self.close_button.setText("×")
         self.close_button.setToolTip("Скрыть уведомление")
         self.close_button.setAccessibleName("Скрыть уведомление")
-        self.close_button.setCursor(
-            QCursor(Qt.CursorShape.PointingHandCursor)
-        )
+        self.close_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.close_button.clicked.connect(self.clear)
 
         root.addWidget(self.icon_label, 0, Qt.AlignmentFlag.AlignTop)
@@ -143,9 +139,7 @@ class DashboardStatusBanner(QFrame):
 
         normalized_action = action_text.strip()
         self.action_button.setText(normalized_action)
-        self.action_button.setVisible(
-            bool(normalized_action and self._action_key)
-        )
+        self.action_button.setVisible(bool(normalized_action and self._action_key))
         self.close_button.setVisible(bool(dismissible))
 
         description = " ".join(

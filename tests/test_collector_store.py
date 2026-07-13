@@ -52,9 +52,7 @@ def test_schema_migration_is_idempotent(tmp_path) -> None:
         ).fetchone()[0]
         tables = {
             row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
     assert int(version) == COLLECTOR_SCHEMA_VERSION
     assert {
@@ -140,9 +138,7 @@ def test_collector_updates_preserve_user_registry_state(tmp_path) -> None:
 
 
 def test_checkpoint_roundtrip(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
 
     stored = repository.save_checkpoint(
         CollectorCheckpoint(
@@ -207,9 +203,7 @@ def test_collector_reuses_legacy_registry_key_for_short_number(
     assert summary.new_count == 0
     assert summary.unchanged_count == 1
     with sqlite3.connect(path) as connection:
-        count = connection.execute(
-            "SELECT COUNT(*) FROM tender_records"
-        ).fetchone()[0]
+        count = connection.execute("SELECT COUNT(*) FROM tender_records").fetchone()[0]
         alias_key = connection.execute(
             """
             SELECT registry_key FROM collector_tender_aliases

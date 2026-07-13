@@ -42,9 +42,7 @@ def create_default_async_providers(
     mos_supplier_config: MosSupplierApiConfig | None = None,
     include_commercial_catalog: bool = False,
     commercial_catalog: CommercialProviderCatalog | None = None,
-    provider_settings_repository: (
-        ProviderEnablementRepository | None
-    ) = None,
+    provider_settings_repository: (ProviderEnablementRepository | None) = None,
     include_disabled: bool = False,
 ):
     """Return implemented providers and optional visible access adapters.
@@ -62,13 +60,8 @@ def create_default_async_providers(
         ),
         AsyncMosSupplierTenderProvider(
             network_runtime.http_client,
-            config=(
-                mos_supplier_config
-                or MosSupplierApiConfig.from_environment()
-            ),
-            network_settings=network_runtime.settings.get(
-                "mos_supplier"
-            ),
+            config=(mos_supplier_config or MosSupplierApiConfig.from_environment()),
+            network_settings=network_runtime.settings.get("mos_supplier"),
             checkpoint_repository=repository,
         ),
     ]
@@ -77,10 +70,7 @@ def create_default_async_providers(
         providers.extend(
             create_commercial_access_providers(
                 catalog.resolve_all(),
-                enabled_only=(
-                    provider_settings_repository is None
-                    and not include_disabled
-                ),
+                enabled_only=(provider_settings_repository is None and not include_disabled),
             )
         )
 
@@ -88,12 +78,7 @@ def create_default_async_providers(
         providers = [
             provider
             for provider in providers
-            if (
-                include_disabled
-                or provider_settings_repository.is_enabled(
-                    provider.descriptor
-                )
-            )
+            if (include_disabled or provider_settings_repository.is_enabled(provider.descriptor))
         ]
     return tuple(providers)
 
@@ -106,23 +91,16 @@ def create_default_collector_service(
     mos_supplier_config: MosSupplierApiConfig | None = None,
     include_commercial_catalog: bool = False,
     commercial_catalog: CommercialProviderCatalog | None = None,
-    provider_settings_repository: (
-        ProviderEnablementRepository | None
-    ) = None,
+    provider_settings_repository: (ProviderEnablementRepository | None) = None,
 ) -> CollectorService:
     """Build the first production collector pipeline without network I/O."""
 
     data_path = Path(data_directory).expanduser()
     data_path.mkdir(parents=True, exist_ok=True)
-    repository = CollectorStateRepository(
-        data_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(data_path / "tender_registry.sqlite3")
     repository.initialize()
-    source_settings = (
-        provider_settings_repository
-        or ProviderEnablementRepository(
-            data_path / "collector_provider_settings.json"
-        )
+    source_settings = provider_settings_repository or ProviderEnablementRepository(
+        data_path / "collector_provider_settings.json"
     )
     providers = create_default_async_providers(
         network_runtime,

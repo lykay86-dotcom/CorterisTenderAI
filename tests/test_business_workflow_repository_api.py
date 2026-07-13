@@ -12,9 +12,7 @@ from app.repositories.business_metrics import (
 
 
 def test_save_record_and_get_record(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
 
     record = repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
@@ -35,9 +33,7 @@ def test_save_record_and_get_record(tmp_path) -> None:
 
 
 def test_generic_save_upserts_kind_and_tender(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
 
     first = repository.save_record(
         kind=BusinessRecordKind.PROJECT,

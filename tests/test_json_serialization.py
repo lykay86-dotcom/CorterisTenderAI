@@ -7,7 +7,6 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 import json
-from pathlib import Path
 
 import pytest
 
@@ -41,9 +40,7 @@ def test_json_dumps_serializes_nested_decimal_exactly() -> None:
     rendered = json_dumps(payload)
     decoded = json.loads(rendered)
 
-    assert decoded["estimate"]["total"] == (
-        "1234567890.123456789"
-    )
+    assert decoded["estimate"]["total"] == ("1234567890.123456789")
     assert decoded["estimate"]["vat"] == "22.00"
     assert decoded["items"][0]["cost"] == "999.99"
 

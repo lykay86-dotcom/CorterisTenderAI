@@ -196,9 +196,7 @@ class CbrDailyRatesImporter:
         moment = retrieved_at or datetime.now(timezone.utc)
         if moment.tzinfo is None:
             raise ValueError("retrieved_at must include a timezone")
-        timestamp = moment.astimezone(timezone.utc).isoformat(
-            timespec="seconds"
-        )
+        timestamp = moment.astimezone(timezone.utc).isoformat(timespec="seconds")
         response = await self.client.get(
             self.endpoint,
             provider_id="cbr_exchange_rates",
@@ -212,9 +210,7 @@ class CbrDailyRatesImporter:
         )
         effective_date = quotes[0].effective_date
         if effective_date > requested_date:
-            raise CbrRatesParseError(
-                "CBR effective date cannot be after requested date"
-            )
+            raise CbrRatesParseError("CBR effective date cannot be after requested date")
         inserted = self.repository.save_quotes(
             quotes,
             imported_at=timestamp,

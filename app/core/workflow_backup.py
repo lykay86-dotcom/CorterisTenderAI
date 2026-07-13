@@ -107,9 +107,7 @@ class WorkflowBackupService:
             "payload_name": self.PAYLOAD_NAME,
         }
 
-        temporary = destination.with_suffix(
-            destination.suffix + ".tmp"
-        )
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
         try:
             with ZipFile(
                 temporary,
@@ -137,8 +135,7 @@ class WorkflowBackupService:
         if not inspection.valid:
             destination.unlink(missing_ok=True)
             raise WorkflowBackupError(
-                "Созданная копия не прошла проверку:\n"
-                + "\n".join(inspection.errors)
+                "Созданная копия не прошла проверку:\n" + "\n".join(inspection.errors)
             )
 
         return WorkflowBackupCreateResult(
@@ -179,33 +176,20 @@ class WorkflowBackupService:
                     return WorkflowBackupInspection(
                         path=path,
                         valid=False,
-                        errors=tuple(
-                            f"В архиве отсутствует {name}."
-                            for name in missing
-                        ),
+                        errors=tuple(f"В архиве отсутствует {name}." for name in missing),
                     )
 
-                payload_info = archive.getinfo(
-                    self.PAYLOAD_NAME
-                )
+                payload_info = archive.getinfo(self.PAYLOAD_NAME)
                 if payload_info.file_size > self.MAX_PAYLOAD_BYTES:
-                    errors.append(
-                        "Файл данных превышает допустимые 100 МБ."
-                    )
+                    errors.append("Файл данных превышает допустимые 100 МБ.")
                 else:
-                    payload_bytes = archive.read(
-                        self.PAYLOAD_NAME
-                    )
-                manifest_bytes = archive.read(
-                    self.MANIFEST_NAME
-                )
+                    payload_bytes = archive.read(self.PAYLOAD_NAME)
+                manifest_bytes = archive.read(self.MANIFEST_NAME)
         except (BadZipFile, OSError, KeyError) as exc:
             return WorkflowBackupInspection(
                 path=path,
                 valid=False,
-                errors=(
-                    f"Не удалось прочитать резервную копию: {exc}",
-                ),
+                errors=(f"Не удалось прочитать резервную копию: {exc}",),
             )
 
         try:
@@ -222,54 +206,31 @@ class WorkflowBackupService:
             if isinstance(value, dict):
                 payload = value
             else:
-                errors.append(
-                    "business_workflow.json должен быть объектом."
-                )
+                errors.append("business_workflow.json должен быть объектом.")
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            errors.append(
-                f"Повреждён business_workflow.json: {exc}"
-            )
+            errors.append(f"Повреждён business_workflow.json: {exc}")
 
         if manifest:
             if manifest.get("format") != self.FORMAT_NAME:
-                errors.append(
-                    "Файл не является резервной копией CORTERIS."
-                )
+                errors.append("Файл не является резервной копией CORTERIS.")
             version = self._integer(
                 manifest.get("format_version"),
                 default=0,
             )
             if version != self.FORMAT_VERSION:
-                errors.append(
-                    f"Неподдерживаемая версия формата: {version}."
-                )
-            expected = str(
-                manifest.get("checksum_sha256", "")
-            )
+                errors.append(f"Неподдерживаемая версия формата: {version}.")
+            expected = str(manifest.get("checksum_sha256", ""))
             actual = hashlib.sha256(payload_bytes).hexdigest()
             if not expected:
-                errors.append(
-                    "В manifest.json нет контрольной суммы."
-                )
+                errors.append("В manifest.json нет контрольной суммы.")
             elif expected != actual:
-                errors.append(
-                    "Контрольная сумма не совпадает: "
-                    "данные изменены или повреждены."
-                )
+                errors.append("Контрольная сумма не совпадает: данные изменены или повреждены.")
 
         if payload is not None:
             errors.extend(self._validate_payload(payload))
 
-        records = (
-            payload.get("records", [])
-            if payload is not None
-            else []
-        )
-        events = (
-            payload.get("events", [])
-            if payload is not None
-            else []
-        )
+        records = payload.get("records", []) if payload is not None else []
+        events = payload.get("events", []) if payload is not None else []
         archived_count = self._archived_count(records)
 
         if manifest and payload is not None:
@@ -311,9 +272,7 @@ class WorkflowBackupService:
             record_count=len(records),
             event_count=len(events),
             archived_count=archived_count,
-            checksum_sha256=str(
-                manifest.get("checksum_sha256", "")
-            ),
+            checksum_sha256=str(manifest.get("checksum_sha256", "")),
             errors=tuple(errors),
         )
 
@@ -336,9 +295,7 @@ class WorkflowBackupService:
         )
         safety_dir.mkdir(parents=True, exist_ok=True)
         safety_path = safety_dir / (
-            "CORTERIS_auto_before_restore_"
-            f"{timestamp:%Y%m%d_%H%M%S}"
-            f"{self.DEFAULT_EXTENSION}"
+            f"CORTERIS_auto_before_restore_{timestamp:%Y%m%d_%H%M%S}{self.DEFAULT_EXTENSION}"
         )
         safety = self.create_backup(
             repository,
@@ -349,9 +306,7 @@ class WorkflowBackupService:
         try:
             repository.replace_payload(payload)
         except Exception:
-            _, old_payload = self._load_valid_backup(
-                safety.path
-            )
+            _, old_payload = self._load_valid_backup(safety.path)
             repository.replace_payload(old_payload)
             raise
 
@@ -371,15 +326,10 @@ class WorkflowBackupService:
         if not inspection.valid:
             raise WorkflowBackupValidationError(
                 "Резервная копия не прошла проверку:\n"
-                + "\n".join(
-                    f"• {error}"
-                    for error in inspection.errors
-                )
+                + "\n".join(f"• {error}" for error in inspection.errors)
             )
         with ZipFile(path, "r") as archive:
-            payload = json.loads(
-                archive.read(self.PAYLOAD_NAME).decode("utf-8")
-            )
+            payload = json.loads(archive.read(self.PAYLOAD_NAME).decode("utf-8"))
         return inspection, payload
 
     def _validate_payload(
@@ -420,9 +370,7 @@ class WorkflowBackupService:
             if not record_id:
                 errors.append(f"{prefix}: отсутствует ID.")
             elif record_id in record_ids:
-                errors.append(
-                    f"{prefix}: повторяется ID «{record_id}»."
-                )
+                errors.append(f"{prefix}: повторяется ID «{record_id}».")
             else:
                 record_ids.add(record_id)
 
@@ -442,9 +390,7 @@ class WorkflowBackupService:
             )
             for field in ("tender_id", "title"):
                 if not str(record.get(field, "")).strip():
-                    errors.append(
-                        f"{prefix}: поле {field} не заполнено."
-                    )
+                    errors.append(f"{prefix}: поле {field} не заполнено.")
             for field in (
                 "total",
                 "profit",
@@ -453,9 +399,7 @@ class WorkflowBackupService:
                 try:
                     float(record.get(field, 0))
                 except (TypeError, ValueError):
-                    errors.append(
-                        f"{prefix}: поле {field} должно быть числом."
-                    )
+                    errors.append(f"{prefix}: поле {field} должно быть числом.")
 
         event_ids: set[str] = set()
         for index, event in enumerate(events, start=1):
@@ -468,19 +412,13 @@ class WorkflowBackupService:
             if not event_id:
                 errors.append(f"{prefix}: отсутствует ID.")
             elif event_id in event_ids:
-                errors.append(
-                    f"{prefix}: повторяется ID «{event_id}»."
-                )
+                errors.append(f"{prefix}: повторяется ID «{event_id}».")
             else:
                 event_ids.add(event_id)
 
-            record_id = str(
-                event.get("record_id", "")
-            ).strip()
+            record_id = str(event.get("record_id", "")).strip()
             if record_id not in record_ids:
-                errors.append(
-                    f"{prefix}: неизвестная запись «{record_id}»."
-                )
+                errors.append(f"{prefix}: неизвестная запись «{record_id}».")
             self._check_enum(
                 errors,
                 prefix,
@@ -488,20 +426,14 @@ class WorkflowBackupService:
                 event.get("action"),
                 BusinessAuditAction,
             )
-            occurred_at = str(
-                event.get("occurred_at", "")
-            ).strip()
+            occurred_at = str(event.get("occurred_at", "")).strip()
             if not occurred_at:
-                errors.append(
-                    f"{prefix}: отсутствует дата события."
-                )
+                errors.append(f"{prefix}: отсутствует дата события.")
             else:
                 try:
                     datetime.fromisoformat(occurred_at)
                 except ValueError:
-                    errors.append(
-                        f"{prefix}: неверная дата «{occurred_at}»."
-                    )
+                    errors.append(f"{prefix}: неверная дата «{occurred_at}».")
         return errors
 
     @staticmethod
@@ -515,10 +447,7 @@ class WorkflowBackupService:
         try:
             enum_type(value)
         except (TypeError, ValueError):
-            errors.append(
-                f"{prefix}: неизвестное значение {field} "
-                f"«{value}»."
-            )
+            errors.append(f"{prefix}: неизвестное значение {field} «{value}».")
 
     @staticmethod
     def _check_count(
@@ -533,10 +462,7 @@ class WorkflowBackupService:
             default=-1,
         )
         if expected != actual:
-            errors.append(
-                f"Manifest содержит {expected} {label}, "
-                f"фактически найдено {actual}."
-            )
+            errors.append(f"Manifest содержит {expected} {label}, фактически найдено {actual}.")
 
     @staticmethod
     def _archived_count(records: Any) -> int:
@@ -545,10 +471,7 @@ class WorkflowBackupService:
         return sum(
             1
             for record in records
-            if isinstance(record, dict)
-            and bool(
-                str(record.get("archived_at", "")).strip()
-            )
+            if isinstance(record, dict) and bool(str(record.get("archived_at", "")).strip())
         )
 
     @staticmethod

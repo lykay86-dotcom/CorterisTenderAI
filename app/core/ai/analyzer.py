@@ -138,11 +138,7 @@ class TenderDocumentAiAnalyzer:
             missing_documents=missing_documents,
             final_ai_conclusion=final_conclusion,
             status=(AiAnalysisStatus.PARTIAL if issues else AiAnalysisStatus.COMPLETE),
-            warnings=(
-                ("Часть ответа AI отклонена защитной проверкой.",)
-                if issues
-                else ()
-            ),
+            warnings=(("Часть ответа AI отклонена защитной проверкой.",) if issues else ()),
         )
 
     @staticmethod
@@ -204,11 +200,7 @@ class TenderDocumentAiAnalyzer:
             page, page_valid = _page(item.get("page"))
             if not page_valid:
                 issues.append(f"{category}.page")
-            exact_quote = bool(
-                document_id in known
-                and quote
-                and quote in known[document_id].text
-            )
+            exact_quote = bool(document_id in known and quote and quote in known[document_id].text)
             verified = exact_quote and confidence is not None
             if not verified:
                 issues.append(f"{category}.evidence")
@@ -228,11 +220,7 @@ class TenderDocumentAiAnalyzer:
                     category,
                     statement,
                     evidence,
-                    (
-                        AiFindingStatus.VERIFIED
-                        if verified
-                        else AiFindingStatus.UNVERIFIED
-                    ),
+                    (AiFindingStatus.VERIFIED if verified else AiFindingStatus.UNVERIFIED),
                 )
             )
         return tuple(result)

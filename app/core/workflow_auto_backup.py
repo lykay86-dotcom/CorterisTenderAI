@@ -85,9 +85,7 @@ class WorkflowAutoBackupService:
                 return WorkflowAutoBackupSettings()
 
             try:
-                payload = json.loads(
-                    self.settings_path.read_text(encoding="utf-8")
-                )
+                payload = json.loads(self.settings_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 return WorkflowAutoBackupSettings(
                     last_error=(
@@ -98,9 +96,7 @@ class WorkflowAutoBackupService:
                 )
 
             if not isinstance(payload, dict):
-                return WorkflowAutoBackupSettings(
-                    last_error="Файл настроек имеет неверный формат."
-                )
+                return WorkflowAutoBackupSettings(last_error="Файл настроек имеет неверный формат.")
 
             return self._validated_settings(payload)
 
@@ -208,9 +204,7 @@ class WorkflowAutoBackupService:
             attempted = WorkflowAutoBackupSettings(
                 **{
                     **asdict(settings),
-                    "last_attempt_at": timestamp.isoformat(
-                        timespec="seconds"
-                    ),
+                    "last_attempt_at": timestamp.isoformat(timespec="seconds"),
                 }
             )
             self._write_settings_unlocked(attempted)
@@ -230,12 +224,8 @@ class WorkflowAutoBackupService:
                     interval_hours=settings.interval_hours,
                     retention_count=settings.retention_count,
                     directory=settings.directory,
-                    last_success_at=timestamp.isoformat(
-                        timespec="seconds"
-                    ),
-                    last_attempt_at=timestamp.isoformat(
-                        timespec="seconds"
-                    ),
+                    last_success_at=timestamp.isoformat(timespec="seconds"),
+                    last_attempt_at=timestamp.isoformat(timespec="seconds"),
                     last_error="",
                 )
                 self._write_settings_unlocked(successful)
@@ -256,9 +246,7 @@ class WorkflowAutoBackupService:
                     retention_count=settings.retention_count,
                     directory=settings.directory,
                     last_success_at=settings.last_success_at,
-                    last_attempt_at=timestamp.isoformat(
-                        timespec="seconds"
-                    ),
+                    last_attempt_at=timestamp.isoformat(timespec="seconds"),
                     last_error=str(exc),
                 )
                 self._write_settings_unlocked(failed)
@@ -279,8 +267,7 @@ class WorkflowAutoBackupService:
             (
                 path
                 for path in folder.glob(
-                    f"{self.AUTOMATIC_PREFIX}*"
-                    f"{self.backup_service.DEFAULT_EXTENSION}"
+                    f"{self.AUTOMATIC_PREFIX}*{self.backup_service.DEFAULT_EXTENSION}"
                 )
                 if path.is_file()
             ),
@@ -301,23 +288,15 @@ class WorkflowAutoBackupService:
         self,
         payload: dict[str, Any],
     ) -> WorkflowAutoBackupSettings:
-        interval = self._validated_interval(
-            payload.get("interval_hours", 24)
-        )
-        retention = self._validated_retention(
-            payload.get("retention_count", 10)
-        )
+        interval = self._validated_interval(payload.get("interval_hours", 24))
+        retention = self._validated_retention(payload.get("retention_count", 10))
         return WorkflowAutoBackupSettings(
             enabled=bool(payload.get("enabled", True)),
             interval_hours=interval,
             retention_count=retention,
             directory=str(payload.get("directory", "")).strip(),
-            last_success_at=self._valid_datetime_text(
-                payload.get("last_success_at", "")
-            ),
-            last_attempt_at=self._valid_datetime_text(
-                payload.get("last_attempt_at", "")
-            ),
+            last_success_at=self._valid_datetime_text(payload.get("last_success_at", "")),
+            last_attempt_at=self._valid_datetime_text(payload.get("last_attempt_at", "")),
             last_error=str(payload.get("last_error", "")).strip(),
         )
 
@@ -330,9 +309,7 @@ class WorkflowAutoBackupService:
             **asdict(settings),
             "updated_at": datetime.now().isoformat(timespec="seconds"),
         }
-        temporary = self.settings_path.with_suffix(
-            self.settings_path.suffix + ".tmp"
-        )
+        temporary = self.settings_path.with_suffix(self.settings_path.suffix + ".tmp")
         try:
             temporary.write_text(
                 json.dumps(

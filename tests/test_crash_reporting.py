@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-import json
-from pathlib import Path
 import sys
 import threading
 from types import SimpleNamespace
@@ -21,10 +19,7 @@ NOW = datetime(2026, 7, 12, 12, 0, 0)
 
 def _exception():
     try:
-        raise RuntimeError(
-            "Failure email=user@example.com "
-            "api_key=super-secret"
-        )
+        raise RuntimeError("Failure email=user@example.com api_key=super-secret")
     except RuntimeError:
         return sys.exc_info()
 
@@ -36,10 +31,7 @@ def test_crash_report_is_verified_and_redacts_sensitive_data(
     log_file = private_root / "logs" / "app.log"
     log_file.parent.mkdir(parents=True)
     log_file.write_text(
-        (
-            f"Path={private_root}\n"
-            "Authorization: Bearer abcdefghijklmnop\n"
-        ),
+        (f"Path={private_root}\nAuthorization: Bearer abcdefghijklmnop\n"),
         encoding="utf-8",
     )
 
@@ -90,11 +82,14 @@ def test_crash_report_inspection_detects_tampering(tmp_path) -> None:
     )
 
     tampered = tmp_path / "tampered.ctcrash"
-    with ZipFile(valid.path) as source, ZipFile(
-        tampered,
-        "w",
-        compression=ZIP_DEFLATED,
-    ) as target:
+    with (
+        ZipFile(valid.path) as source,
+        ZipFile(
+            tampered,
+            "w",
+            compression=ZIP_DEFLATED,
+        ) as target,
+    ):
         for name in source.namelist():
             content = source.read(name)
             if name == "traceback.txt":
@@ -104,11 +99,7 @@ def test_crash_report_inspection_detects_tampering(tmp_path) -> None:
     inspection = service.inspect_report(tampered)
 
     assert not inspection.valid
-    assert any(
-        "traceback.txt" in error
-        and "сумма" in error
-        for error in inspection.errors
-    )
+    assert any("traceback.txt" in error and "сумма" in error for error in inspection.errors)
 
 
 def test_global_handler_installs_captures_and_restores_hooks(

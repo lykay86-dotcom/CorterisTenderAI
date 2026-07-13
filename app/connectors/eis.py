@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 from urllib.parse import urlparse, parse_qs
 
+
 @dataclass(slots=True)
 class EISReference:
     purchase_number: str
@@ -13,7 +14,10 @@ class EISReference:
 def parse_eis_reference(value: str) -> EISReference:
     value = value.strip()
     if re.fullmatch(r"\d{10,25}", value):
-        return EISReference(value, f"https://zakupki.gov.ru/epz/order/notice/ea20/view/common-info.html?regNumber={value}")
+        return EISReference(
+            value,
+            f"https://zakupki.gov.ru/epz/order/notice/ea20/view/common-info.html?regNumber={value}",
+        )
     parsed = urlparse(value)
     if parsed.netloc and "zakupki.gov.ru" not in parsed.netloc.lower():
         raise ValueError("Ссылка не относится к ЕИС")
@@ -26,6 +30,7 @@ def parse_eis_reference(value: str) -> EISReference:
         raise ValueError("Не удалось определить номер закупки")
     return EISReference(number, value)
 
+
 class EISConnector:
     """Безопасный локальный коннектор 1.4.
 
@@ -33,6 +38,7 @@ class EISConnector:
     Прямая автоматическая загрузка включается только через документированный
     официальный интерфейс, заданный пользователем в настройках.
     """
+
     def create_stub(self, value: str) -> dict[str, str]:
         ref = parse_eis_reference(value)
         return {

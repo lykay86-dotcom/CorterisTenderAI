@@ -55,10 +55,7 @@ class CompanyCapabilityProfile:
             value = getattr(self, name)
             if value is not None and value < 0:
                 raise ValueError(f"{name} must be non-negative")
-        if (
-            self.minimum_margin_percent is not None
-            and self.minimum_margin_percent > 100
-        ):
+        if self.minimum_margin_percent is not None and self.minimum_margin_percent > 100:
             raise ValueError("minimum_margin_percent cannot exceed 100")
         for name in ("confirmed_at", "updated_at"):
             value = getattr(self, name)
@@ -155,9 +152,7 @@ class CompanyCapabilityProfileRepository:
         if not profile.company_name.strip():
             raise ValueError("Укажите название компании")
         timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        stored = CompanyCapabilityProfile.from_dict(
-            {**profile.to_dict(), "updated_at": timestamp}
-        )
+        stored = CompanyCapabilityProfile.from_dict({**profile.to_dict(), "updated_at": timestamp})
         payload = {
             "schema_version": self.SCHEMA_VERSION,
             "profile": stored.to_dict(),
@@ -176,19 +171,36 @@ class CompanyCapabilityProfileRepository:
 
 
 _TUPLE_FIELDS = {
-    "business_directions", "self_install_regions", "partner_regions",
-    "licenses", "license_work_types", "sro_memberships",
-    "employee_qualifications", "completed_contracts", "confirmed_experience",
-    "equipment", "brands", "suppliers", "stock_items",
-    "self_performed_directions", "subcontracted_directions",
-    "undesired_object_types", "regional_partners",
+    "business_directions",
+    "self_install_regions",
+    "partner_regions",
+    "licenses",
+    "license_work_types",
+    "sro_memberships",
+    "employee_qualifications",
+    "completed_contracts",
+    "confirmed_experience",
+    "equipment",
+    "brands",
+    "suppliers",
+    "stock_items",
+    "self_performed_directions",
+    "subcontracted_directions",
+    "undesired_object_types",
+    "regional_partners",
 }
 _MONEY_FIELDS = {
-    "max_project_amount", "working_capital", "max_bid_security",
-    "max_contract_security", "bank_guarantee_limit", "minimum_margin_percent",
+    "max_project_amount",
+    "working_capital",
+    "max_bid_security",
+    "max_contract_security",
+    "bank_guarantee_limit",
+    "minimum_margin_percent",
 }
 _INTEGER_FIELDS = {
-    "installation_crew_count", "acceptable_payment_days", "maximum_deferment_days",
+    "installation_crew_count",
+    "acceptable_payment_days",
+    "maximum_deferment_days",
 }
 
 

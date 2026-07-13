@@ -1,4 +1,5 @@
 """Последовательность безопасного запуска базы данных."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -37,6 +38,7 @@ def initialize_database_pipeline(database_path: Path, backup_dir: Path) -> Start
 
     # init_database уже выполнил миграцию. Сохраняем сведения для вызывающего кода.
     from .migration import MigrationManager
+
     manager = MigrationManager(get_engine(), backup_dir=backup_dir)
     migration = MigrationResult(
         previous_version=manager.current_version(),
@@ -50,6 +52,4 @@ def initialize_database_pipeline(database_path: Path, backup_dir: Path) -> Start
 def create_maintenance_service(database_path: Path, backup_dir: Path):
     from .maintenance import DatabaseMaintenanceService
 
-    return DatabaseMaintenanceService(
-        get_engine(), BackupManager(database_path, backup_dir)
-    )
+    return DatabaseMaintenanceService(get_engine(), BackupManager(database_path, backup_dir))

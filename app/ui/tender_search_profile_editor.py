@@ -90,28 +90,20 @@ class TenderSearchProfileEditor(QWidget):
 
         identity_group = QGroupBox("Название и описание", content)
         identity_layout = QFormLayout(identity_group)
-        identity_layout.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        )
+        identity_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.profile_id_edit = QLineEdit(identity_group)
-        self.profile_id_edit.setPlaceholderText(
-            "Например: moscow-video-service"
-        )
+        self.profile_id_edit.setPlaceholderText("Например: moscow-video-service")
         self.profile_id_edit.textChanged.connect(self._emit_changed)
         identity_layout.addRow("ID профиля", self.profile_id_edit)
 
         self.name_edit = QLineEdit(identity_group)
-        self.name_edit.setPlaceholderText(
-            "Название, которое будет видно в списке"
-        )
+        self.name_edit.setPlaceholderText("Название, которое будет видно в списке")
         self.name_edit.textChanged.connect(self._emit_changed)
         identity_layout.addRow("Название", self.name_edit)
 
         self.description_edit = QPlainTextEdit(identity_group)
-        self.description_edit.setPlaceholderText(
-            "Кратко опишите назначение профиля"
-        )
+        self.description_edit.setPlaceholderText("Кратко опишите назначение профиля")
         self.description_edit.setFixedHeight(72)
         self.description_edit.textChanged.connect(self._emit_changed)
         identity_layout.addRow("Описание", self.description_edit)
@@ -120,14 +112,10 @@ class TenderSearchProfileEditor(QWidget):
 
         keyword_group = QGroupBox("Поисковые фразы", content)
         keyword_layout = QFormLayout(keyword_group)
-        keyword_layout.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        )
+        keyword_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.keywords_edit = QPlainTextEdit(keyword_group)
-        self.keywords_edit.setPlaceholderText(
-            "Одна фраза на строку или через запятую"
-        )
+        self.keywords_edit.setPlaceholderText("Одна фраза на строку или через запятую")
         self.keywords_edit.setFixedHeight(105)
         self.keywords_edit.textChanged.connect(self._emit_changed)
         keyword_layout.addRow("Ключевые слова", self.keywords_edit)
@@ -152,12 +140,8 @@ class TenderSearchProfileEditor(QWidget):
         direction_layout.setColumnStretch(0, 1)
         direction_layout.setColumnStretch(1, 1)
 
-        self.direction_checkboxes: dict[
-            TenderDirection, QCheckBox
-        ] = {}
-        for index, (direction, label) in enumerate(
-            DIRECTION_LABELS
-        ):
+        self.direction_checkboxes: dict[TenderDirection, QCheckBox] = {}
+        for index, (direction, label) in enumerate(DIRECTION_LABELS):
             checkbox = QCheckBox(label, direction_group)
             checkbox.toggled.connect(self._emit_changed)
             self.direction_checkboxes[direction] = checkbox
@@ -186,14 +170,10 @@ class TenderSearchProfileEditor(QWidget):
             content,
         )
         geography_layout = QFormLayout(geography_group)
-        geography_layout.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        )
+        geography_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.regions_edit = QPlainTextEdit(geography_group)
-        self.regions_edit.setPlaceholderText(
-            "Москва\nМосковская область\nСанкт-Петербург"
-        )
+        self.regions_edit.setPlaceholderText("Москва\nМосковская область\nСанкт-Петербург")
         self.regions_edit.setFixedHeight(82)
         self.regions_edit.textChanged.connect(self._emit_changed)
         geography_layout.addRow("Регионы", self.regions_edit)
@@ -211,18 +191,14 @@ class TenderSearchProfileEditor(QWidget):
             laws_layout.addWidget(checkbox)
 
         self.additional_laws_edit = QLineEdit(laws_widget)
-        self.additional_laws_edit.setPlaceholderText(
-            "Другие законы через запятую"
-        )
+        self.additional_laws_edit.setPlaceholderText("Другие законы через запятую")
         self.additional_laws_edit.textChanged.connect(self._emit_changed)
         laws_layout.addWidget(self.additional_laws_edit, 1)
         geography_layout.addRow("Законы", laws_widget)
 
         self.lookback_days_spin = QSpinBox(geography_group)
         self.lookback_days_spin.setRange(-1, 3650)
-        self.lookback_days_spin.setSpecialValueText(
-            "Без ограничения"
-        )
+        self.lookback_days_spin.setSpecialValueText("Без ограничения")
         self.lookback_days_spin.setSuffix(" дн.")
         self.lookback_days_spin.valueChanged.connect(self._emit_changed)
         geography_layout.addRow(
@@ -243,9 +219,7 @@ class TenderSearchProfileEditor(QWidget):
             content,
         )
         finance_layout = QFormLayout(finance_group)
-        finance_layout.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        )
+        finance_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.min_price_spin = self._create_price_spin(finance_group)
         self.max_price_spin = self._create_price_spin(finance_group)
@@ -275,12 +249,8 @@ class TenderSearchProfileEditor(QWidget):
         self.minimum_score_spin.setRange(0, 100)
         self.minimum_score_spin.setSuffix(" балл.")
 
-        self.minimum_score_slider.valueChanged.connect(
-            self.minimum_score_spin.setValue
-        )
-        self.minimum_score_spin.valueChanged.connect(
-            self.minimum_score_slider.setValue
-        )
+        self.minimum_score_slider.valueChanged.connect(self.minimum_score_spin.setValue)
+        self.minimum_score_spin.valueChanged.connect(self.minimum_score_slider.setValue)
         self.minimum_score_spin.valueChanged.connect(self._emit_changed)
 
         score_layout.addWidget(self.minimum_score_slider, 1)
@@ -296,14 +266,10 @@ class TenderSearchProfileEditor(QWidget):
             content,
         )
         source_layout = QFormLayout(source_group)
-        source_layout.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        )
+        source_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.provider_ids_edit = QLineEdit(source_group)
-        self.provider_ids_edit.setPlaceholderText(
-            "eis, rts_tender, roseltorg"
-        )
+        self.provider_ids_edit.setPlaceholderText("eis, rts_tender, roseltorg")
         self.provider_ids_edit.textChanged.connect(self._emit_changed)
         source_layout.addRow(
             "ID провайдеров",
@@ -334,9 +300,7 @@ class TenderSearchProfileEditor(QWidget):
         root.addWidget(source_group)
 
         self.validation_label = QLabel("", content)
-        self.validation_label.setObjectName(
-            "ProfileValidationLabel"
-        )
+        self.validation_label.setObjectName("ProfileValidationLabel")
         self.validation_label.setWordWrap(True)
         root.addWidget(self.validation_label)
 
@@ -380,37 +344,21 @@ class TenderSearchProfileEditor(QWidget):
         self.profile_id_edit.setEnabled(self._allow_id_edit)
         self.name_edit.setText(profile.name)
         self.description_edit.setPlainText(profile.description)
-        self.keywords_edit.setPlainText(
-            "\n".join(profile.keywords)
-        )
-        self.excluded_keywords_edit.setPlainText(
-            "\n".join(profile.excluded_keywords)
-        )
-        self.regions_edit.setPlainText(
-            "\n".join(profile.regions)
-        )
+        self.keywords_edit.setPlainText("\n".join(profile.keywords))
+        self.excluded_keywords_edit.setPlainText("\n".join(profile.excluded_keywords))
+        self.regions_edit.setPlainText("\n".join(profile.regions))
 
         selected_directions = set(profile.directions)
-        for direction, checkbox in (
-            self.direction_checkboxes.items()
-        ):
+        for direction, checkbox in self.direction_checkboxes.items():
             checkbox.setChecked(direction in selected_directions)
 
-        self.require_all_directions_check.setChecked(
-            profile.require_all_directions
-        )
+        self.require_all_directions_check.setChecked(profile.require_all_directions)
 
         selected_laws = set(profile.laws)
         for law, checkbox in self.law_checkboxes.items():
             checkbox.setChecked(law in selected_laws)
-        additional_laws = [
-            law
-            for law in profile.laws
-            if law not in self.law_checkboxes
-        ]
-        self.additional_laws_edit.setText(
-            ", ".join(additional_laws)
-        )
+        additional_laws = [law for law in profile.laws if law not in self.law_checkboxes]
+        self.additional_laws_edit.setText(", ".join(additional_laws))
 
         self._set_optional_price(
             self.min_price_spin,
@@ -421,29 +369,17 @@ class TenderSearchProfileEditor(QWidget):
             profile.max_price,
         )
 
-        self.minimum_score_spin.setValue(
-            profile.minimum_score
-        )
+        self.minimum_score_spin.setValue(profile.minimum_score)
         self.only_open_check.setChecked(profile.only_open)
         self.lookback_days_spin.setValue(
-            -1
-            if profile.lookback_days is None
-            else profile.lookback_days
+            -1 if profile.lookback_days is None else profile.lookback_days
         )
         self.page_size_spin.setValue(profile.page_size)
-        self.provider_ids_edit.setText(
-            ", ".join(profile.provider_ids)
-        )
-        self.include_disabled_check.setChecked(
-            profile.include_disabled_providers
-        )
+        self.provider_ids_edit.setText(", ".join(profile.provider_ids))
+        self.include_disabled_check.setChecked(profile.include_disabled_providers)
         self.enabled_check.setChecked(profile.enabled)
 
-        kind = (
-            "Встроенный профиль"
-            if profile.is_builtin
-            else "Пользовательский профиль"
-        )
+        kind = "Встроенный профиль" if profile.is_builtin else "Пользовательский профиль"
         if allow_id_edit:
             kind += " · новый, ещё не сохранён"
         self.kind_label.setText(kind)
@@ -461,66 +397,40 @@ class TenderSearchProfileEditor(QWidget):
         if self._profile is None:
             raise ValueError("Профиль не выбран")
 
-        keywords = _split_values(
-            self.keywords_edit.toPlainText()
-        )
-        excluded_keywords = _split_values(
-            self.excluded_keywords_edit.toPlainText()
-        )
+        keywords = _split_values(self.keywords_edit.toPlainText())
+        excluded_keywords = _split_values(self.excluded_keywords_edit.toPlainText())
         directions = tuple(
             direction
-            for direction, checkbox in (
-                self.direction_checkboxes.items()
-            )
+            for direction, checkbox in (self.direction_checkboxes.items())
             if checkbox.isChecked()
         )
 
         laws: list[str] = [
-            law
-            for law, checkbox in self.law_checkboxes.items()
-            if checkbox.isChecked()
+            law for law, checkbox in self.law_checkboxes.items() if checkbox.isChecked()
         ]
-        laws.extend(
-            _split_values(self.additional_laws_edit.text())
-        )
+        laws.extend(_split_values(self.additional_laws_edit.text()))
 
         profile = TenderSearchProfile(
             id=self.profile_id_edit.text().strip().casefold(),
             name=self.name_edit.text().strip(),
-            description=(
-                self.description_edit.toPlainText().strip()
-            ),
+            description=(self.description_edit.toPlainText().strip()),
             keywords=keywords,
             excluded_keywords=excluded_keywords,
             directions=directions,
-            require_all_directions=(
-                self.require_all_directions_check.isChecked()
-            ),
-            regions=_split_values(
-                self.regions_edit.toPlainText()
-            ),
+            require_all_directions=(self.require_all_directions_check.isChecked()),
+            regions=_split_values(self.regions_edit.toPlainText()),
             laws=_ordered_unique(laws),
-            min_price=self._optional_price(
-                self.min_price_spin
-            ),
-            max_price=self._optional_price(
-                self.max_price_spin
-            ),
+            min_price=self._optional_price(self.min_price_spin),
+            max_price=self._optional_price(self.max_price_spin),
             price_currency=self._profile.price_currency,
             minimum_score=self.minimum_score_spin.value(),
             only_open=self.only_open_check.isChecked(),
             lookback_days=(
-                None
-                if self.lookback_days_spin.value() < 0
-                else self.lookback_days_spin.value()
+                None if self.lookback_days_spin.value() < 0 else self.lookback_days_spin.value()
             ),
             page_size=self.page_size_spin.value(),
-            provider_ids=_split_values(
-                self.provider_ids_edit.text()
-            ),
-            include_disabled_providers=(
-                self.include_disabled_check.isChecked()
-            ),
+            provider_ids=_split_values(self.provider_ids_edit.text()),
+            include_disabled_providers=(self.include_disabled_check.isChecked()),
             enabled=self.enabled_check.isChecked(),
             is_builtin=self._profile.is_builtin,
             created_at=self._profile.created_at,
@@ -532,16 +442,12 @@ class TenderSearchProfileEditor(QWidget):
     def show_validation_error(self, message: str) -> None:
         self.validation_label.setText(message)
         palette = get_palette(self._theme)
-        self.validation_label.setStyleSheet(
-            f"color: {palette.danger};"
-        )
+        self.validation_label.setStyleSheet(f"color: {palette.danger};")
 
     def show_validation_success(self, message: str) -> None:
         self.validation_label.setText(message)
         palette = get_palette(self._theme)
-        self.validation_label.setStyleSheet(
-            f"color: {palette.success};"
-        )
+        self.validation_label.setStyleSheet(f"color: {palette.success};")
 
     def clear_validation_message(self) -> None:
         self.validation_label.clear()

@@ -37,13 +37,8 @@ class ProviderCapabilities:
     rate_limit_per_minute: int | None = None
 
     def __post_init__(self) -> None:
-        if (
-            self.rate_limit_per_minute is not None
-            and self.rate_limit_per_minute <= 0
-        ):
-            raise ValueError(
-                "rate_limit_per_minute must be positive"
-            )
+        if self.rate_limit_per_minute is not None and self.rate_limit_per_minute <= 0:
+            raise ValueError("rate_limit_per_minute must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,13 +56,9 @@ class ProviderDescriptor:
         if not self.id.strip():
             raise ValueError("ProviderDescriptor.id must not be empty")
         if not self.display_name.strip():
-            raise ValueError(
-                "ProviderDescriptor.display_name must not be empty"
-            )
+            raise ValueError("ProviderDescriptor.display_name must not be empty")
         if self.priority < 0:
-            raise ValueError(
-                "ProviderDescriptor.priority must be non-negative"
-            )
+            raise ValueError("ProviderDescriptor.priority must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,17 +113,13 @@ class TenderSearchQuery:
             and self.max_price is not None
             and self.min_price > self.max_price
         ):
-            raise ValueError(
-                "min_price cannot be greater than max_price"
-            )
+            raise ValueError("min_price cannot be greater than max_price")
         if (
             self.date_from is not None
             and self.date_to is not None
             and self.date_from > self.date_to
         ):
-            raise ValueError(
-                "date_from cannot be greater than date_to"
-            )
+            raise ValueError("date_from cannot be greater than date_to")
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,9 +134,7 @@ class TenderSearchResult:
 
     def __post_init__(self) -> None:
         if not self.provider_id.strip():
-            raise ValueError(
-                "TenderSearchResult.provider_id must not be empty"
-            )
+            raise ValueError("TenderSearchResult.provider_id must not be empty")
         if self.total is not None and self.total < 0:
             raise ValueError("total must be non-negative")
 

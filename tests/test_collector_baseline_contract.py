@@ -44,9 +44,7 @@ def test_collector_namespace_is_side_effect_free() -> None:
 
 
 def test_baseline_distinguishes_real_eis_from_placeholders() -> None:
-    registry = create_default_provider_registry(
-        http_transport=NoNetworkTransport()
-    )
+    registry = create_default_provider_registry(http_transport=NoNetworkTransport())
 
     baseline = build_collector_baseline(registry)
 

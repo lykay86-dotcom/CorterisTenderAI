@@ -82,9 +82,7 @@ class DashboardShortcutManager(QObject):
     def __init__(
         self,
         host: QWidget,
-        shortcuts: Iterable[
-            DashboardShortcutSpec
-        ] = DEFAULT_DASHBOARD_SHORTCUTS,
+        shortcuts: Iterable[DashboardShortcutSpec] = DEFAULT_DASHBOARD_SHORTCUTS,
     ) -> None:
         super().__init__(host)
 
@@ -94,28 +92,18 @@ class DashboardShortcutManager(QObject):
         seen_sequences: set[str] = set()
         for spec in self._specs:
             if spec.key in self._shortcuts:
-                raise ValueError(
-                    f"Duplicate dashboard shortcut key: {spec.key}"
-                )
+                raise ValueError(f"Duplicate dashboard shortcut key: {spec.key}")
 
-            normalized_sequence = QKeySequence(
-                spec.sequence
-            ).toString()
+            normalized_sequence = QKeySequence(spec.sequence).toString()
             if normalized_sequence in seen_sequences:
-                raise ValueError(
-                    f"Duplicate dashboard shortcut: {spec.sequence}"
-                )
+                raise ValueError(f"Duplicate dashboard shortcut: {spec.sequence}")
             seen_sequences.add(normalized_sequence)
 
             shortcut = QShortcut(host)
             shortcut.setKey(QKeySequence(spec.sequence))
-            shortcut.setContext(
-                Qt.ShortcutContext.WidgetWithChildrenShortcut
-            )
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.setAutoRepeat(False)
-            shortcut.activated.connect(
-                lambda key=spec.key: self.action_requested.emit(key)
-            )
+            shortcut.activated.connect(lambda key=spec.key: self.action_requested.emit(key))
             self._shortcuts[spec.key] = shortcut
 
     @property

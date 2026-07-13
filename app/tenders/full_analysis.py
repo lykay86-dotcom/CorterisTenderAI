@@ -248,9 +248,7 @@ class TenderFullAnalysisService:
                         path,
                         document_key=(
                             "archive-member:"
-                            + hashlib.sha256(
-                                f"{key}|{path.resolve()}".encode("utf-8")
-                            ).hexdigest()
+                            + hashlib.sha256(f"{key}|{path.resolve()}".encode("utf-8")).hexdigest()
                         ),
                         force=force_extraction,
                     )
@@ -272,7 +270,11 @@ class TenderFullAnalysisService:
                 warnings.append(f"Ошибок извлечения текста: {text_result.failed_count}")
             token.throw_if_cancelled()
 
-            emit(FullAnalysisStage.ANALYZING_REQUIREMENTS, "Анализ требований, лицензий и договора…", 6)
+            emit(
+                FullAnalysisStage.ANALYZING_REQUIREMENTS,
+                "Анализ требований, лицензий и договора…",
+                6,
+            )
             requirements = self.requirement_service.analyze(
                 key,
                 force_extraction=False,
@@ -282,7 +284,11 @@ class TenderFullAnalysisService:
             token.throw_if_cancelled()
 
             if self.legacy_bridge is not None:
-                emit(FullAnalysisStage.RUNNING_LEGACY_ANALYSIS, "Передача данных в существующий AnalysisEngine…", 6)
+                emit(
+                    FullAnalysisStage.RUNNING_LEGACY_ANALYSIS,
+                    "Передача данных в существующий AnalysisEngine…",
+                    6,
+                )
                 try:
                     latest = self.text_service.list_results(key)
                     legacy = self.legacy_bridge.sync_and_analyze(
@@ -344,7 +350,9 @@ class TenderFullAnalysisService:
                 verification=verification,
                 stop_assessment=stop_assessment,
                 commercial_estimate=commercial_estimate,
-                company_profile=(self.capability_repository.load() if self.capability_repository else None),
+                company_profile=(
+                    self.capability_repository.load() if self.capability_repository else None
+                ),
             )
             if self.summary_repository is not None:
                 self.summary_repository.save_tender_summary(summary)
@@ -412,9 +420,7 @@ def _ordered_unique(values) -> tuple[str, ...]:
 def _ai_status_warning(status: AiAnalysisStatus | str) -> str:
     messages = {
         AiAnalysisStatus.PARTIAL: "AI-анализ выполнен частично.",
-        AiAnalysisStatus.NO_DOCUMENTS: (
-            "AI-анализ не выполнен: подходящие документы отсутствуют."
-        ),
+        AiAnalysisStatus.NO_DOCUMENTS: ("AI-анализ не выполнен: подходящие документы отсутствуют."),
         AiAnalysisStatus.PROVIDER_DISABLED: (
             "AI-провайдер отключён; использован локальный анализ."
         ),

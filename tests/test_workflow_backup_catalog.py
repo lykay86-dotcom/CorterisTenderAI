@@ -51,8 +51,7 @@ def test_catalog_scans_classifies_and_sorts_backups(
     )
     safety = backup_service.create_backup(
         repository,
-        directory
-        / "CORTERIS_auto_before_restore_20260711_210000.ctbackup",
+        directory / "CORTERIS_auto_before_restore_20260711_210000.ctbackup",
         created_at=NOW,
     )
 

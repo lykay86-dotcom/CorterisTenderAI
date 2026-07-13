@@ -51,11 +51,7 @@ def test_document_dialog_emits_download_requests(tmp_path) -> None:
     store = TenderDocumentStore(tmp_path / "documents")
     dialog = TenderDocumentsDialog(tender, store)
     requests: list[tuple[object, bool]] = []
-    dialog.download_requested.connect(
-        lambda selected, force: requests.append(
-            (selected, force)
-        )
-    )
+    dialog.download_requested.connect(lambda selected, force: requests.append((selected, force)))
 
     dialog.download_button.click()
     dialog.force_download_button.click()

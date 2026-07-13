@@ -96,9 +96,7 @@ class FakeCollectorSession:
 
 
 def _runtime(tmp_path) -> TenderSearchRuntime:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
     return TenderSearchRuntime(
         data_directory=Path(tmp_path),

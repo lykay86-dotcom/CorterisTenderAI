@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -85,18 +84,13 @@ class WorkflowBackupSettingsDialog(QDialog):
             self,
         )
         self.enabled_check.setChecked(settings.enabled)
-        self.enabled_check.toggled.connect(
-            self._sync_enabled_state
-        )
+        self.enabled_check.toggled.connect(self._sync_enabled_state)
         root.addWidget(self.enabled_check)
 
         form = QFormLayout()
         form.setHorizontalSpacing(18)
         form.setVerticalSpacing(13)
-        form.setLabelAlignment(
-            Qt.AlignmentFlag.AlignLeft
-            | Qt.AlignmentFlag.AlignVCenter
-        )
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.interval_combo = QComboBox(self)
         for label, hours in self.INTERVALS:
@@ -124,9 +118,7 @@ class WorkflowBackupSettingsDialog(QDialog):
         directory_row.setSpacing(8)
         self.directory_edit = QLineEdit(self)
         self.directory_edit.setText(settings.directory)
-        self.directory_edit.setPlaceholderText(
-            str(self._default_directory)
-        )
+        self.directory_edit.setPlaceholderText(str(self._default_directory))
         self.browse_button = QPushButton("Выбрать…", self)
         self.browse_button.clicked.connect(self._browse_directory)
         directory_row.addWidget(self.directory_edit, 1)
@@ -144,16 +136,11 @@ class WorkflowBackupSettingsDialog(QDialog):
         root.addWidget(self.status_label)
 
         self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Save
-        ).setText("Сохранить")
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Cancel
-        ).setText("Отмена")
+        self.buttons.button(QDialogButtonBox.StandardButton.Save).setText("Сохранить")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         root.addWidget(self.buttons)
@@ -164,18 +151,13 @@ class WorkflowBackupSettingsDialog(QDialog):
     def settings(self) -> WorkflowAutoBackupSettings:
         return WorkflowAutoBackupSettings(
             enabled=self.enabled_check.isChecked(),
-            interval_hours=int(
-                self.interval_combo.currentData() or 24
-            ),
+            interval_hours=int(self.interval_combo.currentData() or 24),
             retention_count=self.retention_spin.value(),
             directory=self.directory_edit.text().strip(),
         )
 
     def _browse_directory(self) -> None:
-        initial = (
-            self.directory_edit.text().strip()
-            or str(self._default_directory)
-        )
+        initial = self.directory_edit.text().strip() or str(self._default_directory)
         selected = QFileDialog.getExistingDirectory(
             self,
             "Папка автоматических резервных копий",
@@ -198,9 +180,7 @@ class WorkflowBackupSettingsDialog(QDialog):
         if settings.last_success_timestamp is not None:
             parts.append(
                 "Последняя успешная копия: "
-                + settings.last_success_timestamp.strftime(
-                    "%d.%m.%Y %H:%M:%S"
-                )
+                + settings.last_success_timestamp.strftime("%d.%m.%Y %H:%M:%S")
             )
         else:
             parts.append("Успешные автоматические копии ещё не создавались.")
@@ -208,8 +188,7 @@ class WorkflowBackupSettingsDialog(QDialog):
         next_run = self._service.next_run_at(settings)
         if next_run is not None:
             parts.append(
-                "Следующая проверка по расписанию: "
-                + next_run.strftime("%d.%m.%Y %H:%M:%S")
+                "Следующая проверка по расписанию: " + next_run.strftime("%d.%m.%Y %H:%M:%S")
             )
         if settings.last_error:
             parts.append("Последняя ошибка: " + settings.last_error)

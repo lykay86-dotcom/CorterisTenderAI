@@ -112,9 +112,7 @@ class CommercialCostLine:
             description=str(payload.get("description", "")),
             quantity=Decimal(str(payload.get("quantity", "0"))),
             unit_cost=(
-                Decimal(str(payload["unit_cost"]))
-                if payload.get("unit_cost") is not None
-                else None
+                Decimal(str(payload["unit_cost"])) if payload.get("unit_cost") is not None else None
             ),
             evidence=(
                 CommercialEvidence.from_payload(raw_evidence)
@@ -130,9 +128,7 @@ class CommercialEstimateDraft:
     currency: str = "RUB"
     lines: tuple[CommercialCostLine, ...] = ()
     confirmed_zero_categories: tuple[CommercialCostCategory, ...] = ()
-    confirmed_zero_evidence: tuple[
-        tuple[CommercialCostCategory, CommercialEvidence], ...
-    ] = ()
+    confirmed_zero_evidence: tuple[tuple[CommercialCostCategory, CommercialEvidence], ...] = ()
     proposed_revenue: Decimal | None = None
     revenue_evidence: CommercialEvidence | None = None
     advance_percent: Decimal | None = None
@@ -156,14 +152,24 @@ class CommercialEstimateDraft:
         evidenced_zeroes = {category for category, _evidence in self.confirmed_zero_evidence}
         if any(category not in evidenced_zeroes for category in self.confirmed_zero_categories):
             raise ValueError("every confirmed zero category requires evidence")
-        object.__setattr__(self, "proposed_revenue", _optional_decimal(self.proposed_revenue, "proposed_revenue"))
-        object.__setattr__(self, "advance_percent", _optional_percent(self.advance_percent, "advance_percent"))
-        object.__setattr__(self, "target_margin_percent", _optional_percent(self.target_margin_percent, "target_margin_percent"))
+        object.__setattr__(
+            self, "proposed_revenue", _optional_decimal(self.proposed_revenue, "proposed_revenue")
+        )
+        object.__setattr__(
+            self, "advance_percent", _optional_percent(self.advance_percent, "advance_percent")
+        )
+        object.__setattr__(
+            self,
+            "target_margin_percent",
+            _optional_percent(self.target_margin_percent, "target_margin_percent"),
+        )
         if not self.registry_key.strip():
             raise ValueError("registry_key must not be empty")
         if self.proposed_revenue is not None and self.revenue_evidence is None:
             raise ValueError("proposed revenue requires evidence")
-        if (self.advance_percent is not None or self.payment_delay_days is not None) and self.payment_evidence is None:
+        if (
+            self.advance_percent is not None or self.payment_delay_days is not None
+        ) and self.payment_evidence is None:
             raise ValueError("payment terms require evidence")
         if self.payment_delay_days is not None and self.payment_delay_days < 0:
             raise ValueError("payment_delay_days must be non-negative")
@@ -178,12 +184,22 @@ class CommercialEstimateDraft:
                 [category.value, evidence.to_payload()]
                 for category, evidence in self.confirmed_zero_evidence
             ],
-            "proposed_revenue": str(self.proposed_revenue) if self.proposed_revenue is not None else None,
-            "revenue_evidence": self.revenue_evidence.to_payload() if self.revenue_evidence else None,
-            "advance_percent": str(self.advance_percent) if self.advance_percent is not None else None,
+            "proposed_revenue": str(self.proposed_revenue)
+            if self.proposed_revenue is not None
+            else None,
+            "revenue_evidence": self.revenue_evidence.to_payload()
+            if self.revenue_evidence
+            else None,
+            "advance_percent": str(self.advance_percent)
+            if self.advance_percent is not None
+            else None,
             "payment_delay_days": self.payment_delay_days,
-            "payment_evidence": self.payment_evidence.to_payload() if self.payment_evidence else None,
-            "target_margin_percent": str(self.target_margin_percent) if self.target_margin_percent is not None else None,
+            "payment_evidence": self.payment_evidence.to_payload()
+            if self.payment_evidence
+            else None,
+            "target_margin_percent": str(self.target_margin_percent)
+            if self.target_margin_percent is not None
+            else None,
             "note": self.note,
         }
 
@@ -197,7 +213,9 @@ class CommercialEstimateDraft:
                 CommercialCostLine.from_payload(item)
                 for item in raw_lines
                 if isinstance(item, Mapping)
-            ) if isinstance(raw_lines, (list, tuple)) else (),
+            )
+            if isinstance(raw_lines, (list, tuple))
+            else (),
             confirmed_zero_categories=tuple(
                 CommercialCostCategory(str(item))
                 for item in payload.get("confirmed_zero_categories", ())
@@ -284,11 +302,15 @@ class CommercialEstimator:
         if complete and draft.proposed_revenue is not None:
             profit = (draft.proposed_revenue - known_cost).quantize(Decimal("0.01"))
             if draft.proposed_revenue > 0:
-                margin = (profit / draft.proposed_revenue * Decimal("100")).quantize(Decimal("0.01"))
-            if draft.target_margin_percent is not None and margin is not None and margin < draft.target_margin_percent:
-                warnings.append(
-                    f"Маржа {margin}% ниже целевой {draft.target_margin_percent}%."
+                margin = (profit / draft.proposed_revenue * Decimal("100")).quantize(
+                    Decimal("0.01")
                 )
+            if (
+                draft.target_margin_percent is not None
+                and margin is not None
+                and margin < draft.target_margin_percent
+            ):
+                warnings.append(f"Маржа {margin}% ниже целевой {draft.target_margin_percent}%.")
             if profit < 0:
                 warnings.append("Расчёт показывает отрицательную прибыль.")
 
@@ -311,7 +333,11 @@ class CommercialEstimator:
         return CommercialEstimateResult(
             estimate_id=uuid4().hex,
             registry_key=draft.registry_key,
-            status=(CommercialEstimateStatus.COMPLETE if complete else CommercialEstimateStatus.DATA_INSUFFICIENT),
+            status=(
+                CommercialEstimateStatus.COMPLETE
+                if complete
+                else CommercialEstimateStatus.DATA_INSUFFICIENT
+            ),
             currency=draft.currency,
             known_cost=known_cost,
             total_cost=total_cost,
@@ -320,7 +346,9 @@ class CommercialEstimator:
             margin_percent=margin,
             advance_amount=advance_amount,
             financing_exposure=exposure,
-            category_totals=tuple((category, totals[category]) for category in REQUIRED_COST_CATEGORIES),
+            category_totals=tuple(
+                (category, totals[category]) for category in REQUIRED_COST_CATEGORIES
+            ),
             missing_data=tuple(dict.fromkeys(missing)),
             warnings=tuple(warnings),
             calculated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -371,7 +399,9 @@ class CommercialEstimateRepository:
                 );
             """)
 
-    def save(self, draft: CommercialEstimateDraft, result: CommercialEstimateResult) -> CommercialEstimateResult:
+    def save(
+        self, draft: CommercialEstimateDraft, result: CommercialEstimateResult
+    ) -> CommercialEstimateResult:
         if draft.registry_key != result.registry_key:
             raise ValueError("draft and result registry keys differ")
         self.initialize()
@@ -383,7 +413,11 @@ class CommercialEstimateRepository:
                     (result.registry_key, result.input_fingerprint),
                 ).fetchone()
                 estimate_id = str(existing["estimate_id"]) if existing else result.estimate_id
-                stored_result = result if estimate_id == result.estimate_id else _replace_estimate_id(result, estimate_id)
+                stored_result = (
+                    result
+                    if estimate_id == result.estimate_id
+                    else _replace_estimate_id(result, estimate_id)
+                )
                 connection.execute(
                     """INSERT INTO collector_commercial_estimates(
                         estimate_id, registry_key, status, currency, known_cost,
@@ -397,23 +431,42 @@ class CommercialEstimateRepository:
                         calculated_at=excluded.calculated_at, draft_json=excluded.draft_json,
                         result_json=excluded.result_json""",
                     (
-                        estimate_id, result.registry_key, result.status.value, result.currency,
-                        str(result.known_cost), _string_decimal(result.total_cost),
-                        _string_decimal(result.proposed_revenue), _string_decimal(result.profit),
-                        _string_decimal(result.margin_percent), result.calculated_at,
-                        result.input_fingerprint, json.dumps(draft.to_payload(), ensure_ascii=False, sort_keys=True),
-                        json.dumps(_result_payload(stored_result), ensure_ascii=False, sort_keys=True),
+                        estimate_id,
+                        result.registry_key,
+                        result.status.value,
+                        result.currency,
+                        str(result.known_cost),
+                        _string_decimal(result.total_cost),
+                        _string_decimal(result.proposed_revenue),
+                        _string_decimal(result.profit),
+                        _string_decimal(result.margin_percent),
+                        result.calculated_at,
+                        result.input_fingerprint,
+                        json.dumps(draft.to_payload(), ensure_ascii=False, sort_keys=True),
+                        json.dumps(
+                            _result_payload(stored_result), ensure_ascii=False, sort_keys=True
+                        ),
                     ),
                 )
-                connection.execute("DELETE FROM collector_commercial_cost_lines WHERE estimate_id=?", (estimate_id,))
+                connection.execute(
+                    "DELETE FROM collector_commercial_cost_lines WHERE estimate_id=?",
+                    (estimate_id,),
+                )
                 for line in draft.lines:
                     connection.execute(
                         "INSERT INTO collector_commercial_cost_lines VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
-                            estimate_id, line.line_id, result.registry_key, line.category.value,
-                            line.description, str(line.quantity), _string_decimal(line.unit_cost),
+                            estimate_id,
+                            line.line_id,
+                            result.registry_key,
+                            line.category.value,
+                            line.description,
+                            str(line.quantity),
+                            _string_decimal(line.unit_cost),
                             _string_decimal(line.total),
-                            json.dumps(line.evidence.to_payload(), ensure_ascii=False) if line.evidence else None,
+                            json.dumps(line.evidence.to_payload(), ensure_ascii=False)
+                            if line.evidence
+                            else None,
                         ),
                     )
                 connection.execute("COMMIT")
@@ -422,7 +475,9 @@ class CommercialEstimateRepository:
                 connection.execute("ROLLBACK")
                 raise
 
-    def latest(self, registry_key: str) -> tuple[CommercialEstimateDraft, CommercialEstimateResult] | None:
+    def latest(
+        self, registry_key: str
+    ) -> tuple[CommercialEstimateDraft, CommercialEstimateResult] | None:
         self.initialize()
         with self._lock, self._connect() as connection:
             row = connection.execute(
@@ -491,48 +546,80 @@ def _category_label(category: CommercialCostCategory) -> str:
 
 def _result_payload(result: CommercialEstimateResult) -> dict[str, object]:
     return {
-        "estimate_id": result.estimate_id, "registry_key": result.registry_key,
-        "status": result.status.value, "currency": result.currency,
-        "known_cost": str(result.known_cost), "total_cost": _string_decimal(result.total_cost),
+        "estimate_id": result.estimate_id,
+        "registry_key": result.registry_key,
+        "status": result.status.value,
+        "currency": result.currency,
+        "known_cost": str(result.known_cost),
+        "total_cost": _string_decimal(result.total_cost),
         "proposed_revenue": _string_decimal(result.proposed_revenue),
-        "profit": _string_decimal(result.profit), "margin_percent": _string_decimal(result.margin_percent),
+        "profit": _string_decimal(result.profit),
+        "margin_percent": _string_decimal(result.margin_percent),
         "advance_amount": _string_decimal(result.advance_amount),
         "financing_exposure": _string_decimal(result.financing_exposure),
         "category_totals": [[key.value, str(value)] for key, value in result.category_totals],
-        "missing_data": list(result.missing_data), "warnings": list(result.warnings),
-        "calculated_at": result.calculated_at, "input_fingerprint": result.input_fingerprint,
+        "missing_data": list(result.missing_data),
+        "warnings": list(result.warnings),
+        "calculated_at": result.calculated_at,
+        "input_fingerprint": result.input_fingerprint,
     }
 
 
 def _result_from_payload(payload: Mapping[str, object]) -> CommercialEstimateResult:
     return CommercialEstimateResult(
-        estimate_id=str(payload["estimate_id"]), registry_key=str(payload["registry_key"]),
-        status=CommercialEstimateStatus(str(payload["status"])), currency=str(payload["currency"]),
-        known_cost=Decimal(str(payload["known_cost"])), total_cost=_payload_decimal(payload.get("total_cost")),
-        proposed_revenue=_payload_decimal(payload.get("proposed_revenue")), profit=_payload_decimal(payload.get("profit")),
-        margin_percent=_payload_decimal(payload.get("margin_percent")), advance_amount=_payload_decimal(payload.get("advance_amount")),
+        estimate_id=str(payload["estimate_id"]),
+        registry_key=str(payload["registry_key"]),
+        status=CommercialEstimateStatus(str(payload["status"])),
+        currency=str(payload["currency"]),
+        known_cost=Decimal(str(payload["known_cost"])),
+        total_cost=_payload_decimal(payload.get("total_cost")),
+        proposed_revenue=_payload_decimal(payload.get("proposed_revenue")),
+        profit=_payload_decimal(payload.get("profit")),
+        margin_percent=_payload_decimal(payload.get("margin_percent")),
+        advance_amount=_payload_decimal(payload.get("advance_amount")),
         financing_exposure=_payload_decimal(payload.get("financing_exposure")),
-        category_totals=tuple((CommercialCostCategory(str(key)), Decimal(str(value))) for key, value in payload["category_totals"]),
+        category_totals=tuple(
+            (CommercialCostCategory(str(key)), Decimal(str(value)))
+            for key, value in payload["category_totals"]
+        ),
         missing_data=tuple(str(item) for item in payload.get("missing_data", ())),
         warnings=tuple(str(item) for item in payload.get("warnings", ())),
-        calculated_at=str(payload["calculated_at"]), input_fingerprint=str(payload["input_fingerprint"]),
+        calculated_at=str(payload["calculated_at"]),
+        input_fingerprint=str(payload["input_fingerprint"]),
     )
 
 
-def _replace_estimate_id(result: CommercialEstimateResult, estimate_id: str) -> CommercialEstimateResult:
+def _replace_estimate_id(
+    result: CommercialEstimateResult, estimate_id: str
+) -> CommercialEstimateResult:
     return CommercialEstimateResult(
-        estimate_id=estimate_id, registry_key=result.registry_key, status=result.status,
-        currency=result.currency, known_cost=result.known_cost, total_cost=result.total_cost,
-        proposed_revenue=result.proposed_revenue, profit=result.profit,
-        margin_percent=result.margin_percent, advance_amount=result.advance_amount,
-        financing_exposure=result.financing_exposure, category_totals=result.category_totals,
-        missing_data=result.missing_data, warnings=result.warnings,
-        calculated_at=result.calculated_at, input_fingerprint=result.input_fingerprint,
+        estimate_id=estimate_id,
+        registry_key=result.registry_key,
+        status=result.status,
+        currency=result.currency,
+        known_cost=result.known_cost,
+        total_cost=result.total_cost,
+        proposed_revenue=result.proposed_revenue,
+        profit=result.profit,
+        margin_percent=result.margin_percent,
+        advance_amount=result.advance_amount,
+        financing_exposure=result.financing_exposure,
+        category_totals=result.category_totals,
+        missing_data=result.missing_data,
+        warnings=result.warnings,
+        calculated_at=result.calculated_at,
+        input_fingerprint=result.input_fingerprint,
     )
 
 
 __all__ = [
-    "CommercialCostCategory", "CommercialCostLine", "CommercialEstimateDraft",
-    "CommercialEstimateRepository", "CommercialEstimateResult", "CommercialEstimateStatus",
-    "CommercialEstimator", "CommercialEvidence", "REQUIRED_COST_CATEGORIES",
+    "CommercialCostCategory",
+    "CommercialCostLine",
+    "CommercialEstimateDraft",
+    "CommercialEstimateRepository",
+    "CommercialEstimateResult",
+    "CommercialEstimateStatus",
+    "CommercialEstimator",
+    "CommercialEvidence",
+    "REQUIRED_COST_CATEGORIES",
 ]

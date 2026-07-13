@@ -53,9 +53,7 @@ class WriteFailureRepository:
 
 
 def test_service_contains_repository_write_error() -> None:
-    service = TenderDocumentAiAnalysisService(
-        Builder(), Analyzer(), WriteFailureRepository()
-    )
+    service = TenderDocumentAiAnalysisService(Builder(), Analyzer(), WriteFailureRepository())
 
     result = service.analyze("procurement:test")
 

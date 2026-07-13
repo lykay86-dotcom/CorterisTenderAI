@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 
 from app.tenders.corteris_filter import (
     TenderDirection,
@@ -85,9 +84,7 @@ def test_service_forwards_provider_and_filter_options() -> None:
 
     result = service.search(
         TenderSearchQuery(keywords=("безопасность",)),
-        filter_options=TenderFilterOptions(
-            required_directions=(TenderDirection.BARRIERS,)
-        ),
+        filter_options=TenderFilterOptions(required_directions=(TenderDirection.BARRIERS,)),
         provider_ids=("eis",),
         include_disabled=True,
         parallel=False,

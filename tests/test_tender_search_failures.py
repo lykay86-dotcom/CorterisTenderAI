@@ -45,16 +45,14 @@ def test_one_provider_failure_does_not_discard_other_results() -> None:
         error=TenderProviderError("network failure"),
     )
 
-    result = TenderSearchEngine(
-        TenderProviderRegistry((successful, failed))
-    ).search(TenderSearchQuery())
+    result = TenderSearchEngine(TenderProviderRegistry((successful, failed))).search(
+        TenderSearchQuery()
+    )
 
     assert len(result.items) == 1
     assert result.has_partial_failures
     assert result.failed_provider_ids == ("rts_tender",)
-    assert result.outcomes[1].status == (
-        ProviderSearchStatus.FAILED
-    )
+    assert result.outcomes[1].status == (ProviderSearchStatus.FAILED)
 
 
 def test_not_configured_provider_has_explicit_status() -> None:
@@ -67,16 +65,10 @@ def test_not_configured_provider_has_explicit_status() -> None:
         error=ProviderNotConfiguredError("credentials missing"),
     )
 
-    result = TenderSearchEngine(
-        TenderProviderRegistry((provider,))
-    ).search(TenderSearchQuery())
+    result = TenderSearchEngine(TenderProviderRegistry((provider,))).search(TenderSearchQuery())
 
-    assert result.outcomes[0].status == (
-        ProviderSearchStatus.NOT_CONFIGURED
-    )
-    assert "credentials missing" in (
-        result.outcomes[0].error_message
-    )
+    assert result.outcomes[0].status == (ProviderSearchStatus.NOT_CONFIGURED)
+    assert "credentials missing" in (result.outcomes[0].error_message)
 
 
 def test_slow_provider_is_marked_timed_out() -> None:
@@ -98,9 +90,7 @@ def test_slow_provider_is_marked_timed_out() -> None:
         parallel=True,
     )
 
-    assert result.outcomes[0].status == (
-        ProviderSearchStatus.TIMED_OUT
-    )
+    assert result.outcomes[0].status == (ProviderSearchStatus.TIMED_OUT)
     assert result.completed_provider_count == 0
 
 
@@ -139,10 +129,6 @@ def test_parallel_timeout_marks_only_pending_provider() -> None:
         parallel=True,
     )
 
-    assert result.outcomes[0].status == (
-        ProviderSearchStatus.SUCCESS
-    )
-    assert result.outcomes[1].status == (
-        ProviderSearchStatus.TIMED_OUT
-    )
+    assert result.outcomes[0].status == (ProviderSearchStatus.SUCCESS)
+    assert result.outcomes[1].status == (ProviderSearchStatus.TIMED_OUT)
     assert len(result.items) == 1

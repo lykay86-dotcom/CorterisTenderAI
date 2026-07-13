@@ -1,4 +1,8 @@
-from app.tenders.tender_summary import DeterministicTenderSummaryGenerator, SafeTenderSummaryEnhancer, TenderSummarySource
+from app.tenders.tender_summary import (
+    DeterministicTenderSummaryGenerator,
+    SafeTenderSummaryEnhancer,
+    TenderSummarySource,
+)
 from tests.collector_c3_helpers import make_tender
 
 
@@ -16,9 +20,10 @@ def test_offline_summary_is_reproducible_without_verified_timestamp():
     tender = make_tender()
     generator = DeterministicTenderSummaryGenerator()
 
-    assert generator.generate("key", tender).to_payload() == generator.generate(
-        "key", tender
-    ).to_payload()
+    assert (
+        generator.generate("key", tender).to_payload()
+        == generator.generate("key", tender).to_payload()
+    )
 
 
 def test_ai_enhancement_cannot_change_deterministic_facts():

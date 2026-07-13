@@ -34,9 +34,7 @@ def _save(
         ),
         observed_at=now,
     )
-    freshness = TenderFreshnessService(
-        user_timezone="UTC"
-    ).evaluate(verification, now=now)
+    freshness = TenderFreshnessService(user_timezone="UTC").evaluate(verification, now=now)
     summary = repository.save_batch(
         run_id,
         verification.deduplication,
@@ -63,9 +61,7 @@ def test_current_schema_contains_freshness_state(tmp_path) -> None:
         )
         tables = {
             row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
 
     assert version == COLLECTOR_SCHEMA_VERSION == 13
@@ -75,9 +71,7 @@ def test_current_schema_contains_freshness_state(tmp_path) -> None:
 
 
 def test_freshness_state_is_persisted_and_loaded(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     verification, freshness, summary = _save(
         repository,
         deadline_day=14,
@@ -112,9 +106,7 @@ def test_freshness_state_is_persisted_and_loaded(tmp_path) -> None:
 
 
 def test_due_reverification_excludes_expired_tenders(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     _, _, _ = _save(
         repository,
         deadline_day=14,
@@ -130,9 +122,7 @@ def test_due_reverification_excludes_expired_tenders(tmp_path) -> None:
         procurement_number="0373100000126000002",
     )
 
-    due = repository.list_due_reverification(
-        now="2026-07-12T16:01:00+00:00"
-    )
+    due = repository.list_due_reverification(now="2026-07-12T16:01:00+00:00")
 
     assert len(due) == 1
     assert not due[0].deadline_expired

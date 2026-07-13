@@ -39,9 +39,7 @@ def test_extracts_docx_paragraphs() -> None:
         <w:p><w:r><w:t>Поставка 12 камер</w:t></w:r></w:p>
       </w:body>
     </w:document>""".encode("utf-8")
-    payload = _zip_bytes(
-        {"word/document.xml": document_xml}
-    )
+    payload = _zip_bytes({"word/document.xml": document_xml})
 
     result = TenderDocumentTextExtractor().extract_bytes(
         payload,
@@ -135,9 +133,7 @@ class _FakeReader:
 
 
 def test_pdf_reader_can_be_injected_without_real_dependency() -> None:
-    extractor = TenderDocumentTextExtractor(
-        pdf_reader_factory=_FakeReader
-    )
+    extractor = TenderDocumentTextExtractor(pdf_reader_factory=_FakeReader)
 
     result = extractor.extract_bytes(
         b"%PDF-1.4 fake",

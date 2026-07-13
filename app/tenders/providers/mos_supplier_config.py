@@ -12,17 +12,14 @@ from app.security.secrets import load_secret
 SecretLoader = Callable[[str], str | None]
 MOS_SUPPLIER_KEYRING_SECRET = "collector.mos_supplier.api_key"
 
+
 @dataclass(frozen=True, slots=True)
 class MosSupplierApiConfig:
     """Connection settings for the documented Portal API."""
 
     api_token: str = field(default="", repr=False, compare=False)
-    search_url: str = (
-        "https://api.zakupki.mos.ru/api/v2/auction/public/Search"
-    )
-    get_url: str = (
-        "https://api.zakupki.mos.ru/api/v2/auction/public/Get"
-    )
+    search_url: str = "https://api.zakupki.mos.ru/api/v2/auction/public/Search"
+    get_url: str = "https://api.zakupki.mos.ru/api/v2/auction/public/Get"
     homepage_url: str = "https://zakupki.mos.ru/"
     auction_url_template: str = "https://zakupki.mos.ru/auction/{id}"
     file_download_url_template: str = (
@@ -41,9 +38,7 @@ class MosSupplierApiConfig:
     ) -> "MosSupplierApiConfig":
         env = environment if environment is not None else os.environ
         defaults = cls()
-        api_token = str(
-            env.get(defaults.token_environment_variable, "")
-        ).strip()
+        api_token = str(env.get(defaults.token_environment_variable, "")).strip()
         if not api_token:
             loader = secret_loader or _load_keyring_secret_safely
             api_token = str(loader(MOS_SUPPLIER_KEYRING_SECRET) or "").strip()
@@ -75,6 +70,8 @@ class MosSupplierApiConfig:
         if len(token) <= 8:
             return "*" * len(token)
         return f"{token[:4]}…{token[-4:]}"
+
+
 def _load_keyring_secret_safely(name: str) -> str | None:
     """Do not prevent startup when the OS credential backend is unavailable."""
     try:

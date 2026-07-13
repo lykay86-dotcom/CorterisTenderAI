@@ -31,9 +31,7 @@ def test_backup_center_lists_valid_and_invalid_files(
     tmp_path,
 ) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-85",
@@ -57,9 +55,7 @@ def test_backup_center_lists_valid_and_invalid_files(
     dialog = WorkflowBackupCenterDialog(
         repository=repository,
         backup_service=backup_service,
-        catalog_service=WorkflowBackupCatalogService(
-            backup_service
-        ),
+        catalog_service=WorkflowBackupCatalogService(backup_service),
         directories=[directory],
     )
 
@@ -73,9 +69,7 @@ def test_invalid_selected_backup_cannot_be_restored(
     tmp_path,
 ) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     directory = tmp_path / "backups"
     directory.mkdir()
     (directory / "invalid.ctbackup").write_text(

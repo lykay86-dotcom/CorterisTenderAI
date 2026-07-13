@@ -64,9 +64,7 @@ class TenderSearchResultsDialog(QDialog):
         self._theme = ThemeName(theme)
         self._evaluated = tuple(run.result.filter_result.accepted)
 
-        self.setWindowTitle(
-            f"Corteris Tender AI — {run.profile.name}"
-        )
+        self.setWindowTitle(f"Corteris Tender AI — {run.profile.name}")
         self.setModal(False)
         self.resize(1380, 820)
 
@@ -106,31 +104,19 @@ class TenderSearchResultsDialog(QDialog):
                 "Источник",
             )
         )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setStretchLastSection(False)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(
             3,
             QHeaderView.ResizeMode.Stretch,
         )
-        self.table.itemSelectionChanged.connect(
-            self._show_selected_details
-        )
-        self.table.cellDoubleClicked.connect(
-            lambda _row, _column: self._open_selected_source()
-        )
+        self.table.itemSelectionChanged.connect(self._show_selected_details)
+        self.table.cellDoubleClicked.connect(lambda _row, _column: self._open_selected_source())
         table_layout.addWidget(self.table, 1)
         splitter.addWidget(table_frame)
 
@@ -147,9 +133,7 @@ class TenderSearchResultsDialog(QDialog):
         self.details = QTextBrowser(details_frame)
         self.details.setObjectName("TenderResultsDetails")
         self.details.setOpenExternalLinks(False)
-        self.details.anchorClicked.connect(
-            QDesktopServices.openUrl
-        )
+        self.details.anchorClicked.connect(QDesktopServices.openUrl)
         details_layout.addWidget(self.details, 1)
 
         provider_heading = QLabel(
@@ -165,9 +149,7 @@ class TenderSearchResultsDialog(QDialog):
         )
         self.provider_status.setObjectName("TenderProviderStatus")
         self.provider_status.setWordWrap(True)
-        self.provider_status.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.provider_status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         details_layout.addWidget(self.provider_status)
         splitter.addWidget(details_frame)
         splitter.setSizes([960, 420])
@@ -180,42 +162,32 @@ class TenderSearchResultsDialog(QDialog):
             self,
         )
         self.open_source_button.setObjectName("PrimaryActionButton")
-        self.open_source_button.clicked.connect(
-            self._open_selected_source
-        )
+        self.open_source_button.clicked.connect(self._open_selected_source)
 
         self.full_analysis_button = QPushButton(
             "Скачать документы и провести полный анализ",
             self,
         )
         self.full_analysis_button.setObjectName("PrimaryActionButton")
-        self.full_analysis_button.clicked.connect(
-            self._request_selected_full_analysis
-        )
+        self.full_analysis_button.clicked.connect(self._request_selected_full_analysis)
 
         self.documents_button = QPushButton(
             "Скачать документацию",
             self,
         )
-        self.documents_button.clicked.connect(
-            self._request_selected_documents
-        )
+        self.documents_button.clicked.connect(self._request_selected_documents)
 
         self.rerun_button = QPushButton(
             "Повторить поиск",
             self,
         )
-        self.rerun_button.clicked.connect(
-            lambda: self.rerun_requested.emit(run.profile.id)
-        )
+        self.rerun_button.clicked.connect(lambda: self.rerun_requested.emit(run.profile.id))
 
         self.profiles_button = QPushButton(
             "Профили поиска",
             self,
         )
-        self.profiles_button.clicked.connect(
-            self.profiles_requested.emit
-        )
+        self.profiles_button.clicked.connect(self.profiles_requested.emit)
 
         action_row.addWidget(self.open_source_button)
         action_row.addWidget(self.full_analysis_button)
@@ -228,9 +200,7 @@ class TenderSearchResultsDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         action_row.addWidget(buttons)
         root.addLayout(action_row)
@@ -249,8 +219,7 @@ class TenderSearchResultsDialog(QDialog):
         title = QLabel(self.run.profile.name, frame)
         title.setObjectName("TenderResultsTitle")
         description = QLabel(
-            self.run.profile.description
-            or "Поиск по сохранённому профилю.",
+            self.run.profile.description or "Поиск по сохранённому профилю.",
             frame,
         )
         description.setObjectName("TenderResultsSubtitle")
@@ -307,9 +276,7 @@ class TenderSearchResultsDialog(QDialog):
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 if column == 0:
-                    item.setTextAlignment(
-                        Qt.AlignmentFlag.AlignCenter
-                    )
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     item.setData(
                         Qt.ItemDataRole.UserRole,
                         row,
@@ -351,20 +318,20 @@ class TenderSearchResultsDialog(QDialog):
         self.documents_button.setEnabled(True)
         tender = evaluated.tender
         relevance = evaluated.relevance
-        directions = ", ".join(
-            _DIRECTION_LABELS.get(direction, direction.value)
-            for direction in relevance.directions
-        ) or "Не определено"
-        strong_terms = ", ".join(
-            relevance.matched_strong_terms
-        ) or "—"
-        reasons = "".join(
-            f"<li>{escape(reason)}</li>"
-            for reason in relevance.reasons
-        ) or "<li>Дополнительные причины не сформированы.</li>"
+        directions = (
+            ", ".join(
+                _DIRECTION_LABELS.get(direction, direction.value)
+                for direction in relevance.directions
+            )
+            or "Не определено"
+        )
+        strong_terms = ", ".join(relevance.matched_strong_terms) or "—"
+        reasons = (
+            "".join(f"<li>{escape(reason)}</li>" for reason in relevance.reasons)
+            or "<li>Дополнительные причины не сформированы.</li>"
+        )
         description = tender.description.strip() or (
-            "Описание отсутствует в поисковой выдаче. "
-            "Откройте официальную карточку закупки."
+            "Описание отсутствует в поисковой выдаче. Откройте официальную карточку закупки."
         )
 
         self.details.setHtml(
@@ -386,7 +353,7 @@ class TenderSearchResultsDialog(QDialog):
             f"{escape(strong_terms)}</p>"
             f"<h3>Описание</h3><p>{escape(description)}</p>"
             f"<h3>Почему закупка подходит</h3><ul>{reasons}</ul>"
-            f"<p><a href=\"{escape(tender.source_url)}\">"
+            f'<p><a href="{escape(tender.source_url)}">'
             "Открыть официальную карточку</a></p>"
         )
 
@@ -398,12 +365,8 @@ class TenderSearchResultsDialog(QDialog):
         lines: list[str] = []
         for outcome in outcomes:
             status = outcome.status.value
-            details = outcome.error_message or (
-                f"результатов: {outcome.item_count}"
-            )
-            lines.append(
-                f"• {outcome.display_name}: {status}; {details}"
-            )
+            details = outcome.error_message or (f"результатов: {outcome.item_count}")
+            lines.append(f"• {outcome.display_name}: {status}; {details}")
         return "\n".join(lines)
 
     def _request_selected_full_analysis(self) -> None:
@@ -422,9 +385,7 @@ class TenderSearchResultsDialog(QDialog):
         evaluated = self.selected_evaluated()
         if evaluated is None:
             return
-        QDesktopServices.openUrl(
-            QUrl(evaluated.tender.source_url)
-        )
+        QDesktopServices.openUrl(QUrl(evaluated.tender.source_url))
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)

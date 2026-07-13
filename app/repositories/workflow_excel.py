@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
@@ -145,15 +145,9 @@ class WorkflowExcelExporter:
             key=self._record_updated_at,
             reverse=True,
         )
-        record_by_id = {
-            record.id: record for record in ordered_records
-        }
+        record_by_id = {record.id: record for record in ordered_records}
         ordered_events = sorted(
-            (
-                event
-                for event in events
-                if event.record_id in record_by_id
-            ),
+            (event for event in events if event.record_id in record_by_id),
             key=lambda event: event.timestamp,
             reverse=True,
         )
@@ -178,12 +172,8 @@ class WorkflowExcelExporter:
             record_by_id,
         )
 
-        workbook.properties.title = (
-            "Реестр КП, смет и проектов — CORTERIS"
-        )
-        workbook.properties.subject = (
-            "Выгрузка бизнес-процессов и журнала изменений"
-        )
+        workbook.properties.title = "Реестр КП, смет и проектов — CORTERIS"
+        workbook.properties.subject = "Выгрузка бизнес-процессов и журнала изменений"
         workbook.properties.creator = "Corteris Tender AI"
         workbook.properties.created = timestamp
         workbook.properties.modified = timestamp
@@ -239,20 +229,12 @@ class WorkflowExcelExporter:
         active = [record for record in records if not record.is_archived]
         archived = [record for record in records if record.is_archived]
         proposals = [
-            record
-            for record in active
-            if record.kind == BusinessRecordKind.PROPOSAL.value
+            record for record in active if record.kind == BusinessRecordKind.PROPOSAL.value
         ]
         estimates = [
-            record
-            for record in active
-            if record.kind == BusinessRecordKind.ESTIMATE.value
+            record for record in active if record.kind == BusinessRecordKind.ESTIMATE.value
         ]
-        projects = [
-            record
-            for record in active
-            if record.kind == BusinessRecordKind.PROJECT.value
-        ]
+        projects = [record for record in active if record.kind == BusinessRecordKind.PROJECT.value]
         total_amount = sum(
             (Decimal(str(record.total)) for record in active),
             Decimal("0"),
@@ -437,12 +419,7 @@ class WorkflowExcelExporter:
             file_cell = sheet.cell(row_number, 10)
             if record.file_path:
                 try:
-                    file_cell.hyperlink = (
-                        Path(record.file_path)
-                        .expanduser()
-                        .resolve()
-                        .as_uri()
-                    )
+                    file_cell.hyperlink = Path(record.file_path).expanduser().resolve().as_uri()
                     file_cell.style = "Hyperlink"
                 except (OSError, ValueError):
                     pass
@@ -480,10 +457,7 @@ class WorkflowExcelExporter:
             sheet.conditional_formatting.add(
                 f"E2:E{sheet.max_row}",
                 FormulaRule(
-                    formula=[
-                        'OR(E2="На проверке",E2="Монтаж",'
-                        'E2="Пусконаладка")'
-                    ],
+                    formula=['OR(E2="На проверке",E2="Монтаж",E2="Пусконаладка")'],
                     fill=PatternFill("solid", fgColor=self.YELLOW),
                     font=Font(color=self.YELLOW_TEXT, bold=True),
                 ),
@@ -491,10 +465,7 @@ class WorkflowExcelExporter:
             sheet.conditional_formatting.add(
                 f"E2:E{sheet.max_row}",
                 FormulaRule(
-                    formula=[
-                        'OR(E2="Согласовано",E2="Завершено",'
-                        'E2="Принято заказчиком")'
-                    ],
+                    formula=['OR(E2="Согласовано",E2="Завершено",E2="Принято заказчиком")'],
                     fill=PatternFill("solid", fgColor=self.GREEN),
                     font=Font(color=self.GREEN_TEXT, bold=True),
                 ),
@@ -555,9 +526,7 @@ class WorkflowExcelExporter:
                 ]
             )
             row_number = sheet.max_row
-            sheet.cell(row_number, 1).number_format = (
-                "dd.mm.yyyy hh:mm:ss"
-            )
+            sheet.cell(row_number, 1).number_format = "dd.mm.yyyy hh:mm:ss"
             for cell in sheet[row_number]:
                 cell.border = self._thin_border()
                 cell.alignment = Alignment(
@@ -626,9 +595,7 @@ class WorkflowExcelExporter:
     def _record_updated_at(
         record: BusinessWorkflowRecord,
     ) -> datetime:
-        return WorkflowExcelExporter._parse_datetime(
-            record.updated_at
-        ) or datetime.min
+        return WorkflowExcelExporter._parse_datetime(record.updated_at) or datetime.min
 
     @staticmethod
     def _parse_date(value: str) -> date | None:
@@ -660,9 +627,7 @@ class WorkflowExcelExporter:
             return STATUS_LABELS.get(value, value)
         if field in {"total", "profit"}:
             try:
-                return (
-                    f"{Decimal(value):,.2f} ₽".replace(",", " ")
-                )
+                return f"{Decimal(value):,.2f} ₽".replace(",", " ")
             except Exception:
                 return value
         if field == "margin_percent":

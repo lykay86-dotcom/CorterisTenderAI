@@ -22,9 +22,7 @@ def test_health_check_does_not_use_recursive_catalog_scan(
     tmp_path,
     monkeypatch,
 ) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-86-1",
@@ -42,9 +40,7 @@ def test_health_check_does_not_use_recursive_catalog_scan(
     )
 
     def forbidden_recursive_scan(*args, **kwargs):
-        raise AssertionError(
-            "Health diagnostics must not call list_backups/rglob"
-        )
+        raise AssertionError("Health diagnostics must not call list_backups/rglob")
 
     monkeypatch.setattr(
         catalog,
@@ -68,9 +64,7 @@ def test_health_check_does_not_use_recursive_catalog_scan(
 def test_health_check_does_not_descend_into_unlisted_subfolders(
     tmp_path,
 ) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     repository.save_record(
         kind=BusinessRecordKind.ESTIMATE,
         tender_id="T-86-2",
@@ -89,9 +83,7 @@ def test_health_check_does_not_descend_into_unlisted_subfolders(
 
     health = WorkflowDatabaseHealthService(
         backup_service=backup_service,
-        catalog_service=WorkflowBackupCatalogService(
-            backup_service
-        ),
+        catalog_service=WorkflowBackupCatalogService(backup_service),
     )
 
     root_only = health.inspect(

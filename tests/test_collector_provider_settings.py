@@ -12,17 +12,11 @@ from app.tenders.providers.commercial_catalog import (
 
 
 def test_enablement_uses_descriptor_defaults(tmp_path) -> None:
-    repository = ProviderEnablementRepository(
-        tmp_path / "provider_settings.json"
-    )
+    repository = ProviderEnablementRepository(tmp_path / "provider_settings.json")
     commercial = default_commercial_provider_definitions()[0]
 
-    assert repository.is_enabled(
-        AsyncEisTenderProvider.descriptor
-    )
-    assert not repository.is_enabled(
-        commercial.descriptor
-    )
+    assert repository.is_enabled(AsyncEisTenderProvider.descriptor)
+    assert not repository.is_enabled(commercial.descriptor)
 
 
 def test_enablement_roundtrip_is_atomic_and_non_secret(

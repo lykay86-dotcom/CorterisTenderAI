@@ -92,9 +92,7 @@ class WorkflowDatabaseRecoveryDialog(QDialog):
             info,
         )
         self.path_label.setWordWrap(True)
-        self.path_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         info_layout.addWidget(self.path_label)
 
         details = QLabel(
@@ -119,9 +117,7 @@ class WorkflowDatabaseRecoveryDialog(QDialog):
         )
         self.issues_label.setObjectName("DatabaseRecoveryIssues")
         self.issues_label.setWordWrap(True)
-        self.issues_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.issues_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         root.addWidget(self.issues_label)
 
         backup_title = QLabel(
@@ -148,34 +144,22 @@ class WorkflowDatabaseRecoveryDialog(QDialog):
             "Открыть центр копий",
             self,
         )
-        self.backup_center_button.clicked.connect(
-            self._open_backup_center
-        )
+        self.backup_center_button.clicked.connect(self._open_backup_center)
 
         self.empty_button = QPushButton(
             "Создать пустую базу",
             self,
         )
-        self.empty_button.setObjectName(
-            "DatabaseRecoveryEmptyButton"
-        )
-        self.empty_button.clicked.connect(
-            self._initialize_empty
-        )
+        self.empty_button.setObjectName("DatabaseRecoveryEmptyButton")
+        self.empty_button.clicked.connect(self._initialize_empty)
 
         self.restore_button = QPushButton(
             "Восстановить последнюю копию",
             self,
         )
-        self.restore_button.setObjectName(
-            "DatabaseRecoveryRestoreButton"
-        )
-        self.restore_button.setEnabled(
-            report.latest_valid_backup is not None
-        )
-        self.restore_button.clicked.connect(
-            self._restore_latest
-        )
+        self.restore_button.setObjectName("DatabaseRecoveryRestoreButton")
+        self.restore_button.setEnabled(report.latest_valid_backup is not None)
+        self.restore_button.clicked.connect(self._restore_latest)
 
         action_row.addWidget(self.backup_center_button)
         action_row.addWidget(self.empty_button)
@@ -187,30 +171,22 @@ class WorkflowDatabaseRecoveryDialog(QDialog):
             QDialogButtonBox.StandardButton.Cancel,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Cancel
-        ).setText("Закрыть без изменений")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Закрыть без изменений")
         self.buttons.rejected.connect(self.reject)
         root.addWidget(self.buttons)
 
         self.apply_theme(self._theme)
 
     def _restore_latest(self) -> None:
-        self.selected_action = (
-            WorkflowDatabaseRecoveryAction.RESTORE_LATEST
-        )
+        self.selected_action = WorkflowDatabaseRecoveryAction.RESTORE_LATEST
         self.accept()
 
     def _open_backup_center(self) -> None:
-        self.selected_action = (
-            WorkflowDatabaseRecoveryAction.OPEN_BACKUP_CENTER
-        )
+        self.selected_action = WorkflowDatabaseRecoveryAction.OPEN_BACKUP_CENTER
         self.accept()
 
     def _initialize_empty(self) -> None:
-        self.selected_action = (
-            WorkflowDatabaseRecoveryAction.INITIALIZE_EMPTY
-        )
+        self.selected_action = WorkflowDatabaseRecoveryAction.INITIALIZE_EMPTY
         self.accept()
 
     @staticmethod
@@ -219,10 +195,7 @@ class WorkflowDatabaseRecoveryDialog(QDialog):
     ) -> str:
         if not report.issues:
             return "Структурных ошибок не обнаружено."
-        return "\n".join(
-            f"• {issue.message}"
-            for issue in report.issues
-        )
+        return "\n".join(f"• {issue.message}" for issue in report.issues)
 
     @staticmethod
     def _backup_text(

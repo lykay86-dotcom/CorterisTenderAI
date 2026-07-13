@@ -82,9 +82,7 @@ VISIBLE_COLUMNS: dict[TenderFeedDensity, tuple[str, ...]] = {
         "score",
         "status",
     ),
-    TenderFeedDensity.DETAILED: tuple(
-        column.key for column in COLUMNS
-    ),
+    TenderFeedDensity.DETAILED: tuple(column.key for column in COLUMNS),
 }
 
 
@@ -116,20 +114,11 @@ class TenderFeedDelegate(QStyledItemDelegate):
     @staticmethod
     def status_level(status: str) -> str:
         normalized = status.strip().lower()
-        if any(
-            word in normalized
-            for word in ("рекоменду", "приоритет", "допущ")
-        ):
+        if any(word in normalized for word in ("рекоменду", "приоритет", "допущ")):
             return "success"
-        if any(
-            word in normalized
-            for word in ("вниман", "провер", "уточн", "риск")
-        ):
+        if any(word in normalized for word in ("вниман", "провер", "уточн", "риск")):
             return "warning"
-        if any(
-            word in normalized
-            for word in ("отклон", "ошиб", "не участвовать")
-        ):
+        if any(word in normalized for word in ("отклон", "ошиб", "не участвовать")):
             return "danger"
         return "info"
 
@@ -144,17 +133,13 @@ class TenderFeedDelegate(QStyledItemDelegate):
             super().paint(painter, option, index)
             return
 
-        display_text = str(
-            index.data(Qt.ItemDataRole.DisplayRole) or "—"
-        )
+        display_text = str(index.data(Qt.ItemDataRole.DisplayRole) or "—")
         option_copy = QStyleOptionViewItem(option)
         self.initStyleOption(option_copy, index)
         option_copy.text = ""
 
         style = (
-            option_copy.widget.style()
-            if option_copy.widget is not None
-            else QApplication.style()
+            option_copy.widget.style() if option_copy.widget is not None else QApplication.style()
         )
         style.drawControl(
             QStyle.ControlElement.CE_ItemViewItem,
@@ -269,24 +254,15 @@ class TenderFeedModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if column.key in {"nmck", "deadline", "score", "status"}:
-                return int(
-                    Qt.AlignmentFlag.AlignCenter
-                    | Qt.AlignmentFlag.AlignVCenter
-                )
-            return int(
-                Qt.AlignmentFlag.AlignLeft
-                | Qt.AlignmentFlag.AlignVCenter
-            )
+                return int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            return int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         if role == Qt.ItemDataRole.UserRole:
             return tender.number
 
         if role == Qt.ItemDataRole.ToolTipRole:
             return (
-                f"{tender.number}\n"
-                f"{tender.title}\n"
-                f"{tender.customer}\n"
-                f"{tender.recommendation}"
+                f"{tender.number}\n{tender.title}\n{tender.customer}\n{tender.recommendation}"
             ).strip()
 
         return None
@@ -304,10 +280,7 @@ class TenderFeedModel(QAbstractTableModel):
         ):
             return COLUMNS[section].title
 
-        if (
-            orientation == Qt.Orientation.Vertical
-            and role == Qt.ItemDataRole.DisplayRole
-        ):
+        if orientation == Qt.Orientation.Vertical and role == Qt.ItemDataRole.DisplayRole:
             return section + 1
 
         return None
@@ -346,35 +319,23 @@ class TenderFeed(QWidget):
             theme=self._theme,
             parent=self,
         )
-        self.state_panel.action_requested.connect(
-            self.state_action_requested
-        )
+        self.state_panel.action_requested.connect(self.state_action_requested)
         layout.addWidget(self.state_panel)
 
         self.table = QTableView(self)
         self.table.setObjectName("TenderFeedTable")
         self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.table.setAccessibleName("Последние тендеры")
-        self.table.setAccessibleDescription(
-            "Стрелки меняют строку, Enter открывает тендер."
-        )
+        self.table.setAccessibleDescription("Стрелки меняют строку, Enter открывает тендер.")
         self.table.setModel(TenderFeedModel(tenders, self.table))
         self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setShowGrid(False)
         self.table.setSortingEnabled(False)
         self.table.setWordWrap(False)
-        self.table.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(46)
         self.table.setItemDelegate(
@@ -397,9 +358,7 @@ class TenderFeed(QWidget):
         self.set_data_state(
             DataState.ready()
             if tenders
-            else DataState.empty(
-                "Новые тендеры появятся после запуска поиска."
-            )
+            else DataState.empty("Новые тендеры появятся после запуска поиска.")
         )
 
     @property

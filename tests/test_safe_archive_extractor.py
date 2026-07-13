@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
-from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from app.tenders.safe_archive import (
-    ArchiveMemberStatus,
     SafeArchiveExtractor,
 )
 
@@ -18,11 +17,14 @@ def _zip(path: Path, entries: dict[str, bytes]) -> None:
 
 def test_extracts_safe_files_and_blocks_traversal(tmp_path) -> None:
     source = tmp_path / "docs.zip"
-    _zip(source, {
-        "ТЗ/техническое задание.txt": "СКУД".encode("utf-8"),
-        "../../outside.txt": b"attack",
-        "run.cmd": b"echo attack",
-    })
+    _zip(
+        source,
+        {
+            "ТЗ/техническое задание.txt": "СКУД".encode("utf-8"),
+            "../../outside.txt": b"attack",
+            "run.cmd": b"echo attack",
+        },
+    )
 
     result = SafeArchiveExtractor().extract_many((source,), tmp_path / "out")
 
@@ -52,9 +54,7 @@ def test_extracts_nested_zip_with_depth_limit(tmp_path) -> None:
     source = tmp_path / "outer.zip"
     _zip(source, {"nested.zip": nested_bytes.getvalue()})
 
-    result = SafeArchiveExtractor(max_depth=1).extract_many(
-        (source,), tmp_path / "out"
-    )
+    result = SafeArchiveExtractor(max_depth=1).extract_many((source,), tmp_path / "out")
 
     assert any(path.name == "requirements.txt" for path in result.extracted_files)
 

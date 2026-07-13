@@ -32,9 +32,7 @@ class SystemHealthBadge(QPushButton):
         self.setMinimumHeight(34)
         self.setMinimumWidth(156)
         self.setCursor(self.cursor())
-        self.setToolTip(
-            "Открыть центр состояния системы"
-        )
+        self.setToolTip("Открыть центр состояния системы")
         self.set_busy(True)
         self.apply_theme(self._theme)
 
@@ -50,14 +48,10 @@ class SystemHealthBadge(QPushButton):
         self._busy = bool(busy)
         if self._busy and self._snapshot is None:
             self.setText("◌  Проверка системы…")
-            self.setToolTip(
-                "Выполняется фоновая проверка состояния"
-            )
+            self.setToolTip("Выполняется фоновая проверка состояния")
         elif not self._busy and self._snapshot is None:
             self.setText("●  Состояние системы")
-            self.setToolTip(
-                "Открыть центр состояния системы"
-            )
+            self.setToolTip("Открыть центр состояния системы")
         self.apply_theme(self._theme)
 
     def set_snapshot(
@@ -90,10 +84,7 @@ class SystemHealthBadge(QPushButton):
         self._busy = False
         self._severity = SystemHealthSeverity.WARNING
         self.setText("▲  Проверка недоступна")
-        self.setToolTip(
-            "Не удалось обновить состояние системы:\n"
-            f"{message}"
-        )
+        self.setToolTip(f"Не удалось обновить состояние системы:\n{message}")
         self.apply_theme(self._theme)
 
     def apply_theme(self, theme: ThemeName | str) -> None:
@@ -148,31 +139,13 @@ class SystemHealthBadge(QPushButton):
     def _tooltip(snapshot: SystemHealthSnapshot) -> str:
         lines = [
             snapshot.status_label,
-            (
-                "База: "
-                f"{snapshot.database.status_label}; "
-                f"записей: {snapshot.database.record_count}"
-            ),
-            (
-                "Копии: "
-                f"{snapshot.backup_valid} исправных, "
-                f"{snapshot.backup_invalid} повреждённых"
-            ),
-            (
-                "Автокопирование: "
-                + (
-                    "включено"
-                    if snapshot.auto_backup_enabled
-                    else "отключено"
-                )
-            ),
+            (f"База: {snapshot.database.status_label}; записей: {snapshot.database.record_count}"),
+            (f"Копии: {snapshot.backup_valid} исправных, {snapshot.backup_invalid} повреждённых"),
+            ("Автокопирование: " + ("включено" if snapshot.auto_backup_enabled else "отключено")),
         ]
         if snapshot.issues:
             lines.append("")
-            lines.extend(
-                f"• {issue}"
-                for issue in snapshot.issues[:4]
-            )
+            lines.extend(f"• {issue}" for issue in snapshot.issues[:4])
         lines.append("")
         lines.append("Нажмите, чтобы открыть центр состояния.")
         return "\n".join(lines)

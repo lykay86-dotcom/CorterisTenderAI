@@ -34,9 +34,7 @@ def test_system_health_center_emits_crash_reports_request(
     tmp_path,
 ) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     backup = WorkflowBackupService()
     catalog = WorkflowBackupCatalogService(backup)
 
@@ -57,9 +55,7 @@ def test_system_health_center_emits_crash_reports_request(
     )
 
     requested: list[bool] = []
-    dialog.crash_reports_requested.connect(
-        lambda: requested.append(True)
-    )
+    dialog.crash_reports_requested.connect(lambda: requested.append(True))
 
     dialog._request_crash_reports()
 

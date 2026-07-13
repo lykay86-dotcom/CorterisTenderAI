@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from app.core.path_manager import PathManager

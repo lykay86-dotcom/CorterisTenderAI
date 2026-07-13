@@ -164,12 +164,8 @@ class KpiCenter(QWidget):
             clickable=True,
         )
         card.setMinimumHeight(132)
-        card.setAccessibleDescription(
-            f"{kpi.title}: {kpi.value}. {kpi.trend}"
-        )
-        card.clicked.connect(
-            lambda key=kpi.key: self.kpi_clicked.emit(key)
-        )
+        card.setAccessibleDescription(f"{kpi.title}: {kpi.value}. {kpi.trend}")
+        card.clicked.connect(lambda key=kpi.key: self.kpi_clicked.emit(key))
         self._render_card(card, kpi)
         return card
 
@@ -209,9 +205,7 @@ class KpiCenter(QWidget):
         card.icon_text = kpi.icon_text
         card.set_trend(trend, tone)
         card.setEnabled(enabled)
-        card.setAccessibleDescription(
-            f"{title}: {value}. {trend}"
-        )
+        card.setAccessibleDescription(f"{title}: {value}. {trend}")
 
     def _relayout(self) -> None:
         while self._layout.count():

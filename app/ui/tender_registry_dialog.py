@@ -76,18 +76,15 @@ class TenderRegistryDialog(QDialog):
         super().__init__(parent)
 
         self.repository = repository
-        self.verification_repository = (
-            verification_repository
-            or CollectorStateRepository(repository.path)
+        self.verification_repository = verification_repository or CollectorStateRepository(
+            repository.path
         )
         try:
             self._theme = ThemeName(theme)
         except (TypeError, ValueError, AttributeError):
             self._theme = ThemeName.DARK
         self._records: tuple[TenderRegistryRecord, ...] = ()
-        self._verification_states: dict[
-            str, TenderVerificationState
-        ] = {}
+        self._verification_states: dict[str, TenderVerificationState] = {}
         self._freshness_states: dict[str, TenderFreshnessState] = {}
 
         self.setWindowTitle("Corteris Tender AI — реестр тендеров")
@@ -135,30 +132,18 @@ class TenderRegistryDialog(QDialog):
                 "Источник",
             )
         )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(
             5,
             QHeaderView.ResizeMode.Stretch,
         )
-        self.table.itemSelectionChanged.connect(
-            self._show_selected_record
-        )
-        self.table.cellDoubleClicked.connect(
-            lambda _row, _column: self._open_selected_source()
-        )
+        self.table.itemSelectionChanged.connect(self._show_selected_record)
+        self.table.cellDoubleClicked.connect(lambda _row, _column: self._open_selected_source())
         table_layout.addWidget(self.table, 1)
         splitter.addWidget(table_frame)
 
@@ -197,12 +182,8 @@ class TenderRegistryDialog(QDialog):
                 "Направления",
             )
         )
-        self.history_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.NoSelection
-        )
-        self.history_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.history_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.history_table.verticalHeader().setVisible(False)
         self.history_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
@@ -223,69 +204,53 @@ class TenderRegistryDialog(QDialog):
             self,
         )
         self.open_source_button.setObjectName("PrimaryActionButton")
-        self.open_source_button.clicked.connect(
-            self._open_selected_source
-        )
+        self.open_source_button.clicked.connect(self._open_selected_source)
 
         self.full_analysis_button = QPushButton(
             "Скачать документы и провести полный анализ",
             self,
         )
         self.full_analysis_button.setObjectName("PrimaryActionButton")
-        self.full_analysis_button.clicked.connect(
-            self._request_selected_full_analysis
-        )
+        self.full_analysis_button.clicked.connect(self._request_selected_full_analysis)
 
         self.analysis_button = QPushButton(
             "Анализ требований",
             self,
         )
         self.analysis_button.setObjectName("PrimaryActionButton")
-        self.analysis_button.clicked.connect(
-            self._request_selected_analysis
-        )
+        self.analysis_button.clicked.connect(self._request_selected_analysis)
 
         self.score_button = QPushButton(
             "Оценка участия",
             self,
         )
         self.score_button.setObjectName("PrimaryActionButton")
-        self.score_button.clicked.connect(
-            self._request_selected_score
-        )
+        self.score_button.clicked.connect(self._request_selected_score)
 
         self.commercial_button = QPushButton(
             "Коммерческий расчёт",
             self,
         )
         self.commercial_button.setObjectName("PrimaryActionButton")
-        self.commercial_button.clicked.connect(
-            self._request_selected_commercial_estimate
-        )
+        self.commercial_button.clicked.connect(self._request_selected_commercial_estimate)
 
         self.verification_button = QPushButton(
             "Достоверность и источники",
             self,
         )
-        self.verification_button.clicked.connect(
-            self._request_selected_verification
-        )
+        self.verification_button.clicked.connect(self._request_selected_verification)
 
         self.documents_button = QPushButton(
             "Скачать документацию",
             self,
         )
-        self.documents_button.clicked.connect(
-            self._request_selected_documents
-        )
+        self.documents_button.clicked.connect(self._request_selected_documents)
 
         self.archive_button = QPushButton(
             "В архив",
             self,
         )
-        self.archive_button.clicked.connect(
-            self._toggle_selected_archive
-        )
+        self.archive_button.clicked.connect(self._toggle_selected_archive)
 
         self.refresh_button = QPushButton(
             "Обновить",
@@ -297,9 +262,7 @@ class TenderRegistryDialog(QDialog):
             "Профили поиска",
             self,
         )
-        self.profiles_button.clicked.connect(
-            self.profiles_requested.emit
-        )
+        self.profiles_button.clicked.connect(self.profiles_requested.emit)
 
         action_row.addWidget(self.open_source_button)
         action_row.addWidget(self.full_analysis_button)
@@ -317,9 +280,7 @@ class TenderRegistryDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         action_row.addWidget(buttons)
         root.addLayout(action_row)
@@ -413,9 +374,7 @@ class TenderRegistryDialog(QDialog):
 
         self.search_edit = QLineEdit(frame)
         self.search_edit.setObjectName("TenderRegistrySearch")
-        self.search_edit.setPlaceholderText(
-            "Поиск по номеру, названию, заказчику, ИНН или региону"
-        )
+        self.search_edit.setPlaceholderText("Поиск по номеру, названию, заказчику, ИНН или региону")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.returnPressed.connect(self.refresh_records)
         layout.addWidget(self.search_edit, 1)
@@ -429,9 +388,7 @@ class TenderRegistryDialog(QDialog):
         self.state_combo.addItem("Все активные", _STATE_ACTIVE_ALL)
         self.state_combo.addItem("Архив", _STATE_ARCHIVED)
         self.state_combo.addItem("Все записи", _STATE_ALL)
-        self.state_combo.currentIndexChanged.connect(
-            self.refresh_records
-        )
+        self.state_combo.currentIndexChanged.connect(self.refresh_records)
         layout.addWidget(self.state_combo)
 
         score_label = QLabel("Балл от", frame)
@@ -439,15 +396,11 @@ class TenderRegistryDialog(QDialog):
         layout.addWidget(score_label)
 
         self.minimum_score_spin = QSpinBox(frame)
-        self.minimum_score_spin.setObjectName(
-            "TenderRegistryMinimumScore"
-        )
+        self.minimum_score_spin.setObjectName("TenderRegistryMinimumScore")
         self.minimum_score_spin.setRange(0, 100)
         self.minimum_score_spin.setValue(0)
         self.minimum_score_spin.setSuffix(" / 100")
-        self.minimum_score_spin.valueChanged.connect(
-            self.refresh_records
-        )
+        self.minimum_score_spin.valueChanged.connect(self.refresh_records)
         layout.addWidget(self.minimum_score_spin)
 
         self.sort_combo = QComboBox(frame)
@@ -476,9 +429,7 @@ class TenderRegistryDialog(QDialog):
             "По названию",
             TenderRegistrySort.TITLE_ASC.value,
         )
-        self.sort_combo.currentIndexChanged.connect(
-            self.refresh_records
-        )
+        self.sort_combo.currentIndexChanged.connect(self.refresh_records)
         layout.addWidget(self.sort_combo)
 
         self.apply_filter_button = QPushButton("Найти", frame)
@@ -488,10 +439,7 @@ class TenderRegistryDialog(QDialog):
 
     def current_query(self) -> TenderRegistryQuery:
         state = str(self.state_combo.currentData() or "")
-        sort_value = str(
-            self.sort_combo.currentData()
-            or TenderRegistrySort.RELEVANCE_DESC.value
-        )
+        sort_value = str(self.sort_combo.currentData() or TenderRegistrySort.RELEVANCE_DESC.value)
         return TenderRegistryQuery(
             text=self.search_edit.text().strip(),
             include_archived=state == _STATE_ALL,
@@ -504,27 +452,19 @@ class TenderRegistryDialog(QDialog):
 
     def refresh_records(self) -> None:
         selected_key = (
-            self.selected_record().registry_key
-            if self.selected_record() is not None
-            else ""
+            self.selected_record().registry_key if self.selected_record() is not None else ""
         )
         try:
             statistics = self.repository.statistics()
             query = self.current_query()
             records = self.repository.search_tenders(query)
             total_matches = self.repository.count_search_results(query)
-            registry_keys = tuple(
-                item.registry_key for item in records
-            )
+            registry_keys = tuple(item.registry_key for item in records)
             self._verification_states = dict(
-                self.verification_repository.list_verification_states(
-                    registry_keys
-                )
+                self.verification_repository.list_verification_states(registry_keys)
             )
             self._freshness_states = dict(
-                self.verification_repository.list_freshness_states(
-                    registry_keys
-                )
+                self.verification_repository.list_freshness_states(registry_keys)
             )
         except Exception as exc:
             self.set_status(
@@ -542,10 +482,7 @@ class TenderRegistryDialog(QDialog):
         self._records = records
         self._populate_table(selected_key)
         self.set_status(
-            (
-                f"Показано {len(records)} из {total_matches}. "
-                f"База: {self.repository.path}"
-            )
+            (f"Показано {len(records)} из {total_matches}. База: {self.repository.path}")
         )
 
     def _populate_table(self, selected_key: str = "") -> None:
@@ -554,17 +491,11 @@ class TenderRegistryDialog(QDialog):
 
         for row, record in enumerate(self._records):
             result_text = (
-                "Архив"
-                if record.archived
-                else ("Подходит" if record.last_accepted else "Отсеяно")
+                "Архив" if record.archived else ("Подходит" if record.last_accepted else "Отсеяно")
             )
-            verification_state = self._verification_states.get(
-                record.registry_key
-            )
+            verification_state = self._verification_states.get(record.registry_key)
             verification_text = _verification_text(verification_state)
-            freshness_state = self._freshness_states.get(
-                record.registry_key
-            )
+            freshness_state = self._freshness_states.get(record.registry_key)
             freshness_text = _freshness_text(freshness_state)
             values = (
                 str(record.relevance_score),
@@ -588,9 +519,7 @@ class TenderRegistryDialog(QDialog):
                         Qt.ItemDataRole.UserRole,
                         record.registry_key,
                     )
-                    item.setTextAlignment(
-                        Qt.AlignmentFlag.AlignCenter
-                    )
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if column == 2:
                     item.setForeground(
                         QColor(
@@ -600,9 +529,7 @@ class TenderRegistryDialog(QDialog):
                             )
                         )
                     )
-                    item.setToolTip(
-                        _verification_tooltip(verification_state)
-                    )
+                    item.setToolTip(_verification_tooltip(verification_state))
                 if column == 3:
                     item.setForeground(
                         QColor(
@@ -612,9 +539,7 @@ class TenderRegistryDialog(QDialog):
                             )
                         )
                     )
-                    item.setToolTip(
-                        _freshness_tooltip(freshness_state)
-                    )
+                    item.setToolTip(_freshness_tooltip(freshness_state))
                 self.table.setItem(row, column, item)
 
             if record.registry_key == selected_key:
@@ -682,21 +607,11 @@ class TenderRegistryDialog(QDialog):
         self.verification_button.setEnabled(True)
         self.commercial_button.setEnabled(True)
         self.archive_button.setEnabled(True)
-        self.archive_button.setText(
-            "Вернуть из архива" if record.archived else "В архив"
-        )
+        self.archive_button.setText("Вернуть из архива" if record.archived else "В архив")
 
-        verification_state = self._verification_states.get(
-            record.registry_key
-        )
-        freshness_state = self._freshness_states.get(
-            record.registry_key
-        )
-        state = (
-            "Архив"
-            if record.archived
-            else ("Подходит" if record.last_accepted else "Отсеяно")
-        )
+        verification_state = self._verification_states.get(record.registry_key)
+        freshness_state = self._freshness_states.get(record.registry_key)
+        state = "Архив" if record.archived else ("Подходит" if record.last_accepted else "Отсеяно")
         self.details.setHtml(
             f"<h2>{escape(record.title)}</h2>"
             f"<p><b>Номер:</b> "
@@ -727,7 +642,7 @@ class TenderRegistryDialog(QDialog):
             f"<p><b>Последнее обнаружение:</b> "
             f"{escape(_format_timestamp(record.last_seen_at))}</p>"
             f"<p><b>Источник:</b> {escape(record.source)}</p>"
-            f"<p><a href=\"{escape(record.source_url)}\">"
+            f'<p><a href="{escape(record.source_url)}">'
             "Открыть официальную карточку закупки</a></p>"
         )
         self._populate_history(record.registry_key)
@@ -787,11 +702,7 @@ class TenderRegistryDialog(QDialog):
             return
 
         self.set_status(
-            (
-                "Закупка перемещена в архив."
-                if new_state
-                else "Закупка возвращена из архива."
-            )
+            ("Закупка перемещена в архив." if new_state else "Закупка возвращена из архива.")
         )
         self.refresh_records()
 

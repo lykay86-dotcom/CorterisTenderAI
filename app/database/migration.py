@@ -1,4 +1,5 @@
 """Версионированные миграции локальной базы без потери пользовательских данных."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -42,44 +43,62 @@ class MigrationManager:
 
     def _ensure_version_table(self) -> None:
         with self.engine.begin() as connection:
-            connection.execute(text(
-                "CREATE TABLE IF NOT EXISTS schema_version ("
-                "id INTEGER PRIMARY KEY CHECK (id = 1), "
-                "version INTEGER NOT NULL, "
-                "app_version VARCHAR(32), "
-                "updated_at DATETIME)"
-            ))
-            connection.execute(text(
-                "CREATE TABLE IF NOT EXISTS migration_history ("
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                "from_version INTEGER NOT NULL, "
-                "to_version INTEGER NOT NULL, "
-                "status VARCHAR(32) NOT NULL, "
-                "backup_path TEXT, "
-                "message TEXT, "
-                "applied_at DATETIME NOT NULL)"
-            ))
-            columns = {row[1] for row in connection.exec_driver_sql(
-                "PRAGMA table_info(schema_version)"
-            ).fetchall()} if self.engine.dialect.name == "sqlite" else set()
+            connection.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS schema_version ("
+                    "id INTEGER PRIMARY KEY CHECK (id = 1), "
+                    "version INTEGER NOT NULL, "
+                    "app_version VARCHAR(32), "
+                    "updated_at DATETIME)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS migration_history ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "from_version INTEGER NOT NULL, "
+                    "to_version INTEGER NOT NULL, "
+                    "status VARCHAR(32) NOT NULL, "
+                    "backup_path TEXT, "
+                    "message TEXT, "
+                    "applied_at DATETIME NOT NULL)"
+                )
+            )
+            columns = (
+                {
+                    row[1]
+                    for row in connection.exec_driver_sql(
+                        "PRAGMA table_info(schema_version)"
+                    ).fetchall()
+                }
+                if self.engine.dialect.name == "sqlite"
+                else set()
+            )
             if self.engine.dialect.name == "sqlite":
                 if "app_version" not in columns:
-                    connection.exec_driver_sql("ALTER TABLE schema_version ADD COLUMN app_version VARCHAR(32)")
+                    connection.exec_driver_sql(
+                        "ALTER TABLE schema_version ADD COLUMN app_version VARCHAR(32)"
+                    )
                 if "updated_at" not in columns:
-                    connection.exec_driver_sql("ALTER TABLE schema_version ADD COLUMN updated_at DATETIME")
+                    connection.exec_driver_sql(
+                        "ALTER TABLE schema_version ADD COLUMN updated_at DATETIME"
+                    )
             exists = connection.scalar(text("SELECT COUNT(*) FROM schema_version WHERE id = 1"))
             if not exists:
-                connection.execute(text(
-                    "INSERT INTO schema_version (id, version, app_version, updated_at) "
-                    "VALUES (1, 0, '1.5.1', :updated_at)"
-                ), {"updated_at": self._now()})
+                connection.execute(
+                    text(
+                        "INSERT INTO schema_version (id, version, app_version, updated_at) "
+                        "VALUES (1, 0, '1.5.1', :updated_at)"
+                    ),
+                    {"updated_at": self._now()},
+                )
 
     def current_version(self) -> int:
         self._ensure_version_table()
         with self.engine.connect() as connection:
-            return int(connection.scalar(text(
-                "SELECT version FROM schema_version WHERE id = 1"
-            )) or 0)
+            return int(
+                connection.scalar(text("SELECT version FROM schema_version WHERE id = 1")) or 0
+            )
 
     def upgrade(self) -> MigrationResult:
         self._ensure_version_table()
@@ -87,13 +106,22 @@ class MigrationManager:
         inspector = SchemaInspector(self.engine)
         requires_legacy_rebuild = self._requires_legacy_rebuild(inspector)
         requires_audit_columns = self._requires_audit_columns(inspector)
-        changed = previous < CURRENT_SCHEMA_VERSION or requires_legacy_rebuild or requires_audit_columns
+        changed = (
+            previous < CURRENT_SCHEMA_VERSION or requires_legacy_rebuild or requires_audit_columns
+        )
         backup_path: Path | None = None
 
-        if changed and self.database_path and self.database_path.exists() and self.database_path.stat().st_size:
+        if (
+            changed
+            and self.database_path
+            and self.database_path.exists()
+            and self.database_path.stat().st_size
+        ):
             if self.backup_dir is None:
                 raise MigrationError("Не определён каталог резервных копий")
-            backup_path = BackupManager(self.database_path, self.backup_dir).create(reason="migration").path
+            backup_path = (
+                BackupManager(self.database_path, self.backup_dir).create(reason="migration").path
+            )
 
         try:
             if self.engine.dialect.name == "sqlite":
@@ -106,18 +134,22 @@ class MigrationManager:
             self._set_version(CURRENT_SCHEMA_VERSION)
             self._verify()
             if changed:
-                self._record_history(previous, CURRENT_SCHEMA_VERSION, "success", backup_path, "Migration completed")
+                self._record_history(
+                    previous, CURRENT_SCHEMA_VERSION, "success", backup_path, "Migration completed"
+                )
         except Exception as exc:
             try:
-                self._record_history(previous, CURRENT_SCHEMA_VERSION, "failed", backup_path, str(exc))
+                self._record_history(
+                    previous, CURRENT_SCHEMA_VERSION, "failed", backup_path, str(exc)
+                )
             except Exception:
                 pass
             if backup_path and self.database_path:
                 try:
                     self.engine.dispose()
-                    BackupManager(self.database_path, self.backup_dir or backup_path.parent).restore(
-                        backup_path, create_safety_backup=False
-                    )
+                    BackupManager(
+                        self.database_path, self.backup_dir or backup_path.parent
+                    ).restore(backup_path, create_safety_backup=False)
                 except Exception:
                     pass
             raise MigrationError(
@@ -158,25 +190,31 @@ class MigrationManager:
         message: str,
     ) -> None:
         with self.engine.begin() as connection:
-            connection.execute(text(
-                "INSERT INTO migration_history "
-                "(from_version, to_version, status, backup_path, message, applied_at) "
-                "VALUES (:from_version, :to_version, :status, :backup_path, :message, :applied_at)"
-            ), {
-                "from_version": from_version,
-                "to_version": to_version,
-                "status": status,
-                "backup_path": str(backup_path) if backup_path else None,
-                "message": message[:2000],
-                "applied_at": self._now(),
-            })
+            connection.execute(
+                text(
+                    "INSERT INTO migration_history "
+                    "(from_version, to_version, status, backup_path, message, applied_at) "
+                    "VALUES (:from_version, :to_version, :status, :backup_path, :message, :applied_at)"
+                ),
+                {
+                    "from_version": from_version,
+                    "to_version": to_version,
+                    "status": status,
+                    "backup_path": str(backup_path) if backup_path else None,
+                    "message": message[:2000],
+                    "applied_at": self._now(),
+                },
+            )
 
     def _set_version(self, version: int) -> None:
         with self.engine.begin() as connection:
-            connection.execute(text(
-                "UPDATE schema_version SET version=:version, app_version='1.5.1', "
-                "updated_at=:updated_at WHERE id=1"
-            ), {"version": version, "updated_at": self._now()})
+            connection.execute(
+                text(
+                    "UPDATE schema_version SET version=:version, app_version='1.5.1', "
+                    "updated_at=:updated_at WHERE id=1"
+                ),
+                {"version": version, "updated_at": self._now()},
+            )
 
     def _add_missing_audit_columns(self) -> None:
         inspector = SchemaInspector(self.engine)
@@ -195,12 +233,17 @@ class MigrationManager:
                 existing = set(inspector.columns(table))
                 for name, ddl in definitions.items():
                     if name not in existing:
-                        connection.exec_driver_sql(f'ALTER TABLE "{table}" ADD COLUMN "{name}" {ddl}')
-                connection.execute(text(
-                    f'UPDATE "{table}" SET created_at=COALESCE(created_at, :now), '
-                    f'updated_at=COALESCE(updated_at, created_at, :now), '
-                    'is_deleted=COALESCE(is_deleted, 0), row_version=COALESCE(row_version, 1)'
-                ), {"now": now})
+                        connection.exec_driver_sql(
+                            f'ALTER TABLE "{table}" ADD COLUMN "{name}" {ddl}'
+                        )
+                connection.execute(
+                    text(
+                        f'UPDATE "{table}" SET created_at=COALESCE(created_at, :now), '
+                        f"updated_at=COALESCE(updated_at, created_at, :now), "
+                        "is_deleted=COALESCE(is_deleted, 0), row_version=COALESCE(row_version, 1)"
+                    ),
+                    {"now": now},
+                )
 
     def _rebuild_legacy_tables(self) -> None:
         """Переводит старые INTEGER ID в UUID и сохраняет все связи."""
@@ -215,8 +258,16 @@ class MigrationManager:
             now = self._now()
 
             tender_rows = connection.execute("SELECT * FROM tenders").fetchall()
-            document_rows = connection.execute("SELECT * FROM documents").fetchall() if self._sqlite_table_exists(connection, "documents") else []
-            analysis_rows = connection.execute("SELECT * FROM analyses").fetchall() if self._sqlite_table_exists(connection, "analyses") else []
+            document_rows = (
+                connection.execute("SELECT * FROM documents").fetchall()
+                if self._sqlite_table_exists(connection, "documents")
+                else []
+            )
+            analysis_rows = (
+                connection.execute("SELECT * FROM analyses").fetchall()
+                if self._sqlite_table_exists(connection, "analyses")
+                else []
+            )
             tender_ids = {row["id"]: self._stable_uuid("tenders", row["id"]) for row in tender_rows}
 
             for table in ("tenders_v2", "documents_v2", "analyses_v2"):
@@ -229,7 +280,24 @@ class MigrationManager:
                 connection.execute(
                     "INSERT INTO tenders_v2 (id, number, title, source_url, platform, customer, region, law, nmck, deadline, source_dir, status, score, recommendation, created_at, updated_at, is_deleted, deleted_at, row_version) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, 1)",
-                    (tender_ids[row["id"]], data.get("number", ""), data.get("title", ""), data.get("source_url", ""), data.get("platform", "Ручной импорт"), data.get("customer", ""), data.get("region", ""), data.get("law", "Не определён"), data.get("nmck", 0), data.get("deadline", ""), data.get("source_dir", ""), data.get("status", "Новый"), data.get("score", 0), data.get("recommendation", "Не анализировался"), created, created),
+                    (
+                        tender_ids[row["id"]],
+                        data.get("number", ""),
+                        data.get("title", ""),
+                        data.get("source_url", ""),
+                        data.get("platform", "Ручной импорт"),
+                        data.get("customer", ""),
+                        data.get("region", ""),
+                        data.get("law", "Не определён"),
+                        data.get("nmck", 0),
+                        data.get("deadline", ""),
+                        data.get("source_dir", ""),
+                        data.get("status", "Новый"),
+                        data.get("score", 0),
+                        data.get("recommendation", "Не анализировался"),
+                        created,
+                        created,
+                    ),
                 )
 
             for row in document_rows:
@@ -241,7 +309,17 @@ class MigrationManager:
                 connection.execute(
                     "INSERT INTO documents_v2 (id, tender_id, name, path, kind, text, page_count, created_at, updated_at, is_deleted, deleted_at, row_version) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, 1)",
-                    (self._stable_uuid("documents", row["id"]), mapped_tender, data.get("name", ""), data.get("path", ""), data.get("kind", "Не определён"), data.get("text", ""), data.get("page_count", 0), created, created),
+                    (
+                        self._stable_uuid("documents", row["id"]),
+                        mapped_tender,
+                        data.get("name", ""),
+                        data.get("path", ""),
+                        data.get("kind", "Не определён"),
+                        data.get("text", ""),
+                        data.get("page_count", 0),
+                        created,
+                        created,
+                    ),
                 )
 
             for row in analysis_rows:
@@ -253,7 +331,21 @@ class MigrationManager:
                 connection.execute(
                     "INSERT INTO analyses_v2 (id, tender_id, profile_score, legal_risk, competition_risk, technical_risk, financial_risk, estimate_total, estimated_profit, margin_percent, report, created_at, updated_at, is_deleted, deleted_at, row_version) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, 1)",
-                    (self._stable_uuid("analyses", row["id"]), mapped_tender, data.get("profile_score", 0), data.get("legal_risk", 0), data.get("competition_risk", 0), data.get("technical_risk", 0), data.get("financial_risk", 0), data.get("estimate_total", 0), data.get("estimated_profit", 0), data.get("margin_percent", 0), data.get("report", "{}"), created, created),
+                    (
+                        self._stable_uuid("analyses", row["id"]),
+                        mapped_tender,
+                        data.get("profile_score", 0),
+                        data.get("legal_risk", 0),
+                        data.get("competition_risk", 0),
+                        data.get("technical_risk", 0),
+                        data.get("financial_risk", 0),
+                        data.get("estimate_total", 0),
+                        data.get("estimated_profit", 0),
+                        data.get("margin_percent", 0),
+                        data.get("report", "{}"),
+                        created,
+                        created,
+                    ),
                 )
 
             for table in ("documents", "analyses", "tenders"):
@@ -272,9 +364,12 @@ class MigrationManager:
 
     @staticmethod
     def _sqlite_table_exists(connection: sqlite3.Connection, table: str) -> bool:
-        return connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
-        ).fetchone() is not None
+        return (
+            connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone()
+            is not None
+        )
 
     @staticmethod
     def _create_v2_tables(connection: sqlite3.Connection) -> None:
@@ -338,4 +433,6 @@ class MigrationManager:
         with self.engine.connect() as connection:
             integrity = str(connection.scalar(text("PRAGMA integrity_check")) or "")
             if integrity.lower() != "ok":
-                raise MigrationError(f"Проверка целостности SQLite завершилась ошибкой: {integrity}")
+                raise MigrationError(
+                    f"Проверка целостности SQLite завершилась ошибкой: {integrity}"
+                )

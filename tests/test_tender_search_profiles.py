@@ -15,11 +15,7 @@ from app.tenders.search_profiles import (
 
 
 def test_builtin_profiles_cover_all_corteris_directions() -> None:
-    profiles = create_builtin_search_profiles(
-        now=datetime(
-            2026, 7, 13, 8, 0, tzinfo=timezone.utc
-        )
-    )
+    profiles = create_builtin_search_profiles(now=datetime(2026, 7, 13, 8, 0, tzinfo=timezone.utc))
 
     assert [profile.id for profile in profiles] == [
         "all-corteris",
@@ -32,11 +28,7 @@ def test_builtin_profiles_cover_all_corteris_directions() -> None:
     ]
     assert all(profile.is_builtin for profile in profiles)
 
-    covered = {
-        direction
-        for profile in profiles
-        for direction in profile.directions
-    }
+    covered = {direction for profile in profiles for direction in profile.directions}
     assert {
         TenderDirection.VIDEO_SURVEILLANCE,
         TenderDirection.OPS,
@@ -77,18 +69,14 @@ def test_profile_builds_search_query_and_filter_options() -> None:
     assert query.page_size == 100
     assert query.excluded_keywords == ("веб-камера",)
     assert options.minimum_score == 40
-    assert options.required_directions == (
-        TenderDirection.VIDEO_SURVEILLANCE,
-    )
+    assert options.required_directions == (TenderDirection.VIDEO_SURVEILLANCE,)
     assert options.regions == ("Москва",)
 
 
 def test_profile_json_round_trip_preserves_directions() -> None:
     source = create_builtin_search_profiles()[4]
 
-    restored = TenderSearchProfile.from_dict(
-        source.to_dict()
-    )
+    restored = TenderSearchProfile.from_dict(source.to_dict())
 
     assert restored == source
     assert restored.directions == (
@@ -144,9 +132,7 @@ def test_profile_preserves_currency_and_defaults_old_json_to_rub() -> None:
 
 def test_clone_as_custom_changes_identity_and_timestamps() -> None:
     builtin = create_builtin_search_profiles()[1]
-    moment = datetime(
-        2026, 7, 13, 9, 30, tzinfo=timezone.utc
-    )
+    moment = datetime(2026, 7, 13, 9, 30, tzinfo=timezone.utc)
 
     clone = builtin.clone_as_custom(
         profile_id="video-moscow",

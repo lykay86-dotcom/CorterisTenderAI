@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 
 from app.tenders.collector.deduplicator import TenderDeduplicator
 from app.tenders.collector.verification import (
@@ -17,10 +16,14 @@ from tests.collector_c3_helpers import make_tender
 
 def _verify(*tenders):
     deduplicated = TenderDeduplicator().deduplicate(tenders)
-    return TenderVerificationService().verify(
-        deduplicated,
-        observed_at="2026-07-12T12:00:00+00:00",
-    ).items[0]
+    return (
+        TenderVerificationService()
+        .verify(
+            deduplicated,
+            observed_at="2026-07-12T12:00:00+00:00",
+        )
+        .items[0]
+    )
 
 
 def test_eis_value_wins_over_aggregator_and_conflict_is_preserved() -> None:
@@ -43,21 +46,13 @@ def test_eis_value_wins_over_aggregator_and_conflict_is_preserved() -> None:
 
     assert str(result.tender.price.amount) == "1500000.00"
     selected_price = next(
-        item
-        for item in result.candidates
-        if item.field_name == "price" and item.selected
+        item for item in result.candidates if item.field_name == "price" and item.selected
     )
     assert selected_price.source_id == "eis"
     assert selected_price.trust_level == SourceTrustLevel.EIS
-    price_conflict = next(
-        item
-        for item in result.conflicts
-        if item.field_name == "price"
-    )
+    price_conflict = next(item for item in result.conflicts if item.field_name == "price")
     assert not price_conflict.unresolved
-    assert price_conflict.conflict_type == (
-        FieldConflictType.OFFICIAL_LOWER_TRUST
-    )
+    assert price_conflict.conflict_type == (FieldConflictType.OFFICIAL_LOWER_TRUST)
 
 
 def test_equal_priority_official_values_require_manual_resolution() -> None:
@@ -76,15 +71,9 @@ def test_equal_priority_official_values_require_manual_resolution() -> None:
 
     result = _verify(first, second)
 
-    price_conflict = next(
-        item
-        for item in result.conflicts
-        if item.field_name == "price"
-    )
+    price_conflict = next(item for item in result.conflicts if item.field_name == "price")
     assert price_conflict.unresolved
-    assert price_conflict.conflict_type == (
-        FieldConflictType.OFFICIAL_OFFICIAL
-    )
+    assert price_conflict.conflict_type == (FieldConflictType.OFFICIAL_OFFICIAL)
     assert result.status == TenderVerificationStatus.CONFLICT
 
 
@@ -105,11 +94,7 @@ def test_deadline_conflict_keeps_eis_over_aggregator() -> None:
     )
 
     result = _verify(eis, aggregator)
-    conflict = next(
-        item
-        for item in result.conflicts
-        if item.field_name == "application_deadline"
-    )
+    conflict = next(item for item in result.conflicts if item.field_name == "application_deadline")
     selected = next(
         item
         for item in result.candidates
@@ -119,9 +104,7 @@ def test_deadline_conflict_keeps_eis_over_aggregator() -> None:
     assert result.tender.application_deadline == eis.application_deadline
     assert selected.source_id == "eis"
     assert not conflict.unresolved
-    assert conflict.conflict_type == (
-        FieldConflictType.OFFICIAL_LOWER_TRUST
-    )
+    assert conflict.conflict_type == (FieldConflictType.OFFICIAL_LOWER_TRUST)
 
 
 def test_status_conflict_between_official_sources_is_unresolved() -> None:
@@ -145,9 +128,7 @@ def test_status_conflict_between_official_sources_is_unresolved() -> None:
     )
 
     result = _verify(accepting, cancelled)
-    conflict = next(
-        item for item in result.conflicts if item.field_name == "status"
-    )
+    conflict = next(item for item in result.conflicts if item.field_name == "status")
 
     assert result.tender.status == TenderStatus.CANCELLED
     assert conflict.unresolved
@@ -175,17 +156,12 @@ def test_latest_official_variant_is_selected_at_equal_priority() -> None:
 
     result = _verify(older, newer)
     selected = next(
-        item
-        for item in result.candidates
-        if item.field_name == "price" and item.selected
+        item for item in result.candidates if item.field_name == "price" and item.selected
     )
 
     assert str(result.tender.price.amount) == "1600000.00"
     assert selected.retrieved_at == "2026-07-12T12:00:00+00:00"
-    assert any(
-        item.field_name == "price" and item.unresolved
-        for item in result.conflicts
-    )
+    assert any(item.field_name == "price" and item.unresolved for item in result.conflicts)
 
 
 def test_field_level_official_documentation_overrides_eis() -> None:
@@ -214,13 +190,9 @@ def test_field_level_official_documentation_overrides_eis() -> None:
 
     assert str(result.tender.price.amount) == "1475000.00"
     selected = next(
-        item
-        for item in result.candidates
-        if item.field_name == "price" and item.selected
+        item for item in result.candidates if item.field_name == "price" and item.selected
     )
-    assert selected.trust_level == (
-        SourceTrustLevel.OFFICIAL_DOCUMENTATION
-    )
+    assert selected.trust_level == (SourceTrustLevel.OFFICIAL_DOCUMENTATION)
     assert selected.source_id == "official_documentation"
 
 
@@ -241,6 +213,5 @@ def test_aggregator_only_is_explicitly_marked() -> None:
 
     assert result.status == TenderVerificationStatus.AGGREGATOR_ONLY
     assert all(
-        item.trust_level == SourceTrustLevel.AGGREGATOR
-        for item in result.selected_candidates
+        item.trust_level == SourceTrustLevel.AGGREGATOR for item in result.selected_candidates
     )

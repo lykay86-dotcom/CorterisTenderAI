@@ -65,23 +65,16 @@ def _report(*, with_backup: bool):
 
 def test_restore_button_enabled_when_valid_backup_exists() -> None:
     _app()
-    dialog = WorkflowDatabaseRecoveryDialog(
-        _report(with_backup=True)
-    )
+    dialog = WorkflowDatabaseRecoveryDialog(_report(with_backup=True))
 
     assert dialog.restore_button.isEnabled()
     dialog._restore_latest()
-    assert (
-        dialog.selected_action
-        == WorkflowDatabaseRecoveryAction.RESTORE_LATEST
-    )
+    assert dialog.selected_action == WorkflowDatabaseRecoveryAction.RESTORE_LATEST
 
 
 def test_restore_button_disabled_without_backup() -> None:
     _app()
-    dialog = WorkflowDatabaseRecoveryDialog(
-        _report(with_backup=False)
-    )
+    dialog = WorkflowDatabaseRecoveryDialog(_report(with_backup=False))
 
     assert not dialog.restore_button.isEnabled()
     assert "не найдена" in dialog.backup_label.text()

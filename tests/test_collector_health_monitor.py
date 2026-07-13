@@ -55,9 +55,7 @@ def test_health_monitor_supports_not_configured_and_user_disabled() -> None:
     disabled = monitor.set_disabled("eis", True)
     assert disabled.status == ProviderOperationalStatus.DISABLED
     assert not monitor.can_execute("eis")
-    assert monitor.set_disabled("eis", False).status == (
-        ProviderOperationalStatus.UNKNOWN
-    )
+    assert monitor.set_disabled("eis", False).status == (ProviderOperationalStatus.UNKNOWN)
 
 
 def test_unavailable_provider_is_rechecked_after_extended_cooldown() -> None:

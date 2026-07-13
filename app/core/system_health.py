@@ -8,7 +8,7 @@ from enum import StrEnum
 import json
 from pathlib import Path
 from threading import RLock
-from typing import Any, Iterable, Sequence
+from typing import Iterable, Sequence
 from uuid import uuid4
 
 from app.core.workflow_auto_backup import WorkflowAutoBackupService
@@ -94,9 +94,7 @@ class SystemHealthJournal:
         cls,
         repository: BusinessMetricsRepository,
     ) -> "SystemHealthJournal":
-        return cls(
-            repository.path.parent / "system_health_journal.json"
-        )
+        return cls(repository.path.parent / "system_health_journal.json")
 
     def record(
         self,
@@ -109,9 +107,7 @@ class SystemHealthJournal:
     ) -> SystemHealthEvent:
         event = SystemHealthEvent(
             id=uuid4().hex,
-            occurred_at=(occurred_at or datetime.now()).isoformat(
-                timespec="seconds"
-            ),
+            occurred_at=(occurred_at or datetime.now()).isoformat(timespec="seconds"),
             severity=SystemHealthSeverity(severity),
             component=str(component).strip() or "system",
             title=str(title).strip() or "Системное событие",
@@ -174,8 +170,7 @@ class SystemHealthJournal:
                 else event.occurred_at
             )
             lines.append(
-                f"[{time_text}] [{event.severity.value.upper()}] "
-                f"[{event.component}] {event.title}"
+                f"[{time_text}] [{event.severity.value.upper()}] [{event.component}] {event.title}"
             )
             if event.details:
                 lines.append(f"  {event.details}")
@@ -192,9 +187,7 @@ class SystemHealthJournal:
             return []
 
         try:
-            payload = json.loads(
-                self.path.read_text(encoding="utf-8")
-            )
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return []
 
@@ -210,21 +203,11 @@ class SystemHealthJournal:
                 continue
             try:
                 event = SystemHealthEvent(
-                    id=str(item.get("id", "")).strip()
-                    or uuid4().hex,
-                    occurred_at=str(
-                        item.get("occurred_at", "")
-                    ).strip(),
-                    severity=SystemHealthSeverity(
-                        item.get("severity", "info")
-                    ),
-                    component=str(
-                        item.get("component", "system")
-                    ).strip()
-                    or "system",
-                    title=str(
-                        item.get("title", "Системное событие")
-                    ).strip()
+                    id=str(item.get("id", "")).strip() or uuid4().hex,
+                    occurred_at=str(item.get("occurred_at", "")).strip(),
+                    severity=SystemHealthSeverity(item.get("severity", "info")),
+                    component=str(item.get("component", "system")).strip() or "system",
+                    title=str(item.get("title", "Системное событие")).strip()
                     or "Системное событие",
                     details=str(item.get("details", "")).strip(),
                 )
@@ -239,9 +222,7 @@ class SystemHealthJournal:
     ) -> None:
         payload = {
             "schema_version": self.SCHEMA_VERSION,
-            "updated_at": datetime.now().isoformat(
-                timespec="seconds"
-            ),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
             "events": [
                 {
                     **asdict(event),
@@ -250,9 +231,7 @@ class SystemHealthJournal:
                 for event in events
             ],
         }
-        temporary = self.path.with_suffix(
-            self.path.suffix + ".tmp"
-        )
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
         try:
             temporary.write_text(
                 json.dumps(
@@ -293,20 +272,11 @@ class SystemHealthService:
             backup_directories,
         )
 
-        valid_entries = [
-            entry for entry in backup_entries if entry.valid
-        ]
-        invalid_entries = [
-            entry for entry in backup_entries if not entry.valid
-        ]
-        latest_backup_at = (
-            max(
-                (
-                    entry.created_timestamp
-                    for entry in valid_entries
-                ),
-                default=None,
-            )
+        valid_entries = [entry for entry in backup_entries if entry.valid]
+        invalid_entries = [entry for entry in backup_entries if not entry.valid]
+        latest_backup_at = max(
+            (entry.created_timestamp for entry in valid_entries),
+            default=None,
         )
 
         issues: list[str] = []
@@ -314,55 +284,38 @@ class SystemHealthService:
 
         if database.requires_recovery:
             severity = SystemHealthSeverity.ERROR
-            issues.append(
-                f"База бизнес-процессов: {database.status_label}."
-            )
+            issues.append(f"База бизнес-процессов: {database.status_label}.")
         elif database.status == WorkflowDatabaseHealthStatus.MISSING:
             severity = SystemHealthSeverity.INFO
-            issues.append(
-                "Файл базы появится после создания первой записи."
-            )
+            issues.append("Файл базы появится после создания первой записи.")
 
         if settings.last_error:
             severity = self._maximum(
                 severity,
                 SystemHealthSeverity.WARNING,
             )
-            issues.append(
-                "Последняя ошибка автокопирования: "
-                f"{settings.last_error}"
-            )
+            issues.append(f"Последняя ошибка автокопирования: {settings.last_error}")
 
         if invalid_entries:
             severity = self._maximum(
                 severity,
                 SystemHealthSeverity.WARNING,
             )
-            issues.append(
-                f"Повреждённых резервных копий: "
-                f"{len(invalid_entries)}."
-            )
+            issues.append(f"Повреждённых резервных копий: {len(invalid_entries)}.")
 
-        if (
-            database.record_count > 0
-            and not valid_entries
-        ):
+        if database.record_count > 0 and not valid_entries:
             severity = self._maximum(
                 severity,
                 SystemHealthSeverity.WARNING,
             )
-            issues.append(
-                "Для рабочей базы не найдена исправная резервная копия."
-            )
+            issues.append("Для рабочей базы не найдена исправная резервная копия.")
 
         if not settings.enabled:
             severity = self._maximum(
                 severity,
                 SystemHealthSeverity.INFO,
             )
-            issues.append(
-                "Автоматическое резервное копирование отключено."
-            )
+            issues.append("Автоматическое резервное копирование отключено.")
 
         return SystemHealthSnapshot(
             checked_at=checked_at,
@@ -399,18 +352,12 @@ class SystemHealthService:
 
             for path in children:
                 try:
-                    supported = (
-                        path.is_file()
-                        and path.suffix.lower()
-                        in catalog.SUPPORTED_SUFFIXES
-                    )
+                    supported = path.is_file() and path.suffix.lower() in catalog.SUPPORTED_SUFFIXES
                 except OSError:
                     continue
                 if not supported:
                     continue
-                candidates[
-                    str(path.resolve(strict=False)).casefold()
-                ] = path
+                candidates[str(path.resolve(strict=False)).casefold()] = path
 
         ordered = sorted(
             candidates.values(),
@@ -439,9 +386,7 @@ class SystemHealthService:
         seen: set[str] = set()
         for item in directories:
             path = Path(item).expanduser()
-            identity = str(
-                path.resolve(strict=False)
-            ).casefold()
+            identity = str(path.resolve(strict=False)).casefold()
             if identity in seen:
                 continue
             seen.add(identity)

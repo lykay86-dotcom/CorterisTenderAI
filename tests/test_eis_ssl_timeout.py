@@ -25,8 +25,7 @@ class TimeoutTransport:
     ):
         del url, headers, timeout_seconds
         raise HttpTransportError(
-            "HTTP request failed after 3 attempts: "
-            "SSL handshake timed out",
+            "HTTP request failed after 3 attempts: SSL handshake timed out",
             attempts=3,
             transient=True,
         )
@@ -38,11 +37,7 @@ def test_eis_provider_renders_ssl_timeout_in_russian() -> None:
     )
 
     with pytest.raises(TenderProviderError) as captured:
-        provider.search(
-            TenderSearchQuery(
-                keywords=("видеонаблюдение",)
-            )
-        )
+        provider.search(TenderSearchQuery(keywords=("видеонаблюдение",)))
 
     message = str(captured.value)
     assert "SSL-рукопожатие" in message

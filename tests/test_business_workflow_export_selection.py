@@ -22,9 +22,7 @@ def _app() -> QApplication:
 
 def test_visible_records_respect_kind_filter(tmp_path) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-1",
@@ -39,9 +37,7 @@ def test_visible_records_respect_kind_filter(tmp_path) -> None:
     )
 
     page = BusinessWorkflowPage(repository=repository)
-    proposal_index = page.kind_filter.findData(
-        BusinessRecordKind.PROPOSAL.value
-    )
+    proposal_index = page.kind_filter.findData(BusinessRecordKind.PROPOSAL.value)
     page.kind_filter.setCurrentIndex(proposal_index)
 
     visible = page._visible_records()
@@ -54,11 +50,7 @@ def test_export_filter_description_contains_active_filters(
     tmp_path,
 ) -> None:
     _app()
-    page = BusinessWorkflowPage(
-        repository=BusinessMetricsRepository(
-            tmp_path / "workflow.json"
-        )
-    )
+    page = BusinessWorkflowPage(repository=BusinessMetricsRepository(tmp_path / "workflow.json"))
     page.search_edit.setText("видеонаблюдение")
 
     description = page._export_filter_description()

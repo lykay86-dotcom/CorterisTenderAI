@@ -107,12 +107,14 @@ def test_naive_deadline_without_timezone_is_marked_stale() -> None:
         observed_at="2026-07-12T12:00:00+00:00",
     )
 
-    state = TenderFreshnessService(
-        user_timezone="UTC"
-    ).evaluate(
-        verification,
-        now="2026-07-12T12:00:00+00:00",
-    ).items[0]
+    state = (
+        TenderFreshnessService(user_timezone="UTC")
+        .evaluate(
+            verification,
+            now="2026-07-12T12:00:00+00:00",
+        )
+        .items[0]
+    )
 
     assert state.status == TenderFreshnessStatus.STALE
     assert state.is_stale
@@ -128,12 +130,14 @@ def test_deadline_under_48_hours_uses_adaptive_recheck() -> None:
         observed_at="2026-07-12T13:00:00+00:00",
     )
 
-    state = TenderFreshnessService(
-        user_timezone="UTC"
-    ).evaluate(
-        verification,
-        now="2026-07-12T13:00:00+00:00",
-    ).items[0]
+    state = (
+        TenderFreshnessService(user_timezone="UTC")
+        .evaluate(
+            verification,
+            now="2026-07-12T13:00:00+00:00",
+        )
+        .items[0]
+    )
 
     assert state.status == TenderFreshnessStatus.DUE_SOON
     assert state.recheck_interval_minutes == 180
@@ -147,10 +151,14 @@ def test_deadline_under_24_and_6_hours_uses_faster_rechecks() -> None:
         tender,
         observed_at="2026-07-12T13:00:00+00:00",
     )
-    under_24 = TenderFreshnessService(user_timezone="UTC").evaluate(
-        verification,
-        now="2026-07-12T13:00:00+00:00",
-    ).items[0]
+    under_24 = (
+        TenderFreshnessService(user_timezone="UTC")
+        .evaluate(
+            verification,
+            now="2026-07-12T13:00:00+00:00",
+        )
+        .items[0]
+    )
 
     near_deadline = replace(
         tender,
@@ -167,10 +175,14 @@ def test_deadline_under_24_and_6_hours_uses_faster_rechecks() -> None:
         near_deadline,
         observed_at="2026-07-12T13:00:00+00:00",
     )
-    under_6 = TenderFreshnessService(user_timezone="UTC").evaluate(
-        near_verification,
-        now="2026-07-12T13:00:00+00:00",
-    ).items[0]
+    under_6 = (
+        TenderFreshnessService(user_timezone="UTC")
+        .evaluate(
+            near_verification,
+            now="2026-07-12T13:00:00+00:00",
+        )
+        .items[0]
+    )
 
     assert under_24.recheck_interval_minutes == 60
     assert under_6.recheck_interval_minutes == 30
@@ -191,10 +203,14 @@ def test_source_failure_and_document_change_force_stale() -> None:
             observed_at="2026-07-12T12:00:00+00:00",
         )
 
-        state = TenderFreshnessService(user_timezone="UTC").evaluate(
-            verification,
-            now="2026-07-12T12:00:00+00:00",
-        ).items[0]
+        state = (
+            TenderFreshnessService(user_timezone="UTC")
+            .evaluate(
+                verification,
+                now="2026-07-12T12:00:00+00:00",
+            )
+            .items[0]
+        )
 
         assert state.status == TenderFreshnessStatus.STALE
         assert state.is_stale
@@ -217,10 +233,14 @@ def test_false_string_change_flag_does_not_force_stale() -> None:
         observed_at="2026-07-12T12:00:00+00:00",
     )
 
-    state = TenderFreshnessService(user_timezone="UTC").evaluate(
-        verification,
-        now="2026-07-12T12:00:00+00:00",
-    ).items[0]
+    state = (
+        TenderFreshnessService(user_timezone="UTC")
+        .evaluate(
+            verification,
+            now="2026-07-12T12:00:00+00:00",
+        )
+        .items[0]
+    )
 
     assert state.status == TenderFreshnessStatus.FRESH
     assert not state.is_stale
@@ -243,12 +263,14 @@ def test_aggregator_only_is_rechecked_hourly() -> None:
         observed_at="2026-07-12T12:00:00+00:00",
     )
 
-    state = TenderFreshnessService(
-        user_timezone="UTC"
-    ).evaluate(
-        verification,
-        now="2026-07-12T12:00:00+00:00",
-    ).items[0]
+    state = (
+        TenderFreshnessService(user_timezone="UTC")
+        .evaluate(
+            verification,
+            now="2026-07-12T12:00:00+00:00",
+        )
+        .items[0]
+    )
 
     assert state.recheck_interval_minutes == 60
     assert state.verification_due_at == "2026-07-12T13:00:00+00:00"
@@ -261,12 +283,14 @@ def test_expired_deadline_is_not_scheduled_for_reverification() -> None:
         observed_at="2026-07-12T12:00:00+00:00",
     )
 
-    state = TenderFreshnessService(
-        user_timezone=timezone.utc
-    ).evaluate(
-        verification,
-        now="2026-07-12T12:00:00+00:00",
-    ).items[0]
+    state = (
+        TenderFreshnessService(user_timezone=timezone.utc)
+        .evaluate(
+            verification,
+            now="2026-07-12T12:00:00+00:00",
+        )
+        .items[0]
+    )
 
     assert state.status == TenderFreshnessStatus.EXPIRED
     assert state.deadline_expired

@@ -21,9 +21,7 @@ from app.tenders.providers.mos_supplier_api import (
 def test_factory_registers_eis_and_moscow_supplier(tmp_path) -> None:
     async def scenario() -> None:
         raw = httpx.AsyncClient(
-            transport=httpx.MockTransport(
-                lambda request: httpx.Response(200, request=request)
-            )
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, request=request))
         )
         runtime = create_collector_network_runtime(client=raw)
         service = create_default_collector_service(
@@ -40,12 +38,8 @@ def test_factory_registers_eis_and_moscow_supplier(tmp_path) -> None:
             "eis",
             "mos_supplier",
         ]
-        assert providers[1].descriptor.implementation_status == (
-            "official_api_token_required"
-        )
-        assert providers[1].validate_configuration()[0].startswith(
-            "Требуется bearer-токен"
-        )
+        assert providers[1].descriptor.implementation_status == ("official_api_token_required")
+        assert providers[1].validate_configuration()[0].startswith("Требуется bearer-токен")
         await raw.aclose()
 
     asyncio.run(scenario())
@@ -54,9 +48,7 @@ def test_factory_registers_eis_and_moscow_supplier(tmp_path) -> None:
 def test_provider_factory_has_no_commercial_placeholders() -> None:
     async def scenario() -> None:
         raw = httpx.AsyncClient(
-            transport=httpx.MockTransport(
-                lambda request: httpx.Response(200, request=request)
-            )
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, request=request))
         )
         runtime = create_collector_network_runtime(client=raw)
         providers = create_default_async_providers(
@@ -68,10 +60,7 @@ def test_provider_factory_has_no_commercial_placeholders() -> None:
             "eis",
             "mos_supplier",
         ]
-        assert all(
-            item.descriptor.implementation_status != "placeholder"
-            for item in providers
-        )
+        assert all(item.descriptor.implementation_status != "placeholder" for item in providers)
         await raw.aclose()
 
     asyncio.run(scenario())

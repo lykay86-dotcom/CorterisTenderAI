@@ -137,11 +137,7 @@ class DashboardViewModel(QObject):
         self._state.last_updated = datetime.now()
 
     def ordered_kpis(self) -> list[DashboardKpi]:
-        return [
-            self._state.kpis[key]
-            for key in self.KPI_ORDER
-            if key in self._state.kpis
-        ]
+        return [self._state.kpis[key] for key in self.KPI_ORDER if key in self._state.kpis]
 
     def request_refresh(self) -> None:
         self.refresh_requested.emit()

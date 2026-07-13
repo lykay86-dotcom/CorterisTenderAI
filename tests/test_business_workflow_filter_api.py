@@ -48,9 +48,7 @@ def test_filter_changes_do_not_emit_deprecation_warning() -> None:
         proxy.set_status(BusinessStatus.READY)
 
     deprecated = [
-        warning
-        for warning in captured
-        if issubclass(warning.category, DeprecationWarning)
+        warning for warning in captured if issubclass(warning.category, DeprecationWarning)
     ]
     assert deprecated == []
     assert proxy.rowCount() == 1

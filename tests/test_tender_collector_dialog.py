@@ -123,9 +123,7 @@ def test_dialog_selects_only_enabled_sources_and_emits_start() -> None:
     dialog.set_provider_states(_states())
     requested = []
     dialog.start_requested.connect(
-        lambda profile_id, provider_ids: requested.append(
-            (profile_id, tuple(provider_ids))
-        )
+        lambda profile_id, provider_ids: requested.append((profile_id, tuple(provider_ids)))
     )
 
     dialog.start_button.click()

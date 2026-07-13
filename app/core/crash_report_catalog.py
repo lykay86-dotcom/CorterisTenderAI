@@ -35,9 +35,7 @@ class CrashReportEntry:
             if timestamp is not None:
                 return timestamp
         try:
-            return datetime.fromisoformat(
-                self.inspection.created_at
-            )
+            return datetime.fromisoformat(self.inspection.created_at)
         except (TypeError, ValueError):
             return self.modified_at
 
@@ -73,11 +71,7 @@ class CrashReportCatalogService:
 
             for path in children:
                 try:
-                    supported = (
-                        path.is_file()
-                        and path.suffix.lower()
-                        in self.SUPPORTED_SUFFIXES
-                    )
+                    supported = path.is_file() and path.suffix.lower() in self.SUPPORTED_SUFFIXES
                 except OSError:
                     continue
                 if not supported:
@@ -87,11 +81,7 @@ class CrashReportCatalogService:
         for item in external_files:
             path = Path(item).expanduser()
             try:
-                supported = (
-                    path.is_file()
-                    and path.suffix.lower()
-                    in self.SUPPORTED_SUFFIXES
-                )
+                supported = path.is_file() and path.suffix.lower() in self.SUPPORTED_SUFFIXES
             except OSError:
                 supported = False
             if not supported:
@@ -107,19 +97,12 @@ class CrashReportCatalogService:
             reverse=True,
         )[: self.MAX_REPORTS]
 
-        entries = [
-            self._entry(path, managed=managed)
-            for path, managed in ordered
-        ]
+        entries = [self._entry(path, managed=managed) for path, managed in ordered]
         entries.sort(
             key=lambda entry: (
                 entry.valid,
-                self._datetime_sort_key(
-                    entry.created_timestamp
-                ),
-                self._datetime_sort_key(
-                    entry.modified_at
-                ),
+                self._datetime_sort_key(entry.created_timestamp),
+                self._datetime_sort_key(entry.modified_at),
                 entry.path.name.casefold(),
             ),
             reverse=True,
@@ -147,13 +130,8 @@ class CrashReportCatalogService:
         source_path = Path(source).expanduser()
         if not source_path.is_file():
             raise FileNotFoundError(source_path)
-        if (
-            source_path.suffix.lower()
-            not in self.SUPPORTED_SUFFIXES
-        ):
-            raise ValueError(
-                "Выбранный файл не является crash-report."
-            )
+        if source_path.suffix.lower() not in self.SUPPORTED_SUFFIXES:
+            raise ValueError("Выбранный файл не является crash-report.")
 
         destination = Path(target).expanduser()
         if destination.suffix.lower() != ".ctcrash":
@@ -175,16 +153,10 @@ class CrashReportCatalogService:
         if not path.is_file():
             raise FileNotFoundError(path)
         if path.suffix.lower() not in self.SUPPORTED_SUFFIXES:
-            raise ValueError(
-                "Можно удалять только файлы .ctcrash."
-            )
-        if (
-            not allow_external
-            and not self._is_under_any(path, roots)
-        ):
+            raise ValueError("Можно удалять только файлы .ctcrash.")
+        if not allow_external and not self._is_under_any(path, roots):
             raise PermissionError(
-                "Внешний crash-report нельзя удалить "
-                "без отдельного подтверждения."
+                "Внешний crash-report нельзя удалить без отдельного подтверждения."
             )
 
         path.unlink()
@@ -248,12 +220,7 @@ class CrashReportCatalogService:
         roots: Sequence[Path],
     ) -> bool:
         resolved = path.resolve(strict=False)
-        return any(
-            resolved.is_relative_to(
-                root.resolve(strict=False)
-            )
-            for root in roots
-        )
+        return any(resolved.is_relative_to(root.resolve(strict=False)) for root in roots)
 
     @staticmethod
     def _identity(path: Path) -> str:
@@ -267,9 +234,7 @@ class CrashReportCatalogService:
 
         normalized = value
         if normalized.tzinfo is not None:
-            normalized = normalized.astimezone(
-                timezone.utc
-            ).replace(tzinfo=None)
+            normalized = normalized.astimezone(timezone.utc).replace(tzinfo=None)
         return (
             normalized.year,
             normalized.month,

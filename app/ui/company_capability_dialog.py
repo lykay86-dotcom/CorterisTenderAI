@@ -7,9 +7,18 @@ from decimal import Decimal
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-    QFormLayout, QLabel, QLineEdit, QMessageBox, QScrollArea, QSpinBox,
-    QVBoxLayout, QWidget,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QScrollArea,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
 from app.tenders.collector.company_capability import (
@@ -128,8 +137,7 @@ class CompanyCapabilityDialog(QDialog):
         self.status.setWordWrap(True)
         root.addWidget(self.status)
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Close,
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Close,
             self,
         )
         buttons.button(QDialogButtonBox.StandardButton.Save).setText("Сохранить")
@@ -145,19 +153,16 @@ class CompanyCapabilityDialog(QDialog):
         for name, edit in self.text_fields.items():
             edit.setText("; ".join(getattr(profile, name)))
         self.crew_count.setValue(
-            profile.installation_crew_count
-            if profile.installation_crew_count is not None else -1
+            profile.installation_crew_count if profile.installation_crew_count is not None else -1
         )
         for name, edit in self.money_fields.items():
             value = getattr(profile, name)
             edit.setText(str(value) if value is not None else "")
         self.payment_days.setValue(
-            profile.acceptable_payment_days
-            if profile.acceptable_payment_days is not None else -1
+            profile.acceptable_payment_days if profile.acceptable_payment_days is not None else -1
         )
         self.deferment_days.setValue(
-            profile.maximum_deferment_days
-            if profile.maximum_deferment_days is not None else -1
+            profile.maximum_deferment_days if profile.maximum_deferment_days is not None else -1
         )
         index = self.designers.findData(profile.has_designers)
         self.designers.setCurrentIndex(max(0, index))
@@ -170,15 +175,8 @@ class CompanyCapabilityDialog(QDialog):
         if not self.confirmation.isChecked():
             raise ValueError("Подтвердите достоверность сведений")
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        values: dict[str, object] = {
-            name: edit.text() for name, edit in self.text_fields.items()
-        }
-        values.update(
-            {
-                name: _decimal_from_edit(edit)
-                for name, edit in self.money_fields.items()
-            }
-        )
+        values: dict[str, object] = {name: edit.text() for name, edit in self.text_fields.items()}
+        values.update({name: _decimal_from_edit(edit) for name, edit in self.money_fields.items()})
         return CompanyCapabilityProfile(
             company_name=self.company_name.text().strip(),
             installation_crew_count=_int_from_spin(self.crew_count),
@@ -208,9 +206,7 @@ class CompanyCapabilityDialog(QDialog):
             self.status.setText("Профиль подтверждён и заполнен.")
         elif profile.is_configured:
             self.status.setText(
-                "Профиль подтверждён. Не заполнено: "
-                + ", ".join(profile.missing_sections)
-                + "."
+                "Профиль подтверждён. Не заполнено: " + ", ".join(profile.missing_sections) + "."
             )
         else:
             self.status.setText("Недостаточно данных о возможностях компании.")

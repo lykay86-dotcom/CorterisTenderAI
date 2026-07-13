@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Reporting services for Corteris Tender AI."""
 
 from app.reporting.workflow_excel import (

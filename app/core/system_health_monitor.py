@@ -82,9 +82,7 @@ class SystemHealthMonitor(QObject):
 
         worker = _SystemHealthWorker(self.collector)
         self._worker = worker
-        worker.signals.snapshot_ready.connect(
-            self._handle_snapshot
-        )
+        worker.signals.snapshot_ready.connect(self._handle_snapshot)
         worker.signals.failed.connect(self._handle_failure)
         worker.signals.finished.connect(self._handle_finished)
         self.thread_pool.start(worker)

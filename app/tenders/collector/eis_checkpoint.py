@@ -93,8 +93,7 @@ class EisCheckpointCoordinator:
                 checkpoint=checkpoint,
                 incremental_applied=False,
                 warnings=(
-                    "Checkpoint ЕИС найден, но его дата не распознана; "
-                    "выполнен обычный поиск.",
+                    "Checkpoint ЕИС найден, но его дата не распознана; выполнен обычный поиск.",
                 ),
             )
 

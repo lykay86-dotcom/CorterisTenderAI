@@ -314,11 +314,7 @@ class TenderVerificationService:
         verification_results: list[TenderVerificationResult] = []
 
         for group in result.groups:
-            history = (
-                self.history_loader(group.item)
-                if self.history_loader is not None
-                else None
-            )
+            history = self.history_loader(group.item) if self.history_loader is not None else None
             verification = self.verify_group(
                 group,
                 observed_at=moment,
@@ -372,9 +368,7 @@ class TenderVerificationService:
                 )
             )
         if history is not None:
-            candidates.extend(
-                self._historical_candidates(history)
-            )
+            candidates.extend(self._historical_candidates(history))
 
         by_field: dict[str, list[FieldCandidate]] = {}
         for candidate in candidates:
@@ -386,18 +380,14 @@ class TenderVerificationService:
         missing: list[str] = []
 
         for field_name in self.critical_fields:
-            field_candidates = _deduplicate_candidates(
-                by_field.get(field_name, ())
-            )
+            field_candidates = _deduplicate_candidates(by_field.get(field_name, ()))
             if not field_candidates:
                 missing.append(field_name)
                 continue
             selected = max(field_candidates, key=_candidate_priority)
             selected_by_field[field_name] = selected
             selected_candidates = tuple(
-                item.with_selected(
-                    item.candidate_id == selected.candidate_id
-                )
+                item.with_selected(item.candidate_id == selected.candidate_id)
                 for item in field_candidates
             )
             final_candidates.extend(selected_candidates)
@@ -482,14 +472,8 @@ class TenderVerificationService:
                 continue
             metadata = _field_metadata(tender, field_name)
             trust = _trust_level(tender, metadata)
-            source_id = str(
-                metadata.get("source_id")
-                or tender.source.value
-            ).strip().casefold()
-            source_url = str(
-                metadata.get("source_url")
-                or tender.source_url
-            ).strip()
+            source_id = str(metadata.get("source_id") or tender.source.value).strip().casefold()
+            source_url = str(metadata.get("source_url") or tender.source_url).strip()
             retrieved_at = str(
                 metadata.get("retrieved_at")
                 or tender.raw_metadata.get("retrieved_at")
@@ -498,22 +482,18 @@ class TenderVerificationService:
             ).strip()
             official = _metadata_bool(
                 metadata.get("official"),
-                default=trust
-                >= SourceTrustLevel.OFFICIAL_API,
+                default=trust >= SourceTrustLevel.OFFICIAL_API,
             )
             verified = _metadata_bool(
                 metadata.get("verified"),
-                default=trust
-                >= SourceTrustLevel.CUSTOMER_SITE,
+                default=trust >= SourceTrustLevel.CUSTOMER_SITE,
             )
             confidence = _metadata_float(
                 metadata.get("confidence"),
                 default=_CONFIDENCE[trust],
             )
             normalized = _normalize_value(field_name, value)
-            value_hash = hashlib.sha256(
-                normalized.encode("utf-8")
-            ).hexdigest()
+            value_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
             candidate_id = _candidate_id(
                 field_name,
                 value_hash,
@@ -550,9 +530,7 @@ class TenderVerificationService:
             if _is_missing(value):
                 continue
             normalized = _normalize_value(field_name, value)
-            value_hash = hashlib.sha256(
-                normalized.encode("utf-8")
-            ).hexdigest()
+            value_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
             result.append(
                 replace(
                     stored,
@@ -576,9 +554,7 @@ class TenderVerificationService:
 
 def _critical_values(tender: UnifiedTender) -> dict[str, object]:
     metadata = tender.raw_metadata
-    documentation_url = str(
-        metadata.get("documentation_url") or ""
-    ).strip()
+    documentation_url = str(metadata.get("documentation_url") or "").strip()
     if not documentation_url and tender.documents:
         documentation_url = tender.documents[0].url
     return {
@@ -589,16 +565,9 @@ def _critical_values(tender: UnifiedTender) -> dict[str, object]:
         "law": tender.law,
         "customer.name": tender.customer.name,
         "customer.inn": tender.customer.inn,
-        "platform": str(
-            metadata.get("platform_name")
-            or tender.source.value
-        ),
-        "application_security": metadata.get(
-            "application_security"
-        ),
-        "contract_security": metadata.get(
-            "contract_security"
-        ),
+        "platform": str(metadata.get("platform_name") or tender.source.value),
+        "application_security": metadata.get("application_security"),
+        "contract_security": metadata.get("contract_security"),
         "documentation_url": documentation_url,
         "source_url": tender.source_url,
     }
@@ -628,11 +597,11 @@ def _trust_level(
         if parsed is not None:
             return parsed
 
-    kind = str(
-        metadata.get("source_kind")
-        or tender.raw_metadata.get("source_kind")
-        or ""
-    ).strip().casefold()
+    kind = (
+        str(metadata.get("source_kind") or tender.raw_metadata.get("source_kind") or "")
+        .strip()
+        .casefold()
+    )
     if kind in {
         "official_document",
         "official_documentation",
@@ -659,9 +628,7 @@ def _trust_level(
     if tender.source == TenderSource.EIS:
         return SourceTrustLevel.EIS
     if tender.source in _OFFICIAL_PLATFORM_SOURCES:
-        connection_mode = str(
-            tender.raw_metadata.get("connection_mode") or ""
-        ).casefold()
+        connection_mode = str(tender.raw_metadata.get("connection_mode") or "").casefold()
         if "official_api" in connection_mode:
             return SourceTrustLevel.OFFICIAL_API
         return SourceTrustLevel.OFFICIAL_PLATFORM
@@ -717,13 +684,9 @@ def _candidate_priority(
 
 def _datetime_key(value: str) -> tuple[int, ...]:
     try:
-        parsed = datetime.fromisoformat(
-            value.replace("Z", "+00:00")
-        )
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if parsed.tzinfo is not None:
-            parsed = parsed.astimezone(timezone.utc).replace(
-                tzinfo=None
-            )
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         return (
             parsed.year,
             parsed.month,
@@ -744,9 +707,7 @@ def _deduplicate_candidates(
     for candidate in candidates:
         key = (candidate.source_id, candidate.value_hash)
         current = by_identity.get(key)
-        if current is None or _candidate_priority(
-            candidate
-        ) > _candidate_priority(current):
+        if current is None or _candidate_priority(candidate) > _candidate_priority(current):
             by_identity[key] = candidate
     return tuple(by_identity.values())
 
@@ -759,22 +720,17 @@ def _build_conflict(
     *,
     critical: bool,
 ) -> FieldConflict | None:
-    distinct = {
-        candidate.normalized_value for candidate in candidates
-    }
+    distinct = {candidate.normalized_value for candidate in candidates}
     if len(distinct) <= 1:
         return None
     top_trust = max(candidate.trust_level for candidate in candidates)
     top_values = {
-        candidate.normalized_value
-        for candidate in candidates
-        if candidate.trust_level == top_trust
+        candidate.normalized_value for candidate in candidates if candidate.trust_level == top_trust
     }
     top_official = [
         candidate
         for candidate in candidates
-        if candidate.trust_level == top_trust
-        and candidate.official
+        if candidate.trust_level == top_trust and candidate.official
     ]
     unresolved = len(top_values) > 1
     if unresolved and len(top_official) >= 2:
@@ -785,26 +741,14 @@ def _build_conflict(
         conflict_type = FieldConflictType.OFFICIAL_LOWER_TRUST
     else:
         conflict_type = FieldConflictType.MULTI_SOURCE
-    candidate_ids = tuple(
-        sorted(candidate.candidate_id for candidate in candidates)
-    )
+    candidate_ids = tuple(sorted(candidate.candidate_id for candidate in candidates))
     conflict_id = hashlib.sha256(
-        "|".join(
-            (field_name, selected.candidate_id, *candidate_ids)
-        ).encode("utf-8")
+        "|".join((field_name, selected.candidate_id, *candidate_ids)).encode("utf-8")
     ).hexdigest()
-    message = (
-        f"Поле «{field_name}» содержит {len(distinct)} "
-        "различающихся значения. "
-        + (
-            "Конфликт между источниками одинакового приоритета "
-            "требует ручной проверки."
-            if unresolved
-            else (
-                "Выбрано значение более надёжного источника; "
-                "альтернативное значение сохранено."
-            )
-        )
+    message = f"Поле «{field_name}» содержит {len(distinct)} различающихся значения. " + (
+        "Конфликт между источниками одинакового приоритета требует ручной проверки."
+        if unresolved
+        else ("Выбрано значение более надёжного источника; альтернативное значение сохранено.")
     )
     return FieldConflict(
         conflict_id=conflict_id,
@@ -1005,10 +949,7 @@ def _verification_status(
         return TenderVerificationStatus.VERIFIED_OFFICIAL_API
     if lowest >= SourceTrustLevel.CUSTOMER_SITE:
         return TenderVerificationStatus.CUSTOMER_SITE
-    if all(
-        item.trust_level == SourceTrustLevel.AGGREGATOR
-        for item in selected
-    ):
+    if all(item.trust_level == SourceTrustLevel.AGGREGATOR for item in selected):
         return TenderVerificationStatus.AGGREGATOR_ONLY
     if lowest >= SourceTrustLevel.PUBLIC_CARD:
         return TenderVerificationStatus.PUBLIC_CARD
@@ -1039,11 +980,7 @@ def _normalize_value(field_name: str, value: object) -> str:
         "procurement_number",
         "customer.inn",
     }:
-        return "".join(
-            character
-            for character in str(value).casefold()
-            if character.isalnum()
-        )
+        return "".join(character for character in str(value).casefold() if character.isalnum())
     if field_name.endswith("_url"):
         return str(value).strip()
     return normalize_text(str(value))

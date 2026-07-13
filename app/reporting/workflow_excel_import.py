@@ -51,17 +51,11 @@ class WorkflowImportRow:
 
     @property
     def is_valid(self) -> bool:
-        return not any(
-            issue.level == WorkflowImportLevel.ERROR
-            for issue in self.issues
-        )
+        return not any(issue.level == WorkflowImportLevel.ERROR for issue in self.issues)
 
     @property
     def has_warnings(self) -> bool:
-        return any(
-            issue.level == WorkflowImportLevel.WARNING
-            for issue in self.issues
-        )
+        return any(issue.level == WorkflowImportLevel.WARNING for issue in self.issues)
 
     @property
     def identity_key(self) -> tuple[str, str]:
@@ -88,17 +82,12 @@ class WorkflowImportPreview:
 
     @property
     def warning_rows(self) -> tuple[WorkflowImportRow, ...]:
-        return tuple(
-            row
-            for row in self.rows
-            if row.is_valid and row.has_warnings
-        )
+        return tuple(row for row in self.rows if row.is_valid and row.has_warnings)
 
     @property
     def can_import(self) -> bool:
         return bool(self.valid_rows) and not any(
-            issue.level == WorkflowImportLevel.ERROR
-            for issue in self.fatal_issues
+            issue.level == WorkflowImportLevel.ERROR for issue in self.fatal_issues
         )
 
 
@@ -371,9 +360,7 @@ class WorkflowExcelImporter:
         if not preview.can_import:
             return WorkflowImportResult(
                 skipped=len(preview.rows),
-                failures=(
-                    "Предварительная проверка не разрешает импорт.",
-                ),
+                failures=("Предварительная проверка не разрешает импорт.",),
             )
 
         current = repository.list_records(include_archived=True)
@@ -416,10 +403,7 @@ class WorkflowExcelImporter:
                         file_path=row.file_path,
                         due_date=row.due_date,
                     )
-                    if (
-                        row.status is not None
-                        and working.status != row.status.value
-                    ):
+                    if row.status is not None and working.status != row.status.value:
                         working = repository.update_status(
                             working.id,
                             row.status,
@@ -449,20 +433,11 @@ class WorkflowExcelImporter:
                     (working.kind, working.tender_id),
                     [],
                 )
-                if all(
-                    item.id != working.id
-                    for item in by_key[
-                        (working.kind, working.tender_id)
-                    ]
-                ):
-                    by_key[
-                        (working.kind, working.tender_id)
-                    ].append(working)
+                if all(item.id != working.id for item in by_key[(working.kind, working.tender_id)]):
+                    by_key[(working.kind, working.tender_id)].append(working)
             except Exception as exc:
                 skipped += 1
-                failures.append(
-                    f"Строка {row.source_row}: {exc}"
-                )
+                failures.append(f"Строка {row.source_row}: {exc}")
 
         return WorkflowImportResult(
             created=created,
@@ -488,9 +463,7 @@ class WorkflowExcelImporter:
                     row=row_number,
                     column=column,
                 ).value
-                key = self.HEADER_ALIASES.get(
-                    self._normalize(value)
-                )
+                key = self.HEADER_ALIASES.get(self._normalize(value))
                 if key:
                     columns[column] = key
 
@@ -575,10 +548,7 @@ class WorkflowExcelImporter:
             row.issues.append(
                 WorkflowImportIssue(
                     WorkflowImportLevel.ERROR,
-                    (
-                        f"Статус «{row.status.value}» "
-                        f"не подходит для типа «{row.kind.value}»."
-                    ),
+                    (f"Статус «{row.status.value}» не подходит для типа «{row.kind.value}»."),
                     "status",
                 )
             )
@@ -593,9 +563,7 @@ class WorkflowExcelImporter:
             )
 
         if row.total > 0 and row.margin_percent == 0 and row.profit > 0:
-            row.margin_percent = (
-                row.profit / row.total * Decimal("100")
-            ).quantize(Decimal("0.01"))
+            row.margin_percent = (row.profit / row.total * Decimal("100")).quantize(Decimal("0.01"))
             row.issues.append(
                 WorkflowImportIssue(
                     WorkflowImportLevel.INFO,
@@ -638,10 +606,7 @@ class WorkflowExcelImporter:
                 row.issues.append(
                     WorkflowImportIssue(
                         WorkflowImportLevel.ERROR,
-                        (
-                            "Повторяется сочетание типа и тендера: "
-                            f"{key[0]} / {key[1]}."
-                        ),
+                        (f"Повторяется сочетание типа и тендера: {key[0]} / {key[1]}."),
                     )
                 )
 
@@ -662,16 +627,12 @@ class WorkflowExcelImporter:
             if row.record_id and row.record_id in by_id:
                 existing = by_id[row.record_id]
                 if row.kind is not None and (
-                    existing.kind != row.kind.value
-                    or existing.tender_id != row.tender_id
+                    existing.kind != row.kind.value or existing.tender_id != row.tender_id
                 ):
                     row.issues.append(
                         WorkflowImportIssue(
                             WorkflowImportLevel.ERROR,
-                            (
-                                "ID найден, но тип или тендер "
-                                "не совпадает с существующей записью."
-                            ),
+                            ("ID найден, но тип или тендер не совпадает с существующей записью."),
                             "record_id",
                         )
                     )
@@ -706,10 +667,7 @@ class WorkflowExcelImporter:
                 row.issues.append(
                     WorkflowImportIssue(
                         WorkflowImportLevel.WARNING,
-                        (
-                            "ID не найден в базе; будет создана "
-                            "новая запись с новым внутренним ID."
-                        ),
+                        ("ID не найден в базе; будет создана новая запись с новым внутренним ID."),
                         "record_id",
                     )
                 )
@@ -731,9 +689,7 @@ class WorkflowExcelImporter:
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
-            raise ValueError(
-                "Найдено несколько совпадающих записей."
-            )
+            raise ValueError("Найдено несколько совпадающих записей.")
         return None
 
     def _parse_kind(
@@ -901,10 +857,7 @@ class WorkflowExcelImporter:
 
     @staticmethod
     def _is_empty_row(values: Iterable[Any]) -> bool:
-        return not any(
-            value is not None and str(value).strip()
-            for value in values
-        )
+        return not any(value is not None and str(value).strip() for value in values)
 
 
 __all__ = [

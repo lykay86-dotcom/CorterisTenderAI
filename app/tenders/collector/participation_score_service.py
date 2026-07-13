@@ -31,9 +31,7 @@ class CorterisParticipationScoreService:
         score_repository: CollectorStateRepository,
         *,
         text_service: TenderDocumentTextService | None = None,
-        requirement_analysis_service: (
-            TenderRequirementAnalysisService | None
-        ) = None,
+        requirement_analysis_service: (TenderRequirementAnalysisService | None) = None,
         ranker: CorterisParticipationRanker | None = None,
         capability_repository: CompanyCapabilityProfileRepository | None = None,
         stop_factor_engine: StopFactorEngine | None = None,
@@ -41,9 +39,7 @@ class CorterisParticipationScoreService:
         max_document_characters: int = 2_000_000,
     ) -> None:
         if max_document_characters < 1000:
-            raise ValueError(
-                "max_document_characters must be at least 1000"
-            )
+            raise ValueError("max_document_characters must be at least 1000")
         self.tender_registry = tender_registry
         self.score_repository = score_repository
         self.text_service = text_service
@@ -52,9 +48,7 @@ class CorterisParticipationScoreService:
         self.capability_repository = capability_repository
         self.stop_factor_engine = stop_factor_engine
         self.matching_catalog_repository = matching_catalog_repository
-        self.max_document_characters = int(
-            max_document_characters
-        )
+        self.max_document_characters = int(max_document_characters)
 
     def latest(
         self,
@@ -74,9 +68,7 @@ class CorterisParticipationScoreService:
 
         tender = self.tender_registry.get_tender(normalized)
         if tender is None:
-            raise KeyError(
-                f"Тендер не найден в реестре: {normalized}"
-            )
+            raise KeyError(f"Тендер не найден в реестре: {normalized}")
 
         texts: list[str] = []
         sources: list[str] = ["Карточка закупки"]
@@ -113,18 +105,14 @@ class CorterisParticipationScoreService:
 
         ranker = self.ranker
         capability = (
-            self.capability_repository.load()
-            if self.capability_repository is not None
-            else None
+            self.capability_repository.load() if self.capability_repository is not None else None
         )
         if ranker is None:
             ranker = (
                 CorterisParticipationRanker(
                     CorterisCompanyProfile.from_capability(capability),
                     classifier=(
-                        CorterisTenderClassifier(
-                            self.matching_catalog_repository.load_profile()
-                        )
+                        CorterisTenderClassifier(self.matching_catalog_repository.load_profile())
                         if self.matching_catalog_repository is not None
                         else None
                     ),

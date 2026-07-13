@@ -83,9 +83,7 @@ def test_quote_json_round_trip_and_fingerprint_are_stable() -> None:
     restored = ExchangeRateQuote.from_dict(quote.to_dict())
 
     assert restored == quote
-    assert ExchangeRateBook((quote,)).fingerprint == ExchangeRateBook(
-        (restored,)
-    ).fingerprint
+    assert ExchangeRateBook((quote,)).fingerprint == ExchangeRateBook((restored,)).fingerprint
 
 
 def test_quote_requires_positive_rate_source_and_timezone() -> None:

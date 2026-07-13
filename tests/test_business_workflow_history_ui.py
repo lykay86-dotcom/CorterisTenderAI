@@ -22,9 +22,7 @@ def _app() -> QApplication:
 
 def test_selected_record_loads_readable_history(tmp_path) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-79",
@@ -43,8 +41,7 @@ def test_selected_record_loads_readable_history(tmp_path) -> None:
 
     assert page.history_list.count() == 2
     combined = "\n".join(
-        page.history_list.item(index).text()
-        for index in range(page.history_list.count())
+        page.history_list.item(index).text() for index in range(page.history_list.count())
     )
     assert "Статус:" in combined
     assert "На проверке" in combined

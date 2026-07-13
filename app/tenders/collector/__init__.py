@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Corteris Tender Collector public integration namespace.
 
 Imports are side-effect free: no network clients, schedulers or provider

@@ -18,11 +18,35 @@ class Provider(AIProvider):
 
 
 def _document() -> AiDocument:
-    return AiDocument("doc-1", "TZ.pdf", "eis", "technical_specification", "2026-07-13T00:00:00+00:00", "verified", "The delivery period is 10 days.")
+    return AiDocument(
+        "doc-1",
+        "TZ.pdf",
+        "eis",
+        "technical_specification",
+        "2026-07-13T00:00:00+00:00",
+        "verified",
+        "The delivery period is 10 days.",
+    )
 
 
 def test_analyzer_keeps_only_quote_backed_findings_verified() -> None:
-    analyzer = TenderDocumentAiAnalyzer(Provider({"summary": "Summary", "requirements": {"deadlines": [{"statement": "Ten days", "document_id": "doc-1", "quote": "delivery period is 10 days", "confidence": 0.8}]}}))
+    analyzer = TenderDocumentAiAnalyzer(
+        Provider(
+            {
+                "summary": "Summary",
+                "requirements": {
+                    "deadlines": [
+                        {
+                            "statement": "Ten days",
+                            "document_id": "doc-1",
+                            "quote": "delivery period is 10 days",
+                            "confidence": 0.8,
+                        }
+                    ]
+                },
+            }
+        )
+    )
 
     result = analyzer.analyze("procurement:test", (_document(),))
 
@@ -32,7 +56,20 @@ def test_analyzer_keeps_only_quote_backed_findings_verified() -> None:
 
 
 def test_analyzer_marks_hallucinated_or_unknown_document_unverified() -> None:
-    analyzer = TenderDocumentAiAnalyzer(Provider({"risks": [{"statement": "Invented", "document_id": "unknown", "quote": "not present", "confidence": 0.9}]}))
+    analyzer = TenderDocumentAiAnalyzer(
+        Provider(
+            {
+                "risks": [
+                    {
+                        "statement": "Invented",
+                        "document_id": "unknown",
+                        "quote": "not present",
+                        "confidence": 0.9,
+                    }
+                ]
+            }
+        )
+    )
 
     result = analyzer.analyze("procurement:test", (_document(),))
 
@@ -57,13 +94,23 @@ def test_analyzer_handles_invalid_json_without_inventing_result() -> None:
 
 
 def test_analyzer_detects_quote_backed_contradictions_across_documents() -> None:
-    second = AiDocument("doc-2", "contract.pdf", "eis", "contract", "now", "verified", "Delivery takes 30 days.")
-    analyzer = TenderDocumentAiAnalyzer(Provider({
-        "contradictions": [{
-            "statement": "Different delivery periods", "document_id": "doc-2",
-            "quote": "Delivery takes 30 days", "confidence": 0.95,
-        }]
-    }))
+    second = AiDocument(
+        "doc-2", "contract.pdf", "eis", "contract", "now", "verified", "Delivery takes 30 days."
+    )
+    analyzer = TenderDocumentAiAnalyzer(
+        Provider(
+            {
+                "contradictions": [
+                    {
+                        "statement": "Different delivery periods",
+                        "document_id": "doc-2",
+                        "quote": "Delivery takes 30 days",
+                        "confidence": 0.95,
+                    }
+                ]
+            }
+        )
+    )
 
     result = analyzer.analyze("procurement:test", (_document(), second))
 
@@ -77,13 +124,9 @@ def test_analyzer_contains_provider_exception_and_disabled_state() -> None:
         TimeoutError("Authorization: Bearer SECRET")
     )
 
-    failed = TenderDocumentAiAnalyzer(provider).analyze(
-        "procurement:test", (_document(),)
-    )
+    failed = TenderDocumentAiAnalyzer(provider).analyze("procurement:test", (_document(),))
     provider.analyze = lambda *_args: {"status": "disabled", "message": "off"}
-    disabled = TenderDocumentAiAnalyzer(provider).analyze(
-        "procurement:test", (_document(),)
-    )
+    disabled = TenderDocumentAiAnalyzer(provider).analyze("procurement:test", (_document(),))
 
     assert failed.status == "provider_error"
     assert disabled.status == "provider_disabled"
@@ -97,9 +140,7 @@ def test_analyzer_contains_provider_error_status() -> None:
         "message": "raw provider response",
     }
 
-    result = TenderDocumentAiAnalyzer(provider).analyze(
-        "procurement:test", (_document(),)
-    )
+    result = TenderDocumentAiAnalyzer(provider).analyze("procurement:test", (_document(),))
 
     assert result.status == "provider_error"
     assert "raw provider response" not in result.summary
@@ -107,9 +148,7 @@ def test_analyzer_contains_provider_error_status() -> None:
 
 @pytest.mark.parametrize("payload", [[], "text", 42, None])
 def test_analyzer_rejects_non_object_json(payload: object) -> None:
-    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
-        "procurement:test", (_document(),)
-    )
+    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze("procurement:test", (_document(),))
 
     assert result.status == "invalid_response"
     assert not result.risks

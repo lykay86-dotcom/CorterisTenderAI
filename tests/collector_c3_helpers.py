@@ -40,9 +40,7 @@ def make_tender(
             inn=customer_inn,
             region="Москва",
         ),
-        source_url=(
-            f"https://example.org/{source.value}/{external_id}"
-        ),
+        source_url=(f"https://example.org/{source.value}/{external_id}"),
         published_at=datetime(
             2026,
             7,

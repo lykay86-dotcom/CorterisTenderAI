@@ -51,9 +51,7 @@ class _Redactor:
         r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
         re.IGNORECASE,
     )
-    BEARER = re.compile(
-        r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{6,}"
-    )
+    BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{6,}")
     SECRET_VALUE = re.compile(
         r"""(?ix)
         \b(
@@ -121,11 +119,7 @@ class _Redactor:
             result,
         )
         result = self.SECRET_VALUE.sub(
-            lambda match: (
-                f"{match.group(1)}"
-                f"{match.group(2)}"
-                "<REDACTED>"
-            ),
+            lambda match: f"{match.group(1)}{match.group(2)}<REDACTED>",
             result,
         )
         return result
@@ -140,10 +134,7 @@ class _Redactor:
         if isinstance(value, Enum):
             return value.value
         if isinstance(value, dict):
-            return {
-                self.text(key): self.value(item)
-                for key, item in value.items()
-            }
+            return {self.text(key): self.value(item) for key, item in value.items()}
         if isinstance(value, (list, tuple, set)):
             return [self.value(item) for item in value]
         return self.text(value)
@@ -202,24 +193,16 @@ class DiagnosticSupportBundleService:
         )
 
         files: dict[str, bytes] = {}
-        files["README.txt"] = self._text_bytes(
-            self._readme_text(timestamp)
-        )
-        files["environment.json"] = self._json_bytes(
-            redactor.value(self._environment_payload())
-        )
+        files["README.txt"] = self._text_bytes(self._readme_text(timestamp))
+        files["environment.json"] = self._json_bytes(redactor.value(self._environment_payload()))
         files["health_snapshot.json"] = self._json_bytes(
             redactor.value(self._snapshot_payload(snapshot))
         )
         files["database_summary.json"] = self._json_bytes(
-            redactor.value(
-                self._database_payload(repository, snapshot)
-            )
+            redactor.value(self._database_payload(repository, snapshot))
         )
         files["auto_backup.json"] = self._json_bytes(
-            redactor.value(
-                asdict(auto_backup_service.load_settings())
-            )
+            redactor.value(asdict(auto_backup_service.load_settings()))
         )
         files["backup_inventory.json"] = self._json_bytes(
             redactor.value(
@@ -229,9 +212,7 @@ class DiagnosticSupportBundleService:
                 )
             )
         )
-        files["system_health_journal.txt"] = self._text_bytes(
-            self._journal_text(journal, redactor)
-        )
+        files["system_health_journal.txt"] = self._text_bytes(self._journal_text(journal, redactor))
 
         log_files = self._collect_logs(
             repository=repository,
@@ -276,9 +257,7 @@ class DiagnosticSupportBundleService:
         }
         manifest_bytes = self._json_bytes(manifest)
 
-        temporary = destination.with_suffix(
-            destination.suffix + ".tmp"
-        )
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
         try:
             with ZipFile(
                 temporary,
@@ -301,10 +280,7 @@ class DiagnosticSupportBundleService:
             destination.unlink(missing_ok=True)
             raise RuntimeError(
                 "Пакет диагностики не прошёл проверку:\n"
-                + "\n".join(
-                    f"• {error}"
-                    for error in inspection.errors
-                )
+                + "\n".join(f"• {error}" for error in inspection.errors)
             )
 
         return DiagnosticSupportBundleResult(
@@ -339,11 +315,7 @@ class DiagnosticSupportBundleService:
                     )
 
                 try:
-                    manifest = json.loads(
-                        archive.read(self.MANIFEST_NAME).decode(
-                            "utf-8"
-                        )
-                    )
+                    manifest = json.loads(archive.read(self.MANIFEST_NAME).decode("utf-8"))
                 except (
                     UnicodeDecodeError,
                     json.JSONDecodeError,
@@ -356,90 +328,54 @@ class DiagnosticSupportBundleService:
                     )
 
                 if not isinstance(manifest, dict):
-                    errors.append(
-                        "manifest.json должен быть объектом."
-                    )
+                    errors.append("manifest.json должен быть объектом.")
                     manifest = {}
 
                 if manifest.get("format") != self.FORMAT_NAME:
-                    errors.append(
-                        "Файл не является пакетом диагностики CORTERIS."
-                    )
-                if self._integer(
-                    manifest.get("format_version", 0)
-                ) != self.FORMAT_VERSION:
-                    errors.append(
-                        "Неподдерживаемая версия пакета диагностики."
-                    )
+                    errors.append("Файл не является пакетом диагностики CORTERIS.")
+                if self._integer(manifest.get("format_version", 0)) != self.FORMAT_VERSION:
+                    errors.append("Неподдерживаемая версия пакета диагностики.")
 
                 listed = manifest.get("files", [])
                 if not isinstance(listed, list):
-                    errors.append(
-                        "Поле files в manifest.json должно быть списком."
-                    )
+                    errors.append("Поле files в manifest.json должно быть списком.")
                     listed = []
 
                 listed_names: set[str] = set()
                 for item in listed:
                     if not isinstance(item, dict):
-                        errors.append(
-                            "Некорректная запись файла в manifest.json."
-                        )
+                        errors.append("Некорректная запись файла в manifest.json.")
                         continue
 
                     name = str(item.get("name", "")).strip()
                     if not name:
-                        errors.append(
-                            "В manifest.json найден файл без имени."
-                        )
+                        errors.append("В manifest.json найден файл без имени.")
                         continue
                     listed_names.add(name)
 
                     if name not in names:
-                        errors.append(
-                            f"В архиве отсутствует {name}."
-                        )
+                        errors.append(f"В архиве отсутствует {name}.")
                         continue
 
                     content = archive.read(name)
-                    expected_size = self._integer(
-                        item.get("size_bytes", -1)
-                    )
+                    expected_size = self._integer(item.get("size_bytes", -1))
                     if expected_size != len(content):
-                        errors.append(
-                            f"Размер {name} не совпадает с manifest.json."
-                        )
+                        errors.append(f"Размер {name} не совпадает с manifest.json.")
 
-                    expected_hash = str(
-                        item.get("sha256", "")
-                    ).strip()
+                    expected_hash = str(item.get("sha256", "")).strip()
                     actual_hash = hashlib.sha256(content).hexdigest()
                     if expected_hash != actual_hash:
-                        errors.append(
-                            f"Контрольная сумма {name} не совпадает."
-                        )
+                        errors.append(f"Контрольная сумма {name} не совпадает.")
 
-                missing_required = (
-                    self.REQUIRED_FILES - listed_names
-                )
+                missing_required = self.REQUIRED_FILES - listed_names
                 for name in sorted(missing_required):
-                    errors.append(
-                        f"В пакете отсутствует обязательный файл {name}."
-                    )
+                    errors.append(f"В пакете отсутствует обязательный файл {name}.")
 
-                unexpected = (
-                    names
-                    - listed_names
-                    - {self.MANIFEST_NAME}
-                )
+                unexpected = names - listed_names - {self.MANIFEST_NAME}
                 for name in sorted(unexpected):
-                    errors.append(
-                        f"Файл {name} не описан в manifest.json."
-                    )
+                    errors.append(f"Файл {name} не описан в manifest.json.")
 
-                created_at = str(
-                    manifest.get("created_at", "")
-                ).strip()
+                created_at = str(manifest.get("created_at", "")).strip()
                 return DiagnosticSupportBundleInspection(
                     path=path,
                     valid=not errors,
@@ -472,18 +408,12 @@ class DiagnosticSupportBundleService:
 
             for path in children:
                 try:
-                    supported = (
-                        path.is_file()
-                        and path.suffix.lower()
-                        in catalog.SUPPORTED_SUFFIXES
-                    )
+                    supported = path.is_file() and path.suffix.lower() in catalog.SUPPORTED_SUFFIXES
                 except OSError:
                     continue
                 if not supported:
                     continue
-                candidates[
-                    str(path.resolve(strict=False)).casefold()
-                ] = path
+                candidates[str(path.resolve(strict=False)).casefold()] = path
 
         ordered = sorted(
             candidates.values(),
@@ -518,16 +448,10 @@ class DiagnosticSupportBundleService:
                     "size_bytes": entry.size_bytes,
                     "modified_at": entry.modified_at,
                     "created_at": entry.created_timestamp,
-                    "schema_version": (
-                        entry.inspection.schema_version
-                    ),
-                    "record_count": (
-                        entry.inspection.record_count
-                    ),
+                    "schema_version": (entry.inspection.schema_version),
+                    "record_count": (entry.inspection.record_count),
                     "event_count": entry.inspection.event_count,
-                    "archived_count": (
-                        entry.inspection.archived_count
-                    ),
+                    "archived_count": (entry.inspection.archived_count),
                     "errors": entry.inspection.errors,
                 }
             )
@@ -536,12 +460,8 @@ class DiagnosticSupportBundleService:
             "directories": list(roots),
             "candidate_limit": self.MAX_BACKUP_FILES,
             "total": len(entries),
-            "valid": sum(
-                1 for item in entries if item.get("valid")
-            ),
-            "invalid": sum(
-                1 for item in entries if not item.get("valid")
-            ),
+            "valid": sum(1 for item in entries if item.get("valid")),
+            "invalid": sum(1 for item in entries if not item.get("valid")),
             "entries": entries,
         }
 
@@ -571,18 +491,12 @@ class DiagnosticSupportBundleService:
 
             for path in children:
                 try:
-                    supported = (
-                        path.is_file()
-                        and path.suffix.lower()
-                        in {".log", ".txt"}
-                    )
+                    supported = path.is_file() and path.suffix.lower() in {".log", ".txt"}
                 except OSError:
                     continue
                 if not supported:
                     continue
-                candidates[
-                    str(path.resolve(strict=False)).casefold()
-                ] = path
+                candidates[str(path.resolve(strict=False)).casefold()] = path
 
         ordered = sorted(
             candidates.values(),
@@ -647,15 +561,9 @@ class DiagnosticSupportBundleService:
             },
             "auto_backup": {
                 "enabled": snapshot.auto_backup_enabled,
-                "interval_hours": (
-                    snapshot.auto_backup_interval_hours
-                ),
-                "retention_count": (
-                    snapshot.auto_backup_retention_count
-                ),
-                "last_success_at": (
-                    snapshot.auto_backup_last_success_at
-                ),
+                "interval_hours": (snapshot.auto_backup_interval_hours),
+                "retention_count": (snapshot.auto_backup_retention_count),
+                "last_success_at": (snapshot.auto_backup_last_success_at),
                 "last_error": snapshot.auto_backup_last_error,
             },
             "backups": {
@@ -697,14 +605,10 @@ class DiagnosticSupportBundleService:
             "exists": exists,
             "size_bytes": size_bytes,
             "sha256": checksum,
-            "schema_version": (
-                snapshot.database.schema_version
-            ),
+            "schema_version": (snapshot.database.schema_version),
             "record_count": snapshot.database.record_count,
             "event_count": snapshot.database.event_count,
-            "archived_count": (
-                snapshot.database.archived_count
-            ),
+            "archived_count": (snapshot.database.archived_count),
             "raw_database_included": False,
         }
 
@@ -726,9 +630,7 @@ class DiagnosticSupportBundleService:
                 "platform": platform.platform(),
             },
             "packages": {
-                name: DiagnosticSupportBundleService._package_version(
-                    name
-                )
+                name: DiagnosticSupportBundleService._package_version(name)
                 for name in (
                     "PySide6",
                     "openpyxl",
@@ -755,13 +657,10 @@ class DiagnosticSupportBundleService:
                 else event.occurred_at
             )
             lines.append(
-                f"[{date_text}] [{event.severity.value.upper()}] "
-                f"[{event.component}] {event.title}"
+                f"[{date_text}] [{event.severity.value.upper()}] [{event.component}] {event.title}"
             )
             if event.details:
-                lines.append(
-                    "  " + redactor.text(event.details)
-                )
+                lines.append("  " + redactor.text(event.details))
             lines.append("")
         return "\n".join(lines)
 
@@ -826,9 +725,7 @@ class DiagnosticSupportBundleService:
         seen: set[str] = set()
         for item in paths:
             path = Path(item).expanduser()
-            identity = str(
-                path.resolve(strict=False)
-            ).casefold()
+            identity = str(path.resolve(strict=False)).casefold()
             if identity in seen:
                 continue
             seen.add(identity)

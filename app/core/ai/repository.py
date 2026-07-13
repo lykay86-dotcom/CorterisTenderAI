@@ -54,11 +54,7 @@ def context_fingerprint(
         "documents": ordered,
         "versions": {
             "prompt": prompt_version or AI_PROMPT_VERSION,
-            "schema": (
-                AI_ANALYSIS_SCHEMA_VERSION
-                if schema_version is None
-                else schema_version
-            ),
+            "schema": (AI_ANALYSIS_SCHEMA_VERSION if schema_version is None else schema_version),
             "analyzer": analyzer_version or AI_ANALYZER_VERSION,
             "context": context_version or AI_CONTEXT_VERSION,
         },
@@ -98,9 +94,7 @@ class AiDocumentAnalysisRepository:
             )
             columns = {
                 str(row[1])
-                for row in connection.execute(
-                    "PRAGMA table_info(tender_ai_document_analyses)"
-                )
+                for row in connection.execute("PRAGMA table_info(tender_ai_document_analyses)")
             }
             if "payload_version" not in columns:
                 connection.execute(
@@ -223,9 +217,7 @@ class AiDocumentAnalysisRepository:
                 saw_corruption = True
                 continue
             if saw_corruption or incompatible is not None:
-                self.last_warning = (
-                    "Повреждённая или несовместимая запись AI-анализа пропущена."
-                )
+                self.last_warning = "Повреждённая или несовместимая запись AI-анализа пропущена."
             return analysis
         if saw_corruption:
             self.last_warning = "Повреждённая запись AI-анализа пропущена."

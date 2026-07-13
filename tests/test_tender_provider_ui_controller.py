@@ -49,9 +49,7 @@ class FakeProviderManager:
         )
 
     def enabled_provider_ids(self):
-        return tuple(
-            key for key, value in self.enabled.items() if value
-        )
+        return tuple(key for key, value in self.enabled.items() if value)
 
     def set_enabled(self, provider_id, enabled):
         self.enabled[provider_id] = enabled
@@ -79,15 +77,9 @@ def test_controller_installs_visible_sources_action(tmp_path) -> None:
 
     controller.install_on_main_window(window)
 
-    assert controller.providers_action in (
-        controller._tender_menu.actions()
-    )
-    assert controller.providers_action in (
-        controller._tender_toolbar.actions()
-    )
-    assert controller.providers_action.objectName() == (
-        "actionTenderProviders"
-    )
+    assert controller.providers_action in (controller._tender_menu.actions())
+    assert controller.providers_action in (controller._tender_toolbar.actions())
+    assert controller.providers_action.objectName() == ("actionTenderProviders")
     app.processEvents()
 
 

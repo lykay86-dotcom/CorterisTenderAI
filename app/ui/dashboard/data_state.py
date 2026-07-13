@@ -171,9 +171,7 @@ class DataStatePanel(QFrame):
 
         self.action_button = QPushButton("", self)
         self.action_button.setObjectName("DataStateAction")
-        self.action_button.setCursor(
-            QCursor(Qt.CursorShape.PointingHandCursor)
-        )
+        self.action_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.action_button.clicked.connect(self._emit_action)
         self.action_button.hide()
 
@@ -260,15 +258,11 @@ class DataStatePanel(QFrame):
                 10 if self._compact else 14,
                 8 if self._compact else 12,
             )
-        self.message_label.setVisible(
-            bool(self.message_label.text()) and not self._compact
-        )
+        self.message_label.setVisible(bool(self.message_label.text()) and not self._compact)
 
     def focus_action(self) -> None:
         if self.action_button.isVisible():
-            self.action_button.setFocus(
-                Qt.FocusReason.ShortcutFocusReason
-            )
+            self.action_button.setFocus(Qt.FocusReason.ShortcutFocusReason)
         else:
             self.setFocus(Qt.FocusReason.ShortcutFocusReason)
 

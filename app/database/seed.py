@@ -1,4 +1,5 @@
 """Начальные данные новой локальной базы."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -23,8 +24,8 @@ def seed_default_data() -> Company:
         if company is None:
             company = uow.companies.add(
                 Company(
-                    full_name='Общество с ограниченной ответственностью «КОРТЕРИС»',
-                    short_name='ООО «КОРТЕРИС»',
+                    full_name="Общество с ограниченной ответственностью «КОРТЕРИС»",
+                    short_name="ООО «КОРТЕРИС»",
                     inn="9701327346",
                     kpp="770101001",
                     ogrn="1267700130092",

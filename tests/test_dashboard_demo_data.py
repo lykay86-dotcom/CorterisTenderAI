@@ -48,15 +48,9 @@ def test_demo_deadlines_are_relative_to_anchor() -> None:
 
 
 def test_demo_environment_flag() -> None:
-    assert demo_mode_from_environment(
-        {DEMO_ENVIRONMENT_VARIABLE: "1"}
-    )
-    assert demo_mode_from_environment(
-        {DEMO_ENVIRONMENT_VARIABLE: "TRUE"}
-    )
-    assert not demo_mode_from_environment(
-        {DEMO_ENVIRONMENT_VARIABLE: "0"}
-    )
+    assert demo_mode_from_environment({DEMO_ENVIRONMENT_VARIABLE: "1"})
+    assert demo_mode_from_environment({DEMO_ENVIRONMENT_VARIABLE: "TRUE"})
+    assert not demo_mode_from_environment({DEMO_ENVIRONMENT_VARIABLE: "0"})
 
 
 def test_empty_kpis_have_stable_order_and_zero_values() -> None:

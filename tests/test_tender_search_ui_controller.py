@@ -41,9 +41,7 @@ class FakeRunner:
 
 
 def _runtime(tmp_path, runner) -> TenderSearchRuntime:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
     return TenderSearchRuntime(
         data_directory=Path(tmp_path),
@@ -125,7 +123,5 @@ def test_controller_reports_search_error_in_profiles_dialog(
 
     assert controller.result_dialogs == ()
     assert controller.profiles_dialog is not None
-    assert "ЕИС недоступна" in (
-        controller.profiles_dialog.panel.status_label.text()
-    )
+    assert "ЕИС недоступна" in (controller.profiles_dialog.panel.status_label.text())
     assert controller.profiles_dialog.panel.run_button.isEnabled()

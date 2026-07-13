@@ -16,9 +16,7 @@ def _app():
 
 def test_dialog_loads_catalog_and_can_add_remove_row(tmp_path) -> None:
     app = _app()
-    dialog = MatchingCatalogDialog(
-        MatchingCatalogRepository(tmp_path / "registry.sqlite3")
-    )
+    dialog = MatchingCatalogDialog(MatchingCatalogRepository(tmp_path / "registry.sqlite3"))
     dialog.load_catalog()
     original = dialog.table.rowCount()
 

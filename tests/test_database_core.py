@@ -10,7 +10,6 @@ from app.database.models import Company
 from app.database.repositories import CompanyRepository, SettingsRepository
 from app.database.seed import seed_default_data
 from app.database.session import (
-    create_session,
     get_engine,
     init_database,
     reset_database_state,

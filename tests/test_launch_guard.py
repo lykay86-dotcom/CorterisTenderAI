@@ -18,9 +18,7 @@ def test_three_recent_crashes_enable_safe_mode(tmp_path) -> None:
     )
 
     for minutes in (20, 10, 1):
-        guard.begin_launch(
-            started_at=NOW - timedelta(minutes=minutes)
-        )
+        guard.begin_launch(started_at=NOW - timedelta(minutes=minutes))
         guard.mark_crash(
             finished_at=NOW - timedelta(minutes=minutes - 1),
             details="test crash",
@@ -41,9 +39,7 @@ def test_old_crashes_do_not_enable_safe_mode(tmp_path) -> None:
     )
 
     for hours in (4, 3, 2):
-        guard.begin_launch(
-            started_at=NOW - timedelta(hours=hours)
-        )
+        guard.begin_launch(started_at=NOW - timedelta(hours=hours))
         guard.mark_crash(
             finished_at=NOW - timedelta(hours=hours),
         )
@@ -64,10 +60,7 @@ def test_running_launch_becomes_interrupted_on_next_start(
     second = LaunchGuardService(path)
     second.begin_launch(started_at=NOW)
 
-    outcomes = {
-        record.outcome
-        for record in second.list_records()
-    }
+    outcomes = {record.outcome for record in second.list_records()}
 
     assert "interrupted" in outcomes
     assert "running" in outcomes
@@ -76,9 +69,7 @@ def test_running_launch_becomes_interrupted_on_next_start(
 def test_clean_exit_and_reset_history(tmp_path) -> None:
     guard = LaunchGuardService(tmp_path / "launch_history.json")
     guard.begin_launch(started_at=NOW)
-    guard.mark_clean_exit(
-        finished_at=NOW + timedelta(minutes=1)
-    )
+    guard.mark_clean_exit(finished_at=NOW + timedelta(minutes=1))
 
     records = guard.list_records()
     assert records[0].outcome == "clean"

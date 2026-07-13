@@ -122,10 +122,16 @@ class AggregatorDiscoveryRepository:
                     official_registry_key='',
                     verification_note=''""",
                 (
-                    discovery_id, source, tender.external_id, tender.source_url,
-                    tender.title, tender.procurement_number, query,
+                    discovery_id,
+                    source,
+                    tender.external_id,
+                    tender.source_url,
+                    tender.title,
+                    tender.procurement_number,
+                    query,
                     AggregatorDiscoveryStatus.PENDING_OFFICIAL_VERIFICATION.value,
-                    first, moment,
+                    first,
+                    moment,
                     json.dumps(tender_to_payload(tender), ensure_ascii=False, sort_keys=True),
                 ),
             )
@@ -234,20 +240,24 @@ class AggregatorOfficialVerificationService:
             )
             try:
                 official = self.official_lookup(query)
-                results.append(self.repository.resolve(
-                    record.discovery_id,
-                    official_tender=official,
-                    note=(
-                        "Подтверждено официальным источником."
-                        if official is not None
-                        else "Совпадение в официальном источнике не найдено."
-                    ),
-                ))
+                results.append(
+                    self.repository.resolve(
+                        record.discovery_id,
+                        official_tender=official,
+                        note=(
+                            "Подтверждено официальным источником."
+                            if official is not None
+                            else "Совпадение в официальном источнике не найдено."
+                        ),
+                    )
+                )
             except Exception as exc:
-                results.append(self.repository.mark_failed(
-                    record.discovery_id,
-                    f"{type(exc).__name__}: {exc}",
-                ))
+                results.append(
+                    self.repository.mark_failed(
+                        record.discovery_id,
+                        f"{type(exc).__name__}: {exc}",
+                    )
+                )
         return tuple(results)
 
 
@@ -256,8 +266,7 @@ def is_aggregator_discovery(tender: UnifiedTender) -> bool:
     return bool(
         metadata.get("aggregator")
         or metadata.get("discovery_only")
-        or str(metadata.get("source_kind", "")).casefold()
-        in {"aggregator", "discovery_aggregator"}
+        or str(metadata.get("source_kind", "")).casefold() in {"aggregator", "discovery_aggregator"}
     )
 
 
@@ -284,7 +293,9 @@ def _now() -> str:
 
 
 __all__ = [
-    "AggregatorDiscoveryRecord", "AggregatorDiscoveryRepository",
-    "AggregatorDiscoveryStatus", "AggregatorOfficialVerificationService",
+    "AggregatorDiscoveryRecord",
+    "AggregatorDiscoveryRepository",
+    "AggregatorDiscoveryStatus",
+    "AggregatorOfficialVerificationService",
     "is_aggregator_discovery",
 ]

@@ -65,9 +65,7 @@ def test_same_procurement_number_is_merged_across_sources() -> None:
         ),
     )
 
-    result = TenderSearchEngine(
-        TenderProviderRegistry((eis, rts))
-    ).search(TenderSearchQuery())
+    result = TenderSearchEngine(TenderProviderRegistry((eis, rts))).search(TenderSearchQuery())
 
     assert result.raw_item_count == 2
     assert result.duplicate_count == 1
@@ -84,9 +82,7 @@ def test_same_procurement_number_is_merged_across_sources() -> None:
         "eis",
         "rts_tender",
     )
-    assert len(
-        merged.raw_metadata["aggregated_identities"]
-    ) == 2
+    assert len(merged.raw_metadata["aggregated_identities"]) == 2
 
 
 def test_duplicate_document_url_is_not_repeated() -> None:
@@ -135,9 +131,7 @@ def test_duplicate_document_url_is_not_repeated() -> None:
         ),
     )
 
-    result = TenderSearchEngine(
-        TenderProviderRegistry(providers)
-    ).search(TenderSearchQuery())
+    result = TenderSearchEngine(TenderProviderRegistry(providers)).search(TenderSearchQuery())
 
     assert len(result.items[0].documents) == 1
 
@@ -165,9 +159,7 @@ def test_different_procurement_numbers_remain_separate() -> None:
         ),
     )
 
-    result = TenderSearchEngine(
-        TenderProviderRegistry((provider,))
-    ).search(TenderSearchQuery())
+    result = TenderSearchEngine(TenderProviderRegistry((provider,))).search(TenderSearchQuery())
 
     assert len(result.items) == 2
     assert result.duplicate_count == 0

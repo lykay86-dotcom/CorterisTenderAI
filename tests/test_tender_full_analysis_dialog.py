@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 import pytest
@@ -22,20 +23,23 @@ from app.ui.tender_full_analysis_dialog import (
 )
 
 
-def _app(): return QApplication.instance() or QApplication([])
+def _app():
+    return QApplication.instance() or QApplication([])
 
 
 def test_dialog_emits_cancel_and_updates_progress() -> None:
     app = _app()
     dialog = TenderFullAnalysisDialog("procurement:test")
-    requested=[]
+    requested = []
     dialog.cancel_requested.connect(requested.append)
     dialog.begin()
-    dialog.update_progress(FullAnalysisProgress(
-        stage=FullAnalysisStage.DOWNLOADING,
-        message="Скачивание",
-        completed_steps=2,
-    ))
+    dialog.update_progress(
+        FullAnalysisProgress(
+            stage=FullAnalysisStage.DOWNLOADING,
+            message="Скачивание",
+            completed_steps=2,
+        )
+    )
     dialog.cancel_button.click()
     assert requested == ["procurement:test"]
     assert dialog.progress.value() == 25
@@ -94,9 +98,7 @@ def test_ai_tab_distinguishes_verified_and_unverified_findings() -> None:
         AiEvidence("doc", "exact quote", confidence=0.8),
         AiFindingStatus.VERIFIED,
     )
-    unverified = AiFinding(
-        "risk", "Unconfirmed", None, AiFindingStatus.UNVERIFIED
-    )
+    unverified = AiFinding("risk", "Unconfirmed", None, AiFindingStatus.UNVERIFIED)
     html = _render_ai_document_analysis(
         _result(
             AiDocumentAnalysis(
@@ -137,11 +139,7 @@ def test_dialog_can_render_successful_retry_after_error() -> None:
     dialog.set_error("temporary failure")
 
     dialog.set_result(
-        _result(
-            AiDocumentAnalysis(
-                "procurement:test", "Recovered", status="complete"
-            )
-        )
+        _result(AiDocumentAnalysis("procurement:test", "Recovered", status="complete"))
     )
 
     assert "Recovered" in dialog.ai_analysis.toPlainText()

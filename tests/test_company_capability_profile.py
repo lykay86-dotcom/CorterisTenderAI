@@ -58,14 +58,10 @@ def test_profile_normalizes_and_reports_missing_sections() -> None:
 
 
 def test_repository_requires_confirmation_and_round_trips_decimal(tmp_path) -> None:
-    repository = CompanyCapabilityProfileRepository(
-        tmp_path / "company_capability_profile.json"
-    )
+    repository = CompanyCapabilityProfileRepository(tmp_path / "company_capability_profile.json")
 
     with pytest.raises(ValueError):
-        repository.save(
-            CompanyCapabilityProfile(company_name="ООО КОРТЕРИС")
-        )
+        repository.save(CompanyCapabilityProfile(company_name="ООО КОРТЕРИС"))
 
     repository.save(_profile())
     restored = repository.load()
@@ -77,20 +73,15 @@ def test_repository_requires_confirmation_and_round_trips_decimal(tmp_path) -> N
 
 
 def test_empty_production_profile_removes_assumed_capabilities() -> None:
-    scoring_profile = CorterisCompanyProfile.from_capability(
-        CompanyCapabilityProfile()
-    )
+    scoring_profile = CorterisCompanyProfile.from_capability(CompanyCapabilityProfile())
     score = CorterisParticipationRanker(scoring_profile).score(
         make_tender(),
-        ParticipationScoringContext(
-            now=datetime(2026, 7, 12, tzinfo=timezone.utc)
-        ),
+        ParticipationScoringContext(now=datetime(2026, 7, 12, tzinfo=timezone.utc)),
     )
 
     assert score.total_score <= 64
     assert any(
-        "Недостаточно данных о возможностях компании" in item
-        for item in score.negative_factors
+        "Недостаточно данных о возможностях компании" in item for item in score.negative_factors
     )
     components = {item.key: item for item in score.components}
     assert "Недостаточно данных" in components["region"].explanation
@@ -105,9 +96,7 @@ def test_confirmed_profile_drives_direction_region_and_price() -> None:
             title="Монтаж видеонаблюдения Trassir",
             amount="1500000",
         ),
-        ParticipationScoringContext(
-            now=datetime(2026, 7, 12, tzinfo=timezone.utc)
-        ),
+        ParticipationScoringContext(now=datetime(2026, 7, 12, tzinfo=timezone.utc)),
     )
     components = {item.key: item for item in score.components}
 
@@ -115,6 +104,4 @@ def test_confirmed_profile_drives_direction_region_and_price() -> None:
     assert components["direction"].score > 0
     assert components["region"].score == 10
     assert components["price"].score == 10
-    assert "Недостаточно данных о возможностях компании" not in (
-        score.negative_factors
-    )
+    assert "Недостаточно данных о возможностях компании" not in (score.negative_factors)

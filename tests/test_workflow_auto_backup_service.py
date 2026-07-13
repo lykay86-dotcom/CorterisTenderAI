@@ -22,9 +22,7 @@ NOW = datetime(2026, 7, 11, 20, 0, 0)
 
 
 def _repository(tmp_path: Path) -> BusinessMetricsRepository:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-84",
@@ -61,9 +59,7 @@ def test_first_due_check_creates_backup_and_persists_success(
     assert result.settings.last_success_at == "2026-07-11T20:00:00"
     assert result.next_run_at == NOW + timedelta(hours=24)
 
-    payload = json.loads(
-        service.settings_path.read_text(encoding="utf-8")
-    )
+    payload = json.loads(service.settings_path.read_text(encoding="utf-8"))
     assert payload["last_success_at"] == "2026-07-11T20:00:00"
 
 
@@ -144,9 +140,7 @@ def test_retention_removes_only_old_automatic_backups(
     manual.write_bytes(b"manual")
     service.prune_backups(directory, retention_count=2)
 
-    automatic = list(
-        directory.glob("CORTERIS_auto_*.ctbackup")
-    )
+    automatic = list(directory.glob("CORTERIS_auto_*.ctbackup"))
     assert len(automatic) == 2
     assert manual.exists()
 

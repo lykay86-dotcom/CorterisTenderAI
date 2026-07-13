@@ -42,9 +42,7 @@ class ParticipationDecisionService:
         self,
         registry_key: str,
         *,
-        ai_document_analysis: AiDocumentAnalysis | None | object = (
-            _USE_LATEST_AI_ANALYSIS
-        ),
+        ai_document_analysis: AiDocumentAnalysis | None | object = (_USE_LATEST_AI_ANALYSIS),
     ) -> ParticipationDecision:
         key = registry_key.strip()
         if not key:
@@ -77,9 +75,7 @@ class ParticipationDecisionService:
         missing = _missing_data(decision_input)
         actions = _action_plan(decision_input, missing)
         confidence = _decision_confidence(evidence, missing)
-        stop_factors = tuple(
-            item.title for item in (stop.factors if stop is not None else ())
-        )
+        stop_factors = tuple(item.title for item in (stop.factors if stop is not None else ()))
         decision = ParticipationDecision(
             decision_id=uuid4().hex,
             registry_key=key,
@@ -111,43 +107,111 @@ class ParticipationDecisionService:
         evidence: list[ParticipationDecisionEvidence] = []
         stop = decision_input.stop_factor_assessment
         if stop is not None:
-            stop_recommendation = self.policy.recommendation_for_stop_factor(
-                stop.status
-            )
+            stop_recommendation = self.policy.recommendation_for_stop_factor(stop.status)
             if stop_recommendation == ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE:
                 return (
                     ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE,
                     "Участие заблокировано обязательным требованием.",
-                    [_evidence("blocked_requirement", "Стоп-фактор", "Обнаружено обязательное требование, которое не выполнено.", "stop_factor", 1.0, -100)],
+                    [
+                        _evidence(
+                            "blocked_requirement",
+                            "Стоп-фактор",
+                            "Обнаружено обязательное требование, которое не выполнено.",
+                            "stop_factor",
+                            1.0,
+                            -100,
+                        )
+                    ],
                 )
             if stop_recommendation == ParticipationDecisionRecommendation.DATA_INSUFFICIENT:
-                evidence.append(_evidence("stop_data_insufficient", "Стоп-факторы", "Недостаточно подтверждённых данных для снятия стоп-факторов.", "stop_factor", 0.4, -25))
-            elif stop_recommendation == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW:
-                evidence.append(_evidence("conditional_stop_factor", "Стоп-факторы", "Участие возможно только после выполнения условий.", "stop_factor", 0.7, -15))
+                evidence.append(
+                    _evidence(
+                        "stop_data_insufficient",
+                        "Стоп-факторы",
+                        "Недостаточно подтверждённых данных для снятия стоп-факторов.",
+                        "stop_factor",
+                        0.4,
+                        -25,
+                    )
+                )
+            elif (
+                stop_recommendation == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW
+            ):
+                evidence.append(
+                    _evidence(
+                        "conditional_stop_factor",
+                        "Стоп-факторы",
+                        "Участие возможно только после выполнения условий.",
+                        "stop_factor",
+                        0.7,
+                        -15,
+                    )
+                )
 
         if decision_input.score is None:
-            evidence.append(_evidence("score_missing", "Рейтинг", "Предварительный рейтинг ещё не рассчитан.", "participation_score", 0.0, -30))
+            evidence.append(
+                _evidence(
+                    "score_missing",
+                    "Рейтинг",
+                    "Предварительный рейтинг ещё не рассчитан.",
+                    "participation_score",
+                    0.0,
+                    -30,
+                )
+            )
         else:
             components = tuple(getattr(decision_input.score, "components", ()))
             if components:
                 for component in components:
-                    evidence.append(_evidence(
-                        f"score_{component.key}", component.title,
-                        component.explanation, "participation_score", 0.75,
-                        component.score,
-                    ))
+                    evidence.append(
+                        _evidence(
+                            f"score_{component.key}",
+                            component.title,
+                            component.explanation,
+                            "participation_score",
+                            0.75,
+                            component.score,
+                        )
+                    )
             else:
-                evidence.append(_evidence("score_available", "Рейтинг", f"Предварительный балл: {decision_input.score.total_score}/100.", "participation_score", 0.75, decision_input.score.total_score))
+                evidence.append(
+                    _evidence(
+                        "score_available",
+                        "Рейтинг",
+                        f"Предварительный балл: {decision_input.score.total_score}/100.",
+                        "participation_score",
+                        0.75,
+                        decision_input.score.total_score,
+                    )
+                )
 
         estimate = decision_input.commercial_estimate
         if estimate is None or estimate.status != CommercialEstimateStatus.COMPLETE:
-            evidence.append(_evidence("estimate_incomplete", "Коммерческий расчёт", "Полный коммерческий расчёт отсутствует или содержит незаполненные данные.", "commercial_estimator", 0.0, -15))
+            evidence.append(
+                _evidence(
+                    "estimate_incomplete",
+                    "Коммерческий расчёт",
+                    "Полный коммерческий расчёт отсутствует или содержит незаполненные данные.",
+                    "commercial_estimator",
+                    0.0,
+                    -15,
+                )
+            )
         else:
             impact = 0
             margin = getattr(estimate, "margin_percent", None)
             if margin is not None:
                 impact = 12 if margin >= 15 else (5 if margin >= 0 else -15)
-            evidence.append(_evidence("estimate_complete", "Коммерческий расчёт", "Коммерческий расчёт заполнен.", "commercial_estimator", 0.9, impact))
+            evidence.append(
+                _evidence(
+                    "estimate_complete",
+                    "Коммерческий расчёт",
+                    "Коммерческий расчёт заполнен.",
+                    "commercial_estimator",
+                    0.9,
+                    impact,
+                )
+            )
 
         verification = decision_input.verification
         unverified = {
@@ -158,31 +222,69 @@ class ParticipationDecisionService:
             TenderVerificationStatus.CONFLICT,
         }
         if verification is None or verification.status in unverified:
-            evidence.append(_evidence("verification_incomplete", "Достоверность данных", "Критичные поля не подтверждены официальным источником.", "verification", 0.0, -20))
+            evidence.append(
+                _evidence(
+                    "verification_incomplete",
+                    "Достоверность данных",
+                    "Критичные поля не подтверждены официальным источником.",
+                    "verification",
+                    0.0,
+                    -20,
+                )
+            )
         else:
-            evidence.append(_evidence("verification_available", "Достоверность данных", "Данные подтверждены доступным источником.", "verification", verification.minimum_confidence))
+            evidence.append(
+                _evidence(
+                    "verification_available",
+                    "Достоверность данных",
+                    "Данные подтверждены доступным источником.",
+                    "verification",
+                    verification.minimum_confidence,
+                )
+            )
 
         ai_analysis = decision_input.ai_document_analysis
         verified_ai_findings = tuple(
             item
             for item in (
-                (*ai_analysis.risks, *ai_analysis.suspicious_conditions, *ai_analysis.contradictions)
-                if ai_analysis is not None else ()
+                (
+                    *ai_analysis.risks,
+                    *ai_analysis.suspicious_conditions,
+                    *ai_analysis.contradictions,
+                )
+                if ai_analysis is not None
+                else ()
             )
             if item.verified and item.evidence is not None
         )
         for item in verified_ai_findings:
-            evidence.append(_evidence(
-                "ai_document_risk", "AI-анализ документации", item.statement,
-                "ai_document_analysis", item.evidence.confidence, -8,
-            ))
+            evidence.append(
+                _evidence(
+                    "ai_document_risk",
+                    "AI-анализ документации",
+                    item.statement,
+                    "ai_document_analysis",
+                    item.evidence.confidence,
+                    -8,
+                )
+            )
 
         if any(item.confidence == 0.0 for item in evidence):
-            return (ParticipationDecisionRecommendation.DATA_INSUFFICIENT, "Недостаточно данных для решения об участии.", evidence)
-        if stop is not None and self.policy.recommendation_for_stop_factor(
-            stop.status
-        ) == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW:
-            return (ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW, "Участие возможно после ручной проверки условий.", evidence)
+            return (
+                ParticipationDecisionRecommendation.DATA_INSUFFICIENT,
+                "Недостаточно данных для решения об участии.",
+                evidence,
+            )
+        if (
+            stop is not None
+            and self.policy.recommendation_for_stop_factor(stop.status)
+            == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW
+        ):
+            return (
+                ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
+                "Участие возможно после ручной проверки условий.",
+                evidence,
+            )
         if verified_ai_findings:
             return (
                 ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW,
@@ -235,13 +337,16 @@ def _action_plan(
     stop = decision_input.stop_factor_assessment
     if stop is not None:
         actions.extend(
-            item.evidence.remediation for item in stop.factors
-            if item.evidence.remediation.strip()
+            item.evidence.remediation for item in stop.factors if item.evidence.remediation.strip()
         )
     ai_analysis = decision_input.ai_document_analysis
     if ai_analysis is not None and any(
         item.verified
-        for item in (*ai_analysis.risks, *ai_analysis.suspicious_conditions, *ai_analysis.contradictions)
+        for item in (
+            *ai_analysis.risks,
+            *ai_analysis.suspicious_conditions,
+            *ai_analysis.contradictions,
+        )
     ):
         actions.append("Провести ручную проверку условий, отмеченных AI-анализом")
     if not missing and not actions:

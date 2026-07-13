@@ -63,9 +63,7 @@ def _batch() -> AsyncProviderBatchResult:
 def test_service_emits_pipeline_stages_and_saves_result(tmp_path) -> None:
     async def scenario() -> None:
         events = []
-        repository = CollectorStateRepository(
-            tmp_path / "tender_registry.sqlite3"
-        )
+        repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
         service = CollectorService(
             ProgressEngine(_batch()),
             repository,

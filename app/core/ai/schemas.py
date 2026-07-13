@@ -124,7 +124,8 @@ class AiDocumentAnalysis:
                         "page": item.evidence.page,
                         "confidence": item.evidence.confidence,
                     }
-                    if item.evidence else None
+                    if item.evidence
+                    else None
                 ),
             }
 
@@ -205,21 +206,13 @@ class AiDocumentAnalysis:
             status = AiAnalysisStatus.INVALID_RESPONSE
         raw_missing = payload.get("missing_documents", ())
         missing = (
-            tuple(
-                text
-                for item in raw_missing
-                if (text := _text(item, 1_000))
-            )
+            tuple(text for item in raw_missing if (text := _text(item, 1_000)))
             if isinstance(raw_missing, (list, tuple))
             else ()
         )
         raw_warnings = payload.get("warnings", ())
         warnings = (
-            tuple(
-                text
-                for item in raw_warnings
-                if (text := _text(item, 1_000))
-            )
+            tuple(text for item in raw_warnings if (text := _text(item, 1_000)))
             if isinstance(raw_warnings, (list, tuple))
             else ()
         )

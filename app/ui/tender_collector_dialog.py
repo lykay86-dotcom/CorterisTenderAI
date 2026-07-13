@@ -104,18 +104,14 @@ class TenderCollectorDialog(QDialog):
         setup_layout.addWidget(QLabel("Профиль поиска", setup_frame), 0, 0)
         self.profile_combo = QComboBox(setup_frame)
         self.profile_combo.setObjectName("CollectorProfileCombo")
-        self.profile_combo.currentIndexChanged.connect(
-            self._render_profile_summary
-        )
+        self.profile_combo.currentIndexChanged.connect(self._render_profile_summary)
         setup_layout.addWidget(self.profile_combo, 0, 1, 1, 2)
 
         self.sources_button = QPushButton(
             "Настроить источники…",
             setup_frame,
         )
-        self.sources_button.clicked.connect(
-            lambda _checked=False: self.sources_requested.emit()
-        )
+        self.sources_button.clicked.connect(lambda _checked=False: self.sources_requested.emit())
         setup_layout.addWidget(self.sources_button, 0, 3)
 
         self.profile_summary = QLabel("", setup_frame)
@@ -146,21 +142,13 @@ class TenderCollectorDialog(QDialog):
                 "Ошибка / сообщение",
             )
         )
-        self.provider_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.provider_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.provider_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.provider_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.provider_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.provider_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.provider_table.setAlternatingRowColors(True)
         self.provider_table.verticalHeader().setVisible(False)
         header = self.provider_table.horizontalHeader()
-        header.setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
@@ -193,13 +181,9 @@ class TenderCollectorDialog(QDialog):
         self.stop_button = QPushButton("Остановить", self)
         self.stop_button.setObjectName("DangerActionButton")
         self.stop_button.setEnabled(False)
-        self.stop_button.clicked.connect(
-            lambda _checked=False: self.stop_requested.emit()
-        )
+        self.stop_button.clicked.connect(lambda _checked=False: self.stop_requested.emit())
         self.registry_button = QPushButton("Открыть реестр", self)
-        self.registry_button.clicked.connect(
-            lambda _checked=False: self.registry_requested.emit()
-        )
+        self.registry_button.clicked.connect(lambda _checked=False: self.registry_requested.emit())
         actions.addWidget(self.start_button)
         actions.addWidget(self.stop_button)
         actions.addWidget(self.registry_button)
@@ -209,9 +193,7 @@ class TenderCollectorDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
@@ -263,13 +245,9 @@ class TenderCollectorDialog(QDialog):
             if state.enabled and not self._running:
                 flags |= Qt.ItemFlag.ItemIsEnabled
             use_item.setFlags(flags)
-            default_checked = state.enabled and (
-                not selected or state.provider_id in selected
-            )
+            default_checked = state.enabled and (not selected or state.provider_id in selected)
             use_item.setCheckState(
-                Qt.CheckState.Checked
-                if default_checked
-                else Qt.CheckState.Unchecked
+                Qt.CheckState.Checked if default_checked else Qt.CheckState.Unchecked
             )
             use_item.setData(Qt.ItemDataRole.UserRole, state.provider_id)
             use_item.setToolTip(
@@ -284,9 +262,7 @@ class TenderCollectorDialog(QDialog):
                 QTableWidgetItem(state.display_name),
             )
             status_item = QTableWidgetItem(state.status_text)
-            status_item.setForeground(
-                QColor(self._provider_ui_color(state.ui_state))
-            )
+            status_item.setForeground(QColor(self._provider_ui_color(state.ui_state)))
             self.provider_table.setItem(row, 2, status_item)
             self.provider_table.setItem(row, 3, QTableWidgetItem("—"))
             self.provider_table.setItem(row, 4, QTableWidgetItem("—"))
@@ -307,9 +283,7 @@ class TenderCollectorDialog(QDialog):
             item = self.provider_table.item(row, 0)
             if item is None or item.checkState() != Qt.CheckState.Checked:
                 continue
-            provider_id = str(
-                item.data(Qt.ItemDataRole.UserRole) or ""
-            ).strip().casefold()
+            provider_id = str(item.data(Qt.ItemDataRole.UserRole) or "").strip().casefold()
             if provider_id:
                 result.append(provider_id)
         return tuple(result)
@@ -319,17 +293,11 @@ class TenderCollectorDialog(QDialog):
         profile_name: str,
         provider_ids: Iterable[str],
     ) -> None:
-        selected = {
-            item.strip().casefold()
-            for item in provider_ids
-            if item.strip()
-        }
+        selected = {item.strip().casefold() for item in provider_ids if item.strip()}
         self._completed_providers.clear()
         self._set_metric_values(0, 0, 0, 0)
         self.progress_bar.setValue(1)
-        self.set_status(
-            f"Запуск сбора по профилю «{profile_name}»…"
-        )
+        self.set_status(f"Запуск сбора по профилю «{profile_name}»…")
         for provider_id, row in self._provider_rows.items():
             if provider_id in selected:
                 self._set_provider_row(
@@ -361,9 +329,7 @@ class TenderCollectorDialog(QDialog):
 
     def mark_cancel_requested(self) -> None:
         self.stop_button.setEnabled(False)
-        self.set_status(
-            "Остановка запрошена. Завершаются активные запросы…"
-        )
+        self.set_status("Остановка запрошена. Завершаются активные запросы…")
 
     def apply_progress(self, event: CollectorProgressEvent) -> None:
         if event.phase == CollectorProgressPhase.PREPARING:
@@ -392,12 +358,8 @@ class TenderCollectorDialog(QDialog):
                 event.message,
             )
             total = max(1, event.total_providers)
-            provider_progress = 5 + round(
-                len(self._completed_providers) / total * 65
-            )
-            self.progress_bar.setValue(
-                max(self.progress_bar.value(), provider_progress)
-            )
+            provider_progress = 5 + round(len(self._completed_providers) / total * 65)
+            self.progress_bar.setValue(max(self.progress_bar.value(), provider_progress))
         elif event.phase == CollectorProgressPhase.NORMALIZING:
             self.progress_bar.setValue(max(self.progress_bar.value(), 76))
         elif event.phase == CollectorProgressPhase.DEDUPLICATING:
@@ -451,8 +413,7 @@ class TenderCollectorDialog(QDialog):
         self.progress_bar.setValue(100)
         if result.status == CollectionRunStatus.CANCELLED:
             message = (
-                "Сбор остановлен. Уже полученные результаты сохранены: "
-                f"{persistence.merged_count}."
+                f"Сбор остановлен. Уже полученные результаты сохранены: {persistence.merged_count}."
             )
         elif result.status == CollectionRunStatus.PARTIAL:
             message = (
@@ -505,9 +466,7 @@ class TenderCollectorDialog(QDialog):
             self.profile_summary.setText("Нет доступных профилей поиска.")
             return
         date_from = (
-            (date.today() - timedelta(days=profile.lookback_days)).strftime(
-                "%d.%m.%Y"
-            )
+            (date.today() - timedelta(days=profile.lookback_days)).strftime("%d.%m.%Y")
             if profile.lookback_days is not None
             else "без ограничения"
         )
@@ -558,11 +517,7 @@ class TenderCollectorDialog(QDialog):
             provider_id,
             status=label,
             found=str(max(0, item_count)),
-            elapsed=(
-                f"{elapsed_ms / 1000:.1f} с"
-                if elapsed_ms >= 1000
-                else f"{elapsed_ms} мс"
-            ),
+            elapsed=(f"{elapsed_ms / 1000:.1f} с" if elapsed_ms >= 1000 else f"{elapsed_ms} мс"),
             message=message,
             color=color,
         )
@@ -625,8 +580,7 @@ class TenderCollectorDialog(QDialog):
             self.start_button.setEnabled(False)
             return
         self.start_button.setEnabled(
-            bool(self._profiles)
-            and any(state.enabled for state in self._provider_states)
+            bool(self._profiles) and any(state.enabled for state in self._provider_states)
         )
 
     def _provider_ui_color(self, state: ProviderUiState) -> str:

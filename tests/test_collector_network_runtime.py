@@ -18,14 +18,10 @@ def test_network_runtime_builds_without_external_requests() -> None:
         return httpx.Response(200, request=request)
 
     async def scenario() -> None:
-        raw_client = httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        )
+        raw_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         runtime = create_collector_network_runtime(client=raw_client)
         assert calls == 0
-        assert runtime.settings.get("eis").domains == (
-            "zakupki.gov.ru",
-        )
+        assert runtime.settings.get("eis").domains == ("zakupki.gov.ru",)
         assert runtime.health_monitor.snapshot("eis").provider_id == "eis"
         await runtime.aclose()
         await raw_client.aclose()

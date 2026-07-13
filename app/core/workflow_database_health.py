@@ -78,9 +78,7 @@ class WorkflowDatabaseHealthReport:
             WorkflowDatabaseHealthStatus.MISSING: "Файл ещё не создан",
             WorkflowDatabaseHealthStatus.CORRUPTED: "Повреждён JSON",
             WorkflowDatabaseHealthStatus.INVALID: "Нарушена структура",
-            WorkflowDatabaseHealthStatus.INCOMPATIBLE: (
-                "Создана более новой версией"
-            ),
+            WorkflowDatabaseHealthStatus.INCOMPATIBLE: ("Создана более новой версией"),
         }[self.status]
 
 
@@ -106,10 +104,7 @@ class WorkflowDatabaseHealthService:
         catalog_service: WorkflowBackupCatalogService | None = None,
     ) -> None:
         self.backup_service = backup_service or WorkflowBackupService()
-        self.catalog_service = (
-            catalog_service
-            or WorkflowBackupCatalogService(self.backup_service)
-        )
+        self.catalog_service = catalog_service or WorkflowBackupCatalogService(self.backup_service)
 
     def inspect(
         self,
@@ -119,9 +114,7 @@ class WorkflowDatabaseHealthService:
     ) -> WorkflowDatabaseHealthReport:
         path = repository.path
         checked_at = datetime.now()
-        latest_backup = self._latest_valid_backup(
-            backup_directories
-        )
+        latest_backup = self._latest_valid_backup(backup_directories)
 
         if not path.exists():
             return WorkflowDatabaseHealthReport(
@@ -182,10 +175,7 @@ class WorkflowDatabaseHealthService:
                 checked_at,
                 WorkflowDatabaseHealthStatus.CORRUPTED,
                 "json_decode_error",
-                (
-                    f"Ошибка JSON: строка {exc.lineno}, "
-                    f"столбец {exc.colno}: {exc.msg}."
-                ),
+                (f"Ошибка JSON: строка {exc.lineno}, столбец {exc.colno}: {exc.msg}."),
                 latest_backup,
                 file_size=file_size,
             )
@@ -201,9 +191,7 @@ class WorkflowDatabaseHealthService:
                 file_size=file_size,
             )
 
-        schema_version = self._integer(
-            payload.get("schema_version", 0)
-        )
+        schema_version = self._integer(payload.get("schema_version", 0))
         issues: list[WorkflowDatabaseIssue] = []
 
         if schema_version < 1:
@@ -349,10 +337,7 @@ class WorkflowDatabaseHealthService:
                 issues.append(
                     WorkflowDatabaseIssue(
                         "event_orphan",
-                        (
-                            f"{prefix}: связанная запись "
-                            f"«{related_id}» не найдена."
-                        ),
+                        (f"{prefix}: связанная запись «{related_id}» не найдена."),
                     )
                 )
 
@@ -364,9 +349,7 @@ class WorkflowDatabaseHealthService:
                 BusinessAuditAction,
             )
 
-            occurred_at = str(
-                event.get("occurred_at", "")
-            ).strip()
+            occurred_at = str(event.get("occurred_at", "")).strip()
             if not occurred_at:
                 issues.append(
                     WorkflowDatabaseIssue(
@@ -381,17 +364,11 @@ class WorkflowDatabaseHealthService:
                     issues.append(
                         WorkflowDatabaseIssue(
                             "event_date_invalid",
-                            (
-                                f"{prefix}: неверная дата "
-                                f"«{occurred_at}»."
-                            ),
+                            (f"{prefix}: неверная дата «{occurred_at}»."),
                         )
                     )
 
-        if any(
-            issue.code == "schema_newer"
-            for issue in issues
-        ):
+        if any(issue.code == "schema_newer" for issue in issues):
             status = WorkflowDatabaseHealthStatus.INCOMPATIBLE
         elif issues:
             status = WorkflowDatabaseHealthStatus.INVALID
@@ -427,9 +404,7 @@ class WorkflowDatabaseHealthService:
         )
         latest = report.latest_valid_backup
         if latest is None:
-            raise FileNotFoundError(
-                "Не найдена исправная резервная копия."
-            )
+            raise FileNotFoundError("Не найдена исправная резервная копия.")
         return self.recover_from_backup(
             repository,
             latest.path,
@@ -452,10 +427,7 @@ class WorkflowDatabaseHealthService:
         if not inspection.valid:
             raise ValueError(
                 "Выбранная резервная копия повреждена:\n"
-                + "\n".join(
-                    f"• {error}"
-                    for error in inspection.errors
-                )
+                + "\n".join(f"• {error}" for error in inspection.errors)
             )
 
         quarantine = self.quarantine_current(
@@ -463,21 +435,17 @@ class WorkflowDatabaseHealthService:
             directory=quarantine_directory,
             timestamp=timestamp,
         )
-        restored: WorkflowBackupRestoreResult = (
-            self.backup_service.restore_backup(
-                source,
-                repository,
-                restored_at=timestamp,
-            )
+        restored: WorkflowBackupRestoreResult = self.backup_service.restore_backup(
+            source,
+            repository,
+            restored_at=timestamp,
         )
         final_report = self.inspect(
             repository,
             backup_directories=backup_directories,
         )
         if final_report.requires_recovery:
-            raise RuntimeError(
-                "После восстановления база не прошла диагностику."
-            )
+            raise RuntimeError("После восстановления база не прошла диагностику.")
 
         return WorkflowDatabaseRecoveryResult(
             restored_from=Path(source),
@@ -503,9 +471,7 @@ class WorkflowDatabaseHealthService:
         repository.replace_payload(
             {
                 "schema_version": repository.SCHEMA_VERSION,
-                "updated_at": timestamp.isoformat(
-                    timespec="seconds"
-                ),
+                "updated_at": timestamp.isoformat(timespec="seconds"),
                 "records": [],
                 "events": [],
             }
@@ -541,17 +507,11 @@ class WorkflowDatabaseHealthService:
         )
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        base_name = (
-            f"{source.stem}_corrupted_"
-            f"{moment:%Y%m%d_%H%M%S}"
-        )
+        base_name = f"{source.stem}_corrupted_{moment:%Y%m%d_%H%M%S}"
         destination = target_dir / f"{base_name}{source.suffix}"
         counter = 1
         while destination.exists():
-            destination = (
-                target_dir
-                / f"{base_name}_{counter}{source.suffix}"
-            )
+            destination = target_dir / f"{base_name}_{counter}{source.suffix}"
             counter += 1
 
         shutil.copy2(source, destination)
@@ -583,16 +543,13 @@ class WorkflowDatabaseHealthService:
                 try:
                     is_candidate = (
                         path.is_file()
-                        and path.suffix.lower()
-                        in self.catalog_service.SUPPORTED_SUFFIXES
+                        and path.suffix.lower() in self.catalog_service.SUPPORTED_SUFFIXES
                     )
                 except OSError:
                     continue
                 if not is_candidate:
                     continue
-                candidates[
-                    str(path.resolve(strict=False)).casefold()
-                ] = path
+                candidates[str(path.resolve(strict=False)).casefold()] = path
 
         ordered = sorted(
             candidates.values(),
@@ -633,9 +590,7 @@ class WorkflowDatabaseHealthService:
 
         for item in directories:
             path = Path(item).expanduser()
-            identity = str(
-                path.resolve(strict=False)
-            ).casefold()
+            identity = str(path.resolve(strict=False)).casefold()
             if identity in seen:
                 continue
             seen.add(identity)
@@ -664,10 +619,7 @@ class WorkflowDatabaseHealthService:
             issues.append(
                 WorkflowDatabaseIssue(
                     f"{field}_invalid",
-                    (
-                        f"{prefix}: неизвестное значение "
-                        f"{field} «{value}»."
-                    ),
+                    (f"{prefix}: неизвестное значение {field} «{value}»."),
                 )
             )
 
@@ -694,9 +646,7 @@ class WorkflowDatabaseHealthService:
             status=status,
             checked_at=checked_at,
             file_size=file_size,
-            issues=(
-                WorkflowDatabaseIssue(code, message),
-            ),
+            issues=(WorkflowDatabaseIssue(code, message),),
             latest_valid_backup=latest_backup,
         )
 

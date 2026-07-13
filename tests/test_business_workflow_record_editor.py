@@ -10,9 +10,7 @@ from app.repositories.business_metrics import (
 
 
 def test_update_record_changes_only_mutable_fields(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     original = repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-77",
@@ -47,9 +45,7 @@ def test_update_record_changes_only_mutable_fields(tmp_path) -> None:
 
 
 def test_update_record_can_clear_file_and_due_date(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-1",
@@ -70,9 +66,7 @@ def test_update_record_can_clear_file_and_due_date(tmp_path) -> None:
 
 
 def test_update_record_rejects_missing_record(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
 
     try:
         repository.update_record(

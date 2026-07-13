@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import os
 import threading
-from dataclasses import dataclass
-from datetime import datetime
 from time import sleep
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -55,9 +53,7 @@ class FakePage(QObject):
         preserve_content: bool = False,
         successful: bool = True,
     ) -> None:
-        self.refresh_calls.append(
-            (refreshing, preserve_content, successful)
-        )
+        self.refresh_calls.append((refreshing, preserve_content, successful))
 
     def set_data_state(self, state) -> None:
         self.states.append(state)

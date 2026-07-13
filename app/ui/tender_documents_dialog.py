@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 
 from PySide6.QtCore import QUrl, Qt, Signal
 from PySide6.QtGui import QDesktopServices
@@ -68,9 +67,7 @@ class TenderDocumentsDialog(QDialog):
         self._documents: tuple[StoredTenderDocument, ...] = ()
         self._download_busy = False
 
-        self.setWindowTitle(
-            "Corteris Tender AI — документация закупки"
-        )
+        self.setWindowTitle("Corteris Tender AI — документация закупки")
         self.setModal(False)
         self.resize(1120, 650)
 
@@ -89,10 +86,7 @@ class TenderDocumentsDialog(QDialog):
         title.setObjectName("TenderDocumentsTitle")
         title.setWordWrap(True)
         subtitle = QLabel(
-            (
-                f"Закупка № {tender.procurement_number} · "
-                f"Источник: {tender.source.value}"
-            ),
+            (f"Закупка № {tender.procurement_number} · Источник: {tender.source.value}"),
             summary,
         )
         subtitle.setObjectName("TenderDocumentsSubtitle")
@@ -137,20 +131,12 @@ class TenderDocumentsDialog(QDialog):
                 "Ошибка",
             )
         )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents
-        )
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(
             1,
             QHeaderView.ResizeMode.Stretch,
@@ -159,12 +145,8 @@ class TenderDocumentsDialog(QDialog):
             4,
             QHeaderView.ResizeMode.Stretch,
         )
-        self.table.itemSelectionChanged.connect(
-            self._update_selection_actions
-        )
-        self.table.cellDoubleClicked.connect(
-            lambda _row, _column: self._open_selected_file()
-        )
+        self.table.itemSelectionChanged.connect(self._update_selection_actions)
+        self.table.cellDoubleClicked.connect(lambda _row, _column: self._open_selected_file())
         table_layout.addWidget(self.table, 1)
         root.addWidget(table_frame, 1)
 
@@ -207,25 +189,19 @@ class TenderDocumentsDialog(QDialog):
             "Открыть файл",
             self,
         )
-        self.open_file_button.clicked.connect(
-            self._open_selected_file
-        )
+        self.open_file_button.clicked.connect(self._open_selected_file)
 
         self.open_folder_button = QPushButton(
             "Открыть папку",
             self,
         )
-        self.open_folder_button.clicked.connect(
-            self._open_tender_folder
-        )
+        self.open_folder_button.clicked.connect(self._open_tender_folder)
 
         self.refresh_button = QPushButton(
             "Обновить список",
             self,
         )
-        self.refresh_button.clicked.connect(
-            self.refresh_documents
-        )
+        self.refresh_button.clicked.connect(self.refresh_documents)
 
         actions.addWidget(self.download_button)
         actions.addWidget(self.force_download_button)
@@ -239,9 +215,7 @@ class TenderDocumentsDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
@@ -249,9 +223,7 @@ class TenderDocumentsDialog(QDialog):
         self.status_label = QLabel("", self)
         self.status_label.setObjectName("TenderDocumentsStatus")
         self.status_label.setWordWrap(True)
-        self.status_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.status_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         root.addWidget(self.status_label)
 
         self.apply_theme(self._theme)
@@ -285,14 +257,10 @@ class TenderDocumentsDialog(QDialog):
 
     def refresh_documents(self) -> None:
         selected_key = (
-            self.selected_document().document_key
-            if self.selected_document() is not None
-            else ""
+            self.selected_document().document_key if self.selected_document() is not None else ""
         )
         try:
-            self._documents = self.store.list_documents(
-                self.registry_key
-            )
+            self._documents = self.store.list_documents(self.registry_key)
         except Exception as exc:
             self._documents = ()
             self._populate_table()
@@ -303,13 +271,9 @@ class TenderDocumentsDialog(QDialog):
             return
 
         self._populate_table(selected_key)
-        available_count = sum(
-            document.available_locally
-            for document in self._documents
-        )
+        available_count = sum(document.available_locally for document in self._documents)
         failed_count = sum(
-            document.status == DocumentDownloadStatus.FAILED
-            for document in self._documents
+            document.status == DocumentDownloadStatus.FAILED for document in self._documents
         )
         self.total_metric.setText(str(len(self._documents)))
         self.available_metric.setText(str(available_count))
@@ -317,28 +281,16 @@ class TenderDocumentsDialog(QDialog):
 
         if not self._download_busy:
             if self._documents:
-                self.set_status(
-                    (
-                        f"Локальная папка: "
-                        f"{self.store.tender_folder(self.tender)}"
-                    )
-                )
+                self.set_status((f"Локальная папка: {self.store.tender_folder(self.tender)}"))
             else:
-                self.set_status(
-                    "Документы ещё не загружены. "
-                    "Нажмите «Скачать/обновить»."
-                )
+                self.set_status("Документы ещё не загружены. Нажмите «Скачать/обновить».")
 
     def _populate_table(self, selected_key: str = "") -> None:
         self.table.setRowCount(len(self._documents))
         selected_row = -1
 
         for row, document in enumerate(self._documents):
-            local_path = (
-                str(document.local_path)
-                if document.local_path is not None
-                else "—"
-            )
+            local_path = str(document.local_path) if document.local_path is not None else "—"
             values = (
                 _STATUS_LABELS.get(
                     document.status,
@@ -363,9 +315,7 @@ class TenderDocumentsDialog(QDialog):
                 selected_row = row
 
         if self._documents:
-            self.table.selectRow(
-                selected_row if selected_row >= 0 else 0
-            )
+            self.table.selectRow(selected_row if selected_row >= 0 else 0)
         self._update_selection_actions()
 
     def selected_document(self) -> StoredTenderDocument | None:
@@ -388,10 +338,7 @@ class TenderDocumentsDialog(QDialog):
         self._update_selection_actions()
 
         if busy:
-            self.set_status(
-                message
-                or "Загрузка документации выполняется в фоне…"
-            )
+            self.set_status(message or "Загрузка документации выполняется в фоне…")
 
     def set_download_result(
         self,
@@ -407,9 +354,7 @@ class TenderDocumentsDialog(QDialog):
             f"ошибок: {result.failed_count}",
         ]
         if result.catalog_warning:
-            parts.append(
-                f"предупреждение: {result.catalog_warning}"
-            )
+            parts.append(f"предупреждение: {result.catalog_warning}")
         self.set_status("; ".join(parts), error=result.failed_count > 0)
 
     def set_download_error(self, message: str) -> None:
@@ -421,14 +366,9 @@ class TenderDocumentsDialog(QDialog):
 
     def _update_selection_actions(self) -> None:
         document = self.selected_document()
-        available = (
-            not self._download_busy
-            and document is not None
-            and document.available_locally
-        )
-        has_local_documents = (
-            not self._download_busy
-            and any(item.available_locally for item in self._documents)
+        available = not self._download_busy and document is not None and document.available_locally
+        has_local_documents = not self._download_busy and any(
+            item.available_locally for item in self._documents
         )
         self.analysis_button.setEnabled(has_local_documents)
         self.open_file_button.setEnabled(available)
@@ -436,21 +376,13 @@ class TenderDocumentsDialog(QDialog):
 
     def _open_selected_file(self) -> None:
         document = self.selected_document()
-        if (
-            document is None
-            or document.local_path is None
-            or not document.local_path.is_file()
-        ):
+        if document is None or document.local_path is None or not document.local_path.is_file():
             return
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(document.local_path))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(document.local_path)))
 
     def _open_tender_folder(self) -> None:
         folder = self.store.tender_folder(self.tender)
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(folder))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def set_status(self, message: str, *, error: bool = False) -> None:
         self.status_label.setText(message)
@@ -550,20 +482,14 @@ def _format_bytes(value: int | None) -> str:
         if size < 1024 or current == units[-1]:
             break
         size /= 1024
-    return (
-        f"{int(size)} {unit}"
-        if unit == "Б"
-        else f"{size:.1f} {unit}"
-    )
+    return f"{int(size)} {unit}" if unit == "Б" else f"{size:.1f} {unit}"
 
 
 def _format_timestamp(value: str) -> str:
     if not value:
         return "—"
     try:
-        parsed = datetime.fromisoformat(
-            value.replace("Z", "+00:00")
-        )
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return value
     return parsed.strftime("%d.%m.%Y %H:%M")

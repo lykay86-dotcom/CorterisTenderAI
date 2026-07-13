@@ -1,7 +1,7 @@
 """Универсальный репозиторий SQLAlchemy."""
+
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Generic, TypeVar
 
 from sqlalchemy import Select, select

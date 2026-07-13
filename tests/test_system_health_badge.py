@@ -52,20 +52,14 @@ def _snapshot(
         latest_backup_at=datetime(2026, 7, 11, 23, 0),
         journal_count=5,
         severity=severity,
-        issues=(
-            "Тестовое предупреждение.",
-        )
-        if severity == SystemHealthSeverity.WARNING
-        else (),
+        issues=("Тестовое предупреждение.",) if severity == SystemHealthSeverity.WARNING else (),
     )
 
 
 def test_badge_displays_snapshot_and_tooltip() -> None:
     _app()
     badge = SystemHealthBadge()
-    badge.set_snapshot(
-        _snapshot(SystemHealthSeverity.WARNING)
-    )
+    badge.set_snapshot(_snapshot(SystemHealthSeverity.WARNING))
 
     assert badge.severity == SystemHealthSeverity.WARNING
     assert "Требуется внимание" in badge.text()
@@ -80,9 +74,7 @@ def test_badge_uses_valid_palette_tokens_in_both_themes() -> None:
     for theme in (ThemeName.DARK, ThemeName.LIGHT):
         palette = get_palette(theme)
         badge.apply_theme(theme)
-        badge.set_snapshot(
-            _snapshot(SystemHealthSeverity.SUCCESS)
-        )
+        badge.set_snapshot(_snapshot(SystemHealthSeverity.SUCCESS))
 
         assert palette.success in badge.styleSheet()
         assert palette.success_background in badge.styleSheet()

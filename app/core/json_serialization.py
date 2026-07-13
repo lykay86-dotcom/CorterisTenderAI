@@ -39,10 +39,7 @@ def json_default(value: Any) -> Any:
             key=lambda item: str(item),
         )
 
-    raise TypeError(
-        f"Object of type {type(value).__name__} "
-        "is not JSON serializable"
-    )
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 def json_dumps(

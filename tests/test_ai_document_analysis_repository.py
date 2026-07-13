@@ -37,9 +37,7 @@ def test_context_fingerprint_is_order_independent() -> None:
 
 
 def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> None:
-    documents = (
-        AiDocument("doc", "spec.pdf", "eis", "pdf", "now", "verified", "text", "abc"),
-    )
+    documents = (AiDocument("doc", "spec.pdf", "eis", "pdf", "now", "verified", "text", "abc"),)
     baseline = context_fingerprint(documents)
 
     assert baseline != context_fingerprint(documents, prompt_version="next")
@@ -126,9 +124,7 @@ def test_repository_migrates_rm109_table_without_deleting_history(tmp_path) -> N
 
     with sqlite3.connect(path) as connection:
         columns = {
-            row[1] for row in connection.execute(
-                "PRAGMA table_info(tender_ai_document_analyses)"
-            )
+            row[1] for row in connection.execute("PRAGMA table_info(tender_ai_document_analyses)")
         }
     assert "payload_version" in columns
 
@@ -154,9 +150,7 @@ def test_repository_persists_timezone_aware_dates_and_stable_latest(tmp_path) ->
     with sqlite3.connect(repository.path) as connection:
         dates = [
             row[0]
-            for row in connection.execute(
-                "SELECT created_at FROM tender_ai_document_analyses"
-            )
+            for row in connection.execute("SELECT created_at FROM tender_ai_document_analyses")
         ]
 
     assert latest is not None and latest.summary == "Second"

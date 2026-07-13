@@ -115,8 +115,7 @@ from app.ui.theme.colors import ThemeName
 
 
 class _ThreadPoolLike(Protocol):
-    def start(self, runnable: QRunnable) -> None:
-        ...
+    def start(self, runnable: QRunnable) -> None: ...
 
 
 class _SearchWorkerSignals(QObject):
@@ -150,7 +149,6 @@ class _TenderSearchWorker(QRunnable):
         self.signals.succeeded.emit(self.profile_id, result)
 
 
-
 class _FullAnalysisWorkerSignals(QObject):
     progress = Signal(str, object)
     succeeded = Signal(str, object)
@@ -171,9 +169,7 @@ class _TenderFullAnalysisWorker(QRunnable):
         self.setAutoDelete(True)
 
     def cancel(self) -> bool:
-        return self.cancellation_token.cancel(
-            "Полный анализ остановлен пользователем."
-        )
+        return self.cancellation_token.cancel("Полный анализ остановлен пользователем.")
 
     @Slot()
     def run(self) -> None:
@@ -276,7 +272,6 @@ class _TenderRequirementAnalysisWorker(QRunnable):
         self.signals.succeeded.emit(self.registry_key, result)
 
 
-
 class _ParticipationScoreWorkerSignals(QObject):
     succeeded = Signal(str, object)
     failed = Signal(str, str, str)
@@ -336,9 +331,7 @@ class _CollectorRunWorker(QRunnable):
         self.setAutoDelete(True)
 
     def cancel(self) -> bool:
-        return self.cancellation_token.cancel(
-            "Остановлено пользователем из интерфейса."
-        )
+        return self.cancellation_token.cancel("Остановлено пользователем из интерфейса.")
 
     @Slot()
     def run(self) -> None:
@@ -381,11 +374,7 @@ class _ProviderCheckWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
-            states = asyncio.run(
-                self.manager.check_providers(
-                    self.provider_ids
-                )
-            )
+            states = asyncio.run(self.manager.check_providers(self.provider_ids))
         except Exception as exc:
             self.signals.failed.emit(
                 type(exc).__name__,
@@ -424,9 +413,7 @@ class TenderSearchUiController(QObject):
         runtime: TenderSearchRuntime | None = None,
         provider_manager: CollectorProviderManager | None = None,
         collector_session: CollectorRunSession | None = None,
-        verification_review_service: (
-            TenderVerificationReviewService | None
-        ) = None,
+        verification_review_service: (TenderVerificationReviewService | None) = None,
         theme: ThemeName | str = ThemeName.DARK,
         thread_pool: _ThreadPoolLike | None = None,
         parent: QObject | None = None,
@@ -434,30 +421,18 @@ class TenderSearchUiController(QObject):
         super().__init__(parent)
 
         self.data_directory = Path(data_directory).expanduser()
-        self.runtime = runtime or create_tender_search_runtime(
-            self.data_directory
-        )
-        self.provider_manager = (
-            provider_manager
-            or CollectorProviderManager(self.data_directory)
-        )
-        self.collector_session = (
-            collector_session
-            or CollectorRunSession(self.data_directory)
-        )
+        self.runtime = runtime or create_tender_search_runtime(self.data_directory)
+        self.provider_manager = provider_manager or CollectorProviderManager(self.data_directory)
+        self.collector_session = collector_session or CollectorRunSession(self.data_directory)
         registry_path = (
             self.runtime.tender_registry.path
             if self.runtime.tender_registry is not None
             else self.data_directory / "tender_registry.sqlite3"
         )
-        self.verification_repository = CollectorStateRepository(
-            registry_path
-        )
+        self.verification_repository = CollectorStateRepository(registry_path)
         self.verification_review_service = (
             verification_review_service
-            or TenderVerificationReviewService(
-                self.verification_repository
-            )
+            or TenderVerificationReviewService(self.verification_repository)
         )
         try:
             self._theme = ThemeName(theme)
@@ -507,9 +482,7 @@ class TenderSearchUiController(QObject):
             str,
             _TenderFullAnalysisWorker,
         ] = {}
-        self._verification_dialogs: dict[
-            str, TenderVerificationDialog
-        ] = {}
+        self._verification_dialogs: dict[str, TenderVerificationDialog] = {}
         # PySide6 can release a QMenu wrapper created by QMenuBar.addMenu()
         # when no Python-side strong reference is retained, especially with
         # the offscreen test platform. Keep the menu alive with the controller.
@@ -522,12 +495,8 @@ class TenderSearchUiController(QObject):
         )
         self.action.setObjectName("actionTenderSearchProfiles")
         self.action.setShortcut(QKeySequence("Ctrl+Shift+F"))
-        self.action.setStatusTip(
-            "Открыть профили и запустить поиск тендеров"
-        )
-        self.action.triggered.connect(
-            self.open_profiles_dialog
-        )
+        self.action.setStatusTip("Открыть профили и запустить поиск тендеров")
+        self.action.triggered.connect(self.open_profiles_dialog)
 
         self.registry_action = QAction(
             "Реестр найденных тендеров…",
@@ -535,106 +504,68 @@ class TenderSearchUiController(QObject):
         )
         self.registry_action.setObjectName("actionTenderRegistry")
         self.registry_action.setShortcut(QKeySequence("Ctrl+Shift+R"))
-        self.registry_action.setStatusTip(
-            "Открыть локальный реестр найденных тендеров"
-        )
-        self.registry_action.setEnabled(
-            self.runtime.tender_registry is not None
-        )
-        self.registry_action.triggered.connect(
-            self.open_registry_dialog
-        )
+        self.registry_action.setStatusTip("Открыть локальный реестр найденных тендеров")
+        self.registry_action.setEnabled(self.runtime.tender_registry is not None)
+        self.registry_action.triggered.connect(self.open_registry_dialog)
 
         self.providers_action = QAction(
             "Источники тендеров…",
             self,
         )
-        self.providers_action.setObjectName(
-            "actionTenderProviders"
-        )
-        self.providers_action.setShortcut(
-            QKeySequence("Ctrl+Shift+S")
-        )
-        self.providers_action.setStatusTip(
-            "Настроить источники и проверить подключения"
-        )
-        self.providers_action.triggered.connect(
-            self.open_provider_manager_dialog
-        )
+        self.providers_action.setObjectName("actionTenderProviders")
+        self.providers_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self.providers_action.setStatusTip("Настроить источники и проверить подключения")
+        self.providers_action.triggered.connect(self.open_provider_manager_dialog)
 
         self.collector_action = QAction(
             "Запустить сборщик тендеров…",
             self,
         )
-        self.collector_action.setObjectName(
-            "actionTenderCollector"
-        )
-        self.collector_action.setShortcut(
-            QKeySequence("Ctrl+Shift+C")
-        )
-        self.collector_action.setStatusTip(
-            "Запустить автоматический сбор по включённым источникам"
-        )
-        self.collector_action.triggered.connect(
-            self.open_collector_dialog
-        )
+        self.collector_action.setObjectName("actionTenderCollector")
+        self.collector_action.setShortcut(QKeySequence("Ctrl+Shift+C"))
+        self.collector_action.setStatusTip("Запустить автоматический сбор по включённым источникам")
+        self.collector_action.triggered.connect(self.open_collector_dialog)
 
         self.company_capability_action = QAction(
             "Возможности компании…",
             self,
         )
-        self.company_capability_action.setObjectName(
-            "actionCompanyCapabilityProfile"
-        )
+        self.company_capability_action.setObjectName("actionCompanyCapabilityProfile")
         self.company_capability_action.setStatusTip(
             "Настроить подтверждённые возможности компании для рейтинга"
         )
-        self.company_capability_action.triggered.connect(
-            self.open_company_capability_dialog
-        )
+        self.company_capability_action.triggered.connect(self.open_company_capability_dialog)
 
         self.matching_catalog_action = QAction(
             "Каталог сопоставления…",
             self,
         )
-        self.matching_catalog_action.setObjectName(
-            "actionMatchingCatalog"
-        )
+        self.matching_catalog_action.setObjectName("actionMatchingCatalog")
         self.matching_catalog_action.setStatusTip(
             "Настроить ключевые слова, синонимы, ОКПД2, исключения и веса"
         )
-        self.matching_catalog_action.triggered.connect(
-            self.open_matching_catalog_dialog
-        )
+        self.matching_catalog_action.triggered.connect(self.open_matching_catalog_dialog)
 
         self.aggregator_discovery_action = QAction(
             "Очередь официальной проверки…",
             self,
         )
-        self.aggregator_discovery_action.setObjectName(
-            "actionAggregatorDiscoveryQueue"
-        )
+        self.aggregator_discovery_action.setObjectName("actionAggregatorDiscoveryQueue")
         self.aggregator_discovery_action.setStatusTip(
             "Показать обнаружения агрегаторов, ожидающие официальной проверки"
         )
-        self.aggregator_discovery_action.triggered.connect(
-            self.open_aggregator_discovery_dialog
-        )
+        self.aggregator_discovery_action.triggered.connect(self.open_aggregator_discovery_dialog)
 
-        self.scheduler_ui_controller = (
-            TenderCollectorSchedulerUiController(
-                self.data_directory,
-                profile_repository=self.runtime.repository,
-                provider_manager=self.provider_manager,
-                start_collector=self.try_start_collector,
-                is_collector_busy=(
-                    lambda: self._collector_worker is not None
-                ),
-                collector_finished_signal=self.collector_finished,
-                collector_failed_signal=self.collector_failed,
-                theme=self._theme,
-                parent=self,
-            )
+        self.scheduler_ui_controller = TenderCollectorSchedulerUiController(
+            self.data_directory,
+            profile_repository=self.runtime.repository,
+            provider_manager=self.provider_manager,
+            start_collector=self.try_start_collector,
+            is_collector_busy=(lambda: self._collector_worker is not None),
+            collector_finished_signal=self.collector_finished,
+            collector_failed_signal=self.collector_failed,
+            theme=self._theme,
+            parent=self,
         )
 
     @property
@@ -703,9 +634,7 @@ class TenderSearchUiController(QObject):
             if self.aggregator_discovery_action not in menu.actions():
                 menu.addAction(self.aggregator_discovery_action)
 
-            toolbar = self._find_or_create_tender_toolbar(
-                main_window
-            )
+            toolbar = self._find_or_create_tender_toolbar(main_window)
             self._tender_toolbar = toolbar
             setattr(
                 main_window,
@@ -761,9 +690,7 @@ class TenderSearchUiController(QObject):
     @Slot()
     def open_profiles_dialog(self) -> None:
         parent = self.parent()
-        parent_widget = (
-            parent if isinstance(parent, QWidget) else None
-        )
+        parent_widget = parent if isinstance(parent, QWidget) else None
 
         if self._profiles_dialog is None:
             self._profiles_dialog = TenderSearchProfilesDialog(
@@ -771,9 +698,7 @@ class TenderSearchUiController(QObject):
                 theme=self._theme,
                 parent=parent_widget,
             )
-            self._profiles_dialog.profile_run_requested.connect(
-                self.run_profile
-            )
+            self._profiles_dialog.profile_run_requested.connect(self.run_profile)
 
         self._profiles_dialog.refresh_profiles()
         self._profiles_dialog.open()
@@ -800,20 +725,15 @@ class TenderSearchUiController(QObject):
     def open_matching_catalog_dialog(self) -> None:
         parent = self.parent()
         parent_widget = parent if isinstance(parent, QWidget) else None
-        repository = (
-            self.runtime.matching_catalog_repository
-            or MatchingCatalogRepository(
-                self.data_directory / "tender_registry.sqlite3"
-            )
+        repository = self.runtime.matching_catalog_repository or MatchingCatalogRepository(
+            self.data_directory / "tender_registry.sqlite3"
         )
         if self._matching_catalog_dialog is None:
             self._matching_catalog_dialog = MatchingCatalogDialog(
                 repository,
                 parent=parent_widget,
             )
-            self._matching_catalog_dialog.catalog_saved.connect(
-                self._apply_matching_catalog
-            )
+            self._matching_catalog_dialog.catalog_saved.connect(self._apply_matching_catalog)
         self._matching_catalog_dialog.load_catalog()
         self._matching_catalog_dialog.open()
         self._matching_catalog_dialog.raise_()
@@ -823,11 +743,8 @@ class TenderSearchUiController(QObject):
     def open_aggregator_discovery_dialog(self) -> None:
         parent = self.parent()
         parent_widget = parent if isinstance(parent, QWidget) else None
-        repository = (
-            self.runtime.aggregator_discovery_repository
-            or AggregatorDiscoveryRepository(
-                self.data_directory / "tender_registry.sqlite3"
-            )
+        repository = self.runtime.aggregator_discovery_repository or AggregatorDiscoveryRepository(
+            self.data_directory / "tender_registry.sqlite3"
         )
         if self._aggregator_discovery_dialog is None:
             self._aggregator_discovery_dialog = AggregatorDiscoveryDialog(
@@ -849,42 +766,26 @@ class TenderSearchUiController(QObject):
     def open_registry_dialog(self) -> None:
         repository = self.runtime.tender_registry
         if repository is None:
-            self._set_profiles_status(
-                "Локальный реестр тендеров недоступен."
-            )
+            self._set_profiles_status("Локальный реестр тендеров недоступен.")
             return
 
         parent = self.parent()
-        parent_widget = (
-            parent if isinstance(parent, QWidget) else None
-        )
+        parent_widget = parent if isinstance(parent, QWidget) else None
         if self._registry_dialog is None:
             self._registry_dialog = TenderRegistryDialog(
                 repository,
                 theme=self._theme,
                 parent=parent_widget,
             )
-            self._registry_dialog.profiles_requested.connect(
-                self.open_profiles_dialog
-            )
-            self._registry_dialog.documents_requested.connect(
-                self.open_registry_documents
-            )
-            self._registry_dialog.analysis_requested.connect(
-                self.open_requirement_analysis
-            )
-            self._registry_dialog.score_requested.connect(
-                self.open_participation_score
-            )
-            self._registry_dialog.full_analysis_requested.connect(
-                self.open_full_analysis
-            )
+            self._registry_dialog.profiles_requested.connect(self.open_profiles_dialog)
+            self._registry_dialog.documents_requested.connect(self.open_registry_documents)
+            self._registry_dialog.analysis_requested.connect(self.open_requirement_analysis)
+            self._registry_dialog.score_requested.connect(self.open_participation_score)
+            self._registry_dialog.full_analysis_requested.connect(self.open_full_analysis)
             self._registry_dialog.commercial_estimate_requested.connect(
                 self.open_commercial_estimator
             )
-            self._registry_dialog.verification_requested.connect(
-                self.open_verification_details
-            )
+            self._registry_dialog.verification_requested.connect(self.open_verification_details)
 
         self._registry_dialog.refresh_records()
         self._registry_dialog.open()
@@ -894,26 +795,16 @@ class TenderSearchUiController(QObject):
     @Slot()
     def open_collector_dialog(self) -> None:
         parent = self.parent()
-        parent_widget = (
-            parent if isinstance(parent, QWidget) else None
-        )
+        parent_widget = parent if isinstance(parent, QWidget) else None
         if self._collector_dialog is None:
             self._collector_dialog = TenderCollectorDialog(
                 theme=self._theme,
                 parent=parent_widget,
             )
-            self._collector_dialog.start_requested.connect(
-                self.start_collector
-            )
-            self._collector_dialog.stop_requested.connect(
-                self.stop_collector
-            )
-            self._collector_dialog.sources_requested.connect(
-                self.open_provider_manager_dialog
-            )
-            self._collector_dialog.registry_requested.connect(
-                self.open_registry_dialog
-            )
+            self._collector_dialog.start_requested.connect(self.start_collector)
+            self._collector_dialog.stop_requested.connect(self.stop_collector)
+            self._collector_dialog.sources_requested.connect(self.open_provider_manager_dialog)
+            self._collector_dialog.registry_requested.connect(self.open_registry_dialog)
 
         self.refresh_collector_configuration()
         self._collector_dialog.open()
@@ -924,9 +815,7 @@ class TenderSearchUiController(QObject):
     def refresh_collector_configuration(self) -> None:
         if self._collector_dialog is None or self._collector_dialog.running:
             return
-        profiles = self.runtime.repository.list_profiles(
-            include_disabled=False
-        )
+        profiles = self.runtime.repository.list_profiles(include_disabled=False)
         self._collector_dialog.set_profiles(
             profiles,
             select_id=self._collector_profile_id,
@@ -959,46 +848,30 @@ class TenderSearchUiController(QObject):
             return False
         if self._collector_worker is not None:
             if self._collector_dialog is not None:
-                self._collector_dialog.set_status(
-                    "Сборщик уже выполняется."
-                )
+                self._collector_dialog.set_status("Сборщик уже выполняется.")
             return False
 
         try:
             profile = self.runtime.repository.get(normalized)
         except Exception as exc:
             if self._collector_dialog is not None:
-                self._collector_dialog.set_error(
-                    f"Не удалось загрузить профиль: {exc}"
-                )
+                self._collector_dialog.set_error(f"Не удалось загрузить профиль: {exc}")
             return False
         if not profile.enabled:
             if self._collector_dialog is not None:
-                self._collector_dialog.set_error(
-                    "Выбранный профиль отключён."
-                )
+                self._collector_dialog.set_error("Выбранный профиль отключён.")
             return False
 
         selected = tuple(
             dict.fromkeys(
-                str(item).strip().casefold()
-                for item in (provider_ids or ())
-                if str(item).strip()
+                str(item).strip().casefold() for item in (provider_ids or ()) if str(item).strip()
             )
         )
-        enabled = set(
-            self.provider_manager.enabled_provider_ids()
-        )
-        selected = tuple(
-            provider_id
-            for provider_id in selected
-            if provider_id in enabled
-        )
+        enabled = set(self.provider_manager.enabled_provider_ids())
+        selected = tuple(provider_id for provider_id in selected if provider_id in enabled)
         if not selected:
             if self._collector_dialog is not None:
-                self._collector_dialog.set_error(
-                    "Нет включённых источников для запуска."
-                )
+                self._collector_dialog.set_error("Нет включённых источников для запуска.")
             return False
 
         worker = _CollectorRunWorker(
@@ -1006,15 +879,9 @@ class TenderSearchUiController(QObject):
             profile.to_search_query(),
             selected,
         )
-        worker.signals.progress.connect(
-            self._on_collector_progress
-        )
-        worker.signals.succeeded.connect(
-            self._on_collector_succeeded
-        )
-        worker.signals.failed.connect(
-            self._on_collector_failed
-        )
+        worker.signals.progress.connect(self._on_collector_progress)
+        worker.signals.succeeded.connect(self._on_collector_succeeded)
+        worker.signals.failed.connect(self._on_collector_failed)
         self._collector_worker = worker
         self._collector_profile_id = normalized
 
@@ -1038,10 +905,7 @@ class TenderSearchUiController(QObject):
 
     @Slot(object)
     def _on_collector_progress(self, event: object) -> None:
-        if (
-            self._collector_dialog is not None
-            and isinstance(event, CollectorProgressEvent)
-        ):
+        if self._collector_dialog is not None and isinstance(event, CollectorProgressEvent):
             self._collector_dialog.apply_progress(event)
 
     @Slot(object)
@@ -1068,38 +932,26 @@ class TenderSearchUiController(QObject):
         self._collector_worker = None
         rendered = f"{error_type}: {message}"
         if self._collector_dialog is not None:
-            self._collector_dialog.set_error(
-                f"Сбор завершился ошибкой: {rendered}"
-            )
+            self._collector_dialog.set_error(f"Сбор завершился ошибкой: {rendered}")
         self.collector_failed.emit(rendered)
 
     @Slot()
     def open_provider_manager_dialog(self) -> None:
         parent = self.parent()
-        parent_widget = (
-            parent if isinstance(parent, QWidget) else None
-        )
+        parent_widget = parent if isinstance(parent, QWidget) else None
         if self._provider_dialog is None:
             self._provider_dialog = TenderProviderManagerDialog(
                 self.provider_manager.states(),
                 theme=self._theme,
                 parent=parent_widget,
             )
-            self._provider_dialog.provider_enabled_changed.connect(
-                self.set_provider_enabled
-            )
-            self._provider_dialog.provider_check_requested.connect(
-                self.check_provider_connection
-            )
+            self._provider_dialog.provider_enabled_changed.connect(self.set_provider_enabled)
+            self._provider_dialog.provider_check_requested.connect(self.check_provider_connection)
             self._provider_dialog.provider_configuration_requested.connect(
                 self.configure_provider_credentials
             )
-            self._provider_dialog.check_all_requested.connect(
-                self.check_all_provider_connections
-            )
-            self._provider_dialog.refresh_button.clicked.connect(
-                self.refresh_provider_states
-            )
+            self._provider_dialog.check_all_requested.connect(self.check_all_provider_connections)
+            self._provider_dialog.refresh_button.clicked.connect(self.refresh_provider_states)
 
         self.refresh_provider_states()
         self._provider_dialog.open()
@@ -1151,11 +1003,7 @@ class TenderSearchUiController(QObject):
             return
 
         state = next(
-            (
-                item
-                for item in self.provider_manager.states()
-                if item.provider_id == "mos_supplier"
-            ),
+            (item for item in self.provider_manager.states() if item.provider_id == "mos_supplier"),
             None,
         )
         parent = self._provider_dialog
@@ -1187,9 +1035,7 @@ class TenderSearchUiController(QObject):
 
         self.refresh_provider_states()
         if self._provider_dialog is not None:
-            self._provider_dialog.set_status(
-                "API-ключ сохранён в защищённом хранилище Windows."
-            )
+            self._provider_dialog.set_status("API-ключ сохранён в защищённом хранилище Windows.")
 
     @Slot(str)
     def check_provider_connection(
@@ -1200,44 +1046,30 @@ class TenderSearchUiController(QObject):
 
     @Slot()
     def check_all_provider_connections(self) -> None:
-        self._start_provider_checks(
-            self.provider_manager.enabled_provider_ids()
-        )
+        self._start_provider_checks(self.provider_manager.enabled_provider_ids())
 
     def _start_provider_checks(
         self,
         provider_ids: tuple[str, ...],
     ) -> None:
         normalized = tuple(
-            dict.fromkeys(
-                item.strip().casefold()
-                for item in provider_ids
-                if item.strip()
-            )
+            dict.fromkeys(item.strip().casefold() for item in provider_ids if item.strip())
         )
         if not normalized:
             if self._provider_dialog is not None:
-                self._provider_dialog.set_status(
-                    "Нет включённых источников для проверки."
-                )
+                self._provider_dialog.set_status("Нет включённых источников для проверки.")
             return
         if self._provider_check_worker is not None:
             if self._provider_dialog is not None:
-                self._provider_dialog.set_status(
-                    "Проверка источников уже выполняется."
-                )
+                self._provider_dialog.set_status("Проверка источников уже выполняется.")
             return
 
         worker = _ProviderCheckWorker(
             self.provider_manager,
             normalized,
         )
-        worker.signals.succeeded.connect(
-            self._on_provider_checks_succeeded
-        )
-        worker.signals.failed.connect(
-            self._on_provider_checks_failed
-        )
+        worker.signals.succeeded.connect(self._on_provider_checks_succeeded)
+        worker.signals.failed.connect(self._on_provider_checks_failed)
         self._provider_check_worker = worker
         self._provider_check_ids = normalized
 
@@ -1246,9 +1078,7 @@ class TenderSearchUiController(QObject):
                 normalized,
                 True,
             )
-            self._provider_dialog.set_status(
-                "Проверка подключений выполняется в фоне…"
-            )
+            self._provider_dialog.set_status("Проверка подключений выполняется в фоне…")
         self._thread_pool.start(worker)
 
     @Slot(object)
@@ -1265,15 +1095,12 @@ class TenderSearchUiController(QObject):
                 False,
             )
             if isinstance(states, tuple) and all(
-                isinstance(item, ProviderDisplayState)
-                for item in states
+                isinstance(item, ProviderDisplayState) for item in states
             ):
                 self._provider_dialog.set_states(states)
             else:
                 self.refresh_provider_states()
-            self._provider_dialog.set_status(
-                "Проверка источников завершена."
-            )
+            self._provider_dialog.set_status("Проверка источников завершена.")
 
     @Slot(str, str)
     def _on_provider_checks_failed(
@@ -1290,10 +1117,7 @@ class TenderSearchUiController(QObject):
                 False,
             )
             self._provider_dialog.set_status(
-                (
-                    "Проверка источников завершилась ошибкой: "
-                    f"{error_type}: {message}"
-                ),
+                (f"Проверка источников завершилась ошибкой: {error_type}: {message}"),
                 error=True,
             )
             self.refresh_provider_states()
@@ -1305,21 +1129,15 @@ class TenderSearchUiController(QObject):
             return
 
         if normalized in self._active_workers:
-            self._set_profiles_status(
-                "Этот профиль уже выполняется. Дождитесь завершения."
-            )
+            self._set_profiles_status("Этот профиль уже выполняется. Дождитесь завершения.")
             return
 
         worker = _TenderSearchWorker(
             self.runtime.runner,
             normalized,
         )
-        worker.signals.succeeded.connect(
-            self._on_search_succeeded
-        )
-        worker.signals.failed.connect(
-            self._on_search_failed
-        )
+        worker.signals.succeeded.connect(self._on_search_succeeded)
+        worker.signals.failed.connect(self._on_search_failed)
         self._active_workers[normalized] = worker
 
         if self._profiles_dialog is not None:
@@ -1340,9 +1158,7 @@ class TenderSearchUiController(QObject):
         self._active_workers.pop(profile_id, None)
         if self._profiles_dialog is not None:
             self._profiles_dialog.set_search_busy(False)
-            self._profiles_dialog.set_status(
-                "Поиск завершён. Открыта таблица результатов."
-            )
+            self._profiles_dialog.set_status("Поиск завершён. Открыта таблица результатов.")
             self._profiles_dialog.hide()
 
         if not isinstance(run, TenderSearchProfileRun):
@@ -1354,31 +1170,19 @@ class TenderSearchUiController(QObject):
             return
 
         parent = self.parent()
-        parent_widget = (
-            parent if isinstance(parent, QWidget) else None
-        )
+        parent_widget = parent if isinstance(parent, QWidget) else None
         dialog = TenderSearchResultsDialog(
             run,
             theme=self._theme,
             parent=parent_widget,
         )
         dialog.rerun_requested.connect(self.run_profile)
-        dialog.profiles_requested.connect(
-            self.open_profiles_dialog
-        )
-        dialog.documents_requested.connect(
-            self.open_tender_documents
-        )
+        dialog.profiles_requested.connect(self.open_profiles_dialog)
+        dialog.documents_requested.connect(self.open_tender_documents)
         dialog.full_analysis_requested.connect(
-            lambda tender: self.open_full_analysis(
-                tender_registry_key(tender)
-            )
+            lambda tender: self.open_full_analysis(tender_registry_key(tender))
         )
-        dialog.finished.connect(
-            lambda _result, current=dialog: (
-                self._forget_result_dialog(current)
-            )
-        )
+        dialog.finished.connect(lambda _result, current=dialog: self._forget_result_dialog(current))
         self._result_dialogs.append(dialog)
         dialog.show()
         dialog.raise_()
@@ -1393,57 +1197,43 @@ class TenderSearchUiController(QObject):
     def open_registry_documents(self, registry_key: str) -> None:
         repository = self.runtime.tender_registry
         if repository is None:
-            self._set_document_status(
-                "Локальный реестр тендеров недоступен."
-            )
+            self._set_document_status("Локальный реестр тендеров недоступен.")
             return
 
         tender = repository.get_tender(registry_key)
         if tender is None:
-            self._set_document_status(
-                "Не удалось восстановить карточку закупки из реестра."
-            )
+            self._set_document_status("Не удалось восстановить карточку закупки из реестра.")
             return
         self.open_tender_documents(tender)
 
     @Slot(object)
     def open_tender_documents(self, tender: object) -> None:
         if not isinstance(tender, UnifiedTender):
-            self._set_document_status(
-                "Выбрана неподдерживаемая карточка закупки."
-            )
+            self._set_document_status("Выбрана неподдерживаемая карточка закупки.")
             return
 
         store = self.runtime.document_store
         service = self.runtime.document_service
         if store is None or service is None:
-            self._set_document_status(
-                "Локальное хранилище документации недоступно."
-            )
+            self._set_document_status("Локальное хранилище документации недоступно.")
             return
 
         registry_key = tender_registry_key(tender)
         dialog = self._document_dialogs.get(registry_key)
         if dialog is None:
             parent = self.parent()
-            parent_widget = (
-                parent if isinstance(parent, QWidget) else None
-            )
+            parent_widget = parent if isinstance(parent, QWidget) else None
             dialog = TenderDocumentsDialog(
                 tender,
                 store,
                 theme=self._theme,
                 parent=parent_widget,
             )
-            dialog.download_requested.connect(
-                self.download_tender_documents
-            )
-            dialog.analysis_requested.connect(
-                self.open_requirement_analysis
-            )
+            dialog.download_requested.connect(self.download_tender_documents)
+            dialog.analysis_requested.connect(self.open_requirement_analysis)
             dialog.finished.connect(
-                lambda _result, key=registry_key, current=dialog: (
-                    self._forget_document_dialog(key, current)
+                lambda _result, key=registry_key, current=dialog: self._forget_document_dialog(
+                    key, current
                 )
             )
             self._document_dialogs[registry_key] = dialog
@@ -1467,18 +1257,14 @@ class TenderSearchUiController(QObject):
             return
         service = self.runtime.document_service
         if service is None:
-            self._set_document_status(
-                "Сервис загрузки документации недоступен."
-            )
+            self._set_document_status("Сервис загрузки документации недоступен.")
             return
 
         registry_key = tender_registry_key(tender)
         dialog = self._document_dialogs.get(registry_key)
         if registry_key in self._document_workers:
             if dialog is not None:
-                dialog.set_status(
-                    "Документация этой закупки уже загружается."
-                )
+                dialog.set_status("Документация этой закупки уже загружается.")
             return
 
         worker = _TenderDocumentWorker(
@@ -1486,12 +1272,8 @@ class TenderSearchUiController(QObject):
             tender,
             force=force,
         )
-        worker.signals.succeeded.connect(
-            self._on_document_download_succeeded
-        )
-        worker.signals.failed.connect(
-            self._on_document_download_failed
-        )
+        worker.signals.succeeded.connect(self._on_document_download_succeeded)
+        worker.signals.failed.connect(self._on_document_download_failed)
         self._document_workers[registry_key] = worker
 
         if dialog is not None:
@@ -1517,24 +1299,17 @@ class TenderSearchUiController(QObject):
         self._document_workers.pop(registry_key, None)
 
         dialog = self._document_dialogs.get(registry_key)
-        if (
-            dialog is not None
-            and isinstance(result, TenderDocumentDownloadResult)
-        ):
+        if dialog is not None and isinstance(result, TenderDocumentDownloadResult):
             dialog.set_download_result(result)
         elif dialog is not None:
-            dialog.set_download_error(
-                "Сервис вернул неподдерживаемый результат."
-            )
+            dialog.set_download_error("Сервис вернул неподдерживаемый результат.")
 
         if self._registry_dialog is not None:
             self._registry_dialog.refresh_records()
 
         analysis_dialog = self._analysis_dialogs.get(registry_key)
         if analysis_dialog is not None:
-            analysis_dialog.set_status(
-                "Документация обновлена. Запустите анализ повторно."
-            )
+            analysis_dialog.set_status("Документация обновлена. Запустите анализ повторно.")
 
         self.document_download_finished.emit(
             registry_key,
@@ -1580,26 +1355,18 @@ class TenderSearchUiController(QObject):
         dialog = self._verification_dialogs.get(normalized)
         if dialog is None:
             parent = self.parent()
-            parent_widget = (
-                parent if isinstance(parent, QWidget) else None
-            )
+            parent_widget = parent if isinstance(parent, QWidget) else None
             dialog = TenderVerificationDialog(
                 review,
                 theme=self._theme,
                 parent=parent_widget,
             )
-            dialog.resolve_requested.connect(
-                self.resolve_verification_field
-            )
-            dialog.clear_requested.connect(
-                self.clear_verification_field
-            )
-            dialog.refresh_requested.connect(
-                self.refresh_verification_details
-            )
+            dialog.resolve_requested.connect(self.resolve_verification_field)
+            dialog.clear_requested.connect(self.clear_verification_field)
+            dialog.refresh_requested.connect(self.refresh_verification_details)
             dialog.finished.connect(
-                lambda _result, key=normalized, current=dialog: (
-                    self._forget_verification_dialog(key, current)
+                lambda _result, key=normalized, current=dialog: self._forget_verification_dialog(
+                    key, current
                 )
             )
             self._verification_dialogs[normalized] = dialog
@@ -1619,9 +1386,7 @@ class TenderSearchUiController(QObject):
         if dialog is None:
             return
         try:
-            dialog.set_review(
-                self.verification_review_service.load(normalized)
-            )
+            dialog.set_review(self.verification_review_service.load(normalized))
             dialog.set_status("Данные обновлены.")
         except Exception as exc:
             dialog.set_status(str(exc), error=True)
@@ -1651,9 +1416,7 @@ class TenderSearchUiController(QObject):
             return
         if dialog is not None:
             dialog.set_review(review)
-            dialog.set_status(
-                "Ручной выбор сохранён. Рейтинг пересчитывается."
-            )
+            dialog.set_status("Ручной выбор сохранён. Рейтинг пересчитывается.")
         if self._registry_dialog is not None:
             self._registry_dialog.refresh_records()
         if self.runtime.participation_score_service is not None:
@@ -1682,9 +1445,7 @@ class TenderSearchUiController(QObject):
             return
         if dialog is not None:
             dialog.set_review(review)
-            dialog.set_status(
-                "Ручной выбор снят; восстановлен приоритет источников."
-            )
+            dialog.set_status("Ручной выбор снят; восстановлен приоритет источников.")
         if self._registry_dialog is not None:
             self._registry_dialog.refresh_records()
         if self.runtime.participation_score_service is not None:
@@ -1707,9 +1468,7 @@ class TenderSearchUiController(QObject):
         if dialog is None:
             repository = (
                 self.runtime.commercial_estimate_repository
-                or CommercialEstimateRepository(
-                    self.data_directory / "tender_registry.sqlite3"
-                )
+                or CommercialEstimateRepository(self.data_directory / "tender_registry.sqlite3")
             )
             tender = (
                 self.runtime.tender_registry.get_tender(normalized)
@@ -1725,9 +1484,7 @@ class TenderSearchUiController(QObject):
                 parent=parent_widget,
             )
             dialog.finished.connect(
-                lambda _result, key=normalized: (
-                    self._commercial_estimate_dialogs.pop(key, None)
-                )
+                lambda _result, key=normalized: self._commercial_estimate_dialogs.pop(key, None)
             )
             self._commercial_estimate_dialogs[normalized] = dialog
         dialog.open()
@@ -1761,8 +1518,8 @@ class TenderSearchUiController(QObject):
             dialog.requirements_requested.connect(self.open_requirement_analysis)
             dialog.score_requested.connect(self.open_participation_score)
             dialog.finished.connect(
-                lambda _result, key=normalized, current=dialog: (
-                    self._forget_full_analysis_dialog(key, current)
+                lambda _result, key=normalized, current=dialog: self._forget_full_analysis_dialog(
+                    key, current
                 )
             )
             self._full_analysis_dialogs[normalized] = dialog
@@ -1780,9 +1537,7 @@ class TenderSearchUiController(QObject):
         dialog = self._full_analysis_dialogs.get(normalized)
         if normalized in self._full_analysis_workers:
             if dialog is not None:
-                dialog.message_label.setText(
-                    "Полный анализ этой закупки уже выполняется."
-                )
+                dialog.message_label.setText("Полный анализ этой закупки уже выполняется.")
             return
         worker = _TenderFullAnalysisWorker(service, normalized)
         worker.signals.progress.connect(self._on_full_analysis_progress)
@@ -1854,29 +1609,23 @@ class TenderSearchUiController(QObject):
             return
         service = self.runtime.participation_score_service
         if service is None:
-            self._set_score_status(
-                "Сервис оценки участия недоступен."
-            )
+            self._set_score_status("Сервис оценки участия недоступен.")
             return
 
         dialog = self._score_dialogs.get(normalized)
         if dialog is None:
             parent = self.parent()
-            parent_widget = (
-                parent if isinstance(parent, QWidget) else None
-            )
+            parent_widget = parent if isinstance(parent, QWidget) else None
             dialog = TenderParticipationScoreDialog(
                 normalized,
                 score=service.latest(normalized),
                 theme=self._theme,
                 parent=parent_widget,
             )
-            dialog.recalculate_requested.connect(
-                self.run_participation_score
-            )
+            dialog.recalculate_requested.connect(self.run_participation_score)
             dialog.finished.connect(
-                lambda _result, key=normalized, current=dialog: (
-                    self._forget_score_dialog(key, current)
+                lambda _result, key=normalized, current=dialog: self._forget_score_dialog(
+                    key, current
                 )
             )
             self._score_dialogs[normalized] = dialog
@@ -1900,36 +1649,25 @@ class TenderSearchUiController(QObject):
             return
         service = self.runtime.participation_score_service
         if service is None:
-            self._set_score_status(
-                "Сервис оценки участия недоступен."
-            )
+            self._set_score_status("Сервис оценки участия недоступен.")
             return
         dialog = self._score_dialogs.get(normalized)
         if normalized in self._score_workers:
             if dialog is not None:
-                dialog.set_status(
-                    "Оценка этой закупки уже выполняется."
-                )
+                dialog.set_status("Оценка этой закупки уже выполняется.")
             return
 
         worker = _ParticipationScoreWorker(
             service,
             normalized,
         )
-        worker.signals.succeeded.connect(
-            self._on_participation_score_succeeded
-        )
-        worker.signals.failed.connect(
-            self._on_participation_score_failed
-        )
+        worker.signals.succeeded.connect(self._on_participation_score_succeeded)
+        worker.signals.failed.connect(self._on_participation_score_failed)
         self._score_workers[normalized] = worker
         if dialog is not None:
             dialog.set_busy(
                 True,
-                message=(
-                    "Расчёт рейтинга по карточке, документам "
-                    "и анализу требований…"
-                ),
+                message=("Расчёт рейтинга по карточке, документам и анализу требований…"),
             )
         self.score_started.emit(normalized)
         self._thread_pool.start(worker)
@@ -1980,17 +1718,13 @@ class TenderSearchUiController(QObject):
 
         service = self.runtime.requirement_analysis_service
         if service is None:
-            self._set_analysis_status(
-                "Сервис анализа требований недоступен."
-            )
+            self._set_analysis_status("Сервис анализа требований недоступен.")
             return
 
         dialog = self._analysis_dialogs.get(normalized)
         if dialog is None:
             parent = self.parent()
-            parent_widget = (
-                parent if isinstance(parent, QWidget) else None
-            )
+            parent_widget = parent if isinstance(parent, QWidget) else None
             latest = service.latest(normalized)
             dialog = TenderRequirementAnalysisDialog(
                 normalized,
@@ -1998,12 +1732,10 @@ class TenderSearchUiController(QObject):
                 theme=self._theme,
                 parent=parent_widget,
             )
-            dialog.analysis_requested.connect(
-                self.run_requirement_analysis
-            )
+            dialog.analysis_requested.connect(self.run_requirement_analysis)
             dialog.finished.connect(
-                lambda _result, key=normalized, current=dialog: (
-                    self._forget_analysis_dialog(key, current)
+                lambda _result, key=normalized, current=dialog: self._forget_analysis_dialog(
+                    key, current
                 )
             )
             self._analysis_dialogs[normalized] = dialog
@@ -2028,17 +1760,13 @@ class TenderSearchUiController(QObject):
             return
         service = self.runtime.requirement_analysis_service
         if service is None:
-            self._set_analysis_status(
-                "Сервис анализа требований недоступен."
-            )
+            self._set_analysis_status("Сервис анализа требований недоступен.")
             return
 
         dialog = self._analysis_dialogs.get(normalized)
         if normalized in self._analysis_workers:
             if dialog is not None:
-                dialog.set_status(
-                    "Анализ этой закупки уже выполняется."
-                )
+                dialog.set_status("Анализ этой закупки уже выполняется.")
             return
 
         worker = _TenderRequirementAnalysisWorker(
@@ -2046,12 +1774,8 @@ class TenderSearchUiController(QObject):
             normalized,
             force_extraction=force_extraction,
         )
-        worker.signals.succeeded.connect(
-            self._on_requirement_analysis_succeeded
-        )
-        worker.signals.failed.connect(
-            self._on_requirement_analysis_failed
-        )
+        worker.signals.succeeded.connect(self._on_requirement_analysis_succeeded)
+        worker.signals.failed.connect(self._on_requirement_analysis_failed)
         self._analysis_workers[normalized] = worker
 
         if dialog is not None:
@@ -2212,10 +1936,7 @@ class TenderSearchUiController(QObject):
             if menu is None:
                 continue
             title = menu.title().replace("&", "").strip().casefold()
-            if (
-                menu.objectName() == "tendersMenu"
-                or title == "тендеры"
-            ):
+            if menu.objectName() == "tendersMenu" or title == "тендеры":
                 return menu
 
         menu = menu_bar.addMenu("Тендеры")
@@ -2238,9 +1959,7 @@ class TenderSearchUiController(QObject):
         toolbar.setObjectName("tenderSearchToolBar")
         toolbar.setMovable(False)
         toolbar.setFloatable(False)
-        toolbar.setToolButtonStyle(
-            Qt.ToolButtonStyle.ToolButtonTextOnly
-        )
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         main_window.addToolBar(
             Qt.ToolBarArea.TopToolBarArea,
             toolbar,

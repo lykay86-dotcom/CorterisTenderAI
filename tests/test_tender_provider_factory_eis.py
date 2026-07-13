@@ -19,9 +19,7 @@ class NoNetworkTransport:
 
 
 def test_default_registry_uses_real_eis_and_keeps_other_placeholders() -> None:
-    registry = create_default_provider_registry(
-        http_transport=NoNetworkTransport()
-    )
+    registry = create_default_provider_registry(http_transport=NoNetworkTransport())
 
     assert isinstance(registry.get("eis"), EisTenderProvider)
     assert isinstance(registry.get("sber_a"), PlaceholderTenderProvider)

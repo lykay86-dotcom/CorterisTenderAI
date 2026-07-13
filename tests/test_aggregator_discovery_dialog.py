@@ -21,11 +21,13 @@ def _app():
 def test_dialog_displays_pending_discovery(tmp_path) -> None:
     app = _app()
     repository = AggregatorDiscoveryRepository(tmp_path / "registry.sqlite3")
-    repository.enqueue(make_tender(
-        source=TenderSource.CUSTOM,
-        external_id="agg-ui",
-        raw_metadata={"aggregator": True},
-    ))
+    repository.enqueue(
+        make_tender(
+            source=TenderSource.CUSTOM,
+            external_id="agg-ui",
+            raw_metadata={"aggregator": True},
+        )
+    )
 
     dialog = AggregatorDiscoveryDialog(repository)
 

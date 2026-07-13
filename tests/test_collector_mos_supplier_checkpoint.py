@@ -28,9 +28,7 @@ def _tender() -> UnifiedTender:
 
 
 def test_checkpoint_applies_publication_overlap(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     coordinator = MosSupplierCheckpointCoordinator(
         repository,
         policy=MosSupplierCheckpointPolicy(overlap_days=7),
@@ -55,9 +53,7 @@ def test_checkpoint_applies_publication_overlap(tmp_path) -> None:
 
 
 def test_explicit_date_disables_checkpoint_override(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     coordinator = MosSupplierCheckpointCoordinator(repository)
     initial = TenderSearchQuery(keywords=("СКУД",))
     coordinator.mark_success(

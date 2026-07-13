@@ -36,9 +36,7 @@ def test_session_closes_runtime_after_success(tmp_path) -> None:
         factory_calls = []
 
         def service_factory(data_directory, created_runtime, **kwargs):
-            factory_calls.append(
-                (data_directory, created_runtime, kwargs)
-            )
+            factory_calls.append((data_directory, created_runtime, kwargs))
             return service
 
         session = CollectorRunSession(

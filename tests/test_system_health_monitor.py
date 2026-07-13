@@ -66,9 +66,7 @@ def test_monitor_emits_result_and_failure() -> None:
     successful.request_refresh()
     _wait_until(lambda: bool(snapshots))
 
-    failing = SystemHealthMonitor(
-        lambda: (_ for _ in ()).throw(RuntimeError("boom"))
-    )
+    failing = SystemHealthMonitor(lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     failing.check_failed.connect(errors.append)
     failing.request_refresh()
     _wait_until(lambda: bool(errors))

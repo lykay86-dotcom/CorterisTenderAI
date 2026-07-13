@@ -119,8 +119,7 @@ class QuickActionTile(QFrame):
         self.setAccessibleName(spec.title)
         self.setAccessibleDescription(spec.description)
         self.setToolTip(
-            f"{spec.description}"
-            + (f"\nГорячая клавиша: {spec.shortcut}" if spec.shortcut else "")
+            f"{spec.description}" + (f"\nГорячая клавиша: {spec.shortcut}" if spec.shortcut else "")
         )
 
         root = QHBoxLayout(self)
@@ -272,9 +271,7 @@ class QuickActionTile(QFrame):
         """Reduce vertical density on smaller Dashboard layouts."""
         self._compact = bool(compact)
         self.description_label.setVisible(not self._compact)
-        self.shortcut_label.setVisible(
-            bool(self.spec.shortcut) and not self._compact
-        )
+        self.shortcut_label.setVisible(bool(self.spec.shortcut) and not self._compact)
         self.setMinimumHeight(78 if self._compact else 104)
 
         layout = self.layout()

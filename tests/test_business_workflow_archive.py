@@ -23,27 +23,19 @@ def _record(repository: BusinessMetricsRepository):
 
 
 def test_archive_hides_record_from_active_list(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = _record(repository)
 
     archived = repository.archive_record(record.id)
 
     assert archived.is_archived
     assert repository.list_records() == []
-    assert repository.list_records(
-        archived_only=True
-    ) == [archived]
-    assert repository.list_records(
-        include_archived=True
-    ) == [archived]
+    assert repository.list_records(archived_only=True) == [archived]
+    assert repository.list_records(include_archived=True) == [archived]
 
 
 def test_archive_excludes_record_from_summary(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = _record(repository)
 
     before = repository.summary()
@@ -57,9 +49,7 @@ def test_archive_excludes_record_from_summary(tmp_path) -> None:
 
 
 def test_restore_returns_record_to_active_workflow(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = _record(repository)
     repository.archive_record(record.id)
 
@@ -71,9 +61,7 @@ def test_restore_returns_record_to_active_workflow(tmp_path) -> None:
 
 
 def test_archived_record_cannot_be_edited(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = _record(repository)
     repository.archive_record(record.id)
 

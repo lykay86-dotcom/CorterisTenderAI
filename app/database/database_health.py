@@ -1,4 +1,5 @@
 """Диагностика и обслуживание локальной SQLite-базы."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

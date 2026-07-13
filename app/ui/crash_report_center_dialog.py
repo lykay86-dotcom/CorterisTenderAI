@@ -108,9 +108,7 @@ class CrashReportCenterDialog(QDialog):
             "Открыть папку",
             self,
         )
-        self.open_folder_button.clicked.connect(
-            self._open_selected_folder
-        )
+        self.open_folder_button.clicked.connect(self._open_selected_folder)
         self.open_folder_button.setEnabled(False)
 
         toolbar.addWidget(self.refresh_button)
@@ -127,21 +125,13 @@ class CrashReportCenterDialog(QDialog):
         self.table = QTableWidget(0, len(self.COLUMNS), self)
         self.table.setObjectName("CrashCenterTable")
         self.table.setHorizontalHeaderLabels(self.COLUMNS)
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(False)
         self.table.verticalHeader().hide()
-        self.table.itemSelectionChanged.connect(
-            self._selection_changed
-        )
+        self.table.itemSelectionChanged.connect(self._selection_changed)
 
         header = self.table.horizontalHeader()
         for column in (0, 2, 4, 5):
@@ -176,17 +166,13 @@ class CrashReportCenterDialog(QDialog):
         self.details_label = QLabel("", details_frame)
         self.details_label.setObjectName("CrashCenterDetailsText")
         self.details_label.setWordWrap(True)
-        self.details_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.details_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         details_layout.addWidget(self.details_label)
 
         self.traceback_edit = QTextEdit(details_frame)
         self.traceback_edit.setObjectName("CrashCenterTraceback")
         self.traceback_edit.setReadOnly(True)
-        self.traceback_edit.setPlaceholderText(
-            "Traceback выбранного отчёта"
-        )
+        self.traceback_edit.setPlaceholderText("Traceback выбранного отчёта")
         self.traceback_edit.setMinimumHeight(170)
         details_layout.addWidget(self.traceback_edit)
 
@@ -199,50 +185,34 @@ class CrashReportCenterDialog(QDialog):
             "Проверить повторно",
             self,
         )
-        self.verify_button.clicked.connect(
-            self._verify_selected
-        )
+        self.verify_button.clicked.connect(self._verify_selected)
         self.verify_button.setEnabled(False)
 
         self.copy_button = QPushButton(
             "Копировать детали",
             self,
         )
-        self.copy_button.clicked.connect(
-            self._copy_selected_details
-        )
+        self.copy_button.clicked.connect(self._copy_selected_details)
         self.copy_button.setEnabled(False)
 
         self.save_copy_button = QPushButton(
             "Сохранить копию…",
             self,
         )
-        self.save_copy_button.clicked.connect(
-            self._save_selected_copy
-        )
+        self.save_copy_button.clicked.connect(self._save_selected_copy)
         self.save_copy_button.setEnabled(False)
 
         self.support_button = QPushButton(
             "Пакет диагностики…",
             self,
         )
-        self.support_button.setObjectName(
-            "CrashCenterSupportButton"
-        )
-        self.support_button.setEnabled(
-            support_bundle_provider is not None
-        )
-        self.support_button.clicked.connect(
-            self._save_support_bundle
-        )
+        self.support_button.setObjectName("CrashCenterSupportButton")
+        self.support_button.setEnabled(support_bundle_provider is not None)
+        self.support_button.clicked.connect(self._save_support_bundle)
 
         self.delete_button = QPushButton("Удалить", self)
-        self.delete_button.setObjectName(
-            "CrashCenterDeleteButton"
-        )
-        self.delete_button.clicked.connect(
-            self._delete_selected
-        )
+        self.delete_button.setObjectName("CrashCenterDeleteButton")
+        self.delete_button.clicked.connect(self._delete_selected)
         self.delete_button.setEnabled(False)
 
         actions.addWidget(self.verify_button)
@@ -256,9 +226,7 @@ class CrashReportCenterDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        self.buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         self.buttons.rejected.connect(self.reject)
         actions.addWidget(self.buttons)
 
@@ -275,11 +243,7 @@ class CrashReportCenterDialog(QDialog):
         return None
 
     def refresh(self) -> None:
-        selected_path = (
-            self.selected_entry.path
-            if self.selected_entry is not None
-            else None
-        )
+        selected_path = self.selected_entry.path if self.selected_entry is not None else None
         try:
             self.entries = self.catalog_service.list_reports(
                 self.directories,
@@ -297,24 +261,10 @@ class CrashReportCenterDialog(QDialog):
         for row, entry in enumerate(self.entries):
             details = entry.details
             values = (
-                entry.created_timestamp.strftime(
-                    "%d.%m.%Y %H:%M:%S"
-                ),
-                (
-                    details.exception_type
-                    if details is not None
-                    else "Не удалось прочитать"
-                ),
-                (
-                    details.origin
-                    if details is not None
-                    else "—"
-                ),
-                (
-                    details.exception_message
-                    if details is not None
-                    else self._first_error(entry)
-                ),
+                entry.created_timestamp.strftime("%d.%m.%Y %H:%M:%S"),
+                (details.exception_type if details is not None else "Не удалось прочитать"),
+                (details.origin if details is not None else "—"),
+                (details.exception_message if details is not None else self._first_error(entry)),
                 self._size_text(entry.size_bytes),
                 "Исправен" if entry.valid else "Повреждён",
             )
@@ -334,9 +284,7 @@ class CrashReportCenterDialog(QDialog):
         valid_count = sum(1 for item in self.entries if item.valid)
         invalid_count = len(self.entries) - valid_count
         self.summary_label.setText(
-            f"Всего: {len(self.entries)} · "
-            f"исправных: {valid_count} · "
-            f"повреждённых: {invalid_count}"
+            f"Всего: {len(self.entries)} · исправных: {valid_count} · повреждённых: {invalid_count}"
         )
 
         selected_row = -1
@@ -366,9 +314,7 @@ class CrashReportCenterDialog(QDialog):
         self.delete_button.setEnabled(selected)
 
         if entry is None:
-            self.details_title.setText(
-                "Выберите crash-report."
-            )
+            self.details_title.setText("Выберите crash-report.")
             self.details_label.clear()
             self.traceback_edit.clear()
             return
@@ -383,10 +329,7 @@ class CrashReportCenterDialog(QDialog):
                         "Состояние: файл повреждён или несовместим",
                         "",
                         "Ошибки:",
-                        *(
-                            f"• {error}"
-                            for error in entry.inspection.errors
-                        ),
+                        *(f"• {error}" for error in entry.inspection.errors),
                     )
                 )
             )
@@ -395,9 +338,7 @@ class CrashReportCenterDialog(QDialog):
 
         created = details.created_timestamp
         created_text = (
-            created.strftime("%d.%m.%Y %H:%M:%S")
-            if created is not None
-            else details.created_at
+            created.strftime("%d.%m.%Y %H:%M:%S") if created is not None else details.created_at
         )
         self.details_label.setText(
             "\n".join(
@@ -413,9 +354,7 @@ class CrashReportCenterDialog(QDialog):
                 )
             )
         )
-        self.traceback_edit.setPlainText(
-            details.traceback_text
-        )
+        self.traceback_edit.setPlainText(details.traceback_text)
 
     def _verify_selected(self) -> None:
         entry = self.selected_entry
@@ -458,9 +397,7 @@ class CrashReportCenterDialog(QDialog):
         entry = self.selected_entry
         if entry is None:
             return
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(entry.path.parent))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(entry.path.parent)))
 
     def _copy_selected_details(self) -> None:
         entry = self.selected_entry
@@ -521,18 +458,12 @@ class CrashReportCenterDialog(QDialog):
         if provider is None:
             return
 
-        default_name = (
-            "CORTERIS_diagnostic_support_"
-            f"{datetime.now():%Y%m%d_%H%M%S}.ctsupport"
-        )
+        default_name = f"CORTERIS_diagnostic_support_{datetime.now():%Y%m%d_%H%M%S}.ctsupport"
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить пакет технической диагностики",
             str(Path.home() / "Documents" / default_name),
-            (
-                "Пакет диагностики CORTERIS (*.ctsupport);;"
-                "ZIP-архив (*.zip)"
-            ),
+            ("Пакет диагностики CORTERIS (*.ctsupport);;ZIP-архив (*.zip)"),
         )
         if not filename:
             return
@@ -561,21 +492,12 @@ class CrashReportCenterDialog(QDialog):
         if entry is None:
             return
 
-        external_note = (
-            "\n\nЭто внешний файл, добавленный вручную."
-            if not entry.managed
-            else ""
-        )
+        external_note = "\n\nЭто внешний файл, добавленный вручную." if not entry.managed else ""
         answer = QMessageBox.warning(
             self,
             "Удалить crash-report?",
-            (
-                "Файл будет удалён без возможности восстановления:\n"
-                f"{entry.path}"
-                f"{external_note}"
-            ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            (f"Файл будет удалён без возможности восстановления:\n{entry.path}{external_note}"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -595,11 +517,7 @@ class CrashReportCenterDialog(QDialog):
             )
             return
 
-        self.external_files = [
-            path
-            for path in self.external_files
-            if path != deleted
-        ]
+        self.external_files = [path for path in self.external_files if path != deleted]
         self.refresh()
 
     def apply_theme(self, theme: ThemeName | str) -> None:
@@ -705,9 +623,7 @@ class CrashReportCenterDialog(QDialog):
         result: list[Path] = []
         seen: set[str] = set()
         for path in paths:
-            identity = str(
-                path.expanduser().resolve(strict=False)
-            ).casefold()
+            identity = str(path.expanduser().resolve(strict=False)).casefold()
             if identity in seen:
                 continue
             seen.add(identity)

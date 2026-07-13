@@ -14,7 +14,7 @@ from html.parser import HTMLParser
 import mimetypes
 import re
 from time import perf_counter
-from typing import Callable, Iterable, Mapping, Sequence
+from typing import Callable, Iterable, Sequence
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 from app.tenders.http_client import (
@@ -79,13 +79,9 @@ class EisProviderConfig:
         if self.retry_attempts < 1:
             raise ValueError("retry_attempts must be at least 1")
         if self.retry_backoff_seconds < 0:
-            raise ValueError(
-                "retry_backoff_seconds must be non-negative"
-            )
+            raise ValueError("retry_backoff_seconds must be non-negative")
         if self.max_attempt_timeout_seconds <= 0:
-            raise ValueError(
-                "max_attempt_timeout_seconds must be positive"
-            )
+            raise ValueError("max_attempt_timeout_seconds must be positive")
         if not self.supported_page_sizes:
             raise ValueError("supported_page_sizes must not be empty")
 
@@ -99,11 +95,7 @@ class _Node:
 
     @property
     def classes(self) -> set[str]:
-        return {
-            item
-            for item in self.attrs.get("class", "").split()
-            if item
-        }
+        return {item for item in self.attrs.get("class", "").split() if item}
 
     def text(self) -> str:
         values: list[str] = []
@@ -139,8 +131,20 @@ class _Node:
 
 class _DomParser(HTMLParser):
     VOID_TAGS = {
-        "area", "base", "br", "col", "embed", "hr", "img", "input",
-        "link", "meta", "param", "source", "track", "wbr",
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
     }
 
     def __init__(self) -> None:
@@ -151,10 +155,7 @@ class _DomParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs) -> None:
         node = _Node(
             tag=tag.casefold(),
-            attrs={
-                str(key).casefold(): str(value or "")
-                for key, value in attrs
-            },
+            attrs={str(key).casefold(): str(value or "") for key, value in attrs},
             parent=self._stack[-1],
         )
         self._stack[-1].children.append(node)
@@ -200,13 +201,12 @@ class EisHtmlParser:
     def parse_search(self, html: str) -> EisParseResult:
         self._ensure_not_blocked(html)
         root = self._parse(html)
-        cards = root.find_all(
-            lambda node: "search-registry-entry-block" in node.classes
-        )
+        cards = root.find_all(lambda node: "search-registry-entry-block" in node.classes)
         if not cards:
             cards = root.find_all(
-                lambda node: "registry-entry" in node.classes
-                and node.tag in {"div", "article", "section"}
+                lambda node: (
+                    "registry-entry" in node.classes and node.tag in {"div", "article", "section"}
+                )
             )
 
         items: list[UnifiedTender] = []
@@ -231,9 +231,7 @@ class EisHtmlParser:
                 break
 
         if cards and not items:
-            raise EisParseError(
-                "EIS returned result cards, but none could be normalized"
-            )
+            raise EisParseError("EIS returned result cards, but none could be normalized")
         return EisParseResult(
             items=tuple(items),
             total=total,
@@ -251,9 +249,7 @@ class EisHtmlParser:
             if not href:
                 continue
             name = (
-                anchor.attrs.get("title", "").strip()
-                or anchor.text()
-                or _filename_from_url(href)
+                anchor.attrs.get("title", "").strip() or anchor.text() or _filename_from_url(href)
             )
             if not self._is_document_link(href, name):
                 continue
@@ -287,9 +283,8 @@ class EisHtmlParser:
 
         href = number_anchor.attrs.get("href", "") if number_anchor else ""
         if not href:
-            href = (
-                "/epz/order/extendedsearch/results.html?"
-                + urlencode({"searchString": procurement_number})
+            href = "/epz/order/extendedsearch/results.html?" + urlencode(
+                {"searchString": procurement_number}
             )
         source_url = urljoin(self.base_url, href)
 
@@ -302,10 +297,13 @@ class EisHtmlParser:
         if not title:
             raise EisParseError("не найдено наименование закупки")
 
-        customer_name = self._field_value(
-            card,
-            ("заказчик", "организация, осуществляющая размещение"),
-        ) or "Заказчик не указан"
+        customer_name = (
+            self._field_value(
+                card,
+                ("заказчик", "организация, осуществляющая размещение"),
+            )
+            or "Заказчик не указан"
+        )
         region = self._field_value(
             card,
             (
@@ -369,8 +367,7 @@ class EisHtmlParser:
 
     def _find_number_anchor(self, card: _Node) -> _Node | None:
         preferred = card.find_all(
-            lambda node: node.tag == "a"
-            and "registry-entry__header-mid__number" in node.classes
+            lambda node: node.tag == "a" and "registry-entry__header-mid__number" in node.classes
         )
         if preferred:
             return preferred[0]
@@ -423,8 +420,7 @@ class EisHtmlParser:
             candidates = [
                 value.text()
                 for value in values
-                if value.text()
-                and value.text().casefold() not in normalized_labels
+                if value.text() and value.text().casefold() not in normalized_labels
             ]
             if candidates:
                 return max(candidates, key=len)
@@ -511,9 +507,7 @@ class EisHtmlParser:
             "подтвердите, что вы не робот",
         )
         if any(marker in folded for marker in markers):
-            raise EisAccessBlockedError(
-                "ЕИС вернула страницу защиты доступа или CAPTCHA"
-            )
+            raise EisAccessBlockedError("ЕИС вернула страницу защиты доступа или CAPTCHA")
 
 
 def build_eis_search_url(
@@ -531,19 +525,11 @@ def build_eis_search_url(
             size,
         ),
     )
-    larger = [
-        size
-        for size in effective.supported_page_sizes
-        if size >= query.page_size
-    ]
+    larger = [size for size in effective.supported_page_sizes if size >= query.page_size]
     if larger:
         rounded_page_size = min(larger)
 
-    keywords = " ".join(
-        keyword.strip()
-        for keyword in query.keywords
-        if keyword.strip()
-    )
+    keywords = " ".join(keyword.strip() for keyword in query.keywords if keyword.strip())
     morphology = "off" if query.extra.get("exact_search") else "on"
     params: list[tuple[str, str]] = [
         ("searchString", keywords),
@@ -561,23 +547,16 @@ def build_eis_search_url(
         ("currencyIdGeneral", "-1"),
     ]
 
-    requested_laws = {
-        law.casefold().replace("ё", "е")
-        for law in query.laws
-    }
+    requested_laws = {law.casefold().replace("ё", "е") for law in query.laws}
     if not requested_laws or any("44" in law for law in requested_laws):
         params.append(("fz44", "on"))
     if not requested_laws or any("223" in law for law in requested_laws):
         params.append(("fz223", "on"))
 
     if query.date_from is not None:
-        params.append(
-            ("publishDateFrom", query.date_from.strftime("%d.%m.%Y"))
-        )
+        params.append(("publishDateFrom", query.date_from.strftime("%d.%m.%Y")))
     if query.date_to is not None:
-        params.append(
-            ("publishDateTo", query.date_to.strftime("%d.%m.%Y"))
-        )
+        params.append(("publishDateTo", query.date_to.strftime("%d.%m.%Y")))
     if query.min_price is not None and query.price_currency == "RUB":
         params.append(("priceFromGeneral", _format_number(query.min_price)))
     if query.max_price is not None and query.price_currency == "RUB":
@@ -622,8 +601,7 @@ def matches_eis_query(
     if query.laws and item.law:
         normalized_law = item.law.casefold()
         if not any(
-            law.strip().casefold() in normalized_law
-            or normalized_law in law.strip().casefold()
+            law.strip().casefold() in normalized_law or normalized_law in law.strip().casefold()
             for law in query.laws
             if law.strip()
         ):
@@ -631,20 +609,13 @@ def matches_eis_query(
 
     if item.price is not None:
         if (
-            (query.min_price is not None or query.max_price is not None)
-            and item.price.currency != query.price_currency
-        ):
+            query.min_price is not None or query.max_price is not None
+        ) and item.price.currency != query.price_currency:
             return False
         amount = item.price.amount
-        if (
-            query.min_price is not None
-            and amount < Decimal(str(query.min_price))
-        ):
+        if query.min_price is not None and amount < Decimal(str(query.min_price)):
             return False
-        if (
-            query.max_price is not None
-            and amount > Decimal(str(query.max_price))
-        ):
+        if query.max_price is not None and amount > Decimal(str(query.max_price)):
             return False
 
     if item.published_at is not None:
@@ -702,14 +673,10 @@ class EisTenderProvider(TenderProvider):
         self.transport = transport or UrllibHttpTransport(
             retry_policy=HttpRetryPolicy(
                 max_attempts=self.config.retry_attempts,
-                backoff_seconds=(
-                    self.config.retry_backoff_seconds
-                ),
+                backoff_seconds=(self.config.retry_backoff_seconds),
                 backoff_multiplier=2.0,
                 timeout_multiplier=1.5,
-                max_attempt_timeout_seconds=(
-                    self.config.max_attempt_timeout_seconds
-                ),
+                max_attempt_timeout_seconds=(self.config.max_attempt_timeout_seconds),
             )
         )
         self.parser = EisHtmlParser(base_url=self.config.base_url)
@@ -724,13 +691,11 @@ class EisTenderProvider(TenderProvider):
 
         warnings = list(parsed.warnings)
         warnings.append(
-            "Использован публичный HTML-интерфейс ЕИС; "
-            "структура страницы может изменяться."
+            "Использован публичный HTML-интерфейс ЕИС; структура страницы может изменяться."
         )
         if rounded_page_size != query.page_size:
             warnings.append(
-                f"Размер страницы ЕИС округлён: "
-                f"{query.page_size} → {rounded_page_size}."
+                f"Размер страницы ЕИС округлён: {query.page_size} → {rounded_page_size}."
             )
         if query.regions:
             warnings.append(
@@ -738,11 +703,9 @@ class EisTenderProvider(TenderProvider):
                 "тендеры без региона сохраняются."
             )
 
-        items = tuple(
-            item
-            for item in parsed.items
-            if matches_eis_query(item, query)
-        )[: query.page_size]
+        items = tuple(item for item in parsed.items if matches_eis_query(item, query))[
+            : query.page_size
+        ]
 
         return TenderSearchResult(
             provider_id=self.descriptor.id,
@@ -752,8 +715,7 @@ class EisTenderProvider(TenderProvider):
             page_size=query.page_size,
             next_page_token=(
                 str(query.page + 1)
-                if parsed.total is None
-                or query.page * rounded_page_size < parsed.total
+                if parsed.total is None or query.page * rounded_page_size < parsed.total
                 else ""
             ),
             warnings=tuple(dict.fromkeys(warnings)),
@@ -777,9 +739,7 @@ class EisTenderProvider(TenderProvider):
                 item.procurement_number,
             }:
                 return item
-        raise TenderProviderError(
-            f"Закупка ЕИС {normalized} не найдена"
-        )
+        raise TenderProviderError(f"Закупка ЕИС {normalized} не найдена")
 
     def list_documents(self, external_id: str) -> Sequence[TenderDocument]:
         tender = self.get_tender(external_id)
@@ -789,9 +749,7 @@ class EisTenderProvider(TenderProvider):
 
     def check_health(self) -> ProviderHealth:
         started = perf_counter()
-        checked_at = datetime.now(timezone.utc).isoformat(
-            timespec="seconds"
-        )
+        checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         try:
             response = self._get(
                 urljoin(self.config.base_url, self.config.home_path),
@@ -808,8 +766,7 @@ class EisTenderProvider(TenderProvider):
 
         text = response.text()
         if response.status_code == 200 and (
-            "единая информационная система" in text.casefold()
-            or "закуп" in text.casefold()
+            "единая информационная система" in text.casefold() or "закуп" in text.casefold()
         ):
             status = ProviderHealthStatus.AVAILABLE
             message = "Публичная часть ЕИС доступна."
@@ -868,18 +825,11 @@ class EisTenderProvider(TenderProvider):
                     "ЕИС не ответила в пределах сетевого таймаута"
                 )
             elif "connection timed out" in detail:
-                detail = (
-                    "истёк таймаут подключения "
-                    f"после {exc.attempts} попыток"
-                )
-            raise TenderProviderError(
-                f"Ошибка подключения к ЕИС: {detail}"
-            ) from exc
+                detail = f"истёк таймаут подключения после {exc.attempts} попыток"
+            raise TenderProviderError(f"Ошибка подключения к ЕИС: {detail}") from exc
 
         if not allow_non_200 and response.status_code != 200:
-            raise TenderProviderError(
-                f"ЕИС вернула HTTP {response.status_code}"
-            )
+            raise TenderProviderError(f"ЕИС вернула HTTP {response.status_code}")
         return response
 
     @staticmethod
@@ -990,8 +940,8 @@ def _parse_file_size(value: str) -> int | None:
     multiplier = {
         "Б": 1,
         "КБ": 1024,
-        "МБ": 1024 ** 2,
-        "ГБ": 1024 ** 3,
+        "МБ": 1024**2,
+        "ГБ": 1024**3,
     }[match.group(2).upper()]
     return int(number * multiplier)
 

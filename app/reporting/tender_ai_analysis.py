@@ -14,7 +14,9 @@ class TenderAiAnalysisExporter:
         path = Path(destination)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.suffix.lower() == ".json":
-            path.write_text(json.dumps(analysis.to_payload(), ensure_ascii=False, indent=2), encoding="utf-8")
+            path.write_text(
+                json.dumps(analysis.to_payload(), ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         elif path.suffix.lower() in {".html", ".htm"}:
             path.write_text(self._html(analysis), encoding="utf-8")
         else:
@@ -27,14 +29,24 @@ class TenderAiAnalysisExporter:
             rows = []
             for item in items:
                 proof = item.evidence
-                citation = f"{escape(proof.document_id)}: {escape(proof.quote)} ({proof.confidence:.0%})" if proof else "unverified"
-                rows.append(f"<tr><td>{escape(item.category)}</td><td>{escape(item.statement)}</td><td>{citation}</td></tr>")
+                citation = (
+                    f"{escape(proof.document_id)}: {escape(proof.quote)} ({proof.confidence:.0%})"
+                    if proof
+                    else "unverified"
+                )
+                rows.append(
+                    f"<tr><td>{escape(item.category)}</td><td>{escape(item.statement)}</td><td>{citation}</td></tr>"
+                )
             return "".join(rows)
 
-        all_requirements = tuple(item for name in analysis.requirements.__dataclass_fields__ for item in getattr(analysis.requirements, name))
-        warnings = "".join(
-            f"<li>{escape(item)}</li>" for item in analysis.warnings
-        ) or "<li>Нет.</li>"
+        all_requirements = tuple(
+            item
+            for name in analysis.requirements.__dataclass_fields__
+            for item in getattr(analysis.requirements, name)
+        )
+        warnings = (
+            "".join(f"<li>{escape(item)}</li>" for item in analysis.warnings) or "<li>Нет.</li>"
+        )
         context_note = (
             "<p><strong>Контекст сокращён по безопасному лимиту.</strong></p>"
             if analysis.context_truncated

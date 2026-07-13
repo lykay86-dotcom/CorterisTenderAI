@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
@@ -30,9 +31,7 @@ def test_registry_shows_verification_column_and_signal(tmp_path) -> None:
         TenderDeduplicator().deduplicate((make_tender(),)),
         observed_at="2026-07-12T12:00:00+00:00",
     )
-    freshness = TenderFreshnessService(
-        user_timezone="UTC"
-    ).evaluate(
+    freshness = TenderFreshnessService(user_timezone="UTC").evaluate(
         verification,
         now="2026-07-12T12:00:00+00:00",
     )

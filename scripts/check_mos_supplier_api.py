@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Manual diagnostic for the official Moscow Supplier Portal API.
 
 The script never prints the bearer token. It exits with code 2 when the token
@@ -50,8 +51,7 @@ async def _run(args: argparse.Namespace) -> int:
     config = MosSupplierApiConfig.from_environment()
     if not config.configured:
         print(
-            "Портал поставщиков не настроен. Задайте "
-            "CORTERIS_MOS_API_KEY в текущем окружении.",
+            "Портал поставщиков не настроен. Задайте CORTERIS_MOS_API_KEY в текущем окружении.",
             file=sys.stderr,
         )
         return 2

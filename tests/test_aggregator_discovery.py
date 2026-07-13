@@ -80,9 +80,7 @@ def test_queue_processor_builds_official_query_without_using_aggregator_values(t
         queries.append(query)
         return None
 
-    results = AggregatorOfficialVerificationService(
-        repository, lookup
-    ).verify_pending()
+    results = AggregatorOfficialVerificationService(repository, lookup).verify_pending()
 
     assert results[0].status == AggregatorDiscoveryStatus.OFFICIAL_MATCH_NOT_FOUND
     assert queries[0].keywords == (_aggregator().procurement_number,)

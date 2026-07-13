@@ -7,7 +7,9 @@ from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
 
 def test_export_creates_json_and_html_sections(tmp_path) -> None:
-    analysis = AiDocumentAnalysis("procurement:test", "Summary", final_ai_conclusion="Review", status="complete")
+    analysis = AiDocumentAnalysis(
+        "procurement:test", "Summary", final_ai_conclusion="Review", status="complete"
+    )
     exporter = TenderAiAnalysisExporter()
 
     json_path = exporter.export(analysis, tmp_path / "analysis.json")
@@ -36,12 +38,8 @@ def test_export_supports_all_error_safe_statuses(tmp_path, status: str) -> None:
         warnings=("Безопасное предупреждение.",),
     )
 
-    json_path = TenderAiAnalysisExporter().export(
-        analysis, tmp_path / f"{status}.json"
-    )
-    html_path = TenderAiAnalysisExporter().export(
-        analysis, tmp_path / f"{status}.html"
-    )
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / f"{status}.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / f"{status}.html")
 
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     html = html_path.read_text(encoding="utf-8")

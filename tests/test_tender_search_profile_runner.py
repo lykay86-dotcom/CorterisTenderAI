@@ -32,9 +32,7 @@ class FakeSearchService:
 def test_runner_resolves_profile_and_forwards_settings(
     tmp_path,
 ) -> None:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
     repository.save(
         TenderSearchProfile(
@@ -68,17 +66,11 @@ def test_runner_resolves_profile_and_forwards_settings(
     assert query.page == 3
     assert kwargs["provider_ids"] == ("eis",)
     assert kwargs["parallel"] is False
-    assert kwargs[
-        "filter_options"
-    ].required_directions == (
-        TenderDirection.BARRIERS,
-    )
+    assert kwargs["filter_options"].required_directions == (TenderDirection.BARRIERS,)
 
 
 def test_runner_rejects_disabled_profile(tmp_path) -> None:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
     repository.set_enabled("ops", False)
     runner = TenderSearchProfileRunner(

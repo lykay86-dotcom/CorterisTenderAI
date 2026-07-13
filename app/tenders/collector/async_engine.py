@@ -24,7 +24,6 @@ from app.tenders.collector.progress import (
 from app.tenders.provider_base import (
     ProviderCapabilityError,
     ProviderNotConfiguredError,
-    TenderProviderError,
     TenderSearchQuery,
     TenderSearchResult,
 )
@@ -72,11 +71,7 @@ class AsyncProviderBatchResult:
 
     @property
     def raw_items(self):
-        return tuple(
-            item
-            for result in self.results
-            for item in result.items
-        )
+        return tuple(item for result in self.results for item in result.items)
 
     @property
     def has_partial_failures(self) -> bool:
@@ -106,9 +101,7 @@ class AsyncProviderSearchEngine:
         provider_timeout_seconds: float = 60.0,
     ) -> None:
         if max_concurrent_providers < 1:
-            raise ValueError(
-                "max_concurrent_providers must be at least 1"
-            )
+            raise ValueError("max_concurrent_providers must be at least 1")
         if provider_timeout_seconds <= 0:
             raise ValueError("provider_timeout_seconds must be positive")
         self.providers = tuple(
@@ -170,9 +163,7 @@ class AsyncProviderSearchEngine:
         executions: tuple[_Execution, ...]
         if tasks:
             cancel_task = asyncio.create_task(token.wait_cancelled())
-            gather_task = asyncio.ensure_future(
-                asyncio.gather(*tasks, return_exceptions=True)
-            )
+            gather_task = asyncio.ensure_future(asyncio.gather(*tasks, return_exceptions=True))
             done, _ = await asyncio.wait(
                 {gather_task, cancel_task},
                 return_when=asyncio.FIRST_COMPLETED,
@@ -197,27 +188,19 @@ class AsyncProviderSearchEngine:
                 )
                 raw = await gather_task
                 executions = tuple(
-                    self._coerce_execution(provider, item)
-                    for provider, item in zip(selected, raw)
+                    self._coerce_execution(provider, item) for provider, item in zip(selected, raw)
                 )
         else:
             executions = ()
 
         results = tuple(
-            execution.result
-            for execution in executions
-            if execution.result is not None
+            execution.result for execution in executions if execution.result is not None
         )
-        outcomes = tuple(
-            execution.outcome for execution in executions
-        )
+        outcomes = tuple(execution.outcome for execution in executions)
         effective_cancelled = (
             cancelled
             or token.is_cancelled
-            or any(
-                outcome.status == AsyncProviderSearchStatus.CANCELLED
-                for outcome in outcomes
-            )
+            or any(outcome.status == AsyncProviderSearchStatus.CANCELLED for outcome in outcomes)
         )
         return AsyncProviderBatchResult(
             results=results,
@@ -243,13 +226,9 @@ class AsyncProviderSearchEngine:
         result: list[_Execution] = []
         for provider, value in zip(providers, values):
             if isinstance(value, asyncio.CancelledError):
-                result.append(
-                    self._cancelled_execution(provider, reason)
-                )
+                result.append(self._cancelled_execution(provider, reason))
             else:
-                result.append(
-                    self._coerce_execution(provider, value)
-                )
+                result.append(self._coerce_execution(provider, value))
         return tuple(result)
 
     def _select(
@@ -259,9 +238,7 @@ class AsyncProviderSearchEngine:
         if provider_ids is None:
             return self.providers
         requested = {
-            provider_id.strip().casefold()
-            for provider_id in provider_ids
-            if provider_id.strip()
+            provider_id.strip().casefold() for provider_id in provider_ids if provider_id.strip()
         }
         return tuple(
             provider
@@ -298,10 +275,7 @@ class AsyncProviderSearchEngine:
                 item_count=outcome.item_count,
                 elapsed_ms=outcome.elapsed_ms,
                 total_providers=total_providers,
-                message=(
-                    outcome.error_message
-                    or _provider_status_message(outcome.status)
-                ),
+                message=(outcome.error_message or _provider_status_message(outcome.status)),
             ),
         )
         return execution
@@ -343,10 +317,7 @@ class AsyncProviderSearchEngine:
                     status=AsyncProviderSearchStatus.CIRCUIT_OPEN,
                     elapsed_ms=0,
                     error_type="ProviderCircuitOpenError",
-                    error_message=(
-                        "Источник временно пропущен: "
-                        f"{snapshot.status.value}."
-                    ),
+                    error_message=(f"Источник временно пропущен: {snapshot.status.value}."),
                 ),
             )
 
@@ -365,9 +336,7 @@ class AsyncProviderSearchEngine:
                         message="Выполняется поиск по источнику…",
                     ),
                 )
-                async with asyncio.timeout(
-                    self.provider_timeout_seconds
-                ):
+                async with asyncio.timeout(self.provider_timeout_seconds):
                     result = await provider.search(
                         query,
                         cancellation_token=cancellation_token,
@@ -430,10 +399,7 @@ class AsyncProviderSearchEngine:
                 AsyncProviderSearchStatus.TIMED_OUT,
                 elapsed_ms,
                 exc,
-                message=(
-                    "Источник не завершил поиск за "
-                    f"{self.provider_timeout_seconds:g} сек."
-                ),
+                message=(f"Источник не завершил поиск за {self.provider_timeout_seconds:g} сек."),
             )
         except (CollectorCancelledError, asyncio.CancelledError) as exc:
             elapsed_ms = round((perf_counter() - started) * 1000)
@@ -442,10 +408,7 @@ class AsyncProviderSearchEngine:
                 AsyncProviderSearchStatus.CANCELLED,
                 elapsed_ms,
                 exc,
-                message=(
-                    cancellation_token.reason
-                    or "Операция отменена пользователем."
-                ),
+                message=(cancellation_token.reason or "Операция отменена пользователем."),
             )
         except Exception as exc:
             elapsed_ms = round((perf_counter() - started) * 1000)
@@ -499,9 +462,7 @@ class AsyncProviderSearchEngine:
                 status=AsyncProviderSearchStatus.CANCELLED,
                 elapsed_ms=0,
                 error_type="CollectorCancelledError",
-                error_message=(
-                    reason or "Операция отменена пользователем."
-                ),
+                error_message=(reason or "Операция отменена пользователем."),
             ),
         )
 
@@ -539,9 +500,7 @@ def _provider_status_message(
         AsyncProviderSearchStatus.TIMED_OUT: "Истекло время ожидания.",
         AsyncProviderSearchStatus.CANCELLED: "Источник остановлен.",
         AsyncProviderSearchStatus.SKIPPED: "Источник пропущен.",
-        AsyncProviderSearchStatus.CIRCUIT_OPEN: (
-            "Источник временно отключён после ошибок."
-        ),
+        AsyncProviderSearchStatus.CIRCUIT_OPEN: ("Источник временно отключён после ошибок."),
     }[status]
 
 

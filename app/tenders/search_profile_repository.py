@@ -38,9 +38,7 @@ class TenderSearchProfileRepository:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
         self._builtins = tuple(
-            builtins
-            if builtins is not None
-            else create_builtin_search_profiles()
+            builtins if builtins is not None else create_builtin_search_profiles()
         )
         self._validate_builtin_catalog()
 
@@ -81,18 +79,12 @@ class TenderSearchProfileRepository:
         with self._lock:
             profiles, _ = self._load_and_merge_unlocked()
             index = next(
-                (
-                    position
-                    for position, item in enumerate(profiles)
-                    if item.id == profile.id
-                ),
+                (position for position, item in enumerate(profiles) if item.id == profile.id),
                 None,
             )
 
             if index is not None and not replace_existing:
-                raise ValueError(
-                    f"Search profile already exists: {profile.id}"
-                )
+                raise ValueError(f"Search profile already exists: {profile.id}")
 
             timestamp = _now_iso()
             if index is None:
@@ -106,16 +98,11 @@ class TenderSearchProfileRepository:
                 current = profiles[index]
                 if current.is_builtin and not profile.is_builtin:
                     raise BuiltinSearchProfileError(
-                        "A built-in profile cannot be replaced "
-                        "with a custom profile"
+                        "A built-in profile cannot be replaced with a custom profile"
                     )
                 saved = replace(
                     profile,
-                    created_at=(
-                        current.created_at
-                        or profile.created_at
-                        or timestamp
-                    ),
+                    created_at=(current.created_at or profile.created_at or timestamp),
                     updated_at=timestamp,
                     is_builtin=current.is_builtin,
                 )
@@ -139,8 +126,7 @@ class TenderSearchProfileRepository:
         invalid = forbidden.intersection(changes)
         if invalid:
             raise ValueError(
-                "Protected profile fields cannot be updated: "
-                + ", ".join(sorted(invalid))
+                "Protected profile fields cannot be updated: " + ", ".join(sorted(invalid))
             )
 
         current = self.get(profile_id)
@@ -162,9 +148,7 @@ class TenderSearchProfileRepository:
                 if profile.id != normalized:
                     continue
                 if profile.is_builtin:
-                    raise BuiltinSearchProfileError(
-                        "Built-in search profiles cannot be deleted"
-                    )
+                    raise BuiltinSearchProfileError("Built-in search profiles cannot be deleted")
                 removed = profiles.pop(index)
                 self._write_unlocked(profiles)
                 return removed
@@ -176,14 +160,8 @@ class TenderSearchProfileRepository:
     ) -> tuple[TenderSearchProfile, ...]:
         with self._lock:
             profiles, _ = self._load_and_merge_unlocked()
-            custom = [
-                profile
-                for profile in profiles
-                if not profile.is_builtin
-            ]
-            restored = self._sort_profiles(
-                [*self._builtins, *custom]
-            )
+            custom = [profile for profile in profiles if not profile.is_builtin]
+            restored = self._sort_profiles([*self._builtins, *custom])
             self._write_unlocked(restored)
             return tuple(restored)
 
@@ -191,9 +169,7 @@ class TenderSearchProfileRepository:
         self,
     ) -> tuple[list[TenderSearchProfile], bool]:
         stored, recovered = self._read_unlocked()
-        merged: dict[str, TenderSearchProfile] = {
-            profile.id: profile for profile in stored
-        }
+        merged: dict[str, TenderSearchProfile] = {profile.id: profile for profile in stored}
         changed = recovered
 
         for builtin in self._builtins:
@@ -218,9 +194,7 @@ class TenderSearchProfileRepository:
             return [], True
 
         try:
-            payload = json.loads(
-                self.path.read_text(encoding="utf-8")
-            )
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             self._quarantine_corrupt_file_unlocked()
             return [], True
@@ -261,13 +235,9 @@ class TenderSearchProfileRepository:
         payload = {
             "schema_version": self.SCHEMA_VERSION,
             "updated_at": _now_iso(),
-            "profiles": [
-                profile.to_dict() for profile in profiles
-            ],
+            "profiles": [profile.to_dict() for profile in profiles],
         }
-        temporary = self.path.with_suffix(
-            self.path.suffix + ".tmp"
-        )
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
         try:
             temporary.write_text(
                 json.dumps(
@@ -284,13 +254,8 @@ class TenderSearchProfileRepository:
     def _quarantine_corrupt_file_unlocked(self) -> None:
         if not self.path.exists():
             return
-        suffix = datetime.now(timezone.utc).strftime(
-            "%Y%m%dT%H%M%SZ"
-        )
-        destination = self.path.with_name(
-            f"{self.path.stem}.corrupt-{suffix}"
-            f"{self.path.suffix}"
-        )
+        suffix = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        destination = self.path.with_name(f"{self.path.stem}.corrupt-{suffix}{self.path.suffix}")
         try:
             self.path.replace(destination)
         except OSError:
@@ -300,24 +265,16 @@ class TenderSearchProfileRepository:
         ids: set[str] = set()
         for profile in self._builtins:
             if not profile.is_builtin:
-                raise ValueError(
-                    f"Built-in profile is not marked built-in: "
-                    f"{profile.id}"
-                )
+                raise ValueError(f"Built-in profile is not marked built-in: {profile.id}")
             if profile.id in ids:
-                raise ValueError(
-                    f"Duplicate built-in profile id: {profile.id}"
-                )
+                raise ValueError(f"Duplicate built-in profile id: {profile.id}")
             ids.add(profile.id)
 
     def _sort_profiles(
         self,
         profiles: list[TenderSearchProfile],
     ) -> list[TenderSearchProfile]:
-        builtin_order = {
-            profile.id: index
-            for index, profile in enumerate(self._builtins)
-        }
+        builtin_order = {profile.id: index for index, profile in enumerate(self._builtins)}
         return sorted(
             profiles,
             key=lambda profile: (
@@ -330,9 +287,7 @@ class TenderSearchProfileRepository:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(
-        timespec="seconds"
-    )
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 __all__ = [

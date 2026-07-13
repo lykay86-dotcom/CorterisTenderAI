@@ -16,10 +16,7 @@ from app.tenders.providers.placeholders import (
 def test_default_registry_contains_expected_platforms() -> None:
     registry = create_default_provider_registry()
 
-    assert [
-        descriptor.id
-        for descriptor in registry.descriptors()
-    ] == [
+    assert [descriptor.id for descriptor in registry.descriptors()] == [
         "eis",
         "sber_a",
         "rts_tender",
