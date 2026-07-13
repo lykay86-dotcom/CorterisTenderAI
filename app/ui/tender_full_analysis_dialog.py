@@ -98,10 +98,13 @@ class TenderFullAnalysisDialog(QDialog):
         self.summary.setObjectName("FullAnalysisSummary")
         self.ai_summary = QTextBrowser(self)
         self.ai_summary.setObjectName("TenderAiSummary")
+        self.ai_analysis = QTextBrowser(self)
+        self.ai_analysis.setObjectName("TenderAiDocumentAnalysis")
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self.stages, "Analysis stages")
         self.tabs.addTab(self.summary, "Analysis details")
         self.tabs.addTab(self.ai_summary, "AI summary")
+        self.tabs.addTab(self.ai_analysis, "AI-анализ")
         root.addWidget(self.tabs, 1)
 
         actions = QHBoxLayout()
@@ -187,6 +190,7 @@ class TenderFullAnalysisDialog(QDialog):
         self.score_button.setEnabled(result.score is not None)
         self.summary.setHtml(_render_result(result))
         self.ai_summary.setHtml(_render_ai_summary(result))
+        self.ai_analysis.setHtml(_render_ai_document_analysis(result))
 
     def set_error(self, message: str) -> None:
         self.cancel_button.setEnabled(False)
@@ -200,7 +204,7 @@ class TenderFullAnalysisDialog(QDialog):
             QDialog {{ color: {palette.text_primary}; background: {palette.app_background}; }}
             QFrame#FullAnalysisHeader {{ background: {palette.card_background}; border: 1px solid {palette.border_default}; border-radius: 9px; }}
             QLabel#FullAnalysisTitle {{ font-size: 21px; font-weight: 700; }}
-            QTableWidget, QTextBrowser#FullAnalysisSummary, QTextBrowser#TenderAiSummary {{ color: {palette.text_primary}; background: {palette.input_background}; border: 1px solid {palette.border_default}; }}
+            QTableWidget, QTextBrowser#FullAnalysisSummary, QTextBrowser#TenderAiSummary, QTextBrowser#TenderAiDocumentAnalysis {{ color: {palette.text_primary}; background: {palette.input_background}; border: 1px solid {palette.border_default}; }}
             QPushButton {{ min-height: 32px; color: {palette.text_primary}; background: {palette.elevated_background}; border: 1px solid {palette.border_default}; border-radius: 7px; padding: 4px 10px; font-weight: 600; }}
         """)
 
@@ -276,6 +280,41 @@ def _render_ai_summary(result: TenderFullAnalysisResult) -> str:
         f"<h3>Risks</h3><ul>{risks}</ul>"
         f"<h3>Stop factors</h3><ul>{stops}</ul>"
         f"<h3>Missing data</h3><ul>{missing}</ul>"
+    )
+
+
+def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
+    analysis = result.ai_document_analysis
+    if analysis is None:
+        return "<h3>AI-анализ недоступен</h3><p>Выполните полный анализ документации.</p>"
+
+    def render_findings(items) -> str:
+        rows = []
+        for item in items:
+            evidence = item.evidence
+            proof = (
+                f"<small>{escape(evidence.document_id)} · confidence {evidence.confidence:.0%}<br>"
+                f"Цитата: {escape(evidence.quote)}</small>"
+                if evidence else "<small>Неподтверждённый вывод — не влияет на рекомендацию.</small>"
+            )
+            rows.append(f"<li><b>{escape(item.statement)}</b><br>{proof}</li>")
+        return "".join(rows) or "<li>Не выявлено.</li>"
+
+    requirements = tuple(
+        item
+        for name in analysis.requirements.__dataclass_fields__
+        for item in getattr(analysis.requirements, name)
+    )
+    missing = "".join(f"<li>{escape(item)}</li>" for item in analysis.missing_documents) or "<li>Не выявлено.</li>"
+    return (
+        f"<h2>AI-анализ документации</h2><p><b>Статус:</b> {escape(analysis.status)}</p>"
+        f"<h3>Краткое резюме</h3><p>{escape(analysis.summary)}</p>"
+        f"<h3>Требования</h3><ul>{render_findings(requirements)}</ul>"
+        f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
+        f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
+        f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"
+        f"<h3>Недостающие документы</h3><ul>{missing}</ul>"
+        f"<h3>Итог AI</h3><p>{escape(analysis.final_ai_conclusion)}</p>"
     )
 
 

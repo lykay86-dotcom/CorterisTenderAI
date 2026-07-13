@@ -29,5 +29,6 @@ def test_dialog_emits_cancel_and_updates_progress() -> None:
 def test_dialog_has_dedicated_ai_summary_tab() -> None:
     dialog = TenderFullAnalysisDialog("procurement:test")
 
-    assert dialog.tabs.count() == 3
+    assert dialog.tabs.count() == 4
     assert dialog.tabs.tabText(2) == "AI summary"
+    assert dialog.tabs.tabText(3) == "AI-анализ"
