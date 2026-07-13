@@ -42,3 +42,28 @@ def test_analyzer_handles_missing_documents_and_invalid_provider_response() -> N
     analyzer = TenderDocumentAiAnalyzer(Provider({}))
 
     assert analyzer.analyze("procurement:test", ()).status == "no_documents"
+
+
+def test_analyzer_handles_invalid_json_without_inventing_result() -> None:
+    provider = Provider({})
+    provider.analyze = lambda _prompt, _documents: {"status": "ok", "text": "not-json"}
+
+    result = TenderDocumentAiAnalyzer(provider).analyze("procurement:test", (_document(),))
+
+    assert result.status == "invalid_response"
+    assert not result.risks
+
+
+def test_analyzer_detects_quote_backed_contradictions_across_documents() -> None:
+    second = AiDocument("doc-2", "contract.pdf", "eis", "contract", "now", "verified", "Delivery takes 30 days.")
+    analyzer = TenderDocumentAiAnalyzer(Provider({
+        "contradictions": [{
+            "statement": "Different delivery periods", "document_id": "doc-2",
+            "quote": "Delivery takes 30 days", "confidence": 0.95,
+        }]
+    }))
+
+    result = analyzer.analyze("procurement:test", (_document(), second))
+
+    assert result.contradictions[0].verified
+    assert result.contradictions[0].evidence.document_id == "doc-2"
