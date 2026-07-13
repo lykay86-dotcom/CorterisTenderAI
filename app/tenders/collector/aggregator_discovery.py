@@ -15,6 +15,7 @@ from typing import Callable
 from uuid import uuid4
 
 from app.tenders.collector.codec import tender_from_payload, tender_to_payload
+from app.tenders.collector_database import initialize_collector_database
 from app.tenders.corteris_filter import normalize_text
 from app.tenders.models import TenderSource, UnifiedTender, is_timezone_aware
 from app.tenders.provider_base import TenderSearchQuery
@@ -78,47 +79,8 @@ class AggregatorDiscoveryRepository:
 
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._lock, self._connect() as connection:
-            connection.executescript("""
-                CREATE TABLE IF NOT EXISTS collector_aggregator_discoveries (
-                    discovery_id TEXT PRIMARY KEY,
-                    aggregator_source TEXT NOT NULL,
-                    aggregator_external_id TEXT NOT NULL,
-                    source_url TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    procurement_number_hint TEXT NOT NULL DEFAULT '',
-                    official_query TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    first_discovered_at TEXT NOT NULL,
-                    last_discovered_at TEXT NOT NULL,
-                    candidate_json TEXT NOT NULL,
-                    official_registry_key TEXT NOT NULL DEFAULT '',
-                    verification_note TEXT NOT NULL DEFAULT '',
-                    UNIQUE(aggregator_source, aggregator_external_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_aggregator_discovery_queue
-                    ON collector_aggregator_discoveries(
-                        status,
-                        last_discovered_at
-                    );
-                CREATE TABLE IF NOT EXISTS collector_aggregator_verification_attempts (
-                    attempt_id TEXT PRIMARY KEY,
-                    discovery_id TEXT NOT NULL,
-                    attempted_at TEXT NOT NULL,
-                    outcome TEXT NOT NULL,
-                    official_registry_key TEXT NOT NULL DEFAULT '',
-                    note TEXT NOT NULL DEFAULT '',
-                    evidence_json TEXT NOT NULL DEFAULT '[]',
-                    FOREIGN KEY(discovery_id)
-                        REFERENCES collector_aggregator_discoveries(discovery_id)
-                        ON DELETE CASCADE
-                );
-                CREATE INDEX IF NOT EXISTS idx_aggregator_attempts_discovery
-                    ON collector_aggregator_verification_attempts(
-                        discovery_id,
-                        attempted_at DESC
-                    );
-            """)
+        with self._lock:
+            initialize_collector_database(self.path)
 
     def enqueue(
         self,

@@ -12,6 +12,19 @@ class CollectorSchemaMigrator:
     """Create collector tables inside the existing tender registry DB."""
 
     def migrate(self, connection: sqlite3.Connection) -> int:
+        current_row = connection.execute(
+            "SELECT value FROM tender_registry_meta WHERE key='collector_schema_version'"
+        ).fetchone()
+        if current_row is not None:
+            try:
+                current_version = int(current_row[0])
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("Invalid collector schema version") from exc
+            if current_version > COLLECTOR_SCHEMA_VERSION:
+                raise RuntimeError(
+                    "Collector database schema is newer than this application "
+                    f"({current_version} > {COLLECTOR_SCHEMA_VERSION})"
+                )
         connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS collector_runs (

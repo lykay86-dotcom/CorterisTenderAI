@@ -13,6 +13,7 @@ from threading import RLock
 from typing import Iterable
 from uuid import uuid4
 
+from app.tenders.collector_database import initialize_collector_database
 from app.tenders.corteris_filter import (
     CorterisSearchProfile,
     DEFAULT_CORTERIS_PROFILE,
@@ -155,38 +156,9 @@ class MatchingCatalogRepository:
 
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            initialize_collector_database(self.path)
         with self._lock, self._connect() as connection:
-            connection.executescript("""
-                CREATE TABLE IF NOT EXISTS collector_matching_catalog_entries (
-                    entry_id TEXT PRIMARY KEY,
-                    group_key TEXT NOT NULL,
-                    term TEXT NOT NULL,
-                    kind TEXT NOT NULL,
-                    direction TEXT NOT NULL DEFAULT '',
-                    canonical_term TEXT NOT NULL DEFAULT '',
-                    weight_percent INTEGER NOT NULL DEFAULT 100,
-                    category TEXT NOT NULL DEFAULT '',
-                    source TEXT NOT NULL DEFAULT 'user',
-                    active INTEGER NOT NULL DEFAULT 1,
-                    updated_at TEXT NOT NULL,
-                    UNIQUE(group_key, term, kind, direction)
-                );
-                CREATE INDEX IF NOT EXISTS idx_matching_catalog_active
-                    ON collector_matching_catalog_entries(active, kind, direction);
-                CREATE TABLE IF NOT EXISTS collector_matching_catalog_settings (
-                    singleton_id INTEGER PRIMARY KEY CHECK(singleton_id = 1),
-                    payload_json TEXT NOT NULL,
-                    revision INTEGER NOT NULL DEFAULT 1,
-                    updated_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS collector_matching_catalog_revisions (
-                    revision_id TEXT PRIMARY KEY,
-                    revision INTEGER NOT NULL,
-                    saved_at TEXT NOT NULL,
-                    saved_by TEXT NOT NULL,
-                    payload_json TEXT NOT NULL
-                );
-            """)
             count = connection.execute(
                 "SELECT COUNT(*) AS total FROM collector_matching_catalog_entries"
             ).fetchone()["total"]

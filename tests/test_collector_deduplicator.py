@@ -93,3 +93,27 @@ def test_mixed_naive_and_aware_dates_prefer_confirmed_timezone() -> None:
 
     assert merged.published_at == second.published_at
     assert merged.application_deadline == second.application_deadline
+
+
+def test_supplier_portal_uses_shared_official_source_trust() -> None:
+    portal = make_tender(
+        source=TenderSource.MOS_SUPPLIER,
+        external_id="portal",
+    )
+    public_card = make_tender(
+        source=TenderSource.CUSTOM,
+        external_id="public-card",
+    )
+
+    merged = TenderDeduplicator().deduplicate((public_card, portal)).groups[0].item.tender
+
+    assert merged.source == TenderSource.MOS_SUPPLIER
+
+
+def test_eis_remains_more_authoritative_than_supplier_portal() -> None:
+    eis = make_tender(source=TenderSource.EIS, external_id="eis")
+    portal = make_tender(source=TenderSource.MOS_SUPPLIER, external_id="portal")
+
+    merged = TenderDeduplicator().deduplicate((portal, eis)).groups[0].item.tender
+
+    assert merged.source == TenderSource.EIS
