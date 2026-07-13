@@ -1,5 +1,18 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-13 — RM-111 завершён
+
+- PR #24 (`feat(rm-111): add unified tender AI orchestrator`) слит в `main`
+  коммитом `f246381`.
+- Обязательный Quality Gate merge-коммита завершился статусом `SUCCESS`
+  на Python 3.12 и 3.13.
+- Подтверждены единый Orchestrator, отсутствие второго production AI
+  workflow, явная передача текущего результата в RM-107 и безопасная
+  деградация без API.
+- Миграция БД не требуется.
+- RM-111 переведён в `DONE`; RM-112 назначен следующим активным этапом
+  только после merge PR #24.
+
 ## 2026-07-13 — RM-111 AI Orchestrator подготовлен к приёмке
 
 - Проведён аудит всех provider/task-service/repository/Decision Engine/UI/export

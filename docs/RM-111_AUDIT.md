@@ -1,7 +1,7 @@
 # RM-111 — аудит существующих AI execution paths
 
 Дата: 13 июля 2026 года. Исходный HEAD: `ebc36f4`. Статус RM-111:
-`IN PROGRESS`.
+`DONE` (PR #24, merge `f246381`).
 
 ## Цель аудита
 
@@ -148,12 +148,13 @@ orchestration, score, recommendation и repository.
 специализированные анализаторы, новая БД, AI score или AI recommendation.
 C17 canonicalization и C19 live verification также не изменяются.
 
-## Безопасный следующий шаг
+## Итог приёмки
 
 Требования из `docs/RM-111_REQUIREMENTS.md` реализованы в ветке
 `feat/rm-111-ai-orchestrator`. Целевой набор дал `93 passed`, полный локальный
 pytest — `748 passed` за 42,79 с; Ruff check/format, mypy для 7 файлов, security
 scan и dependency audit успешны. Миграция БД не требуется.
 
-Следующий безопасный шаг — PR, обязательная Windows matrix Python 3.12/3.13 и
-merge. До merge статус RM-111 остаётся `IN PROGRESS`, RM-112 не назначается.
+PR #24 слит в `main` коммитом `f246381`. Обязательная Windows matrix
+merge-коммита успешно завершена на Python 3.12 и 3.13. RM-111 соответствует
+Definition of Done. RM-112 назначен следующим активным этапом.
