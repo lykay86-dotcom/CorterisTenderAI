@@ -1,21 +1,23 @@
-# Архитектурная схема
+# Архитектура CorterisTenderAI
 
-```mermaid
-flowchart LR
- UI[PySide6 UI] --> APP[Application Services]
- APP --> IMPORT[Import Service]
- APP --> ANALYSIS[Analysis Engine]
- APP --> EST[Estimate Engine]
- APP --> DOCS[Document Generator]
- IMPORT --> PARSERS[PDF/DOCX/XLSX Parsers]
- ANALYSIS --> RULES[Legal / Competition / Technical Rules]
- APP --> REPO[Repositories]
- REPO --> DB[(SQLite / PostgreSQL)]
- APP --> AI[AI Provider Adapter]
- APP --> CONN[Platform Connectors]
- AI --> OPENAI[OpenAI-compatible / Ollama]
- CONN --> SOURCES[Official APIs / Manual Import]
-```
+## Слои
+1. UI.
+2. Application Services.
+3. Domain.
+4. Repositories.
+5. Infrastructure.
+6. Source/Provider Adapters.
 
-## База данных
-Tender 1—N Document; Tender 1—N Analysis. Следующие сущности: Company, User, Role, Equipment, Supplier, Estimate, EstimateItem, GeneratedDocument, Task, Notification, AuditLog.
+## Границы
+- UI не рассчитывает риск, цену, решение и лицензионные права.
+- Domain не зависит от PySide6, HTTP и SQLite.
+- Каждый источник имеет отдельный адаптер.
+- AI получает только подготовленный контекст.
+- Каждый вывод хранит provenance.
+- Платные функции проверяются central entitlement service.
+
+## Данные
+- Decimal для денег.
+- Timezone-aware datetime.
+- Неизвестное значение не равно нулю.
+- Отсутствие сведений не означает отрицательный результат.
