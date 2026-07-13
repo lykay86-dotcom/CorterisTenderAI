@@ -190,9 +190,26 @@ class TenderParticipationScoreDialog(QDialog):
             "do_not_participate": "Не участвовать",
             "data_insufficient": "Недостаточно данных для решения",
         }
+        confidence_labels = {
+            "high": "высокая",
+            "medium": "средняя",
+            "low": "низкая",
+        }
+        reasons = "\n".join(
+            f"• {item.title}: {item.detail} ({item.impact:+d})"
+            for item in decision.evidence
+        ) or "• Причины не сформированы"
+        stops = "\n".join(f"• {item}" for item in decision.stop_factors) or "• Нет"
+        missing = "\n".join(f"□ {item}" for item in decision.missing) or "• Нет"
+        actions = "\n".join(f"✔ {item}" for item in decision.actions) or "• Нет"
         self.decision_label.setText(
-            f"Итог: {labels[decision.recommendation.value]} "
-            f"· уверенность {decision.confidence:.0%}\n{decision.summary}"
+            f"Итог: {labels[decision.recommendation.value]} · {decision.score}/100\n"
+            f"Уверенность: {decision.confidence:.0%} "
+            f"({confidence_labels[decision.confidence_level]})\n"
+            f"{decision.summary}\n\nПричины решения:\n{reasons}"
+            f"\n\nСтоп-факторы:\n{stops}"
+            f"\n\nНе хватает данных:\n{missing}"
+            f"\n\nПлан действий:\n{actions}"
         )
         self.decision_label.setProperty(
             "recommendation", decision.recommendation.value

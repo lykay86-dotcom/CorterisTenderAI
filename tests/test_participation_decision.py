@@ -37,7 +37,15 @@ def test_decision_model_keeps_evidence_and_public_payload() -> None:
 
     assert payload["recommendation"] == "data_insufficient"
     assert payload["evidence"] == [_evidence().to_payload()]
-    assert payload["score"] is None
+    assert payload["score"] == 0
+    assert payload["score_details"] is None
+    assert payload["reasons"][0]["impact"] == 0
+    assert payload["reasons"][0]["factor"] == _evidence().title
+    assert payload["explanation"] == decision.summary
+    assert payload["confidence_level"] == "medium"
+    assert payload["stop_factors"] == []
+    assert payload["missing"] == []
+    assert payload["actions"] == []
 
 
 def test_decision_model_rejects_mismatched_input_key() -> None:
