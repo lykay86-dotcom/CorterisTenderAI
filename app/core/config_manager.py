@@ -36,7 +36,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "ui": {"theme": "system", "language": "ru-RU"},
     "licenses": [],
     "ai": {
-        "provider": "none",
+        "provider": "disabled",
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4.1-mini",
     },
@@ -81,12 +81,25 @@ class ConfigManager:
                 return self.snapshot()
             try:
                 raw = json.loads(self.path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
+            except json.JSONDecodeError:
+                return self._reset_corrupt_config()
+            except OSError as exc:
                 raise ConfigError(f"Не удалось прочитать конфигурацию {self.path}: {exc}") from exc
             if not isinstance(raw, dict):
-                raise ConfigError("Корневой элемент конфигурации должен быть объектом JSON")
+                return self._reset_corrupt_config()
             self._data = _deep_merge(self.defaults, raw)
             return self.snapshot()
+
+    def _reset_corrupt_config(self) -> dict[str, Any]:
+        """Replace unreadable user JSON with safe defaults without blocking startup."""
+
+        self._data = copy.deepcopy(self.defaults)
+        try:
+            self.save()
+        except (ConfigError, OSError):
+            # Read-only storage still gets a safe in-memory configuration.
+            pass
+        return self.snapshot()
 
     def save(self) -> None:
         with self._lock:

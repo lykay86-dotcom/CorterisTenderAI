@@ -52,11 +52,13 @@ python_version = "3.12"
 files = [
   "app/core/json_serialization.py",
   "app/core/ai/orchestrator.py",
+  "app/core/ai/provider_selection.py",
   "app/tenders/provider_base.py",
   "app/tenders/providers/mos_supplier_config.py",
   "app/tenders/collector/vertical_source_verification.py",
   "app/tenders/full_analysis.py",
   "app/tenders/search_runtime.py",
+  "app/ui/ai_provider_settings.py",
 ]
 check_untyped_defs = true
 disallow_untyped_defs = true
