@@ -195,7 +195,9 @@ class CrashReportService:
         redactor = _CrashRedactor(
             (
                 self.directory,
+                self.directory.parent,
                 self.log_file or "",
+                self.log_file.parent if self.log_file is not None else "",
             )
         )
 
