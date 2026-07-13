@@ -32,10 +32,23 @@ class TenderAiAnalysisExporter:
             return "".join(rows)
 
         all_requirements = tuple(item for name in analysis.requirements.__dataclass_fields__ for item in getattr(analysis.requirements, name))
+        warnings = "".join(
+            f"<li>{escape(item)}</li>" for item in analysis.warnings
+        ) or "<li>Нет.</li>"
+        context_note = (
+            "<p><strong>Контекст сокращён по безопасному лимиту.</strong></p>"
+            if analysis.context_truncated
+            else ""
+        )
         return (
             "<!doctype html><meta charset='utf-8'><title>AI analysis</title>"
-            f"<h1>AI-анализ документации</h1><p>{escape(analysis.summary)}</p>"
+            f"<h1>AI-анализ документации</h1>"
+            f"<p>Статус: {escape(analysis.status.value)}</p>"
+            f"<p>Контекст: {analysis.context_document_count} документов, "
+            f"{analysis.context_character_count} символов.</p>{context_note}"
+            f"<p>{escape(analysis.summary)}</p>"
             f"<h2>Требования</h2><table><tr><th>Категория</th><th>Вывод</th><th>Источник</th></tr>{findings(all_requirements)}</table>"
             f"<h2>Риски</h2><table>{findings(analysis.risks)}</table>"
+            f"<h2>Предупреждения</h2><ul>{warnings}</ul>"
             f"<h2>Итог AI</h2><p>{escape(analysis.final_ai_conclusion)}</p>"
         )

@@ -29,6 +29,7 @@ from app.tenders.full_analysis import (
     FullAnalysisStatus,
     TenderFullAnalysisResult,
 )
+from app.core.ai.schemas import AiAnalysisStatus
 from app.ui.theme.colors import ThemeName, get_palette
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
@@ -329,14 +330,35 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         for item in getattr(analysis.requirements, name)
     )
     missing = "".join(f"<li>{escape(item)}</li>" for item in analysis.missing_documents) or "<li>Не выявлено.</li>"
+    status_text = {
+        AiAnalysisStatus.COMPLETE: "Завершён",
+        AiAnalysisStatus.PARTIAL: "Частичный результат",
+        AiAnalysisStatus.NO_DOCUMENTS: "Нет документов для анализа",
+        AiAnalysisStatus.PROVIDER_DISABLED: "AI-провайдер отключён",
+        AiAnalysisStatus.PROVIDER_ERROR: "AI-провайдер недоступен",
+        AiAnalysisStatus.INVALID_RESPONSE: "Ответ AI отклонён",
+        AiAnalysisStatus.CACHE_INCOMPATIBLE: "Кеш несовместим",
+    }.get(analysis.status, "Неизвестный безопасный статус")
+    warnings = "".join(
+        f"<li>{escape(item)}</li>" for item in analysis.warnings
+    ) or "<li>Нет.</li>"
+    context_note = (
+        "<p><b>Внимание:</b> контекст сокращён по безопасному лимиту; "
+        "результат не считается полным.</p>"
+        if analysis.context_truncated
+        else ""
+    )
     return (
-        f"<h2>AI-анализ документации</h2><p><b>Статус:</b> {escape(analysis.status)}</p>"
+        f"<h2>AI-анализ документации</h2><p><b>Статус:</b> {escape(status_text)}</p>"
+        f"<p><b>Контекст:</b> {analysis.context_document_count} документов, "
+        f"{analysis.context_character_count} символов</p>{context_note}"
         f"<h3>Краткое резюме</h3><p>{escape(analysis.summary)}</p>"
         f"<h3>Требования</h3><ul>{render_findings(requirements)}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
         f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"
         f"<h3>Недостающие документы</h3><ul>{missing}</ul>"
+        f"<h3>Технические предупреждения</h3><ul>{warnings}</ul>"
         f"<h3>Итог AI</h3><p>{escape(analysis.final_ai_conclusion)}</p>"
     )
 

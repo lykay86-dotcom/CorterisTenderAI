@@ -14,6 +14,10 @@ from app.tenders.participation_decision import (
     ParticipationDecisionRecommendation,
 )
 from app.tenders.participation_decision_policy import ParticipationDecisionPolicy
+from app.core.ai.schemas import AiDocumentAnalysis
+
+
+_USE_LATEST_AI_ANALYSIS = object()
 
 
 class ParticipationDecisionService:
@@ -34,7 +38,14 @@ class ParticipationDecisionService:
         self.policy = policy or ParticipationDecisionPolicy()
         self.ai_analysis_repository = ai_analysis_repository
 
-    def evaluate(self, registry_key: str) -> ParticipationDecision:
+    def evaluate(
+        self,
+        registry_key: str,
+        *,
+        ai_document_analysis: AiDocumentAnalysis | None | object = (
+            _USE_LATEST_AI_ANALYSIS
+        ),
+    ) -> ParticipationDecision:
         key = registry_key.strip()
         if not key:
             raise ValueError("registry_key must not be empty")
@@ -43,11 +54,17 @@ class ParticipationDecisionService:
         verification = self.state_repository.get_verification_state(key)
         latest_estimate = self.commercial_estimate_repository.latest(key)
         estimate = latest_estimate[1] if latest_estimate is not None else None
-        ai_analysis = (
-            self.ai_analysis_repository.latest(key)
-            if self.ai_analysis_repository is not None
-            else None
-        )
+        if ai_document_analysis is _USE_LATEST_AI_ANALYSIS:
+            try:
+                ai_analysis = (
+                    self.ai_analysis_repository.latest(key)
+                    if self.ai_analysis_repository is not None
+                    else None
+                )
+            except Exception:
+                ai_analysis = None
+        else:
+            ai_analysis = ai_document_analysis
         decision_input = ParticipationDecisionInput(
             registry_key=key,
             score=score,
