@@ -10,67 +10,40 @@ RM-107 повторно проверен по расширенному Definitio
 в JSON. Полный регресс после доработки: 633 passed.
 
 ## Активный этап
-**RM-111 — AI Orchestrator**
+**RM-112 — выбор AI-провайдера**
 
 Статус: `IN PROGRESS`
 
-Обязательный prerequisite RM-111: герметизация offline-тестов и
-воспроизводимый Windows quality gate. На чистом `origin/main` (`b4c1cc7`)
-baseline дал `719 passed, 2 failed`: два offline-теста прочитали сохранённый
-токен из Windows Credential Manager, а диагностический тест выполнил реальный
-API-запрос. С временно пустым keyring оба теста проходят (`2 passed`).
-
-Prerequisite завершён: PR #22 слит в `main` коммитом `ebfdf01`. Полный регресс
-даёт `725 passed` как с обычным Windows Credential Manager, так и с
-принудительно пустым keyring. Windows quality gate прошёл на Python 3.12 и 3.13
-в PR и повторно на `main`; Ruff, фиксированный mypy-контур, security scan,
-migration/build/import smoke checks и dependency audit успешны. Защита `main`
-требует PR, актуальную ветку и оба quality-gate check.
-
-RM-111 остаётся `IN PROGRESS`: prerequisite завершён, а реализация ожидает
-серверной приёмки и merge. В ветке `feat/rm-111-ai-orchestrator` подготовлена единая
-application-service точки входа. `TenderFullAnalysisService` вызывает только
-Orchestrator, а текущий `AiDocumentAnalysis` явно передаётся в RM-107. AI не
-вычисляет score/recommendation и не меняет приоритет критического stop-factor.
-
-Локальная приёмка реализации: целевой набор `93 passed`, полный pytest
-`748 passed` за 42,79 с; Ruff check, Ruff format check, mypy для 7 файлов,
-security scan и dependency audit проходят. Миграция БД отсутствует и не
-требуется. C17 canonicalization и C19 live verification не изменялись.
+Этап назначен только после merge RM-111. До изменения application-кода
+необходимо провести отдельный аудит текущего выбора AI-провайдера,
+зафиксировать границы и требования RM-112. Функции RM-113 и следующих
+этапов не входят в текущий объём.
 
 ## Предыдущий этап
+**RM-111 — AI Orchestrator**
+
+Статус: `DONE`
+
+Подтверждение:
+- PR #24 слит в `main` коммитом `f246381`;
+- создана единая application-service точка входа `TenderAiOrchestrator`;
+- полный анализ вызывает только Orchestrator и явно передаёт текущий AI-результат в RM-107;
+- stale и unverified AI-результаты не влияют на решение, а критический stop-factor сохраняет приоритет;
+- ошибки AI изолированы без раскрытия секретов, traceback и приватных путей;
+- локально: целевой набор `93 passed`, полный pytest `748 passed` за 42,79 с, Ruff, mypy, security scan и dependency audit успешны;
+- Quality Gate merge-коммита успешен на Python 3.12 и 3.13;
+- миграция БД не требуется.
+
+## Ранее завершённый этап
 **RM-110 — стабилизация Tender Intelligence**
 
 Статус: `DONE`
 
 Подтверждение:
 - сохранён обязательный аудит текущей цепочки;
-- введены безопасные статусы и версия payload;
-- структурно неверный ответ AI деградирует без исключения;
-- кеш учитывает версии prompt/schema/analyzer/context и лимиты;
-- повреждённая история пропускается до предыдущей корректной записи;
-- контекст ограничен, дедуплицирован и формируется воспроизводимо;
 - ошибки AI/SQLite не блокируют RM-107, summary, UI и экспорт;
-- текущий безопасный AI-результат не заменяется устаревшим кешем в RM-107;
-- `701 passed`, включая `tests/test_crash_reporting.py`;
-- `python -m ruff check .` проходит;
-- `python -m ruff format . --check` проходит.
-
-## Ранее завершённый этап
-**RM-109 — AI-анализ тендерной документации**
-
-Статус: `DONE`
-
-Подтверждение:
-- строгие схемы документов, требований, рисков и доказательств;
-- проверка точной цитаты и маркировка неподтверждённых выводов;
-- контекст из локально извлечённых документов;
-- история и повторное использование по fingerprint;
-- интеграция с полным анализом и RM-107;
-- отдельная вкладка «AI-анализ» и экспорт HTML/JSON;
-- 631 passed (без отдельного теста crash-reporting).
+- текущий безопасный AI-результат не заменяется устаревшим кешем;
+- полный регресс `701 passed`, Ruff check и Ruff format check успешны.
 
 ## Текущее действие
-Опубликовать PR ветки `feat/rm-111-ai-orchestrator`, дождаться обязательной
-Windows matrix и merge. До merge сохранить RM-111 `IN PROGRESS` и не назначать
-RM-112.
+Провести аудит RM-112 и зафиксировать требования до изменения application-кода.
