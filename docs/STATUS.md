@@ -46,6 +46,6 @@ RM-110 не переводится в `DONE`, RM-111 не активируетс
 - 631 passed (без отдельного теста crash-reporting).
 
 ## Текущее действие
-Ревью draft PR RM-110 и решение по существующему Ruff baseline.
+Ревью draft PR #19 и решение по существующему Ruff baseline.
 
 Рабочая ветка: `feat/rm-110-tender-intelligence-stabilization`.
