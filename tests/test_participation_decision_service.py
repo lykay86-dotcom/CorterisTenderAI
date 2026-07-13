@@ -8,6 +8,7 @@ from app.tenders.commercial_estimator import CommercialEstimateStatus
 from app.tenders.participation_decision import ParticipationDecisionRecommendation
 from app.tenders.participation_decision_service import ParticipationDecisionService
 from app.core.ai.schemas import AiDocumentAnalysis, AiEvidence, AiFinding, AiFindingStatus
+from app.tenders.collector.stop_factor import StopFactorStatus
 
 
 class _ScoreService:
@@ -22,12 +23,16 @@ class _StateRepository:
     def __init__(self, verification=None, stop=None):
         self.verification = verification
         self.stop = stop
+        self.saved = []
 
     def get_verification_state(self, _key):
         return self.verification
 
     def get_latest_stop_factor_assessment(self, _key):
         return self.stop
+
+    def save_participation_decision(self, decision):
+        self.saved.append(decision)
 
 
 class _EstimateRepository:
@@ -47,14 +52,20 @@ class _AiRepository:
 
 
 def test_service_returns_data_insufficient_without_required_evidence() -> None:
+    state = _StateRepository()
     decision = ParticipationDecisionService(
-        _ScoreService(None), _StateRepository(), _EstimateRepository()
+        _ScoreService(None), state, _EstimateRepository()
     ).evaluate("procurement:1")
 
     assert decision.recommendation == ParticipationDecisionRecommendation.DATA_INSUFFICIENT
     assert {item.code for item in decision.evidence} >= {
         "score_missing", "estimate_incomplete", "verification_incomplete"
     }
+    assert decision.score == 0
+    assert decision.missing
+    assert decision.actions
+    assert decision.confidence_level == "low"
+    assert state.saved == [decision]
 
 
 def test_service_maps_complete_existing_evidence_to_participate() -> None:
@@ -78,6 +89,11 @@ def test_service_maps_complete_existing_evidence_to_participate() -> None:
 
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
     assert decision.confidence == 0.75
+    assert decision.score == 90
+    assert decision.actions == (
+        "Подготовить коммерческое предложение",
+        "Проверить сроки подачи заявки",
+    )
 
 
 def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
@@ -94,3 +110,36 @@ def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
 
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW
     assert any(item.source == "ai_document_analysis" for item in decision.evidence)
+
+
+def test_blocked_stop_factor_has_absolute_priority_over_high_score() -> None:
+    score = SimpleNamespace(
+        total_score=100, recommendation=ParticipationRecommendation.RECOMMENDED,
+        recommendation_text="Participate", components=(), missing_documents=(),
+    )
+    stop = SimpleNamespace(
+        registry_key="procurement:1", status=StopFactorStatus.BLOCKED_BY_REQUIREMENT,
+        factors=(SimpleNamespace(
+            title="Missing license",
+            evidence=SimpleNamespace(remediation="Obtain required license"),
+        ),),
+    )
+    verification = SimpleNamespace(
+        registry_key="procurement:1", status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=1.0, missing_fields=(),
+    )
+    estimate = SimpleNamespace(
+        registry_key="procurement:1", status=CommercialEstimateStatus.COMPLETE,
+        margin_percent=20,
+    )
+
+    decision = ParticipationDecisionService(
+        _ScoreService(score), _StateRepository(verification, stop),
+        _EstimateRepository(estimate),
+    ).evaluate("procurement:1")
+
+    assert decision.recommendation == ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE
+    assert decision.score == 100
+    assert decision.stop_factors == ("Missing license",)
+    assert "Obtain required license" in decision.actions
+    assert decision.evidence[0].impact == -100

@@ -35,6 +35,7 @@ class ParticipationDecisionEvidence:
     detail: str
     confidence: float
     source: str
+    impact: int = 0
 
     def __post_init__(self) -> None:
         if not all(
@@ -48,10 +49,12 @@ class ParticipationDecisionEvidence:
     def to_payload(self) -> dict[str, object]:
         return {
             "code": self.code,
+            "factor": self.title,
             "title": self.title,
             "detail": self.detail,
             "confidence": self.confidence,
             "source": self.source,
+            "impact": self.impact,
         }
 
 
@@ -92,6 +95,10 @@ class ParticipationDecision:
     input: ParticipationDecisionInput
     decided_at: str
     policy_version: str
+    score: int = 0
+    stop_factors: tuple[str, ...] = ()
+    missing: tuple[str, ...] = ()
+    actions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not all(
@@ -109,6 +116,8 @@ class ParticipationDecision:
             raise ValueError("decision input registry_key must match decision")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
+        if not 0 <= self.score <= 100:
+            raise ValueError("score must be between 0 and 100")
         if not self.evidence:
             raise ValueError("a decision must contain evidence")
 
@@ -118,12 +127,19 @@ class ParticipationDecision:
             "decision_id": self.decision_id,
             "registry_key": self.registry_key,
             "recommendation": self.recommendation.value,
+            "score": self.score,
             "confidence": self.confidence,
+            "confidence_level": self.confidence_level,
             "summary": self.summary,
+            "explanation": self.summary,
             "evidence": [item.to_payload() for item in self.evidence],
+            "reasons": [item.to_payload() for item in self.evidence],
+            "stop_factors": list(self.stop_factors),
+            "missing": list(self.missing),
+            "actions": list(self.actions),
             "decided_at": self.decided_at,
             "policy_version": self.policy_version,
-            "score": (
+            "score_details": (
                 self.input.score.to_payload() if self.input.score is not None else None
             ),
             "stop_factor_status": (
@@ -147,6 +163,14 @@ class ParticipationDecision:
                 else None
             ),
         }
+
+    @property
+    def confidence_level(self) -> str:
+        if self.confidence >= 0.8:
+            return "high"
+        if self.confidence >= 0.5:
+            return "medium"
+        return "low"
 
 
 __all__ = [

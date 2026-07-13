@@ -314,8 +314,6 @@ class TenderFullAnalysisService:
                 if self.participation_decision_service is not None
                 else None
             )
-            if decision is not None and self.summary_repository is not None:
-                self.summary_repository.save_participation_decision(decision)
             verification = (
                 self.summary_repository.get_verification_state(key)
                 if self.summary_repository is not None

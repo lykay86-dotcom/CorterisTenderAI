@@ -2,6 +2,13 @@
 
 Обновлено: 13 июля 2026 года.
 
+## Подтверждение RM-107
+
+RM-107 повторно проверен по расширенному Definition of Done. Decision Engine
+возвращает score, recommendation, confidence, explanation, причины с impact,
+стоп-факторы, missing data и action plan. Все поля отображаются в UI и входят
+в JSON. Полный регресс после доработки: 633 passed.
+
 ## Активный этап
 **RM-110 — стабилизация Tender Intelligence**
 
