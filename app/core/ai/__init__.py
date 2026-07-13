@@ -6,6 +6,7 @@ from app.core.ai.document_context import (
     AiDocumentContext,
     TenderDocumentContextBuilder,
 )
+from app.core.ai.orchestrator import TenderAiOrchestrationResult, TenderAiOrchestrator
 from app.core.ai.repository import AiDocumentAnalysisRepository
 from app.core.ai.schemas import (
     AiAnalysisStatus,
@@ -26,5 +27,7 @@ __all__ = [
     "TenderDocumentAiAnalyzer",
     "TenderDocumentAiAnalysisService",
     "TenderDocumentContextBuilder",
+    "TenderAiOrchestrationResult",
+    "TenderAiOrchestrator",
     "TenderRequirements",
 ]
