@@ -76,6 +76,7 @@ def test_preview_dialog_disables_import_for_invalid_rows() -> None:
     assert not dialog.import_button.isEnabled()
     assert dialog.table.item(0, 1).text() == "Ошибка"
 
+
 def test_preview_dialog_uses_non_deprecated_alignment_api() -> None:
     _app()
     preview = WorkflowImportPreview(
@@ -103,4 +104,3 @@ def test_preview_dialog_uses_non_deprecated_alignment_api() -> None:
         and "setTextAlignment" in str(warning.message)
     ]
     assert deprecated == []
-

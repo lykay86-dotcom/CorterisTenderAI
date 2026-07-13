@@ -22,9 +22,7 @@ from app.tenders.providers.mos_supplier_config import MosSupplierApiConfig
 def test_default_factory_still_excludes_commercial_catalog() -> None:
     async def scenario() -> None:
         raw = httpx.AsyncClient(
-            transport=httpx.MockTransport(
-                lambda request: httpx.Response(200, request=request)
-            )
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, request=request))
         )
         runtime = create_collector_network_runtime(client=raw)
         providers = create_default_async_providers(
@@ -44,9 +42,7 @@ def test_default_factory_still_excludes_commercial_catalog() -> None:
 def test_factory_adds_only_explicitly_enabled_commercial_adapters() -> None:
     async def scenario() -> None:
         raw = httpx.AsyncClient(
-            transport=httpx.MockTransport(
-                lambda request: httpx.Response(200, request=request)
-            )
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, request=request))
         )
         runtime = create_collector_network_runtime(client=raw)
         catalog = create_commercial_provider_catalog(

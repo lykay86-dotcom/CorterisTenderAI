@@ -57,21 +57,16 @@ class CollectorService:
         self.engine = engine
         self.repository = repository
         self.normalizer = normalizer or TenderNormalizer()
-        self.deduplicator = deduplicator or TenderDeduplicator(
-            self.normalizer
-        )
+        self.deduplicator = deduplicator or TenderDeduplicator(self.normalizer)
         self.ranker = ranker or CorterisParticipationRanker()
         self.verifier = verifier or TenderVerificationService(
             normalizer=self.normalizer,
             history_loader=self.repository.get_verification_history,
         )
-        self.freshness_service = (
-            freshness_service or TenderFreshnessService()
-        )
+        self.freshness_service = freshness_service or TenderFreshnessService()
         self.stop_factor_engine = stop_factor_engine
         self.aggregator_discovery_repository = (
-            aggregator_discovery_repository
-            or AggregatorDiscoveryRepository(self.repository.path)
+            aggregator_discovery_repository or AggregatorDiscoveryRepository(self.repository.path)
         )
 
     async def collect(
@@ -116,18 +111,14 @@ class CollectorService:
                     phase=CollectorProgressPhase.NORMALIZING,
                     total_providers=len(batch.outcomes),
                     raw_count=len(batch.raw_items),
-                    message=(
-                        "Нормализация данных, полученных от источников…"
-                    ),
+                    message=("Нормализация данных, полученных от источников…"),
                 ),
             )
             discovery_items = tuple(
-                item for item in batch.raw_items
-                if is_aggregator_discovery(item)
+                item for item in batch.raw_items if is_aggregator_discovery(item)
             )
             authoritative_items = tuple(
-                item for item in batch.raw_items
-                if not is_aggregator_discovery(item)
+                item for item in batch.raw_items if not is_aggregator_discovery(item)
             )
             discovery_records = tuple(
                 self.aggregator_discovery_repository.enqueue(
@@ -157,9 +148,7 @@ class CollectorService:
                     raw_count=deduplicated.raw_count,
                     merged_count=deduplicated.merged_count,
                     duplicate_count=deduplicated.duplicate_count,
-                    message=(
-                        "Проверка критичных полей и происхождения данных…"
-                    ),
+                    message=("Проверка критичных полей и происхождения данных…"),
                 ),
             )
             verification = self.verifier.verify(
@@ -175,12 +164,8 @@ class CollectorService:
                     total_providers=len(batch.outcomes),
                     raw_count=verified_deduplication.raw_count,
                     merged_count=verified_deduplication.merged_count,
-                    duplicate_count=(
-                        verified_deduplication.duplicate_count
-                    ),
-                    message=(
-                        "Нормализация сроков и расчёт повторной проверки…"
-                    ),
+                    duplicate_count=(verified_deduplication.duplicate_count),
+                    message=("Нормализация сроков и расчёт повторной проверки…"),
                 ),
             )
             freshness = self.freshness_service.evaluate(
@@ -195,27 +180,27 @@ class CollectorService:
                     total_providers=len(batch.outcomes),
                     raw_count=verified_deduplication.raw_count,
                     merged_count=verified_deduplication.merged_count,
-                    duplicate_count=(
-                        verified_deduplication.duplicate_count
-                    ),
+                    duplicate_count=(verified_deduplication.duplicate_count),
                     message="Расчёт объяснимого рейтинга Кортерис…",
                 ),
             )
-            stop_assessments = {
-                item.canonical_key: self.stop_factor_engine.evaluate(
-                    item.canonical_key,
-                    item.tender,
-                    now=None,
-                )
-                for item in verified_deduplication.items
-            } if self.stop_factor_engine is not None else {}
+            stop_assessments = (
+                {
+                    item.canonical_key: self.stop_factor_engine.evaluate(
+                        item.canonical_key,
+                        item.tender,
+                        now=None,
+                    )
+                    for item in verified_deduplication.items
+                }
+                if self.stop_factor_engine is not None
+                else {}
+            )
             rankings = {
                 item.canonical_key: self.ranker.score(
                     item.tender,
                     ParticipationScoringContext(
-                        stop_factor_assessment=stop_assessments.get(
-                            item.canonical_key
-                        )
+                        stop_factor_assessment=stop_assessments.get(item.canonical_key)
                     ),
                 )
                 for item in verified_deduplication.items
@@ -228,9 +213,7 @@ class CollectorService:
                     total_providers=len(batch.outcomes),
                     raw_count=verified_deduplication.raw_count,
                     merged_count=verified_deduplication.merged_count,
-                    duplicate_count=(
-                        verified_deduplication.duplicate_count
-                    ),
+                    duplicate_count=(verified_deduplication.duplicate_count),
                     message="Сохранение результатов в локальный реестр…",
                 ),
             )
@@ -250,11 +233,7 @@ class CollectorService:
                 completed_at=batch.completed_at,
                 elapsed_ms=batch.elapsed_ms,
             )
-            warnings = tuple(
-                warning
-                for outcome in batch.outcomes
-                for warning in outcome.warnings
-            )
+            warnings = tuple(warning for outcome in batch.outcomes for warning in outcome.warnings)
             result = CollectorRunResult(
                 run_id=run_id,
                 status=status,
@@ -265,47 +244,27 @@ class CollectorService:
                 metadata={
                     "partial_failures": batch.has_partial_failures,
                     "cancelled": batch.cancelled,
-                    "verification_run_id": (
-                        persistence.verification_run_id
-                    ),
-                    "verified_field_count": (
-                        persistence.verified_field_count
-                    ),
-                    "field_conflict_count": (
-                        persistence.conflict_count
-                    ),
-                    "unresolved_field_conflict_count": (
-                        persistence.unresolved_conflict_count
-                    ),
-                    "verification_incomplete_count": (
-                        persistence.verification_incomplete_count
-                    ),
+                    "verification_run_id": (persistence.verification_run_id),
+                    "verified_field_count": (persistence.verified_field_count),
+                    "field_conflict_count": (persistence.conflict_count),
+                    "unresolved_field_conflict_count": (persistence.unresolved_conflict_count),
+                    "verification_incomplete_count": (persistence.verification_incomplete_count),
                     "stale_count": persistence.stale_count,
                     "due_soon_count": persistence.due_soon_count,
                     "expired_count": persistence.expired_count,
-                    "reverification_due_count": (
-                        persistence.reverification_due_count
-                    ),
+                    "reverification_due_count": (persistence.reverification_due_count),
                     "ranked_count": persistence.ranked_count,
                     "recommended_count": persistence.recommended_count,
                     "manual_review_count": persistence.manual_review_count,
                     "possible_count": persistence.possible_count,
-                    "not_recommended_count": (
-                        persistence.not_recommended_count
-                    ),
-                    "high_score_count": sum(
-                        score.total_score >= 80
-                        for score in rankings.values()
-                    ),
+                    "not_recommended_count": (persistence.not_recommended_count),
+                    "high_score_count": sum(score.total_score >= 80 for score in rankings.values()),
                     "aggregator_discovery_count": len(discovery_records),
                     "official_verification_queue_count": len(
-                        self.aggregator_discovery_repository.list_pending(
-                            limit=1000
-                        )
+                        self.aggregator_discovery_repository.list_pending(limit=1000)
                     ),
                     "stop_factor_blocked_count": sum(
-                        item.status
-                        == StopFactorStatus.BLOCKED_BY_REQUIREMENT
+                        item.status == StopFactorStatus.BLOCKED_BY_REQUIREMENT
                         for item in stop_assessments.values()
                     ),
                     "stop_factor_data_insufficient_count": sum(

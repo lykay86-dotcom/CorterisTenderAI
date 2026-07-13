@@ -21,21 +21,14 @@ def _app() -> QApplication:
 
 
 def _page(tmp_path) -> BusinessWorkflowPage:
-    return BusinessWorkflowPage(
-        repository=BusinessMetricsRepository(
-            tmp_path / "workflow.json"
-        )
-    )
+    return BusinessWorkflowPage(repository=BusinessMetricsRepository(tmp_path / "workflow.json"))
 
 
 def test_detail_card_uses_stacked_readable_rows(tmp_path) -> None:
     _app()
     page = _page(tmp_path)
 
-    assert (
-        page.detail_form.rowWrapPolicy()
-        == QFormLayout.RowWrapPolicy.WrapAllRows
-    )
+    assert page.detail_form.rowWrapPolicy() == QFormLayout.RowWrapPolicy.WrapAllRows
     assert page.detail_form.verticalSpacing() >= 14
     assert page.detail_title.wordWrap()
     assert page.detail_file.wordWrap()
@@ -48,10 +41,7 @@ def test_wide_layout_reserves_space_for_detail_card(tmp_path) -> None:
 
     page._apply_content_orientation(1600, force=True)
 
-    assert (
-        page.splitter.orientation()
-        == Qt.Orientation.Horizontal
-    )
+    assert page.splitter.orientation() == Qt.Orientation.Horizontal
     assert page.detail_panel.minimumWidth() >= 460
 
 
@@ -61,9 +51,6 @@ def test_compact_layout_places_detail_card_below_table(tmp_path) -> None:
 
     page._apply_content_orientation(1100, force=True)
 
-    assert (
-        page.splitter.orientation()
-        == Qt.Orientation.Vertical
-    )
+    assert page.splitter.orientation() == Qt.Orientation.Vertical
     assert page.detail_panel.minimumWidth() == 0
     assert page.detail_scroll.widgetResizable()

@@ -44,9 +44,7 @@ def test_repository_initializes_builtin_catalog(tmp_path) -> None:
 
 
 def test_repository_custom_profile_crud(tmp_path) -> None:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
 
     saved = repository.save(custom_profile())
@@ -69,9 +67,7 @@ def test_repository_custom_profile_crud(tmp_path) -> None:
 
 
 def test_builtin_profile_cannot_be_deleted(tmp_path) -> None:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
 
     with pytest.raises(BuiltinSearchProfileError):
@@ -79,15 +75,11 @@ def test_builtin_profile_cannot_be_deleted(tmp_path) -> None:
 
 
 def test_disabled_profiles_can_be_hidden(tmp_path) -> None:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
     repository.set_enabled("ops", False)
 
-    visible = repository.list_profiles(
-        include_disabled=False
-    )
+    visible = repository.list_profiles(include_disabled=False)
 
     assert "ops" not in {profile.id for profile in visible}
     assert not repository.get("ops").enabled
@@ -104,15 +96,11 @@ def test_corrupt_catalog_is_quarantined_and_rebuilt(
 
     assert len(profiles) == 7
     assert path.is_file()
-    assert list(
-        tmp_path.glob("search_profiles.corrupt-*.json")
-    )
+    assert list(tmp_path.glob("search_profiles.corrupt-*.json"))
 
 
 def test_restore_builtins_keeps_custom_profiles(tmp_path) -> None:
-    repository = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
     repository.update(
         "video-surveillance",
@@ -123,7 +111,5 @@ def test_restore_builtins_keeps_custom_profiles(tmp_path) -> None:
     restored = repository.restore_builtin_profiles()
 
     by_id = {profile.id: profile for profile in restored}
-    assert by_id["video-surveillance"].name == (
-        "Видеонаблюдение"
-    )
+    assert by_id["video-surveillance"].name == ("Видеонаблюдение")
     assert by_id["custom-skud"].name == "Мой СКУД"

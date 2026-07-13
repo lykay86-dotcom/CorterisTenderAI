@@ -59,14 +59,10 @@ class SafeModeDialog(QDialog):
         self.data_directory = Path(data_directory)
         self.database_file = Path(database_file)
         self.backups_directory = Path(backups_directory)
-        self.crash_reports_directory = Path(
-            crash_reports_directory
-        )
+        self.crash_reports_directory = Path(crash_reports_directory)
         self._theme = ThemeName(theme)
 
-        self.setWindowTitle(
-            "Corteris Tender AI — безопасный режим"
-        )
+        self.setWindowTitle("Corteris Tender AI — безопасный режим")
         self.setModal(True)
         self.resize(780, 610)
 
@@ -108,9 +104,7 @@ class SafeModeDialog(QDialog):
             )
             label.setObjectName("SafeModeCheck")
             label.setWordWrap(True)
-            label.setTextInteractionFlags(
-                Qt.TextInteractionFlag.TextSelectableByMouse
-            )
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             checks_layout.addWidget(label)
 
         root.addWidget(checks_frame)
@@ -121,9 +115,7 @@ class SafeModeDialog(QDialog):
         )
         history.setObjectName("SafeModeHistory")
         history.setWordWrap(True)
-        history.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        history.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         root.addWidget(history)
 
         root.addStretch(1)
@@ -135,35 +127,27 @@ class SafeModeDialog(QDialog):
             "Открыть crash-reports",
             self,
         )
-        self.crash_reports_button.clicked.connect(
-            self._open_crash_reports
-        )
+        self.crash_reports_button.clicked.connect(self._open_crash_reports)
 
         self.backups_button = QPushButton(
             "Открыть резервные копии",
             self,
         )
-        self.backups_button.clicked.connect(
-            self._open_backups
-        )
+        self.backups_button.clicked.connect(self._open_backups)
 
         self.reset_button = QPushButton(
             "Сбросить историю сбоев",
             self,
         )
         self.reset_button.setObjectName("SafeModeResetButton")
-        self.reset_button.clicked.connect(
-            self._reset_history
-        )
+        self.reset_button.clicked.connect(self._reset_history)
 
         self.normal_button = QPushButton(
             "Продолжить обычный запуск",
             self,
         )
         self.normal_button.setObjectName("SafeModeNormalButton")
-        self.normal_button.clicked.connect(
-            lambda: self.done(self.NORMAL_EXIT_CODE)
-        )
+        self.normal_button.clicked.connect(lambda: self.done(self.NORMAL_EXIT_CODE))
 
         actions.addWidget(self.crash_reports_button)
         actions.addWidget(self.backups_button)
@@ -176,12 +160,8 @@ class SafeModeDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть приложение")
-        self.buttons.rejected.connect(
-            lambda: self.done(self.SAFE_EXIT_CODE)
-        )
+        self.buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть приложение")
+        self.buttons.rejected.connect(lambda: self.done(self.SAFE_EXIT_CODE))
         root.addWidget(self.buttons)
 
         self.apply_theme(self._theme)
@@ -201,17 +181,13 @@ class SafeModeDialog(QDialog):
             try:
                 size = self.database_file.stat().st_size
                 database_status = "✅"
-                database_details = (
-                    f"{self.database_file} · {size / 1024:.1f} КБ"
-                )
+                database_details = f"{self.database_file} · {size / 1024:.1f} КБ"
             except OSError as exc:
                 database_status = "❌"
                 database_details = str(exc)
         else:
             database_status = "⚠"
-            database_details = (
-                f"{self.database_file} — файл ещё не создан"
-            )
+            database_details = f"{self.database_file} — файл ещё не создан"
         checks.append(
             SafeModeSystemCheck(
                 "Файл базы",
@@ -228,10 +204,7 @@ class SafeModeDialog(QDialog):
             SafeModeSystemCheck(
                 "Резервные копии",
                 "✅" if backup_count else "⚠",
-                (
-                    f"{self.backups_directory} · "
-                    f"найдено: {backup_count}"
-                ),
+                (f"{self.backups_directory} · найдено: {backup_count}"),
             )
         )
 
@@ -243,10 +216,7 @@ class SafeModeDialog(QDialog):
             SafeModeSystemCheck(
                 "Crash-reports",
                 "⚠" if crash_count else "✅",
-                (
-                    f"{self.crash_reports_directory} · "
-                    f"найдено: {crash_count}"
-                ),
+                (f"{self.crash_reports_directory} · найдено: {crash_count}"),
             )
         )
 
@@ -279,9 +249,7 @@ class SafeModeDialog(QDialog):
             "История:",
         ]
         for record in self.decision.records[:5]:
-            lines.append(
-                f"• {record.started_at} — {record.outcome}"
-            )
+            lines.append(f"• {record.started_at} — {record.outcome}")
         return "\n".join(lines)
 
     def _open_crash_reports(self) -> None:
@@ -289,20 +257,14 @@ class SafeModeDialog(QDialog):
             parents=True,
             exist_ok=True,
         )
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(
-                str(self.crash_reports_directory)
-            )
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.crash_reports_directory)))
 
     def _open_backups(self) -> None:
         self.backups_directory.mkdir(
             parents=True,
             exist_ok=True,
         )
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(self.backups_directory))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.backups_directory)))
 
     def _reset_history(self) -> None:
         self.launch_guard.reset_history()
@@ -320,8 +282,7 @@ class SafeModeDialog(QDialog):
             return sum(
                 1
                 for path in directory.iterdir()
-                if path.is_file()
-                and path.suffix.lower() in suffixes
+                if path.is_file() and path.suffix.lower() in suffixes
             )
         except OSError:
             return 0

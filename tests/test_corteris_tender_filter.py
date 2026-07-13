@@ -47,8 +47,7 @@ def make_tender(
             region=region,
         ),
         source_url=f"https://example.org/{identity}",
-        application_deadline=NOW
-        + timedelta(minutes=deadline_minutes),
+        application_deadline=NOW + timedelta(minutes=deadline_minutes),
         price=TenderMoney.from_value(amount),
         status=status,
         law=law,
@@ -59,17 +58,14 @@ def make_tender(
 
 
 def test_normalize_text_handles_punctuation_and_yo() -> None:
-    assert normalize_text("СКУД / Видеонаблюдение, Ёлка") == (
-        "скуд видеонаблюдение елка"
-    )
+    assert normalize_text("СКУД / Видеонаблюдение, Ёлка") == ("скуд видеонаблюдение елка")
 
 
 def test_video_surveillance_tender_is_highly_relevant() -> None:
     tender = make_tender(
         title="Монтаж системы видеонаблюдения",
         description=(
-            "Поставка IP-видеокамер, видеорегистратора "
-            "и выполнение пусконаладочных работ."
+            "Поставка IP-видеокамер, видеорегистратора и выполнение пусконаладочных работ."
         ),
     )
 
@@ -80,9 +76,7 @@ def test_video_surveillance_tender_is_highly_relevant() -> None:
         RelevanceGrade.HIGH,
         RelevanceGrade.MEDIUM,
     }
-    assert TenderDirection.VIDEO_SURVEILLANCE in (
-        result.directions
-    )
+    assert TenderDirection.VIDEO_SURVEILLANCE in (result.directions)
     assert result.score >= 40
 
 
@@ -101,14 +95,8 @@ def test_ambiguous_cold_chamber_is_hard_excluded() -> None:
 
 def test_integrated_security_gets_multiple_directions() -> None:
     tender = make_tender(
-        title=(
-            "Монтаж комплексной системы безопасности: "
-            "видеонаблюдение, СКУД и шлагбаум"
-        ),
-        description=(
-            "Настройка распознавания автомобильных номеров "
-            "на въезде."
-        ),
+        title=("Монтаж комплексной системы безопасности: видеонаблюдение, СКУД и шлагбаум"),
+        description=("Настройка распознавания автомобильных номеров на въезде."),
     )
 
     result = CorterisTenderClassifier().evaluate(tender)
@@ -133,9 +121,7 @@ def test_filter_rejects_closed_tender_by_default() -> None:
 
     assert result.accepted_count == 0
     assert result.rejected_count == 1
-    assert "Приём заявок не открыт" in (
-        result.rejected[0].rejection_reasons
-    )
+    assert "Приём заявок не открыт" in (result.rejected[0].rejection_reasons)
 
 
 def test_filter_can_require_specific_direction() -> None:
@@ -148,15 +134,11 @@ def test_filter_can_require_specific_direction() -> None:
 
     result = CorterisTenderFilter().filter(
         (video, barrier),
-        TenderFilterOptions(
-            required_directions=(TenderDirection.BARRIERS,)
-        ),
+        TenderFilterOptions(required_directions=(TenderDirection.BARRIERS,)),
     )
 
     assert result.accepted_count == 1
-    assert result.accepted[0].tender.title == (
-        "Поставка автоматического шлагбаума"
-    )
+    assert result.accepted[0].tender.title == ("Поставка автоматического шлагбаума")
 
 
 def test_filter_applies_region_and_price() -> None:
@@ -202,9 +184,7 @@ def test_filter_keeps_exact_precision_for_large_price_boundaries() -> None:
     )
 
     assert result.accepted_count == 0
-    assert result.rejected[0].rejection_reasons == (
-        "Цена выше максимальной",
-    )
+    assert result.rejected[0].rejection_reasons == ("Цена выше максимальной",)
 
 
 def test_filter_does_not_compare_different_currencies() -> None:
@@ -223,9 +203,7 @@ def test_filter_does_not_compare_different_currencies() -> None:
     )
 
     assert result.accepted_count == 0
-    assert result.rejected[0].rejection_reasons == (
-        "Валюта цены не совпадает с валютой фильтра",
-    )
+    assert result.rejected[0].rejection_reasons == ("Валюта цены не совпадает с валютой фильтра",)
 
 
 def test_results_are_ranked_by_relevance_then_deadline() -> None:
@@ -234,20 +212,14 @@ def test_results_are_ranked_by_relevance_then_deadline() -> None:
         deadline_minutes=30,
     )
     strong = make_tender(
-        title=(
-            "Монтаж видеонаблюдения, СКУД, шлагбаума "
-            "и распознавания номеров"
-        ),
+        title=("Монтаж видеонаблюдения, СКУД, шлагбаума и распознавания номеров"),
         deadline_minutes=300,
     )
 
     result = CorterisTenderFilter().filter((medium, strong))
 
     assert result.accepted[0].tender is strong
-    assert (
-        result.accepted[0].relevance.score
-        >= result.accepted[1].relevance.score
-    )
+    assert result.accepted[0].relevance.score >= result.accepted[1].relevance.score
 
 
 def test_direction_counts_are_calculated() -> None:
@@ -259,9 +231,5 @@ def test_direction_counts_are_calculated() -> None:
 
     result = CorterisTenderFilter().filter(tenders)
 
-    assert result.direction_counts[
-        TenderDirection.VIDEO_SURVEILLANCE
-    ] == 2
-    assert result.direction_counts[
-        TenderDirection.BARRIERS
-    ] == 1
+    assert result.direction_counts[TenderDirection.VIDEO_SURVEILLANCE] == 2
+    assert result.direction_counts[TenderDirection.BARRIERS] == 1

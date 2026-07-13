@@ -18,9 +18,7 @@ import re
 from types import MappingProxyType
 from typing import Final, Iterator, Mapping
 
-_HEX_COLOR_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$"
-)
+_HEX_COLOR_PATTERN: Final[re.Pattern[str]] = re.compile(r"^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$")
 
 
 class ThemeName(StrEnum):
@@ -116,8 +114,7 @@ class ThemePalette:
             value = getattr(self, item.name)
             if not isinstance(value, str) or not _HEX_COLOR_PATTERN.fullmatch(value):
                 raise ValueError(
-                    f"Некорректный цвет {item.name!r}: {value!r}. "
-                    "Ожидается #RRGGBB или #RRGGBBAA."
+                    f"Некорректный цвет {item.name!r}: {value!r}. Ожидается #RRGGBB или #RRGGBBAA."
                 )
 
     def __iter__(self) -> Iterator[tuple[str, str]]:
@@ -135,10 +132,7 @@ class ThemePalette:
         normalized_prefix = prefix.strip().replace(" ", "-").lower()
         if not normalized_prefix:
             raise ValueError("Префикс QSS не может быть пустым.")
-        return {
-            f"{normalized_prefix}-{name.replace('_', '-')}": value
-            for name, value in self
-        }
+        return {f"{normalized_prefix}-{name.replace('_', '-')}": value for name, value in self}
 
     def semantic(self, role: SemanticColor) -> tuple[str, str]:
         """Возвращает основной и фоновый цвет семантической роли."""
@@ -279,9 +273,7 @@ def get_palette(theme: ThemeName | str) -> ThemePalette:
         normalized = theme if isinstance(theme, ThemeName) else ThemeName(theme.lower())
     except (ValueError, AttributeError) as exc:
         allowed = ", ".join(item.value for item in ThemeName)
-        raise ValueError(
-            f"Неизвестная тема {theme!r}. Доступны: {allowed}."
-        ) from exc
+        raise ValueError(f"Неизвестная тема {theme!r}. Доступны: {allowed}.") from exc
     return PALETTES[normalized]
 
 

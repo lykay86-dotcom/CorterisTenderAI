@@ -28,15 +28,11 @@ class FailingRegistry:
 
 
 def test_runner_automatically_persists_successful_search(tmp_path) -> None:
-    profiles = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    profiles = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     profiles.initialize()
     sample = _run(_evaluated_tender())
     service = FakeSearchService(sample.result)
-    registry = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    registry = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     runner = TenderSearchProfileRunner(
         profiles,
         service,
@@ -61,9 +57,7 @@ def test_runner_automatically_persists_successful_search(tmp_path) -> None:
 def test_optional_persistence_failure_does_not_hide_search_results(
     tmp_path,
 ) -> None:
-    profiles = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    profiles = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     profiles.initialize()
     sample = _run()
     runner = TenderSearchProfileRunner(
@@ -75,15 +69,11 @@ def test_optional_persistence_failure_does_not_hide_search_results(
     result = runner.run(sample.profile.id)
 
     assert result.result is sample.result
-    assert "disk unavailable" in runner.last_persistence_error(
-        sample.profile.id
-    )
+    assert "disk unavailable" in runner.last_persistence_error(sample.profile.id)
 
 
 def test_required_persistence_failure_is_raised(tmp_path) -> None:
-    profiles = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    profiles = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     profiles.initialize()
     sample = _run()
     runner = TenderSearchProfileRunner(

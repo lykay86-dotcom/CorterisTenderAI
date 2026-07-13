@@ -41,9 +41,7 @@ class DashboardDemoSnapshot:
             return None
         return max(
             self.tenders,
-            key=lambda tender: (
-                tender.score if tender.score is not None else -1
-            ),
+            key=lambda tender: tender.score if tender.score is not None else -1,
         )
 
 
@@ -122,9 +120,7 @@ def build_demo_snapshot(
     anchor = now or datetime.now()
 
     def deadline(days: int) -> str:
-        return (anchor.date() + timedelta(days=days)).strftime(
-            "%d.%m.%Y"
-        )
+        return (anchor.date() + timedelta(days=days)).strftime("%d.%m.%Y")
 
     kpis = (
         DashboardKpi(
@@ -180,86 +176,58 @@ def build_demo_snapshot(
     tenders = (
         RecentTender(
             number="DEMO-44-FZ-001",
-            title=(
-                "Монтаж системы видеонаблюдения "
-                "в административном комплексе"
-            ),
+            title=("Монтаж системы видеонаблюдения в административном комплексе"),
             customer="Демонстрационный государственный заказчик",
             nmck="12 480 000 ₽",
             deadline=deadline(7),
             score=94,
             status="Рекомендуется",
             platform="ЕИС — демонстрация",
-            recommendation=(
-                "Высокое соответствие опыту, оборудованию "
-                "и целевой маржинальности."
-            ),
+            recommendation=("Высокое соответствие опыту, оборудованию и целевой маржинальности."),
         ),
         RecentTender(
             number="DEMO-223-FZ-002",
-            title=(
-                "Комплекс «умный шлагбаум» "
-                "с распознаванием автомобильных номеров"
-            ),
+            title=("Комплекс «умный шлагбаум» с распознаванием автомобильных номеров"),
             customer="Демонстрационная управляющая компания",
             nmck="7 950 000 ₽",
             deadline=deadline(10),
             score=91,
             status="Высокий приоритет",
             platform="РТС-тендер — демонстрация",
-            recommendation=(
-                "Подходит ПАК Entercam и типовое решение Corteris."
-            ),
+            recommendation=("Подходит ПАК Entercam и типовое решение Corteris."),
         ),
         RecentTender(
             number="DEMO-44-FZ-003",
-            title=(
-                "Поставка и монтаж системы контроля "
-                "и управления доступом"
-            ),
+            title=("Поставка и монтаж системы контроля и управления доступом"),
             customer="Демонстрационное бюджетное учреждение",
             nmck="4 860 000 ₽",
             deadline=deadline(5),
             score=86,
             status="Рекомендуется",
             platform="Сбер А — демонстрация",
-            recommendation=(
-                "Техническое задание соответствует компетенциям СКУД."
-            ),
+            recommendation=("Техническое задание соответствует компетенциям СКУД."),
         ),
         RecentTender(
             number="DEMO-44-FZ-004",
-            title=(
-                "Техническое обслуживание охранно-пожарной "
-                "сигнализации"
-            ),
+            title=("Техническое обслуживание охранно-пожарной сигнализации"),
             customer="Демонстрационный промышленный объект",
             nmck="2 140 000 ₽",
             deadline=deadline(3),
             score=72,
             status="Проверить документы",
             platform="ЕЭТП — демонстрация",
-            recommendation=(
-                "Нужна дополнительная проверка лицензий "
-                "и регламента SLA."
-            ),
+            recommendation=("Нужна дополнительная проверка лицензий и регламента SLA."),
         ),
         RecentTender(
             number="DEMO-COM-005",
-            title=(
-                "Модернизация системы видеонаблюдения "
-                "на складском комплексе"
-            ),
+            title=("Модернизация системы видеонаблюдения на складском комплексе"),
             customer="Демонстрационный коммерческий заказчик",
             nmck="3 650 000 ₽",
             deadline=deadline(2),
             score=58,
             status="Требует внимания",
             platform="Коммерческая ЭТП — демонстрация",
-            recommendation=(
-                "Срок подготовки заявки короткий, "
-                "а архив требует уточнения."
-            ),
+            recommendation=("Срок подготовки заявки короткий, а архив требует уточнения."),
         ),
     )
 
@@ -267,41 +235,30 @@ def build_demo_snapshot(
         AiRecommendation(
             title="Высокое соответствие компетенциям",
             description=(
-                "Видеонаблюдение, СКУД и автоматизация КПП "
-                "соответствуют профилю Corteris."
+                "Видеонаблюдение, СКУД и автоматизация КПП соответствуют профилю Corteris."
             ),
             severity="success",
             action_text="Открыть тендер",
         ),
         AiRecommendation(
             title="Подходящее оборудование",
-            description=(
-                "Основные позиции можно закрыть решениями "
-                "Trassir, Entercam и DoorHan."
-            ),
+            description=("Основные позиции можно закрыть решениями Trassir, Entercam и DoorHan."),
             severity="success",
         ),
         AiRecommendation(
             title="Целевая маржинальность",
-            description=(
-                "Предварительная валовая прибыль выше "
-                "внутреннего порога участия."
-            ),
+            description=("Предварительная валовая прибыль выше внутреннего порога участия."),
             severity="info",
         ),
         AiRecommendation(
             title="Аналогичный опыт",
-            description=(
-                "В базе есть сопоставимые проекты "
-                "по видеонаблюдению и умным шлагбаумам."
-            ),
+            description=("В базе есть сопоставимые проекты по видеонаблюдению и умным шлагбаумам."),
             severity="info",
         ),
         AiRecommendation(
             title="Сжатый срок подачи",
             description=(
-                "По тендеру DEMO-COM-005 осталось два дня. "
-                "Нужно проверить комплект документов."
+                "По тендеру DEMO-COM-005 осталось два дня. Нужно проверить комплект документов."
             ),
             severity="warning",
             action_text="Проверить документы",
@@ -312,10 +269,7 @@ def build_demo_snapshot(
         ActivityEntry(
             key="demo-analysis-complete",
             title="AI-анализ завершён",
-            description=(
-                "Проверено 24 новых закупки, "
-                "8 рекомендованы для детального анализа."
-            ),
+            description=("Проверено 24 новых закупки, 8 рекомендованы для детального анализа."),
             timestamp=anchor - timedelta(minutes=4),
             tone=ActivityTone.SUCCESS,
             icon_text="AI",
@@ -323,9 +277,7 @@ def build_demo_snapshot(
         ActivityEntry(
             key="demo-priority-selected",
             title="Выбран приоритетный тендер",
-            description=(
-                "DEMO-44-FZ-001 получил AI Score 94/100."
-            ),
+            description=("DEMO-44-FZ-001 получил AI Score 94/100."),
             timestamp=anchor - timedelta(minutes=9),
             tone=ActivityTone.INFO,
             icon_text="T",
@@ -335,10 +287,7 @@ def build_demo_snapshot(
         ActivityEntry(
             key="demo-proposal-draft",
             title="Черновик КП сохранён",
-            description=(
-                "Коммерческое предложение по умному шлагбауму "
-                "готово на 70%."
-            ),
+            description=("Коммерческое предложение по умному шлагбауму готово на 70%."),
             timestamp=anchor - timedelta(minutes=18),
             tone=ActivityTone.SUCCESS,
             icon_text="КП",
@@ -348,10 +297,7 @@ def build_demo_snapshot(
         ActivityEntry(
             key="demo-deadline-warning",
             title="Приближается срок подачи",
-            description=(
-                "По DEMO-COM-005 необходимо принять решение "
-                "об участии до конца дня."
-            ),
+            description=("По DEMO-COM-005 необходимо принять решение об участии до конца дня."),
             timestamp=anchor - timedelta(minutes=31),
             tone=ActivityTone.WARNING,
             icon_text="!",
@@ -361,9 +307,7 @@ def build_demo_snapshot(
         ActivityEntry(
             key="demo-estimate-updated",
             title="Смета пересчитана",
-            description=(
-                "Обновлены цены оборудования и монтажных работ."
-            ),
+            description=("Обновлены цены оборудования и монтажных работ."),
             timestamp=anchor - timedelta(hours=1, minutes=7),
             tone=ActivityTone.NEUTRAL,
             icon_text="₽",

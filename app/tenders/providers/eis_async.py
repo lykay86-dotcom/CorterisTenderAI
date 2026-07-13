@@ -114,9 +114,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         except EisParseError:
             raise
         except Exception as exc:
-            raise EisParseError(
-                f"Не удалось разобрать ответ поиска ЕИС: {exc}"
-            ) from exc
+            raise EisParseError(f"Не удалось разобрать ответ поиска ЕИС: {exc}") from exc
 
         warnings = list(parsed.warnings)
         warnings.extend(prepared.warnings)
@@ -126,8 +124,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         )
         if rounded_page_size != prepared.query.page_size:
             warnings.append(
-                "Размер страницы ЕИС округлён: "
-                f"{prepared.query.page_size} → {rounded_page_size}."
+                f"Размер страницы ЕИС округлён: {prepared.query.page_size} → {rounded_page_size}."
             )
         if prepared.query.regions:
             warnings.append(
@@ -135,11 +132,9 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
                 "тендеры без региона сохраняются."
             )
 
-        items = tuple(
-            item
-            for item in parsed.items
-            if matches_eis_query(item, prepared.query)
-        )[: prepared.query.page_size]
+        items = tuple(item for item in parsed.items if matches_eis_query(item, prepared.query))[
+            : prepared.query.page_size
+        ]
         result = TenderSearchResult(
             provider_id=self.descriptor.id,
             items=items,
@@ -148,8 +143,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
             page_size=prepared.query.page_size,
             next_page_token=(
                 str(prepared.query.page + 1)
-                if parsed.total is None
-                or prepared.query.page * rounded_page_size < parsed.total
+                if parsed.total is None or prepared.query.page * rounded_page_size < parsed.total
                 else ""
             ),
             warnings=tuple(dict.fromkeys(warnings)),
@@ -185,9 +179,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
                 item.procurement_number,
             }:
                 return item
-        raise TenderProviderError(
-            f"Закупка ЕИС {normalized} не найдена"
-        )
+        raise TenderProviderError(f"Закупка ЕИС {normalized} не найдена")
 
     async def list_documents(
         self,
@@ -210,9 +202,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         except EisParseError:
             raise
         except Exception as exc:
-            raise EisParseError(
-                f"Не удалось разобрать документы ЕИС: {exc}"
-            ) from exc
+            raise EisParseError(f"Не удалось разобрать документы ЕИС: {exc}") from exc
 
     async def check_health(
         self,
@@ -229,19 +219,13 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
             )
             text = response.text().casefold()
             if response.status_code == 200 and (
-                "единая информационная система" in text
-                or "закуп" in text
+                "единая информационная система" in text or "закуп" in text
             ):
                 status = ProviderHealthStatus.AVAILABLE
-                message = (
-                    "Публичная часть ЕИС доступна; режим: "
-                    "public_html_async."
-                )
+                message = "Публичная часть ЕИС доступна; режим: public_html_async."
             elif response.status_code == 200:
                 status = ProviderHealthStatus.DEGRADED
-                message = (
-                    "ЕИС ответила, но содержимое страницы не распознано."
-                )
+                message = "ЕИС ответила, но содержимое страницы не распознано."
             else:
                 status = ProviderHealthStatus.UNAVAILABLE
                 message = f"ЕИС вернула HTTP {response.status_code}."
@@ -301,13 +285,8 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
                     "Автоматический обход защиты не выполняется."
                 )
             elif "timeout" in detail.casefold():
-                detail = (
-                    "истёк сетевой тайм-аут ЕИС после "
-                    f"{exc.attempts} попыток: {detail}"
-                )
-            raise TenderProviderError(
-                f"Ошибка подключения к ЕИС: {detail}"
-            ) from exc
+                detail = f"истёк сетевой тайм-аут ЕИС после {exc.attempts} попыток: {detail}"
+            raise TenderProviderError(f"Ошибка подключения к ЕИС: {detail}") from exc
 
 
 def _utc_now() -> str:

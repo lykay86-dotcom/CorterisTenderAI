@@ -17,21 +17,15 @@ from tests.collector_c3_helpers import make_tender
 
 
 def test_save_batch_persists_score_and_updates_registry(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     tender = make_tender(deadline_day=30)
     normalized = TenderNormalizer().normalize(tender)
     deduplicated = TenderDeduplicator().deduplicate((normalized,))
     score = CorterisParticipationRanker().score(
         tender,
-        ParticipationScoringContext(
-            now=datetime(2026, 7, 12, tzinfo=timezone.utc)
-        ),
+        ParticipationScoringContext(now=datetime(2026, 7, 12, tzinfo=timezone.utc)),
     )
-    run_id = repository.start_run(
-        TenderSearchQuery(keywords=("видеонаблюдение",))
-    )
+    run_id = repository.start_run(TenderSearchQuery(keywords=("видеонаблюдение",)))
 
     summary = repository.save_batch(
         run_id,
@@ -41,18 +35,14 @@ def test_save_batch_persists_score_and_updates_registry(tmp_path) -> None:
 
     assert summary.ranked_count == 1
     assert repository.list_run_scores(run_id) == (score,)
-    record = TenderRegistryRepository(repository.path).get_record(
-        normalized.canonical_key
-    )
+    record = TenderRegistryRepository(repository.path).get_record(normalized.canonical_key)
     assert record is not None
     assert record.relevance_score == score.total_score
     assert record.relevance_grade == score.recommendation.value
 
 
 def test_manual_score_is_deduplicated_by_fingerprint(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     tender = make_tender()
     normalized = TenderNormalizer().normalize(tender)
     run_id = repository.start_run(TenderSearchQuery())

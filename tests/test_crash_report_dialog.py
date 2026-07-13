@@ -70,9 +70,7 @@ def test_dialog_saves_support_bundle_through_provider(
 
     dialog = CrashReportDialog(
         report,
-        support_bundle_provider=lambda value: (
-            calls.append(Path(value)) or Result()
-        ),
+        support_bundle_provider=lambda value: calls.append(Path(value)) or Result(),
     )
 
     monkeypatch.setattr(
@@ -98,7 +96,9 @@ def test_qt_bridge_registers_callback_and_provider(tmp_path) -> None:
         chain_original=False,
     )
     bridge = QtCrashBridge(handler, parent=app)
-    provider = lambda target: target
+
+    def provider(target):
+        return target
 
     bridge.set_support_bundle_provider(provider)
 

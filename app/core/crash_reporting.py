@@ -72,9 +72,7 @@ class _CrashRedactor:
         r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
         re.IGNORECASE,
     )
-    BEARER = re.compile(
-        r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{6,}"
-    )
+    BEARER = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{6,}")
     SECRET = re.compile(
         r"""(?ix)
         \b(
@@ -141,11 +139,7 @@ class _CrashRedactor:
             result,
         )
         result = self.SECRET.sub(
-            lambda match: (
-                f"{match.group(1)}"
-                f"{match.group(2)}"
-                "<REDACTED>"
-            ),
+            lambda match: f"{match.group(1)}{match.group(2)}<REDACTED>",
             result,
         )
         return result
@@ -174,11 +168,7 @@ class CrashReportService:
     ) -> None:
         self.directory = Path(directory).expanduser()
         self.directory.mkdir(parents=True, exist_ok=True)
-        self.log_file = (
-            Path(log_file).expanduser()
-            if log_file is not None
-            else None
-        )
+        self.log_file = Path(log_file).expanduser() if log_file is not None else None
 
     def create_report(
         self,
@@ -195,7 +185,9 @@ class CrashReportService:
         redactor = _CrashRedactor(
             (
                 self.directory,
+                self.directory.parent,
                 self.log_file or "",
+                self.log_file.parent if self.log_file is not None else "",
             )
         )
 
@@ -207,18 +199,14 @@ class CrashReportService:
             )
         )
         traceback_text = redactor.text(raw_traceback)
-        exception_type = (
-            f"{exc_type.__module__}.{exc_type.__qualname__}"
-        )
+        exception_type = f"{exc_type.__module__}.{exc_type.__qualname__}"
         exception_message = redactor.text(exc_value)
 
         crash_payload = {
             "crash_id": crash_id,
             "created_at": timestamp.isoformat(timespec="seconds"),
             "origin": redactor.text(origin),
-            "thread_name": redactor.text(
-                thread_name or threading.current_thread().name
-            ),
+            "thread_name": redactor.text(thread_name or threading.current_thread().name),
             "thread_ident": threading.get_ident(),
             "exception_type": exception_type,
             "exception_message": exception_message,
@@ -241,10 +229,7 @@ class CrashReportService:
                 "machine": platform.machine(),
                 "platform": platform.platform(),
             },
-            "arguments": [
-                redactor.text(argument)
-                for argument in sys.argv
-            ],
+            "arguments": [redactor.text(argument) for argument in sys.argv],
         }
         privacy_payload = {
             "business_database_included": False,
@@ -288,18 +273,10 @@ class CrashReportService:
             "files": manifest_files,
         }
 
-        destination = (
-            self.directory
-            / (
-                "CORTERIS_crash_"
-                f"{timestamp:%Y%m%d_%H%M%S}_"
-                f"{crash_id[:8]}"
-                f"{self.DEFAULT_EXTENSION}"
-            )
+        destination = self.directory / (
+            f"CORTERIS_crash_{timestamp:%Y%m%d_%H%M%S}_{crash_id[:8]}{self.DEFAULT_EXTENSION}"
         )
-        temporary = destination.with_suffix(
-            destination.suffix + ".tmp"
-        )
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
 
         try:
             with ZipFile(
@@ -321,10 +298,7 @@ class CrashReportService:
         inspection = self.inspect_report(destination)
         if not inspection.valid:
             destination.unlink(missing_ok=True)
-            raise RuntimeError(
-                "Crash-report не прошёл проверку: "
-                + "; ".join(inspection.errors)
-            )
+            raise RuntimeError("Crash-report не прошёл проверку: " + "; ".join(inspection.errors))
 
         return CrashReportResult(
             path=destination,
@@ -362,11 +336,7 @@ class CrashReportService:
                     )
 
                 try:
-                    manifest = json.loads(
-                        archive.read(self.MANIFEST_NAME).decode(
-                            "utf-8"
-                        )
-                    )
+                    manifest = json.loads(archive.read(self.MANIFEST_NAME).decode("utf-8"))
                 except (
                     KeyError,
                     UnicodeDecodeError,
@@ -379,95 +349,57 @@ class CrashReportService:
                     )
 
                 if not isinstance(manifest, dict):
-                    errors.append(
-                        "manifest.json должен быть объектом."
-                    )
+                    errors.append("manifest.json должен быть объектом.")
                     manifest = {}
 
                 if manifest.get("format") != self.FORMAT_NAME:
-                    errors.append(
-                        "Файл не является crash-report CORTERIS."
-                    )
-                if self._integer(
-                    manifest.get("format_version", 0)
-                ) != self.FORMAT_VERSION:
-                    errors.append(
-                        "Неподдерживаемая версия crash-report."
-                    )
+                    errors.append("Файл не является crash-report CORTERIS.")
+                if self._integer(manifest.get("format_version", 0)) != self.FORMAT_VERSION:
+                    errors.append("Неподдерживаемая версия crash-report.")
 
                 listed = manifest.get("files", [])
                 if not isinstance(listed, list):
-                    errors.append(
-                        "Поле files должно быть списком."
-                    )
+                    errors.append("Поле files должно быть списком.")
                     listed = []
 
                 listed_names: set[str] = set()
                 for item in listed:
                     if not isinstance(item, dict):
-                        errors.append(
-                            "Некорректная запись файла в manifest.json."
-                        )
+                        errors.append("Некорректная запись файла в manifest.json.")
                         continue
 
                     name = str(item.get("name", "")).strip()
                     if not name:
-                        errors.append(
-                            "В manifest.json есть файл без имени."
-                        )
+                        errors.append("В manifest.json есть файл без имени.")
                         continue
                     listed_names.add(name)
 
                     if name not in names:
-                        errors.append(
-                            f"В архиве отсутствует {name}."
-                        )
+                        errors.append(f"В архиве отсутствует {name}.")
                         continue
 
                     content = archive.read(name)
-                    expected_size = self._integer(
-                        item.get("size_bytes", -1)
-                    )
+                    expected_size = self._integer(item.get("size_bytes", -1))
                     if expected_size != len(content):
-                        errors.append(
-                            f"Размер {name} не совпадает."
-                        )
+                        errors.append(f"Размер {name} не совпадает.")
 
-                    expected_hash = str(
-                        item.get("sha256", "")
-                    ).strip()
+                    expected_hash = str(item.get("sha256", "")).strip()
                     actual_hash = hashlib.sha256(content).hexdigest()
                     if expected_hash != actual_hash:
-                        errors.append(
-                            f"Контрольная сумма {name} не совпадает."
-                        )
+                        errors.append(f"Контрольная сумма {name} не совпадает.")
 
-                for name in sorted(
-                    self.REQUIRED_FILES - listed_names
-                ):
-                    errors.append(
-                        f"Отсутствует обязательный файл {name}."
-                    )
+                for name in sorted(self.REQUIRED_FILES - listed_names):
+                    errors.append(f"Отсутствует обязательный файл {name}.")
 
-                unexpected = (
-                    names
-                    - listed_names
-                    - {self.MANIFEST_NAME}
-                )
+                unexpected = names - listed_names - {self.MANIFEST_NAME}
                 for name in sorted(unexpected):
-                    errors.append(
-                        f"Файл {name} не описан в manifest.json."
-                    )
+                    errors.append(f"Файл {name} не описан в manifest.json.")
 
                 return CrashReportInspection(
                     path=path,
                     valid=not errors,
-                    crash_id=str(
-                        manifest.get("crash_id", "")
-                    ),
-                    created_at=str(
-                        manifest.get("created_at", "")
-                    ),
+                    crash_id=str(manifest.get("crash_id", "")),
+                    created_at=str(manifest.get("created_at", "")),
                     file_count=len(listed_names),
                     errors=tuple(errors),
                 )
@@ -488,25 +420,14 @@ class CrashReportService:
         if not inspection.valid:
             raise ValueError(
                 "Crash-report не прошёл проверку:\n"
-                + "\n".join(
-                    f"• {error}"
-                    for error in inspection.errors
-                )
+                + "\n".join(f"• {error}" for error in inspection.errors)
             )
 
         try:
             with ZipFile(path, "r") as archive:
-                crash_payload = json.loads(
-                    archive.read("crash.json").decode("utf-8")
-                )
-                environment = json.loads(
-                    archive.read("environment.json").decode(
-                        "utf-8"
-                    )
-                )
-                traceback_text = archive.read(
-                    "traceback.txt"
-                ).decode("utf-8-sig", errors="replace")
+                crash_payload = json.loads(archive.read("crash.json").decode("utf-8"))
+                environment = json.loads(archive.read("environment.json").decode("utf-8"))
+                traceback_text = archive.read("traceback.txt").decode("utf-8-sig", errors="replace")
         except (
             BadZipFile,
             OSError,
@@ -514,9 +435,7 @@ class CrashReportService:
             UnicodeDecodeError,
             json.JSONDecodeError,
         ) as exc:
-            raise ValueError(
-                f"Не удалось прочитать crash-report: {exc}"
-            ) from exc
+            raise ValueError(f"Не удалось прочитать crash-report: {exc}") from exc
 
         if not isinstance(crash_payload, dict):
             raise ValueError("crash.json должен быть объектом.")
@@ -538,15 +457,9 @@ class CrashReportService:
                 )
             ),
             origin=str(crash_payload.get("origin", "")),
-            thread_name=str(
-                crash_payload.get("thread_name", "")
-            ),
-            exception_type=str(
-                crash_payload.get("exception_type", "")
-            ),
-            exception_message=str(
-                crash_payload.get("exception_message", "")
-            ),
+            thread_name=str(crash_payload.get("thread_name", "")),
+            exception_type=str(crash_payload.get("exception_type", "")),
+            exception_message=str(crash_payload.get("exception_message", "")),
             traceback_text=traceback_text,
             environment=environment,
             size_bytes=path.stat().st_size,
@@ -564,16 +477,12 @@ class CrashReportService:
             with path.open("rb") as handle:
                 handle.seek(0, 2)
                 size = handle.tell()
-                handle.seek(
-                    max(0, size - self.MAX_LOG_TAIL_BYTES)
-                )
+                handle.seek(max(0, size - self.MAX_LOG_TAIL_BYTES))
                 raw = handle.read(self.MAX_LOG_TAIL_BYTES)
         except OSError:
             return ""
 
-        return redactor.text(
-            raw.decode("utf-8", errors="replace")
-        )
+        return redactor.text(raw.decode("utf-8", errors="replace"))
 
     @staticmethod
     def _json_bytes(payload: Any) -> bytes:
@@ -728,9 +637,7 @@ class GlobalCrashHandler:
                     )
             return result
         except Exception:
-            logging.getLogger(__name__).exception(
-                "Не удалось создать crash-report"
-            )
+            logging.getLogger(__name__).exception("Не удалось создать crash-report")
             return None
         finally:
             with self._lock:
@@ -780,10 +687,7 @@ class GlobalCrashHandler:
             origin=f"thread:{args.thread.name}",
             thread_name=args.thread.name,
         )
-        if (
-            self.chain_original
-            and self._original_thread_hook is not None
-        ):
+        if self.chain_original and self._original_thread_hook is not None:
             self._original_thread_hook(args)
 
     def _unraisable_hook(self, args: Any) -> None:
@@ -795,10 +699,7 @@ class GlobalCrashHandler:
             args.exc_traceback,
             origin="unraisable",
         )
-        if (
-            self.chain_original
-            and self._original_unraisable_hook is not None
-        ):
+        if self.chain_original and self._original_unraisable_hook is not None:
             self._original_unraisable_hook(args)
 
 

@@ -25,9 +25,7 @@ class CollectorScheduleSettings:
     enabled: bool = False
     profile_id: str = ""
     provider_ids: tuple[str, ...] = ()
-    frequency: CollectorScheduleFrequency = (
-        CollectorScheduleFrequency.HOURLY
-    )
+    frequency: CollectorScheduleFrequency = CollectorScheduleFrequency.HOURLY
     daily_time: str = "09:00"
     run_on_startup: bool = False
     notify_new: bool = True
@@ -37,11 +35,7 @@ class CollectorScheduleSettings:
     def __post_init__(self) -> None:
         normalized_profile = self.profile_id.strip().casefold()
         normalized_providers = tuple(
-            dict.fromkeys(
-                item.strip().casefold()
-                for item in self.provider_ids
-                if item.strip()
-            )
+            dict.fromkeys(item.strip().casefold() for item in self.provider_ids if item.strip())
         )
         object.__setattr__(self, "profile_id", normalized_profile)
         object.__setattr__(
@@ -56,19 +50,13 @@ class CollectorScheduleSettings:
             object.__setattr__(
                 self,
                 "frequency",
-                CollectorScheduleFrequency(
-                    str(self.frequency)
-                ),
+                CollectorScheduleFrequency(str(self.frequency)),
             )
         _parse_daily_time(self.daily_time)
         if self.enabled and not self.profile_id:
-            raise ValueError(
-                "Для включённого планировщика нужен профиль."
-            )
+            raise ValueError("Для включённого планировщика нужен профиль.")
         if self.enabled and not self.provider_ids:
-            raise ValueError(
-                "Для включённого планировщика нужен источник."
-            )
+            raise ValueError("Для включённого планировщика нужен источник.")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -105,25 +93,13 @@ class CollectorScheduleSettings:
         return cls(
             enabled=bool(payload.get("enabled", False)),
             profile_id=str(payload.get("profile_id", "")),
-            provider_ids=tuple(
-                str(item) for item in raw_providers
-            ),
+            provider_ids=tuple(str(item) for item in raw_providers),
             frequency=frequency,
-            daily_time=str(
-                payload.get("daily_time", "09:00")
-            ),
-            run_on_startup=bool(
-                payload.get("run_on_startup", False)
-            ),
-            notify_new=bool(
-                payload.get("notify_new", True)
-            ),
-            notify_changed=bool(
-                payload.get("notify_changed", True)
-            ),
-            notify_failures=bool(
-                payload.get("notify_failures", True)
-            ),
+            daily_time=str(payload.get("daily_time", "09:00")),
+            run_on_startup=bool(payload.get("run_on_startup", False)),
+            notify_new=bool(payload.get("notify_new", True)),
+            notify_changed=bool(payload.get("notify_changed", True)),
+            notify_failures=bool(payload.get("notify_failures", True)),
         )
 
 
@@ -140,9 +116,7 @@ class CollectorScheduleState:
 
     def __post_init__(self) -> None:
         if self.busy_skip_count < 0:
-            raise ValueError(
-                "busy_skip_count must be non-negative"
-            )
+            raise ValueError("busy_skip_count must be non-negative")
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -153,21 +127,11 @@ class CollectorScheduleState:
         payload: Mapping[str, object],
     ) -> "CollectorScheduleState":
         return cls(
-            last_started_at=str(
-                payload.get("last_started_at", "")
-            ),
-            last_completed_at=str(
-                payload.get("last_completed_at", "")
-            ),
-            next_run_at=str(
-                payload.get("next_run_at", "")
-            ),
-            last_status=str(
-                payload.get("last_status", "idle")
-            ),
-            last_error=str(
-                payload.get("last_error", "")
-            ),
+            last_started_at=str(payload.get("last_started_at", "")),
+            last_completed_at=str(payload.get("last_completed_at", "")),
+            next_run_at=str(payload.get("next_run_at", "")),
+            last_status=str(payload.get("last_status", "idle")),
+            last_error=str(payload.get("last_error", "")),
             busy_skip_count=max(
                 0,
                 int(payload.get("busy_skip_count", 0)),
@@ -211,9 +175,7 @@ class CollectorScheduleRepository:
                     CollectorScheduleState(),
                 )
             try:
-                payload = json.loads(
-                    self.path.read_text(encoding="utf-8")
-                )
+                payload = json.loads(self.path.read_text(encoding="utf-8"))
             except (
                 OSError,
                 TypeError,
@@ -236,17 +198,11 @@ class CollectorScheduleRepository:
             if not isinstance(raw_state, dict):
                 raw_state = {}
             try:
-                settings = (
-                    CollectorScheduleSettings.from_dict(
-                        raw_settings
-                    )
-                )
+                settings = CollectorScheduleSettings.from_dict(raw_settings)
             except ValueError:
                 settings = CollectorScheduleSettings()
             try:
-                state = CollectorScheduleState.from_dict(
-                    raw_state
-                )
+                state = CollectorScheduleState.from_dict(raw_state)
             except (ValueError, TypeError):
                 state = CollectorScheduleState()
             return settings, state
@@ -266,9 +222,7 @@ class CollectorScheduleRepository:
                 parents=True,
                 exist_ok=True,
             )
-            temporary = self.path.with_suffix(
-                self.path.suffix + ".tmp"
-            )
+            temporary = self.path.with_suffix(self.path.suffix + ".tmp")
             temporary.write_text(
                 json.dumps(
                     payload,
@@ -307,20 +261,12 @@ class CollectorScheduler:
         current = _local_now(now)
         _, old_state = self.repository.load()
         next_value = (
-            _next_run(settings, current).isoformat(
-                timespec="seconds"
-            )
-            if settings.enabled
-            else ""
+            _next_run(settings, current).isoformat(timespec="seconds") if settings.enabled else ""
         )
         state = replace(
             old_state,
             next_run_at=next_value,
-            last_status=(
-                old_state.last_status
-                if settings.enabled
-                else "disabled"
-            ),
+            last_status=(old_state.last_status if settings.enabled else "disabled"),
             last_error="",
         )
         self.repository.save(settings, state)
@@ -362,9 +308,7 @@ class CollectorScheduler:
             due = _next_run(settings, current)
             state = replace(
                 state,
-                next_run_at=due.isoformat(
-                    timespec="seconds"
-                ),
+                next_run_at=due.isoformat(timespec="seconds"),
             )
             self.repository.save(settings, state)
 
@@ -385,9 +329,7 @@ class CollectorScheduler:
                     replace(
                         state,
                         last_status="deferred_busy",
-                        busy_skip_count=(
-                            state.busy_skip_count + 1
-                        ),
+                        busy_skip_count=(state.busy_skip_count + 1),
                     ),
                 )
             return None
@@ -408,17 +350,11 @@ class CollectorScheduler:
         current = _local_now(now)
         settings, state = self.repository.load()
         next_value = (
-            _next_run(settings, current).isoformat(
-                timespec="seconds"
-            )
-            if settings.enabled
-            else ""
+            _next_run(settings, current).isoformat(timespec="seconds") if settings.enabled else ""
         )
         state = replace(
             state,
-            last_started_at=current.isoformat(
-                timespec="seconds"
-            ),
+            last_started_at=current.isoformat(timespec="seconds"),
             next_run_at=next_value,
             last_status=f"running:{request.reason}",
             last_error="",
@@ -437,9 +373,7 @@ class CollectorScheduler:
         settings, state = self.repository.load()
         state = replace(
             state,
-            last_completed_at=current.isoformat(
-                timespec="seconds"
-            ),
+            last_completed_at=current.isoformat(timespec="seconds"),
             last_status=status.strip() or "completed",
             last_error=error.strip(),
         )
@@ -451,17 +385,11 @@ def _next_run(
     settings: CollectorScheduleSettings,
     now: datetime,
 ) -> datetime:
-    if (
-        settings.frequency
-        == CollectorScheduleFrequency.EVERY_30_MINUTES
-    ):
+    if settings.frequency == CollectorScheduleFrequency.EVERY_30_MINUTES:
         return now + timedelta(minutes=30)
     if settings.frequency == CollectorScheduleFrequency.HOURLY:
         return now + timedelta(hours=1)
-    if (
-        settings.frequency
-        == CollectorScheduleFrequency.EVERY_3_HOURS
-    ):
+    if settings.frequency == CollectorScheduleFrequency.EVERY_3_HOURS:
         return now + timedelta(hours=3)
 
     daily = _parse_daily_time(settings.daily_time)
@@ -484,9 +412,7 @@ def _parse_daily_time(value: str) -> time:
             minute=int(minute_text),
         )
     except (ValueError, TypeError) as exc:
-        raise ValueError(
-            "daily_time must use HH:MM format"
-        ) from exc
+        raise ValueError("daily_time must use HH:MM format") from exc
     return parsed
 
 
@@ -494,9 +420,7 @@ def _parse_datetime(value: str) -> datetime | None:
     if not value.strip():
         return None
     try:
-        parsed = datetime.fromisoformat(
-            value.replace("Z", "+00:00")
-        )
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
     return _local_now(parsed)

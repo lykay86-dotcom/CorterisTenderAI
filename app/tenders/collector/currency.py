@@ -75,9 +75,7 @@ class ExchangeRateQuote:
             base_currency=str(payload.get("base_currency", "")),
             quote_currency=str(payload.get("quote_currency", "")),
             rate=str(payload.get("rate", "")),
-            effective_date=date.fromisoformat(
-                str(payload.get("effective_date", ""))
-            ),
+            effective_date=date.fromisoformat(str(payload.get("effective_date", ""))),
             source=str(payload.get("source", "")),
             retrieved_at=str(payload.get("retrieved_at", "")),
             source_url=str(payload.get("source_url", "")),
@@ -175,11 +173,7 @@ class ExchangeRateBook:
                 f"No valid {money.currency}/{target} quote for {as_of}"
             )
 
-        applied_rate = (
-            Decimal("1") / direct.rate
-            if inverted
-            else direct.rate
-        )
+        applied_rate = Decimal("1") / direct.rate if inverted else direct.rate
         unrounded = money.amount * applied_rate
         rounded = unrounded.quantize(
             Decimal("0.01"),

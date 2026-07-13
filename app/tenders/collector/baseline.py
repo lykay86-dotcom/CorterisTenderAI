@@ -78,26 +78,14 @@ def build_collector_baseline(
             provider_id=entry.id,
             display_name=entry.provider.descriptor.display_name,
             source=entry.provider.descriptor.source.value,
-            implementation_status=(
-                entry.provider.descriptor.implementation_status
-            ),
+            implementation_status=(entry.provider.descriptor.implementation_status),
             enabled=entry.enabled,
             priority=entry.priority,
-            supports_search=(
-                entry.provider.descriptor.capabilities.search
-            ),
-            supports_details=(
-                entry.provider.descriptor.capabilities.tender_details
-            ),
-            supports_documents=(
-                entry.provider.descriptor.capabilities.documents
-            ),
-            requires_authentication=(
-                entry.provider.descriptor.capabilities.authentication
-            ),
-            public_api=(
-                entry.provider.descriptor.capabilities.public_api
-            ),
+            supports_search=(entry.provider.descriptor.capabilities.search),
+            supports_details=(entry.provider.descriptor.capabilities.tender_details),
+            supports_documents=(entry.provider.descriptor.capabilities.documents),
+            requires_authentication=(entry.provider.descriptor.capabilities.authentication),
+            public_api=(entry.provider.descriptor.capabilities.public_api),
         )
         for entry in registry.list_registered()
     )
@@ -105,22 +93,12 @@ def build_collector_baseline(
     return CollectorArchitectureBaseline(
         version=COLLECTOR_ARCHITECTURE_VERSION,
         providers=providers,
-        has_search_engine=(
-            runtime is not None and runtime.engine is not None
-        ),
-        has_tender_registry=(
-            runtime is not None and runtime.tender_registry is not None
-        ),
-        has_document_store=(
-            runtime is not None and runtime.document_store is not None
-        ),
-        has_text_extraction=(
-            runtime is not None
-            and runtime.text_extraction_service is not None
-        ),
+        has_search_engine=(runtime is not None and runtime.engine is not None),
+        has_tender_registry=(runtime is not None and runtime.tender_registry is not None),
+        has_document_store=(runtime is not None and runtime.document_store is not None),
+        has_text_extraction=(runtime is not None and runtime.text_extraction_service is not None),
         has_requirement_analysis=(
-            runtime is not None
-            and runtime.requirement_analysis_service is not None
+            runtime is not None and runtime.requirement_analysis_service is not None
         ),
     )
 

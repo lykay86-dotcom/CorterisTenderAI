@@ -27,12 +27,8 @@ def test_safe_mode_dialog_shows_checks_and_actions(tmp_path) -> None:
     now = datetime.now()
 
     for minutes in (20, 10):
-        guard.begin_launch(
-            started_at=now - timedelta(minutes=minutes)
-        )
-        guard.mark_crash(
-            finished_at=now - timedelta(minutes=minutes - 1)
-        )
+        guard.begin_launch(started_at=now - timedelta(minutes=minutes))
+        guard.mark_crash(finished_at=now - timedelta(minutes=minutes - 1))
 
     decision = guard.evaluate(now=now)
     data_dir = tmp_path / "data"
@@ -59,9 +55,7 @@ def test_safe_mode_dialog_shows_checks_and_actions(tmp_path) -> None:
         crash_reports_directory=crashes,
     )
 
-    assert dialog.normal_button.text() == (
-        "Продолжить обычный запуск"
-    )
+    assert dialog.normal_button.text() == ("Продолжить обычный запуск")
     assert dialog.reset_button.isEnabled()
     assert decision.recent_crashes == 2
     assert decision.enabled

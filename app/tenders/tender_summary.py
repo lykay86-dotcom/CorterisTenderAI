@@ -129,13 +129,37 @@ class DeterministicTenderSummaryGenerator:
         verified = verification is not None and verification.minimum_confidence > 0
         confidence = verification.minimum_confidence if verified else 0.0
         provenance = (
-            f"verification:{verification.status.value}" if verification else "unverified:tender_card"
+            f"verification:{verification.status.value}"
+            if verification
+            else "unverified:tender_card"
         )
         facts = (
-            TenderSummaryFact("Subject", tender.title or "Not specified", "tender_card", confidence, provenance),
-            TenderSummaryFact("Customer", tender.customer.name or "Not specified", "tender_card", confidence, provenance),
-            TenderSummaryFact("NMCK", str(tender.price.amount) if tender.price else "Not specified", "tender_card", confidence, provenance),
-            TenderSummaryFact("Application deadline", tender.application_deadline.isoformat() if tender.application_deadline else "Not specified", "tender_card", confidence, provenance),
+            TenderSummaryFact(
+                "Subject", tender.title or "Not specified", "tender_card", confidence, provenance
+            ),
+            TenderSummaryFact(
+                "Customer",
+                tender.customer.name or "Not specified",
+                "tender_card",
+                confidence,
+                provenance,
+            ),
+            TenderSummaryFact(
+                "NMCK",
+                str(tender.price.amount) if tender.price else "Not specified",
+                "tender_card",
+                confidence,
+                provenance,
+            ),
+            TenderSummaryFact(
+                "Application deadline",
+                tender.application_deadline.isoformat()
+                if tender.application_deadline
+                else "Not specified",
+                "tender_card",
+                confidence,
+                provenance,
+            ),
         )
         missing = list(verification.missing_fields if verification else ())
         if not tender.documents:
@@ -145,15 +169,20 @@ class DeterministicTenderSummaryGenerator:
         if company_profile is None or not company_profile.is_configured:
             missing.append("Confirmed company capability profile")
         risks = tuple(
-            item.title for item in (analysis.findings if analysis else ())
+            item.title
+            for item in (analysis.findings if analysis else ())
             if item.severity.value in {"warning", "critical"}
         )
-        stop_factors = tuple(item.title for item in (stop_assessment.factors if stop_assessment else ()))
+        stop_factors = tuple(
+            item.title for item in (stop_assessment.factors if stop_assessment else ())
+        )
         profile = _profile_summary(company_profile)
         financial = _financial_summary(commercial_estimate)
         recommendation = decision.recommendation.value if decision else "data_insufficient"
         decision_confidence = decision.confidence if decision else 0.0
-        explanation = decision.summary if decision else "No final recommendation has been calculated."
+        explanation = (
+            decision.summary if decision else "No final recommendation has been calculated."
+        )
         return TenderSummary(
             registry_key=registry_key,
             source=TenderSummarySource.DETERMINISTIC,
@@ -211,4 +240,10 @@ def _financial_summary(estimate: CommercialEstimateResult | None) -> str:
     return f"Status: {estimate.status.value}; profit: {estimate.profit if estimate.profit is not None else 'not calculated'}; margin: {estimate.margin_percent if estimate.margin_percent is not None else 'not calculated'}."
 
 
-__all__ = ["DeterministicTenderSummaryGenerator", "SafeTenderSummaryEnhancer", "TenderSummary", "TenderSummaryFact", "TenderSummarySource"]
+__all__ = [
+    "DeterministicTenderSummaryGenerator",
+    "SafeTenderSummaryEnhancer",
+    "TenderSummary",
+    "TenderSummaryFact",
+    "TenderSummarySource",
+]

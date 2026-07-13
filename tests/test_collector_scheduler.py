@@ -36,9 +36,7 @@ def _settings(**changes):
 
 
 def test_repository_roundtrip(tmp_path) -> None:
-    repository = CollectorScheduleRepository(
-        tmp_path / "schedule.json"
-    )
+    repository = CollectorScheduleRepository(tmp_path / "schedule.json")
     scheduler = CollectorScheduler(repository)
     scheduler.update_settings(
         _settings(),
@@ -56,19 +54,13 @@ def test_repository_roundtrip(tmp_path) -> None:
 
 
 def test_poll_returns_due_request(tmp_path) -> None:
-    scheduler = CollectorScheduler(
-        CollectorScheduleRepository(
-            tmp_path / "schedule.json"
-        )
-    )
+    scheduler = CollectorScheduler(CollectorScheduleRepository(tmp_path / "schedule.json"))
     scheduler.update_settings(
         _settings(),
         now=_now(),
     )
 
-    assert scheduler.poll(
-        now=_now(10, 59)
-    ) is None
+    assert scheduler.poll(now=_now(10, 59)) is None
     request = scheduler.poll(now=_now(11, 0))
 
     assert request is not None
@@ -77,20 +69,19 @@ def test_poll_returns_due_request(tmp_path) -> None:
 
 
 def test_busy_run_is_deferred_without_overlap(tmp_path) -> None:
-    scheduler = CollectorScheduler(
-        CollectorScheduleRepository(
-            tmp_path / "schedule.json"
-        )
-    )
+    scheduler = CollectorScheduler(CollectorScheduleRepository(tmp_path / "schedule.json"))
     scheduler.update_settings(
         _settings(),
         now=_now(),
     )
 
-    assert scheduler.poll(
-        now=_now(11, 0),
-        busy=True,
-    ) is None
+    assert (
+        scheduler.poll(
+            now=_now(11, 0),
+            busy=True,
+        )
+        is None
+    )
     _, state = scheduler.snapshot()
 
     assert state.last_status == "deferred_busy"
@@ -98,11 +89,7 @@ def test_busy_run_is_deferred_without_overlap(tmp_path) -> None:
 
 
 def test_mark_started_moves_next_interval(tmp_path) -> None:
-    scheduler = CollectorScheduler(
-        CollectorScheduleRepository(
-            tmp_path / "schedule.json"
-        )
-    )
+    scheduler = CollectorScheduler(CollectorScheduleRepository(tmp_path / "schedule.json"))
     scheduler.update_settings(
         _settings(),
         now=_now(),
@@ -123,11 +110,7 @@ def test_mark_started_moves_next_interval(tmp_path) -> None:
 
 
 def test_daily_schedule_uses_selected_time(tmp_path) -> None:
-    scheduler = CollectorScheduler(
-        CollectorScheduleRepository(
-            tmp_path / "schedule.json"
-        )
-    )
+    scheduler = CollectorScheduler(CollectorScheduleRepository(tmp_path / "schedule.json"))
 
     state = scheduler.update_settings(
         _settings(
@@ -137,17 +120,11 @@ def test_daily_schedule_uses_selected_time(tmp_path) -> None:
         now=_now(10, 0),
     )
 
-    assert state.next_run_at.startswith(
-        "2026-07-13T09:30:00"
-    )
+    assert state.next_run_at.startswith("2026-07-13T09:30:00")
 
 
 def test_startup_request_is_emitted_once(tmp_path) -> None:
-    scheduler = CollectorScheduler(
-        CollectorScheduleRepository(
-            tmp_path / "schedule.json"
-        )
-    )
+    scheduler = CollectorScheduler(CollectorScheduleRepository(tmp_path / "schedule.json"))
     scheduler.update_settings(
         _settings(run_on_startup=True),
         now=_now(),
@@ -162,15 +139,9 @@ def test_startup_request_is_emitted_once(tmp_path) -> None:
 
 
 def test_freshness_due_preempts_regular_schedule(tmp_path) -> None:
-    scheduler = CollectorScheduler(
-        CollectorScheduleRepository(
-            tmp_path / "schedule.json"
-        )
-    )
+    scheduler = CollectorScheduler(CollectorScheduleRepository(tmp_path / "schedule.json"))
     scheduler.update_settings(
-        _settings(
-            frequency=CollectorScheduleFrequency.EVERY_3_HOURS
-        ),
+        _settings(frequency=CollectorScheduleFrequency.EVERY_3_HOURS),
         now=_now(),
     )
 

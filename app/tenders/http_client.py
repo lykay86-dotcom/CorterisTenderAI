@@ -44,17 +44,11 @@ class HttpRetryPolicy:
         if self.backoff_seconds < 0:
             raise ValueError("backoff_seconds must be non-negative")
         if self.backoff_multiplier < 1:
-            raise ValueError(
-                "backoff_multiplier must be at least 1"
-            )
+            raise ValueError("backoff_multiplier must be at least 1")
         if self.timeout_multiplier < 1:
-            raise ValueError(
-                "timeout_multiplier must be at least 1"
-            )
+            raise ValueError("timeout_multiplier must be at least 1")
         if self.max_attempt_timeout_seconds <= 0:
-            raise ValueError(
-                "max_attempt_timeout_seconds must be positive"
-            )
+            raise ValueError("max_attempt_timeout_seconds must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,8 +82,7 @@ class HttpTransport(Protocol):
         *,
         headers: Mapping[str, str] | None = None,
         timeout_seconds: float = 20.0,
-    ) -> HttpResponse:
-        ...
+    ) -> HttpResponse: ...
 
 
 class UrllibHttpTransport:
@@ -109,9 +102,7 @@ class UrllibHttpTransport:
         sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
         if max_response_bytes < 1024:
-            raise ValueError(
-                "max_response_bytes must be at least 1024"
-            )
+            raise ValueError("max_response_bytes must be at least 1024")
         self.max_response_bytes = int(max_response_bytes)
         self.retry_policy = retry_policy or HttpRetryPolicy()
         self._opener = opener or urlopen
@@ -139,11 +130,7 @@ class UrllibHttpTransport:
             self.retry_policy.max_attempts + 1,
         ):
             attempt_timeout = min(
-                float(timeout_seconds)
-                * (
-                    self.retry_policy.timeout_multiplier
-                    ** (attempt - 1)
-                ),
+                float(timeout_seconds) * (self.retry_policy.timeout_multiplier ** (attempt - 1)),
                 max(
                     float(timeout_seconds),
                     self.retry_policy.max_attempt_timeout_seconds,
@@ -167,10 +154,7 @@ class UrllibHttpTransport:
             ) as exc:
                 last_error = exc
                 transient = _is_transient_network_error(exc)
-                if (
-                    not transient
-                    or attempt >= self.retry_policy.max_attempts
-                ):
+                if not transient or attempt >= self.retry_policy.max_attempts:
                     root = _root_network_error(exc)
                     raise HttpTransportError(
                         _network_error_message(
@@ -181,20 +165,14 @@ class UrllibHttpTransport:
                         transient=transient,
                     ) from exc
 
-                delay = (
-                    self.retry_policy.backoff_seconds
-                    * (
-                        self.retry_policy.backoff_multiplier
-                        ** (attempt - 1)
-                    )
+                delay = self.retry_policy.backoff_seconds * (
+                    self.retry_policy.backoff_multiplier ** (attempt - 1)
                 )
                 if delay > 0:
                     self._sleep(delay)
 
         # Defensive fallback; the loop always returns or raises.
-        root = _root_network_error(
-            last_error or RuntimeError("unknown network error")
-        )
+        root = _root_network_error(last_error or RuntimeError("unknown network error"))
         raise HttpTransportError(
             _network_error_message(
                 root,
@@ -216,9 +194,7 @@ class UrllibHttpTransport:
         ) as response:
             body = response.read(self.max_response_bytes + 1)
             if len(body) > self.max_response_bytes:
-                raise HttpTransportError(
-                    "HTTP response exceeds the configured size limit"
-                )
+                raise HttpTransportError("HTTP response exceeds the configured size limit")
             return HttpResponse(
                 url=response.geturl(),
                 status_code=int(response.status),
@@ -335,10 +311,7 @@ def _network_error_message(
         reason = detail
 
     suffix = "attempt" if attempts == 1 else "attempts"
-    return (
-        f"HTTP request failed after {attempts} {suffix}: "
-        f"{reason}"
-    )
+    return f"HTTP request failed after {attempts} {suffix}: {reason}"
 
 
 def _headers_to_dict(
@@ -346,10 +319,7 @@ def _headers_to_dict(
 ) -> dict[str, str]:
     if headers is None:
         return {}
-    return {
-        str(key).casefold(): str(value)
-        for key, value in headers.items()
-    }
+    return {str(key).casefold(): str(value) for key, value in headers.items()}
 
 
 def _charset_from_content_type(value: str) -> str:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import datetime
 
 from app.tenders.corteris_filter import (
@@ -57,11 +56,7 @@ def _evaluated_tender(
     )
     relevance = TenderRelevance(
         score=score,
-        grade=(
-            RelevanceGrade.HIGH
-            if score >= 65
-            else RelevanceGrade.MEDIUM
-        ),
+        grade=(RelevanceGrade.HIGH if score >= 65 else RelevanceGrade.MEDIUM),
         directions=(TenderDirection.VIDEO_SURVEILLANCE,),
         matched_strong_terms=("видеонаблюдение",),
         matched_weak_terms=(),
@@ -73,9 +68,7 @@ def _evaluated_tender(
         tender=tender,
         relevance=relevance,
         accepted=accepted,
-        rejection_reasons=(
-            () if accepted else ("Ниже порога профиля",)
-        ),
+        rejection_reasons=(() if accepted else ("Ниже порога профиля",)),
     )
 
 
@@ -106,9 +99,7 @@ def _run(
                 total_count=len(items),
                 accepted_count=len(accepted),
                 rejected_count=len(rejected),
-                direction_counts={
-                    TenderDirection.VIDEO_SURVEILLANCE: len(accepted)
-                },
+                direction_counts={TenderDirection.VIDEO_SURVEILLANCE: len(accepted)},
             ),
         ),
         executed_at=executed_at,
@@ -116,9 +107,7 @@ def _run(
 
 
 def test_registry_initializes_empty_database(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
 
     repository.initialize()
 
@@ -128,9 +117,7 @@ def test_registry_initializes_empty_database(tmp_path) -> None:
 
 
 def test_profile_run_inserts_tender_and_search_history(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     run = _run(_evaluated_tender())
 
     summary = repository.record_profile_run(
@@ -144,9 +131,7 @@ def test_profile_run_inserts_tender_and_search_history(tmp_path) -> None:
     assert repository.count_tenders() == 1
     assert repository.run_item_count("run-1") == 1
 
-    record = repository.get_by_procurement_number(
-        "0373100000126000001"
-    )
+    record = repository.get_by_procurement_number("0373100000126000001")
     assert record is not None
     assert record.title == "Монтаж системы видеонаблюдения"
     assert record.seen_count == 1
@@ -160,9 +145,7 @@ def test_profile_run_inserts_tender_and_search_history(tmp_path) -> None:
 
 
 def test_repeated_search_updates_same_row_without_duplicate(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     first = _run(_evaluated_tender(), executed_at="2026-07-11T12:00:00+00:00")
     second_item = _evaluated_tender(
         title="Монтаж и модернизация видеонаблюдения",
@@ -180,9 +163,7 @@ def test_repeated_search_updates_same_row_without_duplicate(tmp_path) -> None:
     assert summary.updated_count == 1
     assert repository.count_tenders() == 1
 
-    record = repository.get_by_procurement_number(
-        "0373100000126000001"
-    )
+    record = repository.get_by_procurement_number("0373100000126000001")
     assert record is not None
     assert record.title == "Монтаж и модернизация видеонаблюдения"
     assert record.seen_count == 2
@@ -193,9 +174,7 @@ def test_repeated_search_updates_same_row_without_duplicate(tmp_path) -> None:
 def test_same_procurement_number_from_other_source_is_not_duplicated(
     tmp_path,
 ) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     eis = _evaluated_tender(
         source=TenderSource.EIS,
         external_id="eis-1",
@@ -210,18 +189,14 @@ def test_same_procurement_number_from_other_source_is_not_duplicated(
     repository.record_profile_run(_run(rts), run_id="run-rts")
 
     assert repository.count_tenders() == 1
-    record = repository.get_by_procurement_number(
-        eis.tender.procurement_number
-    )
+    record = repository.get_by_procurement_number(eis.tender.procurement_number)
     assert record is not None
     assert record.source == TenderSource.RTS_TENDER.value
     assert record.seen_count == 2
 
 
 def test_registry_keeps_rejected_items_and_acceptance_filter(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     accepted = _evaluated_tender()
     rejected = _evaluated_tender(
         procurement_number="0373100000126000002",
@@ -244,9 +219,7 @@ def test_registry_keeps_rejected_items_and_acceptance_filter(tmp_path) -> None:
 
 
 def test_registry_archive_hides_record_by_default(tmp_path) -> None:
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     item = _evaluated_tender()
     repository.record_profile_run(_run(item), run_id="run-1")
     record = repository.list_tenders()[0]

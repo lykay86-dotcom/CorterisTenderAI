@@ -40,9 +40,7 @@ def test_records_are_persisted_and_upserted(tmp_path) -> None:
 
 
 def test_summary_counts_real_workflow_records(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business.json")
     repository.record_estimate(
         1,
         {"total": 500_000, "profit": 100_000},
@@ -62,9 +60,7 @@ def test_summary_counts_real_workflow_records(tmp_path) -> None:
         expected_profit=400_000,
     )
 
-    summary = repository.summary(
-        today=date(2026, 7, 11)
-    )
+    summary = repository.summary(today=date(2026, 7, 11))
 
     assert summary.estimates_in_work == 1
     assert summary.proposals_in_work == 1
@@ -76,9 +72,7 @@ def test_summary_counts_real_workflow_records(tmp_path) -> None:
 def test_project_profit_replaces_estimate_for_same_tender(
     tmp_path,
 ) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business.json")
     repository.record_estimate(
         7,
         {"total": 1_000_000, "profit": 200_000},
@@ -99,9 +93,7 @@ def test_project_profit_replaces_estimate_for_same_tender(
 def test_blocked_and_near_due_records_require_attention(
     tmp_path,
 ) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business.json")
     repository.record_proposal(
         1,
         status=BusinessStatus.BLOCKED,
@@ -113,8 +105,6 @@ def test_blocked_and_near_due_records_require_attention(
         due_date="13.07.2026",
     )
 
-    summary = repository.summary(
-        today=date(2026, 7, 11)
-    )
+    summary = repository.summary(today=date(2026, 7, 11))
 
     assert summary.attention == 2

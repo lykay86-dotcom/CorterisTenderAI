@@ -25,9 +25,7 @@ def test_runtime_builds_repository_registry_and_runner(tmp_path) -> None:
     )
 
     assert runtime.data_directory == tmp_path / "data"
-    assert runtime.repository.path == (
-        tmp_path / "data" / "search_profiles.json"
-    )
+    assert runtime.repository.path == (tmp_path / "data" / "search_profiles.json")
     assert len(runtime.repository.list_profiles()) == 7
     assert runtime.registry.get("eis").descriptor.id == "eis"
     assert runtime.engine.max_workers == 3

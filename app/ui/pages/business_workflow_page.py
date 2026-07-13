@@ -95,7 +95,6 @@ from app.ui.business_workflow.model import (
     WORKFLOW_COLUMNS,
     WorkflowArchiveMode,
     WorkflowFilterProxyModel,
-    WorkflowRole,
     WorkflowStatusDelegate,
     WorkflowTableModel,
     allowed_transitions,
@@ -131,26 +130,16 @@ class BusinessWorkflowPage(QWidget):
         repository: BusinessMetricsRepository | None = None,
         excel_exporter: WorkflowExcelExporter | None = None,
         excel_importer: WorkflowExcelImporter | None = None,
-        excel_template_service: (
-            WorkflowExcelTemplateService | None
-        ) = None,
+        excel_template_service: (WorkflowExcelTemplateService | None) = None,
         backup_service: WorkflowBackupService | None = None,
-        backup_catalog_service: (
-            WorkflowBackupCatalogService | None
-        ) = None,
-        database_health_service: (
-            WorkflowDatabaseHealthService | None
-        ) = None,
+        backup_catalog_service: (WorkflowBackupCatalogService | None) = None,
+        database_health_service: (WorkflowDatabaseHealthService | None) = None,
         crash_report_service: CrashReportService | None = None,
-        crash_report_catalog_service: (
-            CrashReportCatalogService | None
-        ) = None,
+        crash_report_catalog_service: (CrashReportCatalogService | None) = None,
         system_health_service: SystemHealthService | None = None,
         system_health_journal: SystemHealthJournal | None = None,
         system_health_monitor: SystemHealthMonitor | None = None,
-        auto_backup_service: (
-            WorkflowAutoBackupService | None
-        ) = None,
+        auto_backup_service: (WorkflowAutoBackupService | None) = None,
         initial_kind: BusinessRecordKind | str | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
@@ -160,60 +149,35 @@ class BusinessWorkflowPage(QWidget):
         self.repository = repository or BusinessMetricsRepository()
         self.excel_exporter = excel_exporter or WorkflowExcelExporter()
         self.excel_importer = excel_importer or WorkflowExcelImporter()
-        self.excel_template_service = (
-            excel_template_service or WorkflowExcelTemplateService()
-        )
+        self.excel_template_service = excel_template_service or WorkflowExcelTemplateService()
         self.backup_service = backup_service or WorkflowBackupService()
-        self.backup_catalog_service = (
-            backup_catalog_service
-            or WorkflowBackupCatalogService(self.backup_service)
+        self.backup_catalog_service = backup_catalog_service or WorkflowBackupCatalogService(
+            self.backup_service
         )
-        self.database_health_service = (
-            database_health_service
-            or WorkflowDatabaseHealthService(
-                backup_service=self.backup_service,
-                catalog_service=self.backup_catalog_service,
-            )
+        self.database_health_service = database_health_service or WorkflowDatabaseHealthService(
+            backup_service=self.backup_service,
+            catalog_service=self.backup_catalog_service,
         )
-        self.crash_report_service = (
-            crash_report_service
-            or CrashReportService(
-                self.repository.path.parent / "crash_reports"
-            )
+        self.crash_report_service = crash_report_service or CrashReportService(
+            self.repository.path.parent / "crash_reports"
         )
         self.crash_report_catalog_service = (
-            crash_report_catalog_service
-            or CrashReportCatalogService(
-                self.crash_report_service
-            )
+            crash_report_catalog_service or CrashReportCatalogService(self.crash_report_service)
         )
-        self.system_health_service = (
-            system_health_service or SystemHealthService()
+        self.system_health_service = system_health_service or SystemHealthService()
+        self.system_health_journal = system_health_journal or SystemHealthJournal.for_repository(
+            self.repository
         )
-        self.system_health_journal = (
-            system_health_journal
-            or SystemHealthJournal.for_repository(self.repository)
+        self.auto_backup_service = auto_backup_service or WorkflowAutoBackupService.for_repository(
+            self.repository,
+            backup_service=self.backup_service,
         )
-        self.auto_backup_service = (
-            auto_backup_service
-            or WorkflowAutoBackupService.for_repository(
-                self.repository,
-                backup_service=self.backup_service,
-            )
-        )
-        self.system_health_monitor = (
-            system_health_monitor
-            or SystemHealthMonitor(
-                self._collect_system_health_snapshot,
-                parent=self,
-            )
+        self.system_health_monitor = system_health_monitor or SystemHealthMonitor(
+            self._collect_system_health_snapshot,
+            parent=self,
         )
         self._theme = ThemeName(theme)
-        self._initial_kind = (
-            BusinessRecordKind(initial_kind)
-            if initial_kind is not None
-            else None
-        )
+        self._initial_kind = BusinessRecordKind(initial_kind) if initial_kind is not None else None
         self._selected_record: BusinessWorkflowRecord | None = None
         self._content_orientation: Qt.Orientation | None = None
         self._database_health_prompt_shown = False
@@ -236,32 +200,18 @@ class BusinessWorkflowPage(QWidget):
 
         self._auto_backup_timer = QTimer(self)
         self._auto_backup_timer.setInterval(15 * 60 * 1000)
-        self._auto_backup_timer.timeout.connect(
-            self._check_automatic_backup
-        )
+        self._auto_backup_timer.timeout.connect(self._check_automatic_backup)
         self._auto_backup_timer.start()
-        self.workflow_changed.connect(
-            self._check_automatic_backup
-        )
+        self.workflow_changed.connect(self._check_automatic_backup)
 
-        self.system_health_monitor.snapshot_ready.connect(
-            self._system_health_snapshot_ready
-        )
-        self.system_health_monitor.check_failed.connect(
-            self._system_health_check_failed
-        )
-        self.system_health_monitor.busy_changed.connect(
-            self.system_health_badge.set_busy
-        )
-        self.workflow_changed.connect(
-            self._request_system_health_refresh
-        )
+        self.system_health_monitor.snapshot_ready.connect(self._system_health_snapshot_ready)
+        self.system_health_monitor.check_failed.connect(self._system_health_check_failed)
+        self.system_health_monitor.busy_changed.connect(self.system_health_badge.set_busy)
+        self.workflow_changed.connect(self._request_system_health_refresh)
 
         self._system_health_timer = QTimer(self)
         self._system_health_timer.setInterval(2 * 60 * 1000)
-        self._system_health_timer.timeout.connect(
-            self._request_system_health_refresh
-        )
+        self._system_health_timer.timeout.connect(self._request_system_health_refresh)
         self._system_health_timer.start()
 
         QTimer.singleShot(0, self._initialize_database_safety)
@@ -281,8 +231,7 @@ class BusinessWorkflowPage(QWidget):
         self.title_label.setObjectName("WorkflowTitle")
 
         self.subtitle_label = QLabel(
-            "Управление коммерческими документами "
-            "и этапами исполнения.",
+            "Управление коммерческими документами и этапами исполнения.",
             self,
         )
         self.subtitle_label.setObjectName("WorkflowSubtitle")
@@ -297,9 +246,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=self,
         )
-        self.system_health_badge.clicked.connect(
-            self._open_system_health_center
-        )
+        self.system_health_badge.clicked.connect(self._open_system_health_center)
 
         self.refresh_button = OutlineButton(
             "Обновить",
@@ -331,9 +278,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=self,
         )
-        self.template_button.clicked.connect(
-            self._save_excel_template
-        )
+        self.template_button.clicked.connect(self._save_excel_template)
 
         self.data_button = OutlineButton(
             "Данные",
@@ -342,51 +287,23 @@ class BusinessWorkflowPage(QWidget):
             parent=self,
         )
         self.data_menu = QMenu(self.data_button)
-        self.system_health_action = self.data_menu.addAction(
-            "Состояние системы…"
-        )
-        self.system_health_action.triggered.connect(
-            self._open_system_health_center
-        )
+        self.system_health_action = self.data_menu.addAction("Состояние системы…")
+        self.system_health_action.triggered.connect(self._open_system_health_center)
         self.data_menu.addSeparator()
-        self.backup_center_action = self.data_menu.addAction(
-            "Центр резервных копий…"
-        )
-        self.backup_center_action.triggered.connect(
-            self._open_backup_center
-        )
-        self.database_diagnostics_action = self.data_menu.addAction(
-            "Диагностика базы…"
-        )
-        self.database_diagnostics_action.triggered.connect(
-            self._run_database_diagnostics
-        )
+        self.backup_center_action = self.data_menu.addAction("Центр резервных копий…")
+        self.backup_center_action.triggered.connect(self._open_backup_center)
+        self.database_diagnostics_action = self.data_menu.addAction("Диагностика базы…")
+        self.database_diagnostics_action.triggered.connect(self._run_database_diagnostics)
         self.data_menu.addSeparator()
-        self.create_backup_action = self.data_menu.addAction(
-            "Создать резервную копию…"
-        )
-        self.create_backup_action.triggered.connect(
-            self._create_workflow_backup
-        )
-        self.restore_backup_action = self.data_menu.addAction(
-            "Восстановить из копии…"
-        )
-        self.restore_backup_action.triggered.connect(
-            self._restore_workflow_backup
-        )
+        self.create_backup_action = self.data_menu.addAction("Создать резервную копию…")
+        self.create_backup_action.triggered.connect(self._create_workflow_backup)
+        self.restore_backup_action = self.data_menu.addAction("Восстановить из копии…")
+        self.restore_backup_action.triggered.connect(self._restore_workflow_backup)
         self.data_menu.addSeparator()
-        self.auto_backup_settings_action = self.data_menu.addAction(
-            "Настроить автокопирование…"
-        )
-        self.auto_backup_settings_action.triggered.connect(
-            self._configure_automatic_backup
-        )
-        self.run_auto_backup_action = self.data_menu.addAction(
-            "Создать автокопию сейчас"
-        )
-        self.run_auto_backup_action.triggered.connect(
-            self._run_automatic_backup_now
-        )
+        self.auto_backup_settings_action = self.data_menu.addAction("Настроить автокопирование…")
+        self.auto_backup_settings_action.triggered.connect(self._configure_automatic_backup)
+        self.run_auto_backup_action = self.data_menu.addAction("Создать автокопию сейчас")
+        self.run_auto_backup_action.triggered.connect(self._run_automatic_backup_now)
         self.data_button.setMenu(self.data_menu)
 
         self.create_button = PrimaryButton(
@@ -421,9 +338,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=self,
         )
-        self.summary.kpi_clicked.connect(
-            self._filter_from_summary
-        )
+        self.summary.kpi_clicked.connect(self._filter_from_summary)
         root.addWidget(self.summary)
 
     def _build_filters(self, root: QVBoxLayout) -> None:
@@ -434,29 +349,21 @@ class BusinessWorkflowPage(QWidget):
         layout.setSpacing(10)
 
         self.search_edit = QLineEdit(bar)
-        self.search_edit.setPlaceholderText(
-            "Поиск по названию, тендеру или статусу"
-        )
+        self.search_edit.setPlaceholderText("Поиск по названию, тендеру или статусу")
         self.search_edit.setClearButtonEnabled(True)
-        self.search_edit.textChanged.connect(
-            self._on_search_changed
-        )
+        self.search_edit.textChanged.connect(self._on_search_changed)
 
         self.kind_filter = QComboBox(bar)
         self.kind_filter.addItem("Все типы", "")
         for kind, label in KIND_LABELS.items():
             self.kind_filter.addItem(label, kind.value)
-        self.kind_filter.currentIndexChanged.connect(
-            self._on_kind_filter_changed
-        )
+        self.kind_filter.currentIndexChanged.connect(self._on_kind_filter_changed)
 
         self.status_filter = QComboBox(bar)
         self.status_filter.addItem("Все статусы", "")
         for status, label in STATUS_LABELS.items():
             self.status_filter.addItem(label, status.value)
-        self.status_filter.currentIndexChanged.connect(
-            self._on_status_filter_changed
-        )
+        self.status_filter.currentIndexChanged.connect(self._on_status_filter_changed)
 
         self.archive_filter = QComboBox(bar)
         self.archive_filter.addItem(
@@ -471,9 +378,7 @@ class BusinessWorkflowPage(QWidget):
             "Все записи",
             WorkflowArchiveMode.ALL.value,
         )
-        self.archive_filter.currentIndexChanged.connect(
-            self._on_archive_filter_changed
-        )
+        self.archive_filter.currentIndexChanged.connect(self._on_archive_filter_changed)
 
         self.reset_button = SecondaryButton(
             "Сбросить",
@@ -511,15 +416,9 @@ class BusinessWorkflowPage(QWidget):
         self.table.setObjectName("WorkflowTable")
         self.table.setModel(self.proxy)
         self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSortingEnabled(True)
         self.table.setWordWrap(False)
         self.table.verticalHeader().hide()
@@ -547,17 +446,11 @@ class BusinessWorkflowPage(QWidget):
                 )
                 self.table.setColumnWidth(index, column.width)
 
-        self.table.selectionModel().selectionChanged.connect(
-            self._selection_changed
-        )
-        self.table.doubleClicked.connect(
-            lambda _index: self._open_selected_tender()
-        )
+        self.table.selectionModel().selectionChanged.connect(self._selection_changed)
+        self.table.doubleClicked.connect(lambda _index: self._open_selected_tender())
         table_layout.addWidget(self.table)
 
-        self.detail_panel = self._build_detail_panel(
-            self.splitter
-        )
+        self.detail_panel = self._build_detail_panel(self.splitter)
 
         self.splitter.addWidget(self.table_frame)
         self.splitter.addWidget(self.detail_panel)
@@ -581,9 +474,7 @@ class BusinessWorkflowPage(QWidget):
         self.detail_scroll.setObjectName("WorkflowDetailScroll")
         self.detail_scroll.setWidgetResizable(True)
         self.detail_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.detail_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         content = QWidget(self.detail_scroll)
         content.setObjectName("WorkflowDetailContent")
@@ -607,19 +498,12 @@ class BusinessWorkflowPage(QWidget):
         self.detail_form.setContentsMargins(0, 2, 0, 2)
         self.detail_form.setHorizontalSpacing(14)
         self.detail_form.setVerticalSpacing(14)
-        self.detail_form.setRowWrapPolicy(
-            QFormLayout.RowWrapPolicy.WrapAllRows
-        )
-        self.detail_form.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        )
+        self.detail_form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        self.detail_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.detail_form.setLabelAlignment(
-            Qt.AlignmentFlag.AlignLeft
-            | Qt.AlignmentFlag.AlignBottom
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom
         )
-        self.detail_form.setFormAlignment(
-            Qt.AlignmentFlag.AlignTop
-        )
+        self.detail_form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
 
         def detail_value() -> QLabel:
             label = QLabel("—", content)
@@ -630,9 +514,7 @@ class BusinessWorkflowPage(QWidget):
                 QSizePolicy.Policy.Expanding,
                 QSizePolicy.Policy.MinimumExpanding,
             )
-            label.setTextInteractionFlags(
-                Qt.TextInteractionFlag.TextSelectableByMouse
-            )
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             return label
 
         self.detail_kind = detail_value()
@@ -667,15 +549,11 @@ class BusinessWorkflowPage(QWidget):
         self.history_list = QListWidget(content)
         self.history_list.setObjectName("WorkflowHistoryList")
         self.history_list.setWordWrap(True)
-        self.history_list.setSelectionMode(
-            QAbstractItemView.SelectionMode.NoSelection
-        )
+        self.history_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.history_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.history_list.setMinimumHeight(190)
         self.history_list.setMaximumHeight(310)
-        self.history_list.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.history_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(self.history_list)
 
         status_title = QLabel("Переход статуса", content)
@@ -694,9 +572,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=content,
         )
-        self.apply_status_button.clicked.connect(
-            self._apply_selected_status
-        )
+        self.apply_status_button.clicked.connect(self._apply_selected_status)
         self.apply_status_button.setEnabled(False)
 
         self.advance_button = OutlineButton(
@@ -704,9 +580,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=content,
         )
-        self.advance_button.clicked.connect(
-            self._advance_selected
-        )
+        self.advance_button.clicked.connect(self._advance_selected)
         self.advance_button.setEnabled(False)
 
         action_row.addWidget(self.apply_status_button)
@@ -727,9 +601,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=content,
         )
-        self.open_file_button.clicked.connect(
-            self._open_selected_file
-        )
+        self.open_file_button.clicked.connect(self._open_selected_file)
         self.open_file_button.setEnabled(False)
 
         self.open_tender_button = SecondaryButton(
@@ -737,9 +609,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=content,
         )
-        self.open_tender_button.clicked.connect(
-            self._open_selected_tender
-        )
+        self.open_tender_button.clicked.connect(self._open_selected_tender)
         self.open_tender_button.setEnabled(False)
 
         self.block_button = DangerButton(
@@ -755,9 +625,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=content,
         )
-        self.archive_button.clicked.connect(
-            self._archive_selected
-        )
+        self.archive_button.clicked.connect(self._archive_selected)
         self.archive_button.setEnabled(False)
 
         self.restore_button = OutlineButton(
@@ -766,9 +634,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=content,
         )
-        self.restore_button.clicked.connect(
-            self._restore_selected
-        )
+        self.restore_button.clicked.connect(self._restore_selected)
         self.restore_button.setEnabled(False)
         self.restore_button.hide()
 
@@ -795,11 +661,7 @@ class BusinessWorkflowPage(QWidget):
         force: bool = False,
     ) -> None:
         """Keep the record card readable at every practical window width."""
-        orientation = (
-            Qt.Orientation.Horizontal
-            if width >= 1320
-            else Qt.Orientation.Vertical
-        )
+        orientation = Qt.Orientation.Horizontal if width >= 1320 else Qt.Orientation.Vertical
         if not force and orientation == self._content_orientation:
             return
 
@@ -830,9 +692,7 @@ class BusinessWorkflowPage(QWidget):
         preferred_record_id: str | None = None,
     ) -> None:
         try:
-            records = self.repository.list_records(
-                include_archived=True
-            )
+            records = self.repository.list_records(include_archived=True)
             summary = self.repository.summary(activity_limit=0)
         except Exception as exc:
             self.status_banner.show_status(
@@ -844,14 +704,9 @@ class BusinessWorkflowPage(QWidget):
 
         self.model.set_records(records)
         self._update_summary(summary)
-        self.updated_label.setText(
-            datetime.now().strftime("Обновлено %H:%M")
-        )
+        self.updated_label.setText(datetime.now().strftime("Обновлено %H:%M"))
         self._restore_initial_filter()
-        if (
-            preferred_record_id
-            and self._select_record_id(preferred_record_id)
-        ):
+        if preferred_record_id and self._select_record_id(preferred_record_id):
             pass
         else:
             self._select_first_visible()
@@ -1077,19 +932,13 @@ class BusinessWorkflowPage(QWidget):
         self.edit_button.setEnabled(visible and not is_archived)
         self.transition_combo.setEnabled(visible and not is_archived)
         self.apply_status_button.setEnabled(visible and not is_archived)
-        self.open_tender_button.setEnabled(
-            bool(record and record.tender_id)
-        )
+        self.open_tender_button.setEnabled(bool(record and record.tender_id))
         self.archive_button.setVisible(not is_archived)
         self.archive_button.setEnabled(visible and not is_archived)
         self.restore_button.setVisible(is_archived)
         self.restore_button.setEnabled(is_archived)
         self.open_file_button.setEnabled(
-            bool(
-                record
-                and record.file_path
-                and Path(record.file_path).exists()
-            )
+            bool(record and record.file_path and Path(record.file_path).exists())
         )
 
         if record is None:
@@ -1127,11 +976,7 @@ class BusinessWorkflowPage(QWidget):
         self.detail_file.setToolTip(record.file_path or "")
         self._load_history(record.id)
 
-        transitions = (
-            ()
-            if record.is_archived
-            else allowed_transitions(kind, status)
-        )
+        transitions = () if record.is_archived else allowed_transitions(kind, status)
         self.transition_combo.clear()
         if transitions:
             for target in transitions:
@@ -1149,10 +994,7 @@ class BusinessWorkflowPage(QWidget):
         self.advance_button.setEnabled(next_status is not None)
         self.apply_status_button.setEnabled(bool(transitions))
         self.block_button.setEnabled(
-            (
-                not record.is_archived
-                and BusinessStatus.BLOCKED in transitions
-            )
+            (not record.is_archived and BusinessStatus.BLOCKED in transitions)
         )
 
     def create_diagnostic_support_bundle(
@@ -1210,10 +1052,7 @@ class BusinessWorkflowPage(QWidget):
             severity=severity,
             component="system",
             title="Изменилось общее состояние системы",
-            details=(
-                f"{previous.value} → {severity.value}; "
-                + "; ".join(snapshot.issues)
-            ),
+            details=(f"{previous.value} → {severity.value}; " + "; ".join(snapshot.issues)),
         )
 
         if severity in {
@@ -1221,9 +1060,7 @@ class BusinessWorkflowPage(QWidget):
             SystemHealthSeverity.ERROR,
         }:
             tone = (
-                StatusTone.ERROR
-                if severity == SystemHealthSeverity.ERROR
-                else StatusTone.WARNING
+                StatusTone.ERROR if severity == SystemHealthSeverity.ERROR else StatusTone.WARNING
             )
             self.status_banner.show_status(
                 title=snapshot.status_label,
@@ -1276,15 +1113,9 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=self,
         )
-        dialog.database_diagnostics_requested.connect(
-            self._run_database_diagnostics
-        )
-        dialog.backup_center_requested.connect(
-            self._open_backup_center
-        )
-        dialog.crash_reports_requested.connect(
-            self._open_crash_report_center
-        )
+        dialog.database_diagnostics_requested.connect(self._run_database_diagnostics)
+        dialog.backup_center_requested.connect(self._open_backup_center)
+        dialog.crash_reports_requested.connect(self._open_crash_report_center)
         dialog.exec()
         self._request_system_health_refresh()
 
@@ -1292,9 +1123,7 @@ class BusinessWorkflowPage(QWidget):
         dialog = CrashReportCenterDialog(
             catalog_service=self.crash_report_catalog_service,
             directories=[self.crash_report_service.directory],
-            support_bundle_provider=(
-                self.create_diagnostic_support_bundle
-            ),
+            support_bundle_provider=(self.create_diagnostic_support_bundle),
             theme=self._theme,
             parent=self,
         )
@@ -1302,11 +1131,9 @@ class BusinessWorkflowPage(QWidget):
 
     def _database_backup_directories(self) -> list[Path]:
         settings = self.auto_backup_service.load_settings()
-        automatic_directory = (
-            self.auto_backup_service.backup_directory(
-                self.repository,
-                settings,
-            )
+        automatic_directory = self.auto_backup_service.backup_directory(
+            self.repository,
+            settings,
         )
         return [
             self.repository.path.parent / "backups",
@@ -1321,20 +1148,14 @@ class BusinessWorkflowPage(QWidget):
         appear frozen. Full backup discovery and recovery remain available
         through the explicit «Диагностика базы…» action.
         """
-        report = self._inspect_database_health(
-            include_backups=False
-        )
+        report = self._inspect_database_health(include_backups=False)
         if report.requires_recovery:
             self._record_system_event(
                 severity=SystemHealthSeverity.ERROR,
                 component="database",
                 title="Стартовая диагностика обнаружила ошибку",
                 details=(
-                    f"{report.status_label}: "
-                    + "; ".join(
-                        issue.message
-                        for issue in report.issues
-                    )
+                    f"{report.status_label}: " + "; ".join(issue.message for issue in report.issues)
                 ),
             )
             self.status_banner.show_status(
@@ -1364,9 +1185,7 @@ class BusinessWorkflowPage(QWidget):
 
     def _run_database_diagnostics(self) -> None:
         self._database_health_prompt_shown = False
-        report = self._inspect_database_health(
-            include_backups=True
-        )
+        report = self._inspect_database_health(include_backups=True)
         self._record_system_event(
             severity=(
                 SystemHealthSeverity.ERROR
@@ -1386,10 +1205,7 @@ class BusinessWorkflowPage(QWidget):
             return
 
         if report.status == WorkflowDatabaseHealthStatus.MISSING:
-            message = (
-                "Файл базы ещё не создан. Он появится после "
-                "добавления первой записи."
-            )
+            message = "Файл базы ещё не создан. Он появится после добавления первой записи."
         else:
             message = (
                 f"Состояние: {report.status_label}; "
@@ -1409,11 +1225,7 @@ class BusinessWorkflowPage(QWidget):
         *,
         include_backups: bool,
     ) -> WorkflowDatabaseHealthReport:
-        directories = (
-            self._database_backup_directories()
-            if include_backups
-            else ()
-        )
+        directories = self._database_backup_directories() if include_backups else ()
         return self.database_health_service.inspect(
             self.repository,
             backup_directories=directories,
@@ -1438,23 +1250,16 @@ class BusinessWorkflowPage(QWidget):
 
         if action == WorkflowDatabaseRecoveryAction.RESTORE_LATEST:
             self._recover_latest_database_backup()
-        elif (
-            action
-            == WorkflowDatabaseRecoveryAction.OPEN_BACKUP_CENTER
-        ):
+        elif action == WorkflowDatabaseRecoveryAction.OPEN_BACKUP_CENTER:
             self._database_health_prompt_shown = False
             self._open_backup_center()
-        elif (
-            action
-            == WorkflowDatabaseRecoveryAction.INITIALIZE_EMPTY
-        ):
+        elif action == WorkflowDatabaseRecoveryAction.INITIALIZE_EMPTY:
             self._initialize_empty_database()
         else:
             self.status_banner.show_status(
                 title="База требует восстановления",
                 message=(
-                    "Автоматическое резервное копирование "
-                    "приостановлено до устранения ошибки."
+                    "Автоматическое резервное копирование приостановлено до устранения ошибки."
                 ),
                 tone=StatusTone.WARNING,
                 auto_hide_ms=9000,
@@ -1469,8 +1274,7 @@ class BusinessWorkflowPage(QWidget):
                 "после чего база будет восстановлена из последней "
                 "проверенной резервной копии."
             ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -1479,9 +1283,7 @@ class BusinessWorkflowPage(QWidget):
         try:
             result = self.database_health_service.recover_latest(
                 self.repository,
-                backup_directories=(
-                    self._database_backup_directories()
-                ),
+                backup_directories=(self._database_backup_directories()),
             )
         except Exception as exc:
             QMessageBox.critical(
@@ -1516,8 +1318,7 @@ class BusinessWorkflowPage(QWidget):
                 "пустая база. Используйте это действие только "
                 "когда исправной резервной копии нет."
             ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -1526,9 +1327,7 @@ class BusinessWorkflowPage(QWidget):
         try:
             result = self.database_health_service.initialize_empty(
                 self.repository,
-                backup_directories=(
-                    self._database_backup_directories()
-                ),
+                backup_directories=(self._database_backup_directories()),
             )
         except Exception as exc:
             QMessageBox.critical(
@@ -1543,10 +1342,7 @@ class BusinessWorkflowPage(QWidget):
         self.workflow_changed.emit()
         self.status_banner.show_status(
             title="Создана новая пустая база",
-            message=(
-                "Повреждённый файл сохранён: "
-                f"{result.quarantine_path or 'не создавался'}"
-            ),
+            message=(f"Повреждённый файл сохранён: {result.quarantine_path or 'не создавался'}"),
             tone=StatusTone.WARNING,
             auto_hide_ms=10000,
         )
@@ -1562,9 +1358,7 @@ class BusinessWorkflowPage(QWidget):
             theme=self._theme,
             parent=self,
         )
-        dialog.backup_restored.connect(
-            self._backup_center_restored
-        )
+        dialog.backup_restored.connect(self._backup_center_restored)
         dialog.exec()
 
     def _backup_center_restored(self, result: object) -> None:
@@ -1658,9 +1452,7 @@ class BusinessWorkflowPage(QWidget):
         force: bool = False,
         show_success: bool = False,
     ) -> None:
-        health = self._inspect_database_health(
-            include_backups=False
-        )
+        health = self._inspect_database_health(include_backups=False)
         if not health.safe_for_backup:
             if health.requires_recovery:
                 self._record_system_event(
@@ -1672,8 +1464,7 @@ class BusinessWorkflowPage(QWidget):
                 self.status_banner.show_status(
                     title="Автокопирование приостановлено",
                     message=(
-                        "База бизнес-процессов повреждена. "
-                        "Запустите «Данные → Диагностика базы»."
+                        "База бизнес-процессов повреждена. Запустите «Данные → Диагностика базы»."
                     ),
                     tone=StatusTone.WARNING,
                     auto_hide_ms=8000,
@@ -1707,41 +1498,28 @@ class BusinessWorkflowPage(QWidget):
             severity=SystemHealthSeverity.SUCCESS,
             component="auto_backup",
             title="Автоматическая резервная копия создана",
-            details=(
-                f"{result.backup.path}; "
-                f"удалено старых: {len(result.removed_paths)}."
-            ),
+            details=(f"{result.backup.path}; удалено старых: {len(result.removed_paths)}."),
         )
 
         if show_success or force:
             removed_text = (
-                f"; удалено старых: {len(result.removed_paths)}"
-                if result.removed_paths
-                else ""
+                f"; удалено старых: {len(result.removed_paths)}" if result.removed_paths else ""
             )
             self.status_banner.show_status(
                 title="Автоматическая копия создана",
-                message=(
-                    f"Файл: {result.backup.path}{removed_text}."
-                ),
+                message=(f"Файл: {result.backup.path}{removed_text}."),
                 tone=StatusTone.SUCCESS,
                 auto_hide_ms=7000,
             )
 
     def _create_workflow_backup(self) -> None:
         timestamp = datetime.now()
-        default_name = (
-            "CORTERIS_business_workflow_"
-            f"{timestamp:%Y%m%d_%H%M%S}.ctbackup"
-        )
+        default_name = f"CORTERIS_business_workflow_{timestamp:%Y%m%d_%H%M%S}.ctbackup"
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Создать резервную копию бизнес-процессов",
             str(Path.home() / "Documents" / default_name),
-            (
-                "Резервная копия CORTERIS (*.ctbackup);;"
-                "ZIP-архив (*.zip)"
-            ),
+            ("Резервная копия CORTERIS (*.ctbackup);;ZIP-архив (*.zip)"),
         )
         if not filename:
             return
@@ -1788,10 +1566,7 @@ class BusinessWorkflowPage(QWidget):
             self,
             "Восстановить бизнес-процессы из копии",
             str(Path.home() / "Documents"),
-            (
-                "Резервная копия CORTERIS (*.ctbackup *.zip);;"
-                "Все файлы (*)"
-            ),
+            ("Резервная копия CORTERIS (*.ctbackup *.zip);;Все файлы (*)"),
         )
         if not filename:
             return
@@ -1802,11 +1577,7 @@ class BusinessWorkflowPage(QWidget):
                 self,
                 "Резервная копия повреждена",
                 "\n".join(
-                    ["Файл не прошёл проверку:"]
-                    + [
-                        f"• {error}"
-                        for error in inspection.errors
-                    ]
+                    ["Файл не прошёл проверку:"] + [f"• {error}" for error in inspection.errors]
                 ),
             )
             return
@@ -1831,8 +1602,7 @@ class BusinessWorkflowPage(QWidget):
                 "Перед заменой будет создана автоматическая "
                 "страховочная копия текущих данных."
             ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -1861,10 +1631,7 @@ class BusinessWorkflowPage(QWidget):
             severity=SystemHealthSeverity.SUCCESS,
             component="backup",
             title="База восстановлена из резервной копии",
-            details=(
-                f"Источник: {filename}; "
-                f"страховочная копия: {result.safety_backup}."
-            ),
+            details=(f"Источник: {filename}; страховочная копия: {result.safety_backup}."),
         )
         self.refresh()
         self.workflow_changed.emit()
@@ -1880,11 +1647,7 @@ class BusinessWorkflowPage(QWidget):
         )
 
     def _save_excel_template(self) -> None:
-        default_path = (
-            Path.home()
-            / "Documents"
-            / self.excel_template_service.DEFAULT_FILENAME
-        )
+        default_path = Path.home() / "Documents" / self.excel_template_service.DEFAULT_FILENAME
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить шаблон массового импорта",
@@ -1906,10 +1669,7 @@ class BusinessWorkflowPage(QWidget):
 
         self.status_banner.show_status(
             title="Шаблон Excel сохранён",
-            message=(
-                f"Файл: {result.path} · "
-                f"размер: {result.size_bytes / 1024:.1f} КБ"
-            ),
+            message=(f"Файл: {result.path} · размер: {result.size_bytes / 1024:.1f} КБ"),
             tone=StatusTone.SUCCESS,
             auto_hide_ms=6000,
         )
@@ -1927,9 +1687,7 @@ class BusinessWorkflowPage(QWidget):
         try:
             preview = self.excel_importer.preview(
                 filename,
-                existing_records=self.repository.list_records(
-                    include_archived=True
-                ),
+                existing_records=self.repository.list_records(include_archived=True),
             )
         except Exception as exc:
             QMessageBox.critical(
@@ -1960,19 +1718,13 @@ class BusinessWorkflowPage(QWidget):
             )
             return
 
-        preferred_id = (
-            result.imported_ids[-1]
-            if result.imported_ids
-            else None
-        )
+        preferred_id = result.imported_ids[-1] if result.imported_ids else None
         self.refresh(preferred_record_id=preferred_id)
         self.workflow_changed.emit()
 
         if result.failures:
             tone = StatusTone.WARNING
-            failure_text = (
-                f" Ошибок выполнения: {len(result.failures)}."
-            )
+            failure_text = f" Ошибок выполнения: {len(result.failures)}."
         else:
             tone = StatusTone.SUCCESS
             failure_text = ""
@@ -2001,10 +1753,7 @@ class BusinessWorkflowPage(QWidget):
             return
 
         timestamp = datetime.now()
-        default_name = (
-            "CORTERIS_Реестр_КП_смет_проектов_"
-            f"{timestamp:%Y%m%d_%H%M}.xlsx"
-        )
+        default_name = f"CORTERIS_Реестр_КП_смет_проектов_{timestamp:%Y%m%d_%H%M}.xlsx"
         default_path = Path.home() / "Documents" / default_name
 
         filename, _ = QFileDialog.getSaveFileName(
@@ -2022,9 +1771,7 @@ class BusinessWorkflowPage(QWidget):
 
         try:
             events = [
-                event
-                for record in records
-                for event in self.repository.list_history(record.id)
+                event for record in records for event in self.repository.list_history(record.id)
             ]
             result = self.excel_exporter.export(
                 target,
@@ -2082,26 +1829,18 @@ class BusinessWorkflowPage(QWidget):
             )
         except Exception as exc:
             self.history_list.clear()
-            self.history_empty.setText(
-                f"Не удалось загрузить историю: {exc}"
-            )
+            self.history_empty.setText(f"Не удалось загрузить историю: {exc}")
             self.history_empty.show()
             return
 
         self.history_list.clear()
-        self.history_empty.setText(
-            "История для выбранной записи пока отсутствует."
-        )
+        self.history_empty.setText("История для выбранной записи пока отсутствует.")
         self.history_empty.setVisible(not events)
         self.history_list.setVisible(bool(events))
 
         for event in events:
-            item = QListWidgetItem(
-                self._history_event_text(event)
-            )
-            item.setToolTip(
-                self._history_event_tooltip(event)
-            )
+            item = QListWidgetItem(self._history_event_text(event))
+            item.setToolTip(self._history_event_tooltip(event))
             self.history_list.addItem(item)
 
     def _history_event_text(
@@ -2136,11 +1875,7 @@ class BusinessWorkflowPage(QWidget):
         self,
         event: BusinessAuditEvent,
     ) -> str:
-        return (
-            f"Событие: {event.action}\n"
-            f"Поле: {event.field or '—'}\n"
-            f"Пользователь: {event.actor}"
-        )
+        return f"Событие: {event.action}\nПоле: {event.field or '—'}\nПользователь: {event.actor}"
 
     @staticmethod
     def _history_field_label(field: str) -> str:
@@ -2192,8 +1927,7 @@ class BusinessWorkflowPage(QWidget):
                 "и активных бизнес-процессов. Данные сохранятся "
                 "и запись можно будет восстановить."
             ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -2209,9 +1943,7 @@ class BusinessWorkflowPage(QWidget):
             )
             return
 
-        archive_index = self.archive_filter.findData(
-            WorkflowArchiveMode.ARCHIVED.value
-        )
+        archive_index = self.archive_filter.findData(WorkflowArchiveMode.ARCHIVED.value)
         if archive_index >= 0:
             self.archive_filter.setCurrentIndex(archive_index)
 
@@ -2239,9 +1971,7 @@ class BusinessWorkflowPage(QWidget):
             )
             return
 
-        active_index = self.archive_filter.findData(
-            WorkflowArchiveMode.ACTIVE.value
-        )
+        active_index = self.archive_filter.findData(WorkflowArchiveMode.ACTIVE.value)
         if active_index >= 0:
             self.archive_filter.setCurrentIndex(active_index)
 
@@ -2297,12 +2027,9 @@ class BusinessWorkflowPage(QWidget):
 
     def _create_record(self) -> None:
         initial_kind = (
-            BusinessRecordKind(
-                str(self.kind_filter.currentData())
-            )
+            BusinessRecordKind(str(self.kind_filter.currentData()))
             if self.kind_filter.currentData()
-            else self._initial_kind
-            or BusinessRecordKind.PROPOSAL
+            else self._initial_kind or BusinessRecordKind.PROPOSAL
         )
         dialog = BusinessRecordDialog(
             initial_kind=initial_kind,
@@ -2389,9 +2116,7 @@ class BusinessWorkflowPage(QWidget):
 
         self.status_banner.show_status(
             title="Статус обновлён",
-            message=(
-                f"{record.title}: {status_label(target)}."
-            ),
+            message=(f"{record.title}: {status_label(target)}."),
             tone=StatusTone.SUCCESS,
             auto_hide_ms=2500,
         )
@@ -2412,9 +2137,7 @@ class BusinessWorkflowPage(QWidget):
             )
             return
 
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(path.resolve()))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
     def _open_selected_tender(self) -> None:
         record = self._selected_record
@@ -2444,10 +2167,7 @@ class BusinessWorkflowPage(QWidget):
         self._select_first_visible()
 
     def _on_archive_filter_changed(self) -> None:
-        value = str(
-            self.archive_filter.currentData()
-            or WorkflowArchiveMode.ACTIVE.value
-        )
+        value = str(self.archive_filter.currentData() or WorkflowArchiveMode.ACTIVE.value)
         self.proxy.set_archive_mode(value)
         self._select_first_visible()
 
@@ -2468,9 +2188,7 @@ class BusinessWorkflowPage(QWidget):
         if self.kind_filter.currentData():
             return
 
-        index = self.kind_filter.findData(
-            self._initial_kind.value
-        )
+        index = self.kind_filter.findData(self._initial_kind.value)
         if index >= 0:
             self.kind_filter.setCurrentIndex(index)
 

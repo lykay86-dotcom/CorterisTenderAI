@@ -37,9 +37,7 @@ def test_health_center_exposes_support_bundle_button(
     tmp_path,
 ) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     backup = WorkflowBackupService()
     catalog = WorkflowBackupCatalogService(backup)
     support = DiagnosticSupportBundleService()
@@ -62,8 +60,5 @@ def test_health_center_exposes_support_bundle_button(
     )
 
     assert dialog.support_bundle_service is support
-    assert (
-        dialog.support_bundle_button.text()
-        == "Пакет диагностики…"
-    )
+    assert dialog.support_bundle_button.text() == "Пакет диагностики…"
     assert dialog.support_bundle_button.isEnabled()

@@ -44,9 +44,7 @@ def _seed(repository: BusinessMetricsRepository, tender: str):
 
 
 def test_healthy_database_passes_full_diagnostics(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     _seed(repository, "T-86")
 
     report = _service().inspect(repository)
@@ -61,9 +59,7 @@ def test_healthy_database_passes_full_diagnostics(tmp_path) -> None:
 def test_corrupted_json_detected_and_latest_backup_selected(
     tmp_path,
 ) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     _seed(repository, "T-OLD")
 
     backup_service = WorkflowBackupService()
@@ -83,9 +79,7 @@ def test_corrupted_json_detected_and_latest_backup_selected(
 
     service = WorkflowDatabaseHealthService(
         backup_service=backup_service,
-        catalog_service=WorkflowBackupCatalogService(
-            backup_service
-        ),
+        catalog_service=WorkflowBackupCatalogService(backup_service),
     )
     report = service.inspect(
         repository,
@@ -100,9 +94,7 @@ def test_corrupted_json_detected_and_latest_backup_selected(
 
 
 def test_recover_latest_quarantines_corrupted_json(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     original = _seed(repository, "T-RESTORE")
     backup_service = WorkflowBackupService()
     backup_dir = tmp_path / "backups"
@@ -116,9 +108,7 @@ def test_recover_latest_quarantines_corrupted_json(tmp_path) -> None:
 
     service = WorkflowDatabaseHealthService(
         backup_service=backup_service,
-        catalog_service=WorkflowBackupCatalogService(
-            backup_service
-        ),
+        catalog_service=WorkflowBackupCatalogService(backup_service),
     )
     result = service.recover_latest(
         repository,
@@ -128,16 +118,12 @@ def test_recover_latest_quarantines_corrupted_json(tmp_path) -> None:
 
     assert result.report.status == WorkflowDatabaseHealthStatus.HEALTHY
     assert result.quarantine_path is not None
-    assert result.quarantine_path.read_text(
-        encoding="utf-8"
-    ) == damaged_text
+    assert result.quarantine_path.read_text(encoding="utf-8") == damaged_text
     assert repository.get_record(original.id) is not None
 
 
 def test_initialize_empty_preserves_corrupted_file(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     repository.path.write_text("not-json", encoding="utf-8")
 
     result = _service().initialize_empty(
@@ -147,12 +133,8 @@ def test_initialize_empty_preserves_corrupted_file(tmp_path) -> None:
 
     assert result.initialized_empty
     assert result.quarantine_path is not None
-    assert result.quarantine_path.read_text(
-        encoding="utf-8"
-    ) == "not-json"
-    payload = json.loads(
-        repository.path.read_text(encoding="utf-8")
-    )
+    assert result.quarantine_path.read_text(encoding="utf-8") == "not-json"
+    payload = json.loads(repository.path.read_text(encoding="utf-8"))
     assert payload["schema_version"] == repository.SCHEMA_VERSION
     assert payload["records"] == []
     assert payload["events"] == []
@@ -160,9 +142,7 @@ def test_initialize_empty_preserves_corrupted_file(tmp_path) -> None:
 
 
 def test_newer_schema_is_marked_incompatible(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     repository.path.write_text(
         json.dumps(
             {

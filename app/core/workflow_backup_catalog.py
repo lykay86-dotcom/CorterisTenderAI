@@ -45,10 +45,7 @@ class WorkflowBackupEntry:
 
     @property
     def created_timestamp(self) -> datetime:
-        return (
-            self.inspection.created_timestamp
-            or self.modified_at
-        )
+        return self.inspection.created_timestamp or self.modified_at
 
 
 class WorkflowBackupCatalogService:
@@ -77,31 +74,18 @@ class WorkflowBackupCatalogService:
             if not root.is_dir():
                 continue
             for path in root.rglob("*"):
-                if (
-                    path.is_file()
-                    and path.suffix.lower() in self.SUPPORTED_SUFFIXES
-                ):
-                    candidates[
-                        self._identity(path)
-                    ] = (path, True)
+                if path.is_file() and path.suffix.lower() in self.SUPPORTED_SUFFIXES:
+                    candidates[self._identity(path)] = (path, True)
 
         for item in external_files:
             path = Path(item).expanduser()
-            if (
-                path.is_file()
-                and path.suffix.lower() in self.SUPPORTED_SUFFIXES
-            ):
-                candidates[
-                    self._identity(path)
-                ] = (
+            if path.is_file() and path.suffix.lower() in self.SUPPORTED_SUFFIXES:
+                candidates[self._identity(path)] = (
                     path,
                     self._is_under_any(path, roots),
                 )
 
-        entries = [
-            self._entry(path, managed=managed)
-            for path, managed in candidates.values()
-        ]
+        entries = [self._entry(path, managed=managed) for path, managed in candidates.values()]
         entries.sort(
             key=lambda entry: (
                 entry.created_timestamp,
@@ -138,16 +122,12 @@ class WorkflowBackupCatalogService:
         if not target.is_file():
             raise FileNotFoundError(target)
         if target.suffix.lower() not in self.SUPPORTED_SUFFIXES:
-            raise ValueError(
-                "Можно удалять только файлы резервных копий."
-            )
+            raise ValueError("Можно удалять только файлы резервных копий.")
         if not allow_external and not self._is_under_any(
             target,
             roots,
         ):
-            raise PermissionError(
-                "Внешний файл нельзя удалить без явного разрешения."
-            )
+            raise PermissionError("Внешний файл нельзя удалить без явного разрешения.")
 
         target.unlink()
         return target
@@ -205,10 +185,7 @@ class WorkflowBackupCatalogService:
         roots: Sequence[Path],
     ) -> bool:
         resolved = path.resolve(strict=False)
-        return any(
-            resolved.is_relative_to(root.resolve(strict=False))
-            for root in roots
-        )
+        return any(resolved.is_relative_to(root.resolve(strict=False)) for root in roots)
 
     @staticmethod
     def _identity(path: Path) -> str:

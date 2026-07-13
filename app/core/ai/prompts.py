@@ -1,3 +1,5 @@
-"""Prompt text for structured RM-109 analysis."""
+"""Prompt text for structured Tender Intelligence analysis."""
+
+AI_PROMPT_VERSION = "1"
 
 SYSTEM_PROMPT = """Analyze only supplied tender documents and return valid JSON. Determine the procurement subject, main works, equipment, software, licenses, staff, experience, financial terms, deadlines, warranty, penalties and critical risks. Extract requirements for equipment, certificates, licenses, specialists, documents, experience, deadlines, warranty, bid security, contract security and bank guarantee. Identify suspicious or discriminatory conditions, excessive requirements, penalties, unilateral termination, unusual deadlines, missing documents and contradictions. Every finding must include document_id, exact quote, section, page when known, and confidence. If a quote is absent, mark the finding unverified; do not infer facts."""

@@ -21,20 +21,14 @@ def backup_database(
     destination_dir = Path(destination_directory).expanduser().resolve()
     destination_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    destination = destination_dir / (
-        f"{source_path.stem}_{timestamp}{source_path.suffix}"
-    )
+    destination = destination_dir / (f"{source_path.stem}_{timestamp}{source_path.suffix}")
 
     with sqlite3.connect(source_path) as source_connection:
         with sqlite3.connect(destination) as destination_connection:
             source_connection.backup(destination_connection)
-            check = destination_connection.execute(
-                "PRAGMA quick_check"
-            ).fetchone()
+            check = destination_connection.execute("PRAGMA quick_check").fetchone()
             if check is None or str(check[0]).casefold() != "ok":
-                raise RuntimeError(
-                    f"SQLite backup quick_check failed: {check!r}"
-                )
+                raise RuntimeError(f"SQLite backup quick_check failed: {check!r}")
     return destination
 
 
@@ -63,17 +57,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.source:
         source = Path(args.source)
     else:
-        project_root = Path(
-            args.project_root or PATCH_ROOT
-        ).expanduser().resolve()
+        project_root = Path(args.project_root or PATCH_ROOT).expanduser().resolve()
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
         from app.core.path_manager import PathManager
 
-        source = (
-            PathManager(project_dir=project_root).paths.data_dir
-            / "tender_registry.sqlite3"
-        )
+        source = PathManager(project_dir=project_root).paths.data_dir / "tender_registry.sqlite3"
     backup = backup_database(source, args.output_dir)
     if backup is None:
         print(f"Collector database not found; backup skipped: {source}")

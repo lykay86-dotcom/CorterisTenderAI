@@ -24,14 +24,8 @@ def _now() -> datetime:
 
 def test_relevant_security_tender_gets_explainable_score() -> None:
     tender = make_tender(
-        title=(
-            "Поставка и монтаж системы видеонаблюдения "
-            "Trassir и СКУД"
-        ),
-        description=(
-            "IP-камеры, видеорегистратор, контроллеры "
-            "доступа и пусконаладочные работы"
-        ),
+        title=("Поставка и монтаж системы видеонаблюдения Trassir и СКУД"),
+        description=("IP-камеры, видеорегистратор, контроллеры доступа и пусконаладочные работы"),
         deadline_day=30,
     )
 
@@ -54,9 +48,7 @@ def test_medical_camera_is_hard_excluded() -> None:
     tender = replace(
         make_tender(
             title="Поставка медицинской видеокамеры",
-            description=(
-                "Медицинская видеокамера для операционной"
-            ),
+            description=("Медицинская видеокамера для операционной"),
         ),
         tags=(),
         classification_codes=(),
@@ -66,9 +58,7 @@ def test_medical_camera_is_hard_excluded() -> None:
 
     assert score.total_score == 0
     assert score.hard_excluded
-    assert score.recommendation == (
-        ParticipationRecommendation.NOT_RECOMMENDED
-    )
+    assert score.recommendation == (ParticipationRecommendation.NOT_RECOMMENDED)
 
 
 def test_protected_security_repair_is_not_excluded() -> None:
@@ -99,18 +89,13 @@ def test_document_text_participates_in_matching() -> None:
     score = CorterisParticipationRanker().score(
         tender,
         ParticipationScoringContext(
-            document_texts=(
-                "Монтаж СКУД, турникетов и "
-                "электромагнитных замков.",
-            ),
+            document_texts=("Монтаж СКУД, турникетов и электромагнитных замков.",),
             now=_now(),
             evidence_sources=("Техническое задание.docx",),
         ),
     )
 
-    assert "скуд" in {
-        item.casefold() for item in score.matched_keywords
-    }
+    assert "скуд" in {item.casefold() for item in score.matched_keywords}
     assert "Техническое задание.docx" in score.evidence_sources
 
 
@@ -125,9 +110,7 @@ def test_foreign_currency_requires_manual_financial_review() -> None:
         tender,
         ParticipationScoringContext(now=_now()),
     )
-    price = next(
-        item for item in score.components if item.key == "price"
-    )
+    price = next(item for item in score.components if item.key == "price")
 
     assert price.score == 4
     assert "Требуется ручной курс" in price.explanation
@@ -159,9 +142,7 @@ def test_verified_rate_enables_foreign_currency_scoring() -> None:
             exchange_rates=rates,
         ),
     )
-    price = next(
-        item for item in score.components if item.key == "price"
-    )
+    price = next(item for item in score.components if item.key == "price")
 
     assert price.score == 10
     assert "100000 USD → 9000000.00 RUB" in price.explanation

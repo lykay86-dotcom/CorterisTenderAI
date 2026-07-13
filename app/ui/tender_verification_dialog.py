@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from html import escape
-from typing import Iterable
 
 from PySide6.QtCore import QUrl, Qt, Signal
 from PySide6.QtGui import QColor, QDesktopServices
@@ -29,7 +28,6 @@ from PySide6.QtWidgets import (
 from app.tenders.collector.verification import (
     FieldCandidate,
     FieldResolutionAction,
-    TenderVerificationStatus,
 )
 from app.tenders.collector.verification_review import (
     STATUS_LABELS,
@@ -58,9 +56,7 @@ class TenderVerificationDialog(QDialog):
         self._theme = ThemeName(theme)
         self._review = review
         self._fields: tuple[VerificationFieldReview, ...] = ()
-        self.setWindowTitle(
-            "Corteris Tender AI — достоверность и источники"
-        )
+        self.setWindowTitle("Corteris Tender AI — достоверность и источники")
         self.resize(1240, 800)
 
         root = QVBoxLayout(self)
@@ -94,25 +90,15 @@ class TenderVerificationDialog(QDialog):
         self.fields_table.setHorizontalHeaderLabels(
             ("Поле", "Выбрано", "Источник", "Доверие", "Состояние")
         )
-        self.fields_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.fields_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.fields_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.fields_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.fields_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.fields_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.fields_table.verticalHeader().setVisible(False)
         self.fields_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
-        self.fields_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
-        )
-        self.fields_table.itemSelectionChanged.connect(
-            self._render_selected_field
-        )
+        self.fields_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.fields_table.itemSelectionChanged.connect(self._render_selected_field)
         left_layout.addWidget(self.fields_table, 1)
         splitter.addWidget(left)
 
@@ -128,19 +114,19 @@ class TenderVerificationDialog(QDialog):
         self.candidates_table.setColumnCount(8)
         self.candidates_table.setHorizontalHeaderLabels(
             (
-                "Выбор", "Значение", "Источник", "Уровень", "Офиц.",
-                "Проверено", "Доверие", "Получено",
+                "Выбор",
+                "Значение",
+                "Источник",
+                "Уровень",
+                "Офиц.",
+                "Проверено",
+                "Доверие",
+                "Получено",
             )
         )
-        self.candidates_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.candidates_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.candidates_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.candidates_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.candidates_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.candidates_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.candidates_table.verticalHeader().setVisible(False)
         self.candidates_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
@@ -148,26 +134,20 @@ class TenderVerificationDialog(QDialog):
         self.candidates_table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Stretch
         )
-        self.candidates_table.itemSelectionChanged.connect(
-            self._render_candidate_details
-        )
+        self.candidates_table.itemSelectionChanged.connect(self._render_candidate_details)
         right_layout.addWidget(self.candidates_table, 1)
 
         self.candidate_details = QTextBrowser(right)
         self.candidate_details.setObjectName("VerificationDetails")
         self.candidate_details.setOpenExternalLinks(False)
-        self.candidate_details.anchorClicked.connect(
-            QDesktopServices.openUrl
-        )
+        self.candidate_details.anchorClicked.connect(QDesktopServices.openUrl)
         self.candidate_details.setMaximumHeight(150)
         right_layout.addWidget(self.candidate_details)
 
         note_row = QHBoxLayout()
         note_row.addWidget(QLabel("Комментарий:", right))
         self.note_edit = QLineEdit(right)
-        self.note_edit.setPlaceholderText(
-            "Почему выбрано это значение — необязательно"
-        )
+        self.note_edit.setPlaceholderText("Почему выбрано это значение — необязательно")
         note_row.addWidget(self.note_edit, 1)
         right_layout.addLayout(note_row)
 
@@ -194,13 +174,16 @@ class TenderVerificationDialog(QDialog):
         self.history_table.setColumnCount(7)
         self.history_table.setHorizontalHeaderLabels(
             (
-                "Дата", "Поле", "Действие", "Источник", "Пользователь",
-                "Комментарий", "ID решения",
+                "Дата",
+                "Поле",
+                "Действие",
+                "Источник",
+                "Пользователь",
+                "Комментарий",
+                "ID решения",
             )
         )
-        self.history_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self.history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.history_table.verticalHeader().setVisible(False)
         self.history_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
@@ -218,12 +201,8 @@ class TenderVerificationDialog(QDialog):
         )
         actions.addWidget(self.refresh_button)
         actions.addStretch(1)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Close, self
-        )
-        buttons.button(QDialogButtonBox.StandardButton.Close).setText(
-            "Закрыть"
-        )
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
@@ -258,9 +237,7 @@ class TenderVerificationDialog(QDialog):
         self.status_value.style().unpolish(self.status_value)
         self.status_value.style().polish(self.status_value)
         if state is None:
-            self.summary_text.setText(
-                "Для этой записи ещё нет результатов проверки полей."
-            )
+            self.summary_text.setText("Для этой записи ещё нет результатов проверки полей.")
         else:
             self.summary_text.setText(
                 f"Подтверждено {state.verified_field_count} из "
@@ -316,7 +293,8 @@ class TenderVerificationDialog(QDialog):
                 selected.source_id if selected is not None else "—",
                 (
                     TRUST_LABELS.get(selected.trust_level, str(selected.trust_level))
-                    if selected is not None else "—"
+                    if selected is not None
+                    else "—"
                 ),
                 state_text,
             )
@@ -351,11 +329,7 @@ class TenderVerificationDialog(QDialog):
             values = (
                 _format_timestamp(item.resolved_at),
                 next(
-                    (
-                        field.label
-                        for field in self._fields
-                        if field.field_name == item.field_name
-                    ),
+                    (field.label for field in self._fields if field.field_name == item.field_name),
                     item.field_name,
                 ),
                 action,
@@ -385,9 +359,7 @@ class TenderVerificationDialog(QDialog):
         selected_row = 0
         for row, candidate in enumerate(field.candidates):
             marker = (
-                "✓ вручную"
-                if candidate.manual_override
-                else ("✓" if candidate.selected else "")
+                "✓ вручную" if candidate.manual_override else ("✓" if candidate.selected else "")
             )
             values = (
                 marker,
@@ -431,7 +403,8 @@ class TenderVerificationDialog(QDialog):
             f"проверен: {'да' if candidate.verified else 'нет'}.</p>"
             + (
                 f'<p><a href="{escape(candidate.source_url)}">Открыть источник</a></p>'
-                if candidate.source_url else ""
+                if candidate.source_url
+                else ""
             )
         )
 

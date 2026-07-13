@@ -49,9 +49,7 @@ class FakeScoreService:
     def evaluate(self, registry_key: str, *, persist=True):
         assert persist
         self.calls.append(registry_key)
-        self._latest = CorterisParticipationRanker().score(
-            make_tender(deadline_day=30)
-        )
+        self._latest = CorterisParticipationRanker().score(make_tender(deadline_day=30))
         return self._latest
 
 
@@ -62,13 +60,9 @@ class FailingScoreService(FakeScoreService):
 
 
 def _runtime(tmp_path, service) -> TenderSearchRuntime:
-    profiles = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    profiles = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     profiles.initialize()
-    registry_repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    registry_repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     registry_repository.record_profile_run(
         _run(_evaluated_tender()),
         run_id="run-score",

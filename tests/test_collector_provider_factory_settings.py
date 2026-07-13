@@ -17,9 +17,7 @@ from app.tenders.providers.commercial_catalog import (
 
 
 def test_factory_filters_disabled_sources(tmp_path) -> None:
-    settings = ProviderEnablementRepository(
-        tmp_path / "sources.json"
-    )
+    settings = ProviderEnablementRepository(tmp_path / "sources.json")
     settings.set_enabled("eis", False)
     settings.set_enabled("mos_supplier", True)
     runtime = create_collector_network_runtime()
@@ -32,17 +30,13 @@ def test_factory_filters_disabled_sources(tmp_path) -> None:
     finally:
         __import__("asyncio").run(runtime.aclose())
 
-    assert [item.descriptor.id for item in providers] == [
-        "mos_supplier"
-    ]
+    assert [item.descriptor.id for item in providers] == ["mos_supplier"]
 
 
 def test_factory_can_return_disabled_sources_for_ui(
     tmp_path,
 ) -> None:
-    settings = ProviderEnablementRepository(
-        tmp_path / "sources.json"
-    )
+    settings = ProviderEnablementRepository(tmp_path / "sources.json")
     catalog = create_commercial_provider_catalog(
         settings_path=tmp_path / "commercial.json",
         environment={},

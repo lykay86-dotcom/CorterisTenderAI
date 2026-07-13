@@ -40,9 +40,7 @@ def test_system_health_center_displays_cards_and_journal(
     tmp_path,
 ) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     repository.save_record(
         kind=BusinessRecordKind.ESTIMATE,
         tender_id="T-87",
@@ -60,9 +58,7 @@ def test_system_health_center_displays_cards_and_journal(
         tmp_path / "auto_settings.json",
         backup_service=backup,
     )
-    journal = SystemHealthJournal(
-        tmp_path / "journal.json"
-    )
+    journal = SystemHealthJournal(tmp_path / "journal.json")
     journal.record(
         severity=SystemHealthSeverity.SUCCESS,
         component="database",
@@ -88,9 +84,7 @@ def test_system_health_center_displays_cards_and_journal(
 
 def test_system_health_center_navigation_signals(tmp_path) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     backup = WorkflowBackupService()
     catalog = WorkflowBackupCatalogService(backup)
     dialog = SystemHealthCenterDialog(
@@ -110,9 +104,7 @@ def test_system_health_center_navigation_signals(tmp_path) -> None:
     )
 
     requested: list[str] = []
-    dialog.database_diagnostics_requested.connect(
-        lambda: requested.append("database")
-    )
+    dialog.database_diagnostics_requested.connect(lambda: requested.append("database"))
     dialog._request_database_diagnostics()
 
     assert requested == ["database"]

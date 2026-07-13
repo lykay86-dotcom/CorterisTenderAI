@@ -37,15 +37,13 @@ from app.ui.viewmodels.dashboard_viewmodel import (
 class TenderRepositoryLike(Protocol):
     """Minimum tender repository contract required by the controller."""
 
-    def list(self) -> Sequence[Any]:
-        ...
+    def list(self) -> Sequence[Any]: ...
 
 
 class BusinessMetricsRepositoryLike(Protocol):
     """Minimum business workflow repository contract."""
 
-    def summary(self) -> BusinessMetricsSnapshot:
-        ...
+    def summary(self) -> BusinessMetricsSnapshot: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,8 +103,7 @@ class DashboardSnapshotBuilder:
         )
 
         recent = tuple(
-            self._to_recent_tender(entity)
-            for entity in sorted_rows[: self.RECENT_LIMIT]
+            self._to_recent_tender(entity) for entity in sorted_rows[: self.RECENT_LIMIT]
         )
         number_to_id = {
             tender.number: str(self._value(entity, "id", tender.number))
@@ -118,36 +115,12 @@ class DashboardSnapshotBuilder:
         }
 
         today = loaded_at.date()
-        new_today = sum(
-            1
-            for entity in rows
-            if self._created_date(entity) == today
-        )
-        recommended = [
-            entity
-            for entity in rows
-            if self._score(entity) >= self.RECOMMENDED_SCORE
-        ]
-        attention = [
-            entity
-            for entity in rows
-            if self._requires_attention(entity, today)
-        ]
-        proposal_count = (
-            business.proposals_in_work
-            if business is not None
-            else 0
-        )
-        estimate_count = (
-            business.estimates_in_work
-            if business is not None
-            else 0
-        )
-        project_count = (
-            business.active_projects
-            if business is not None
-            else 0
-        )
+        new_today = sum(1 for entity in rows if self._created_date(entity) == today)
+        recommended = [entity for entity in rows if self._score(entity) >= self.RECOMMENDED_SCORE]
+        attention = [entity for entity in rows if self._requires_attention(entity, today)]
+        proposal_count = business.proposals_in_work if business is not None else 0
+        estimate_count = business.estimates_in_work if business is not None else 0
+        project_count = business.active_projects if business is not None else 0
 
         analysis_profit, analysis_sources = self._potential_profit(rows)
         if business is not None and business.profit_sources > 0:
@@ -157,11 +130,7 @@ class DashboardSnapshotBuilder:
             profit = analysis_profit
             profit_sources = analysis_sources
 
-        business_attention = (
-            business.attention
-            if business is not None
-            else 0
-        )
+        business_attention = business.attention if business is not None else 0
 
         kpis = self._build_kpis(
             profit=profit,
@@ -186,14 +155,9 @@ class DashboardSnapshotBuilder:
                 sorted(
                     [
                         *activities,
-                        *(
-                            self._business_activity(item)
-                            for item in business.recent_activities
-                        ),
+                        *(self._business_activity(item) for item in business.recent_activities),
                     ],
-                    key=lambda item: (
-                        item.timestamp or datetime.min
-                    ),
+                    key=lambda item: item.timestamp or datetime.min,
                     reverse=True,
                 )[:8]
             )
@@ -258,11 +222,7 @@ class DashboardSnapshotBuilder:
                     if proposals or estimates
                     else "КП и сметы в работе не найдены"
                 ),
-                tone=(
-                    "warning"
-                    if proposals or estimates
-                    else "default"
-                ),
+                tone=("warning" if proposals or estimates else "default"),
                 icon_text="КП",
             ),
             DashboardKpi(
@@ -270,9 +230,7 @@ class DashboardSnapshotBuilder:
                 title="Активные проекты",
                 value=str(projects),
                 trend=(
-                    "Контракты и проекты в работе"
-                    if projects
-                    else "Активные проекты не найдены"
+                    "Контракты и проекты в работе" if projects else "Активные проекты не найдены"
                 ),
                 tone="info",
                 icon_text="P",
@@ -305,17 +263,11 @@ class DashboardSnapshotBuilder:
             number = self._display_number(priority)
             title = str(self._value(priority, "title", "Без названия"))
             score = self._score(priority)
-            severity = (
-                "success"
-                if score >= self.RECOMMENDED_SCORE
-                else "info"
-            )
+            severity = "success" if score >= self.RECOMMENDED_SCORE else "info"
             recommendations.append(
                 AiRecommendation(
                     title="Приоритетный тендер",
-                    description=(
-                        f"{number} — {title}. AI Score: {score}/100."
-                    ),
+                    description=(f"{number} — {title}. AI Score: {score}/100."),
                     severity=severity,
                     action_text="Открыть тендер",
                 )
@@ -326,8 +278,7 @@ class DashboardSnapshotBuilder:
                 attention,
                 key=lambda row: (
                     self._days_to_deadline(row, date.today())
-                    if self._days_to_deadline(row, date.today())
-                    is not None
+                    if self._days_to_deadline(row, date.today()) is not None
                     else 10_000
                 ),
             )
@@ -378,9 +329,7 @@ class DashboardSnapshotBuilder:
         for entity in rows[:3]:
             number = self._display_number(entity)
             score = self._score(entity)
-            description = str(
-                self._value(entity, "title", "Тендер без названия")
-            )
+            description = str(self._value(entity, "title", "Тендер без названия"))
             if score > 0:
                 description = f"{description}. AI Score: {score}/100."
 
@@ -440,13 +389,9 @@ class DashboardSnapshotBuilder:
                     "Не анализировался",
                 )
             ),
-            nmck=self._format_money(
-                self._decimal(self._value(entity, "nmck", 0))
-            ),
+            nmck=self._format_money(self._decimal(self._value(entity, "nmck", 0))),
             status=str(self._value(entity, "status", "Новый")),
-            platform=str(
-                self._value(entity, "platform", "Ручной импорт")
-            ),
+            platform=str(self._value(entity, "platform", "Ручной импорт")),
         )
 
     def _potential_profit(
@@ -463,13 +408,9 @@ class DashboardSnapshotBuilder:
 
             latest = max(
                 analyses,
-                key=lambda analysis: (
-                    self._created_at(analysis) or datetime.min
-                ),
+                key=lambda analysis: self._created_at(analysis) or datetime.min,
             )
-            amount = self._decimal(
-                self._value(latest, "estimated_profit", 0)
-            )
+            amount = self._decimal(self._value(latest, "estimated_profit", 0))
             if amount > 0:
                 total += amount
                 sources += 1
@@ -482,10 +423,7 @@ class DashboardSnapshotBuilder:
         today: date,
     ) -> bool:
         days = self._days_to_deadline(entity, today)
-        deadline_risk = (
-            days is not None
-            and 0 <= days <= self.ATTENTION_DAYS
-        )
+        deadline_risk = days is not None and 0 <= days <= self.ATTENTION_DAYS
         status_risk = self._status_contains(
             entity,
             self.ATTENTION_STATUS_WORDS,
@@ -497,9 +435,7 @@ class DashboardSnapshotBuilder:
         entity: Any,
         today: date,
     ) -> int | None:
-        deadline = self._parse_deadline(
-            self._value(entity, "deadline", "")
-        )
+        deadline = self._parse_deadline(self._value(entity, "deadline", ""))
         if deadline is None:
             return None
         return (deadline - today).days
@@ -509,15 +445,11 @@ class DashboardSnapshotBuilder:
         entity: Any,
         words: Sequence[str],
     ) -> int:
-        status = str(
-            self._value(entity, "status", "")
-        ).strip().lower()
+        status = str(self._value(entity, "status", "")).strip().lower()
         return int(any(word in status for word in words))
 
     def _display_number(self, entity: Any) -> str:
-        number = str(
-            self._value(entity, "number", "")
-        ).strip()
+        number = str(self._value(entity, "number", "")).strip()
         if number:
             return number
 
@@ -565,9 +497,7 @@ class DashboardSnapshotBuilder:
                 continue
 
         try:
-            return datetime.fromisoformat(
-                text.replace("Z", "+00:00")
-            ).date()
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
         except ValueError:
             return None
 
@@ -642,9 +572,7 @@ class DashboardController(QObject):
 
         self.page = page
         self.repository = repository or TenderRepository()
-        self.business_repository = (
-            business_repository or BusinessMetricsRepository()
-        )
+        self.business_repository = business_repository or BusinessMetricsRepository()
         self.clock = clock
         self.builder = DashboardSnapshotBuilder()
 
@@ -698,9 +626,7 @@ class DashboardController(QObject):
 
         self._started = True
         self.page.viewmodel.refresh_requested.connect(self.refresh)
-        self.page.tender_open_requested.connect(
-            self._select_tender_by_number
-        )
+        self.page.tender_open_requested.connect(self._select_tender_by_number)
 
         if self._auto_refresh_timer.interval() > 0:
             self._auto_refresh_timer.start()
@@ -793,10 +719,7 @@ class DashboardController(QObject):
             thread.quit()
 
     def _handle_refresh_failure(self, error: Exception) -> None:
-        message = (
-            "Не удалось обновить данные из локальной базы: "
-            f"{error}"
-        )
+        message = f"Не удалось обновить данные из локальной базы: {error}"
 
         self.page.set_refreshing(
             False,
@@ -805,9 +728,7 @@ class DashboardController(QObject):
         )
 
         if self._has_loaded_once:
-            self.page.set_partial_data(
-                f"{message} Отображаются ранее загруженные данные."
-            )
+            self.page.set_partial_data(f"{message} Отображаются ранее загруженные данные.")
         else:
             self.page.show_error(
                 message,
@@ -857,17 +778,13 @@ class DashboardController(QObject):
             )
 
         self.page.viewmodel.set_recent_tenders(snapshot.tenders)
-        self.page.viewmodel.set_ai_recommendations(
-            snapshot.recommendations
-        )
+        self.page.viewmodel.set_ai_recommendations(snapshot.recommendations)
         self.page.set_activities(snapshot.activities)
 
         self.page.set_data_state(
             DataState.ready()
             if snapshot.tenders
-            else DataState.empty(
-                "В локальной базе пока нет тендеров."
-            )
+            else DataState.empty("В локальной базе пока нет тендеров.")
         )
 
     def _select_tender_by_number(self, number: str) -> None:

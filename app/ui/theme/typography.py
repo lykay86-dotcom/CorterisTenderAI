@@ -24,9 +24,7 @@ class FontToken:
 
     def css(self) -> str:
         return (
-            f"font-family:'{self.family}';"
-            f"font-size:{self.size}pt;"
-            f"font-weight:{int(self.weight)};"
+            f"font-family:'{self.family}';font-size:{self.size}pt;font-weight:{int(self.weight)};"
         )
 
 

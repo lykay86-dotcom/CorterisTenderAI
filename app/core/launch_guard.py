@@ -84,9 +84,7 @@ class LaunchGuardService:
             and record.started_timestamp >= cutoff
         ]
 
-        enabled = force_safe_mode or (
-            len(recent_crashes) >= self.crash_threshold
-        )
+        enabled = force_safe_mode or (len(recent_crashes) >= self.crash_threshold)
         if force_safe_mode:
             reason = "Безопасный режим запрошен вручную."
         elif enabled:
@@ -117,9 +115,7 @@ class LaunchGuardService:
         with self._lock:
             records = self._load_unlocked()
             records = [
-                self._mark_interrupted(record, moment)
-                if record.outcome == "running"
-                else record
+                self._mark_interrupted(record, moment) if record.outcome == "running" else record
                 for record in records
             ]
 
@@ -211,9 +207,7 @@ class LaunchGuardService:
                     LaunchRecord(
                         launch_id=record.launch_id,
                         started_at=record.started_at,
-                        finished_at=moment.isoformat(
-                            timespec="seconds"
-                        ),
+                        finished_at=moment.isoformat(timespec="seconds"),
                         outcome=outcome,
                         crash_report=crash_report,
                         details=details,
@@ -233,9 +227,7 @@ class LaunchGuardService:
             outcome="interrupted",
             crash_report=record.crash_report,
             details=(
-                record.details
-                or "Предыдущий запуск завершился без отметки "
-                "о штатном закрытии."
+                record.details or "Предыдущий запуск завершился без отметки о штатном закрытии."
             ),
         )
 
@@ -243,9 +235,7 @@ class LaunchGuardService:
         if not self.path.exists():
             return []
         try:
-            payload = json.loads(
-                self.path.read_text(encoding="utf-8")
-            )
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return []
 
@@ -265,9 +255,7 @@ class LaunchGuardService:
                     started_at=str(item.get("started_at", "")).strip(),
                     finished_at=str(item.get("finished_at", "")).strip(),
                     outcome=str(item.get("outcome", "running")).strip(),
-                    crash_report=str(
-                        item.get("crash_report", "")
-                    ).strip(),
+                    crash_report=str(item.get("crash_report", "")).strip(),
                     details=str(item.get("details", "")).strip(),
                 )
             except (TypeError, ValueError):
@@ -282,14 +270,10 @@ class LaunchGuardService:
     ) -> None:
         payload: dict[str, Any] = {
             "schema_version": self.SCHEMA_VERSION,
-            "updated_at": datetime.now().isoformat(
-                timespec="seconds"
-            ),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
             "records": [asdict(record) for record in records],
         }
-        temporary = self.path.with_suffix(
-            self.path.suffix + ".tmp"
-        )
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
         try:
             temporary.write_text(
                 json.dumps(

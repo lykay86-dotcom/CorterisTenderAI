@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Create a reproducible hash manifest for Windows release artifacts."""
 
 from __future__ import annotations
@@ -52,9 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest = {
         "application": APP_NAME,
         "version": APP_VERSION,
-        "created_at": datetime.now(timezone.utc).isoformat(
-            timespec="seconds"
-        ),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "python": platform.python_version(),
         "platform": platform.platform(),
         "dependencies": _versions(DISTRIBUTIONS),

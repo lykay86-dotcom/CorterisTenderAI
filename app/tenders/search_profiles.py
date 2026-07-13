@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import re
-from typing import Iterable, Mapping, Any
+from typing import Mapping, Any
 
 from app.tenders.corteris_filter import (
     TenderDirection,
@@ -78,24 +78,17 @@ class TenderSearchProfile:
             object.__setattr__(self, "id", normalized_id)
         if not _PROFILE_ID_RE.fullmatch(normalized_id):
             raise ValueError(
-                "Profile id must contain 2-64 lowercase Latin "
-                "letters, digits, '_' or '-'"
+                "Profile id must contain 2-64 lowercase Latin letters, digits, '_' or '-'"
             )
         if not self.name.strip():
             raise ValueError("Profile name must not be empty")
         if not self.keywords and not self.directions:
-            raise ValueError(
-                "Profile must contain keywords or directions"
-            )
+            raise ValueError("Profile must contain keywords or directions")
         if not 0 <= self.minimum_score <= 100:
-            raise ValueError(
-                "minimum_score must be between 0 and 100"
-            )
+            raise ValueError("minimum_score must be between 0 and 100")
         if self.lookback_days is not None:
             if not 0 <= self.lookback_days <= 3650:
-                raise ValueError(
-                    "lookback_days must be between 0 and 3650"
-                )
+                raise ValueError("lookback_days must be between 0 and 3650")
         if not 1 <= self.page_size <= 500:
             raise ValueError("page_size must be between 1 and 500")
         if (
@@ -103,9 +96,7 @@ class TenderSearchProfile:
             and self.max_price is not None
             and self.min_price > self.max_price
         ):
-            raise ValueError(
-                "min_price cannot be greater than max_price"
-            )
+            raise ValueError("min_price cannot be greater than max_price")
         if any(not item.strip() for item in self.provider_ids):
             raise ValueError("provider_ids cannot contain empty values")
         if len(set(self.provider_ids)) != len(self.provider_ids):
@@ -122,9 +113,7 @@ class TenderSearchProfile:
         date_to = None
         if self.lookback_days is not None:
             date_to = current_date
-            date_from = current_date - timedelta(
-                days=self.lookback_days
-            )
+            date_from = current_date - timedelta(days=self.lookback_days)
 
         return TenderSearchQuery(
             keywords=self.keywords,
@@ -177,31 +166,19 @@ class TenderSearchProfile:
             "description": self.description,
             "keywords": list(self.keywords),
             "excluded_keywords": list(self.excluded_keywords),
-            "directions": [
-                direction.value for direction in self.directions
-            ],
+            "directions": [direction.value for direction in self.directions],
             "require_all_directions": self.require_all_directions,
             "regions": list(self.regions),
             "laws": list(self.laws),
-            "min_price": (
-                str(self.min_price)
-                if self.min_price is not None
-                else None
-            ),
-            "max_price": (
-                str(self.max_price)
-                if self.max_price is not None
-                else None
-            ),
+            "min_price": (str(self.min_price) if self.min_price is not None else None),
+            "max_price": (str(self.max_price) if self.max_price is not None else None),
             "price_currency": self.price_currency,
             "minimum_score": self.minimum_score,
             "only_open": self.only_open,
             "lookback_days": self.lookback_days,
             "page_size": self.page_size,
             "provider_ids": list(self.provider_ids),
-            "include_disabled_providers": (
-                self.include_disabled_providers
-            ),
+            "include_disabled_providers": (self.include_disabled_providers),
             "enabled": self.enabled,
             "is_builtin": self.is_builtin,
             "created_at": self.created_at,
@@ -222,32 +199,19 @@ class TenderSearchProfile:
             name=str(payload.get("name", "")),
             description=str(payload.get("description", "")),
             keywords=_string_tuple(payload.get("keywords", ())),
-            excluded_keywords=_string_tuple(
-                payload.get("excluded_keywords", ())
-            ),
-            directions=tuple(
-                TenderDirection(str(value))
-                for value in directions_raw
-            ),
-            require_all_directions=bool(
-                payload.get("require_all_directions", False)
-            ),
+            excluded_keywords=_string_tuple(payload.get("excluded_keywords", ())),
+            directions=tuple(TenderDirection(str(value)) for value in directions_raw),
+            require_all_directions=bool(payload.get("require_all_directions", False)),
             regions=_string_tuple(payload.get("regions", ())),
-            laws=_string_tuple(
-                payload.get("laws", ("44-ФЗ", "223-ФЗ"))
-            ),
+            laws=_string_tuple(payload.get("laws", ("44-ФЗ", "223-ФЗ"))),
             min_price=_optional_decimal(payload.get("min_price")),
             max_price=_optional_decimal(payload.get("max_price")),
             price_currency=str(payload.get("price_currency", "RUB")),
             minimum_score=int(payload.get("minimum_score", 24)),
             only_open=bool(payload.get("only_open", True)),
-            lookback_days=_optional_int(
-                payload.get("lookback_days", 30)
-            ),
+            lookback_days=_optional_int(payload.get("lookback_days", 30)),
             page_size=int(payload.get("page_size", 50)),
-            provider_ids=_string_tuple(
-                payload.get("provider_ids", ("eis",))
-            ),
+            provider_ids=_string_tuple(payload.get("provider_ids", ("eis",))),
             include_disabled_providers=bool(
                 payload.get(
                     "include_disabled_providers",
@@ -284,10 +248,7 @@ def create_builtin_search_profiles(
         TenderSearchProfile(
             id="all-corteris",
             name="Все направления Кортерис",
-            description=(
-                "Общий поиск по системам безопасности, монтажу "
-                "и обслуживанию."
-            ),
+            description=("Общий поиск по системам безопасности, монтажу и обслуживанию."),
             keywords=(
                 "видеонаблюдение",
                 "охранно-пожарная сигнализация",
@@ -302,10 +263,7 @@ def create_builtin_search_profiles(
         TenderSearchProfile(
             id="video-surveillance",
             name="Видеонаблюдение",
-            description=(
-                "Камеры, регистраторы, видеоаналитика, "
-                "Trassir, Hikvision и Dahua."
-            ),
+            description=("Камеры, регистраторы, видеоаналитика, Trassir, Hikvision и Dahua."),
             keywords=(
                 "видеонаблюдение",
                 "камера видеонаблюдения",
@@ -321,10 +279,7 @@ def create_builtin_search_profiles(
         TenderSearchProfile(
             id="ops",
             name="ОПС и пожарная автоматика",
-            description=(
-                "Охранная и пожарная сигнализация, АПС, "
-                "СОУЭ и пожарная автоматика."
-            ),
+            description=("Охранная и пожарная сигнализация, АПС, СОУЭ и пожарная автоматика."),
             keywords=(
                 "охранно-пожарная сигнализация",
                 "пожарная сигнализация",
@@ -339,10 +294,7 @@ def create_builtin_search_profiles(
         TenderSearchProfile(
             id="skud",
             name="СКУД и контроль доступа",
-            description=(
-                "СКУД, турникеты, контроллеры, считыватели "
-                "и электронные замки."
-            ),
+            description=("СКУД, турникеты, контроллеры, считыватели и электронные замки."),
             keywords=(
                 "СКУД",
                 "система контроля и управления доступом",
@@ -358,8 +310,7 @@ def create_builtin_search_profiles(
             id="barriers-anpr",
             name="Шлагбаумы и распознавание номеров",
             description=(
-                "Шлагбаумы, автоматизация КПП, ANPR/LPR "
-                "и контроль автомобильного проезда."
+                "Шлагбаумы, автоматизация КПП, ANPR/LPR и контроль автомобильного проезда."
             ),
             keywords=(
                 "шлагбаум",
@@ -381,10 +332,7 @@ def create_builtin_search_profiles(
         TenderSearchProfile(
             id="maintenance",
             name="Обслуживание систем безопасности",
-            description=(
-                "Техническое и регламентное обслуживание, "
-                "ремонт и аварийные выезды."
-            ),
+            description=("Техническое и регламентное обслуживание, ремонт и аварийные выезды."),
             keywords=(
                 "техническое обслуживание видеонаблюдения",
                 "обслуживание СКУД",
@@ -411,11 +359,7 @@ def create_builtin_search_profiles(
             ),
             directions=(TenderDirection.INTEGRATED_SECURITY,),
             minimum_score=30,
-            **{
-                key: value
-                for key, value in common.items()
-                if key != "minimum_score"
-            },
+            **{key: value for key, value in common.items() if key != "minimum_score"},
         ),
     )
 
@@ -453,9 +397,7 @@ def _iso_timestamp(value: datetime | None = None) -> str:
     moment = value or datetime.now(timezone.utc)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
-    return moment.astimezone(timezone.utc).isoformat(
-        timespec="seconds"
-    )
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
 
 
 __all__ = [

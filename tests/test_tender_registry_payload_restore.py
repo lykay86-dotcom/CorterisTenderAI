@@ -91,16 +91,12 @@ def test_registry_restores_full_tender_payload(tmp_path) -> None:
                 total_count=1,
                 accepted_count=1,
                 rejected_count=0,
-                direction_counts={
-                    TenderDirection.VIDEO_SURVEILLANCE: 1
-                },
+                direction_counts={TenderDirection.VIDEO_SURVEILLANCE: 1},
             ),
         ),
         executed_at="2026-07-12T12:00:01+00:00",
     )
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     repository.record_profile_run(run, run_id="run-1")
 
     restored = repository.get_tender(tender_registry_key(tender))

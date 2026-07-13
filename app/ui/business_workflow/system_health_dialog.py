@@ -59,9 +59,7 @@ class SystemHealthCenterDialog(QDialog):
         auto_backup_service: WorkflowAutoBackupService,
         backup_catalog_service: WorkflowBackupCatalogService,
         backup_directories: list[Path],
-        support_bundle_service: (
-            DiagnosticSupportBundleService | None
-        ) = None,
+        support_bundle_service: (DiagnosticSupportBundleService | None) = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
@@ -74,10 +72,7 @@ class SystemHealthCenterDialog(QDialog):
         self.auto_backup_service = auto_backup_service
         self.backup_catalog_service = backup_catalog_service
         self.backup_directories = backup_directories
-        self.support_bundle_service = (
-            support_bundle_service
-            or DiagnosticSupportBundleService()
-        )
+        self.support_bundle_service = support_bundle_service or DiagnosticSupportBundleService()
         self.snapshot: SystemHealthSnapshot | None = None
         self._theme = ThemeName(theme)
 
@@ -112,33 +107,25 @@ class SystemHealthCenterDialog(QDialog):
             "Диагностика базы…",
             self,
         )
-        self.database_button.clicked.connect(
-            self._request_database_diagnostics
-        )
+        self.database_button.clicked.connect(self._request_database_diagnostics)
 
         self.backup_button = QPushButton(
             "Центр резервных копий…",
             self,
         )
-        self.backup_button.clicked.connect(
-            self._request_backup_center
-        )
+        self.backup_button.clicked.connect(self._request_backup_center)
 
         self.crash_reports_button = QPushButton(
             "Crash-reports…",
             self,
         )
-        self.crash_reports_button.clicked.connect(
-            self._request_crash_reports
-        )
+        self.crash_reports_button.clicked.connect(self._request_crash_reports)
 
         self.support_bundle_button = QPushButton(
             "Пакет диагностики…",
             self,
         )
-        self.support_bundle_button.clicked.connect(
-            self._export_support_bundle
-        )
+        self.support_bundle_button.clicked.connect(self._export_support_bundle)
 
         toolbar.addWidget(self.refresh_button)
         toolbar.addWidget(self.database_button)
@@ -157,18 +144,16 @@ class SystemHealthCenterDialog(QDialog):
         cards.setHorizontalSpacing(10)
         cards.setVerticalSpacing(10)
 
-        self.overall_card, self.overall_value, self.overall_details = (
-            self._create_card("Общее состояние")
+        self.overall_card, self.overall_value, self.overall_details = self._create_card(
+            "Общее состояние"
         )
-        self.database_card, self.database_value, self.database_details = (
-            self._create_card("База бизнес-процессов")
+        self.database_card, self.database_value, self.database_details = self._create_card(
+            "База бизнес-процессов"
         )
-        self.backup_card, self.backup_value, self.backup_details = (
-            self._create_card("Резервные копии")
+        self.backup_card, self.backup_value, self.backup_details = self._create_card(
+            "Резервные копии"
         )
-        self.auto_card, self.auto_value, self.auto_details = (
-            self._create_card("Автокопирование")
-        )
+        self.auto_card, self.auto_value, self.auto_details = self._create_card("Автокопирование")
 
         cards.addWidget(self.overall_card, 0, 0)
         cards.addWidget(self.database_card, 0, 1)
@@ -210,12 +195,8 @@ class SystemHealthCenterDialog(QDialog):
                 "Подробности",
             )
         )
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(True)
         self.table.verticalHeader().hide()
@@ -247,9 +228,7 @@ class SystemHealthCenterDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        self.buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         self.buttons.rejected.connect(self.reject)
         root.addWidget(self.buttons)
 
@@ -301,31 +280,20 @@ class SystemHealthCenterDialog(QDialog):
             return
 
         snapshot = self.snapshot
-        self.checked_label.setText(
-            "Проверено: "
-            f"{snapshot.checked_at:%d.%m.%Y %H:%M:%S}"
-        )
+        self.checked_label.setText(f"Проверено: {snapshot.checked_at:%d.%m.%Y %H:%M:%S}")
         self.overall_value.setText(snapshot.status_label)
-        self.overall_details.setText(
-            f"Событий в журнале: {snapshot.journal_count}"
-        )
+        self.overall_details.setText(f"Событий в журнале: {snapshot.journal_count}")
 
-        self.database_value.setText(
-            snapshot.database.status_label
-        )
+        self.database_value.setText(snapshot.database.status_label)
         self.database_details.setText(
             f"Записей: {snapshot.database.record_count} · "
             f"событий: {snapshot.database.event_count} · "
             f"схема: {snapshot.database.schema_version or '—'}"
         )
 
-        self.backup_value.setText(
-            f"Исправных: {snapshot.backup_valid}"
-        )
+        self.backup_value.setText(f"Исправных: {snapshot.backup_valid}")
         latest_text = (
-            snapshot.latest_backup_at.strftime(
-                "%d.%m.%Y %H:%M"
-            )
+            snapshot.latest_backup_at.strftime("%d.%m.%Y %H:%M")
             if snapshot.latest_backup_at is not None
             else "нет"
         )
@@ -335,14 +303,8 @@ class SystemHealthCenterDialog(QDialog):
             f"последняя: {latest_text}"
         )
 
-        self.auto_value.setText(
-            "Включено"
-            if snapshot.auto_backup_enabled
-            else "Отключено"
-        )
-        last_success = self._datetime_text(
-            snapshot.auto_backup_last_success_at
-        )
+        self.auto_value.setText("Включено" if snapshot.auto_backup_enabled else "Отключено")
+        last_success = self._datetime_text(snapshot.auto_backup_last_success_at)
         self.auto_details.setText(
             f"Интервал: {snapshot.auto_backup_interval_hours} ч. · "
             f"хранить: {snapshot.auto_backup_retention_count} · "
@@ -350,16 +312,9 @@ class SystemHealthCenterDialog(QDialog):
         )
 
         self.issues_label.setVisible(bool(snapshot.issues))
-        self.issues_label.setText(
-            "\n".join(
-                f"• {issue}"
-                for issue in snapshot.issues
-            )
-        )
+        self.issues_label.setText("\n".join(f"• {issue}" for issue in snapshot.issues))
 
-        self._populate_events(
-            self.journal.list_events(limit=200)
-        )
+        self._populate_events(self.journal.list_events(limit=200))
         self._apply_snapshot_colors(snapshot)
 
     def _populate_events(
@@ -383,10 +338,7 @@ class SystemHealthCenterDialog(QDialog):
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
-                item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignTop
-                    | Qt.AlignmentFlag.AlignLeft
-                )
+                item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
                 self.table.setItem(row, column, item)
             self.table.resizeRowToContents(row)
 
@@ -401,9 +353,7 @@ class SystemHealthCenterDialog(QDialog):
             SystemHealthSeverity.WARNING: palette.warning,
             SystemHealthSeverity.ERROR: palette.danger,
         }[snapshot.severity]
-        self.overall_value.setStyleSheet(
-            f"color: {color}; {Typography.H3.css()}"
-        )
+        self.overall_value.setStyleSheet(f"color: {color}; {Typography.H3.css()}")
 
     def _request_database_diagnostics(self) -> None:
         self.accept()
@@ -423,18 +373,12 @@ class SystemHealthCenterDialog(QDialog):
         if self.snapshot is None:
             return
 
-        default_name = (
-            "CORTERIS_diagnostic_support_"
-            f"{datetime.now():%Y%m%d_%H%M%S}.ctsupport"
-        )
+        default_name = f"CORTERIS_diagnostic_support_{datetime.now():%Y%m%d_%H%M%S}.ctsupport"
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Создать пакет технической диагностики",
             str(Path.home() / "Documents" / default_name),
-            (
-                "Пакет диагностики CORTERIS (*.ctsupport);;"
-                "ZIP-архив (*.zip)"
-            ),
+            ("Пакет диагностики CORTERIS (*.ctsupport);;ZIP-архив (*.zip)"),
         )
         if not filename:
             return
@@ -446,9 +390,7 @@ class SystemHealthCenterDialog(QDialog):
                 snapshot=self.snapshot,
                 journal=self.journal,
                 auto_backup_service=self.auto_backup_service,
-                backup_catalog_service=(
-                    self.backup_catalog_service
-                ),
+                backup_catalog_service=(self.backup_catalog_service),
                 backup_directories=self.backup_directories,
             )
         except Exception as exc:
@@ -483,10 +425,7 @@ class SystemHealthCenterDialog(QDialog):
         )
 
     def _export_journal(self) -> None:
-        default_name = (
-            "CORTERIS_system_health_"
-            f"{datetime.now():%Y%m%d_%H%M%S}.txt"
-        )
+        default_name = f"CORTERIS_system_health_{datetime.now():%Y%m%d_%H%M%S}.txt"
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Экспорт журнала состояния",
@@ -520,8 +459,7 @@ class SystemHealthCenterDialog(QDialog):
                 "Все сохранённые системные события будут удалены. "
                 "Это не влияет на рабочую базу и резервные копии."
             ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -626,9 +564,7 @@ class SystemHealthCenterDialog(QDialog):
         if not value:
             return "нет"
         try:
-            return datetime.fromisoformat(value).strftime(
-                "%d.%m.%Y %H:%M"
-            )
+            return datetime.fromisoformat(value).strftime("%d.%m.%Y %H:%M")
         except ValueError:
             return value
 

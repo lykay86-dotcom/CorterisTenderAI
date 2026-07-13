@@ -119,17 +119,11 @@ class TenderRequirementAnalysis:
 
     @property
     def critical_count(self) -> int:
-        return sum(
-            finding.severity == FindingSeverity.CRITICAL
-            for finding in self.findings
-        )
+        return sum(finding.severity == FindingSeverity.CRITICAL for finding in self.findings)
 
     @property
     def warning_count(self) -> int:
-        return sum(
-            finding.severity == FindingSeverity.WARNING
-            for finding in self.findings
-        )
+        return sum(finding.severity == FindingSeverity.WARNING for finding in self.findings)
 
     @property
     def risk_level(self) -> AnalysisRiskLevel:
@@ -147,11 +141,7 @@ class TenderRequirementAnalysis:
         self,
         category: RequirementCategory,
     ) -> tuple[RequirementFinding, ...]:
-        return tuple(
-            finding
-            for finding in self.findings
-            if finding.category == category
-        )
+        return tuple(finding for finding in self.findings if finding.category == category)
 
     @property
     def license_requirements(self) -> tuple[RequirementFinding, ...]:
@@ -181,11 +171,7 @@ class TenderRequirementAnalysis:
             RequirementCategory.PENALTY,
             RequirementCategory.CONTRACT,
         }
-        return tuple(
-            finding
-            for finding in self.findings
-            if finding.category in categories
-        )
+        return tuple(finding for finding in self.findings if finding.category in categories)
 
 
 @dataclass(frozen=True, slots=True)
@@ -446,9 +432,7 @@ _RULES: tuple[_Rule, ...] = (
 )
 
 
-_DOCUMENT_KIND_RULES: tuple[
-    tuple[DocumentKind, tuple[str, ...]]
-] = (
+_DOCUMENT_KIND_RULES: tuple[tuple[DocumentKind, tuple[str, ...]]] = (
     (
         DocumentKind.TECHNICAL_SPECIFICATION,
         (
@@ -519,13 +503,9 @@ class TenderRequirementsAnalyzer:
         if snippet_radius < 40:
             raise ValueError("snippet_radius must be at least 40")
         if max_findings_per_rule < 1:
-            raise ValueError(
-                "max_findings_per_rule must be positive"
-            )
+            raise ValueError("max_findings_per_rule must be positive")
         self.snippet_radius = int(snippet_radius)
-        self.max_findings_per_rule = int(
-            max_findings_per_rule
-        )
+        self.max_findings_per_rule = int(max_findings_per_rule)
 
     def analyze(
         self,
@@ -555,17 +535,13 @@ class TenderRequirementsAnalyzer:
                     character_count=len(normalized_text),
                     checksum_sha256=(
                         source.checksum_sha256
-                        or hashlib.sha256(
-                            normalized_text.encode("utf-8")
-                        ).hexdigest()
+                        or hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
                     ),
                 )
             )
 
             if not normalized_text:
-                warnings.append(
-                    f"{source.source_name}: извлечённый текст пуст."
-                )
+                warnings.append(f"{source.source_name}: извлечённый текст пуст.")
                 continue
 
             findings.extend(
@@ -576,23 +552,13 @@ class TenderRequirementsAnalyzer:
             )
 
         deduplicated = _deduplicate_findings(findings)
-        kinds = {
-            document.kind
-            for document in analyzed_documents
-        }
+        kinds = {document.kind for document in analyzed_documents}
         missing_documents = _missing_document_labels(kinds)
 
         if not analyzed_documents:
-            warnings.append(
-                "Нет извлечённых документов для анализа."
-            )
-        elif all(
-            document.character_count == 0
-            for document in analyzed_documents
-        ):
-            warnings.append(
-                "Во всех документах отсутствует извлечённый текст."
-            )
+            warnings.append("Нет извлечённых документов для анализа.")
+        elif all(document.character_count == 0 for document in analyzed_documents):
+            warnings.append("Во всех документах отсутствует извлечённый текст.")
 
         fingerprint = _analysis_fingerprint(
             normalized_registry_key,
@@ -616,8 +582,6 @@ class TenderRequirementsAnalyzer:
     ) -> DocumentKind:
         name = _normalize_text(Path(source_name).stem)
         head = _normalize_text(text[:3000])
-        combined = f" {name} {head} "
-
         best_kind = DocumentKind.OTHER
         best_score = 0
         for kind, terms in _DOCUMENT_KIND_RULES:
@@ -641,9 +605,7 @@ class TenderRequirementsAnalyzer:
         findings: list[RequirementFinding] = []
 
         for rule in _RULES:
-            matches = list(
-                rule.pattern.finditer(text)
-            )[: self.max_findings_per_rule]
+            matches = list(rule.pattern.finditer(text))[: self.max_findings_per_rule]
             for match in matches:
                 snippet = _snippet(
                     text,
@@ -753,9 +715,7 @@ class TenderAnalysisRepository:
                 ),
             ).fetchone()
             if existing is not None:
-                return _analysis_from_payload(
-                    json.loads(str(existing["payload_json"]))
-                )
+                return _analysis_from_payload(json.loads(str(existing["payload_json"])))
 
             connection.execute(
                 """
@@ -803,9 +763,7 @@ class TenderAnalysisRepository:
             ).fetchone()
         if row is None:
             return None
-        return _analysis_from_payload(
-            json.loads(str(row["payload_json"]))
-        )
+        return _analysis_from_payload(json.loads(str(row["payload_json"])))
 
     def list_history(
         self,
@@ -827,12 +785,7 @@ class TenderAnalysisRepository:
                 """,
                 (registry_key.strip(), int(limit)),
             ).fetchall()
-        return tuple(
-            _analysis_from_payload(
-                json.loads(str(row["payload_json"]))
-            )
-            for row in rows
-        )
+        return tuple(_analysis_from_payload(json.loads(str(row["payload_json"]))) for row in rows)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -893,9 +846,7 @@ class TenderRequirementAnalysisService:
                 result.source_path.name
                 if result.source_path is not None
                 else (
-                    result.text_path.name
-                    if result.text_path is not None
-                    else result.document_key
+                    result.text_path.name if result.text_path is not None else result.document_key
                 )
             )
             sources.append(
@@ -1058,9 +1009,7 @@ def _analysis_fingerprint(
         (
             registry_key,
             *(
-                f"{document.document_key}:"
-                f"{document.checksum_sha256}:"
-                f"{document.character_count}"
+                f"{document.document_key}:{document.checksum_sha256}:{document.character_count}"
                 for document in sorted(
                     documents,
                     key=lambda item: item.document_key,
@@ -1068,9 +1017,7 @@ def _analysis_fingerprint(
             ),
         )
     )
-    return hashlib.sha256(
-        rendered.encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
 def _analysis_to_payload(
@@ -1118,24 +1065,15 @@ def _analysis_from_payload(
         analysis_id=str(payload.get("analysis_id", "")),
         registry_key=str(payload.get("registry_key", "")),
         analyzed_at=str(payload.get("analyzed_at", "")),
-        source_fingerprint=str(
-            payload.get("source_fingerprint", "")
-        ),
+        source_fingerprint=str(payload.get("source_fingerprint", "")),
         documents=tuple(
             AnalyzedDocument(
                 document_key=str(item.get("document_key", "")),
                 source_name=str(item.get("source_name", "")),
                 kind=DocumentKind(str(item.get("kind", "other"))),
-                character_count=int(
-                    item.get("character_count", 0)
-                ),
-                checksum_sha256=str(
-                    item.get("checksum_sha256", "")
-                ),
-                warnings=tuple(
-                    str(value)
-                    for value in item.get("warnings", [])
-                ),
+                character_count=int(item.get("character_count", 0)),
+                checksum_sha256=str(item.get("checksum_sha256", "")),
+                warnings=tuple(str(value) for value in item.get("warnings", [])),
             )
             for item in payload.get("documents", [])
             if isinstance(item, dict)
@@ -1143,14 +1081,10 @@ def _analysis_from_payload(
         findings=tuple(
             RequirementFinding(
                 finding_id=str(item.get("finding_id", "")),
-                category=RequirementCategory(
-                    str(item.get("category", "technical"))
-                ),
+                category=RequirementCategory(str(item.get("category", "technical"))),
                 title=str(item.get("title", "")),
                 value=str(item.get("value", "")),
-                severity=FindingSeverity(
-                    str(item.get("severity", "info"))
-                ),
+                severity=FindingSeverity(str(item.get("severity", "info"))),
                 confidence=float(item.get("confidence", 0.0)),
                 source_name=str(item.get("source_name", "")),
                 snippet=str(item.get("snippet", "")),
@@ -1159,14 +1093,8 @@ def _analysis_from_payload(
             for item in payload.get("findings", [])
             if isinstance(item, dict)
         ),
-        missing_documents=tuple(
-            str(value)
-            for value in payload.get("missing_documents", [])
-        ),
-        warnings=tuple(
-            str(value)
-            for value in payload.get("warnings", [])
-        ),
+        missing_documents=tuple(str(value) for value in payload.get("missing_documents", [])),
+        warnings=tuple(str(value) for value in payload.get("warnings", [])),
     )
 
 

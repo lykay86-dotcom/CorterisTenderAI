@@ -54,9 +54,7 @@ class TenderCollectorScheduleDialog(QDialog):
         except (TypeError, ValueError, AttributeError):
             self._theme = ThemeName.DARK
 
-        self.setWindowTitle(
-            "Corteris Tender Collector — планировщик"
-        )
+        self.setWindowTitle("Corteris Tender Collector — планировщик")
         self.resize(820, 690)
 
         root = QVBoxLayout(self)
@@ -139,21 +137,15 @@ class TenderCollectorScheduleDialog(QDialog):
 
         self.sources = QTableWidget(self)
         self.sources.setColumnCount(3)
-        self.sources.setHorizontalHeaderLabels(
-            ("Вкл.", "Источник", "Состояние")
-        )
+        self.sources.setHorizontalHeaderLabels(("Вкл.", "Источник", "Состояние"))
         self.sources.verticalHeader().setVisible(False)
-        self.sources.horizontalHeader().setStretchLastSection(
-            True
-        )
+        self.sources.horizontalHeader().setStretchLastSection(True)
         self.sources.setMinimumHeight(190)
         root.addWidget(self.sources, 1)
 
         notifications_frame = QFrame(self)
         notifications_frame.setObjectName("ScheduleFrame")
-        notifications_layout = QVBoxLayout(
-            notifications_frame
-        )
+        notifications_layout = QVBoxLayout(notifications_frame)
         notifications_layout.setContentsMargins(
             14,
             10,
@@ -173,12 +165,8 @@ class TenderCollectorScheduleDialog(QDialog):
             notifications_frame,
         )
         notifications_layout.addWidget(self.notify_new)
-        notifications_layout.addWidget(
-            self.notify_changed
-        )
-        notifications_layout.addWidget(
-            self.notify_failures
-        )
+        notifications_layout.addWidget(self.notify_changed)
+        notifications_layout.addWidget(self.notify_failures)
         root.addWidget(notifications_frame)
 
         self.state_label = QLabel("", self)
@@ -191,9 +179,7 @@ class TenderCollectorScheduleDialog(QDialog):
             "Сохранить расписание",
             self,
         )
-        self.save_button.setObjectName(
-            "SchedulePrimaryButton"
-        )
+        self.save_button.setObjectName("SchedulePrimaryButton")
         self.run_now_button = QPushButton(
             "Запустить сейчас",
             self,
@@ -211,9 +197,7 @@ class TenderCollectorScheduleDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
@@ -223,21 +207,11 @@ class TenderCollectorScheduleDialog(QDialog):
         self.status_label.setWordWrap(True)
         root.addWidget(self.status_label)
 
-        self.frequency.currentIndexChanged.connect(
-            self._update_daily_time_state
-        )
-        self.enabled.toggled.connect(
-            self._update_enabled_state
-        )
-        self.save_button.clicked.connect(
-            self._emit_save
-        )
-        self.run_now_button.clicked.connect(
-            self._emit_run_now
-        )
-        self.notifications_button.clicked.connect(
-            self.notifications_requested.emit
-        )
+        self.frequency.currentIndexChanged.connect(self._update_daily_time_state)
+        self.enabled.toggled.connect(self._update_enabled_state)
+        self.save_button.clicked.connect(self._emit_save)
+        self.run_now_button.clicked.connect(self._emit_run_now)
+        self.notifications_button.clicked.connect(self.notifications_requested.emit)
 
         self.apply_theme(self._theme)
         self._update_enabled_state()
@@ -254,9 +228,7 @@ class TenderCollectorScheduleDialog(QDialog):
             if not profile.enabled:
                 continue
             self.profile.addItem(profile.name, profile.id)
-        selected_profile = self.profile.findData(
-            settings.profile_id
-        )
+        selected_profile = self.profile.findData(settings.profile_id)
         if selected_profile >= 0:
             self.profile.setCurrentIndex(selected_profile)
 
@@ -266,24 +238,15 @@ class TenderCollectorScheduleDialog(QDialog):
             row = self.sources.rowCount()
             self.sources.insertRow(row)
             checkbox = QTableWidgetItem()
-            flags = (
-                Qt.ItemFlag.ItemIsEnabled
-                | Qt.ItemFlag.ItemIsSelectable
-            )
+            flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
             if provider.enabled:
                 flags |= Qt.ItemFlag.ItemIsUserCheckable
             checkbox.setFlags(flags)
-            checked = (
-                provider.provider_id in selected_sources
-                or (
-                    not selected_sources
-                    and provider.enabled
-                )
+            checked = provider.provider_id in selected_sources or (
+                not selected_sources and provider.enabled
             )
             checkbox.setCheckState(
-                Qt.CheckState.Checked
-                if checked and provider.enabled
-                else Qt.CheckState.Unchecked
+                Qt.CheckState.Checked if checked and provider.enabled else Qt.CheckState.Unchecked
             )
             checkbox.setData(
                 Qt.ItemDataRole.UserRole,
@@ -302,49 +265,28 @@ class TenderCollectorScheduleDialog(QDialog):
             )
 
         self.enabled.setChecked(settings.enabled)
-        frequency_index = self.frequency.findData(
-            settings.frequency
-        )
+        frequency_index = self.frequency.findData(settings.frequency)
         if frequency_index >= 0:
-            self.frequency.setCurrentIndex(
-                frequency_index
-            )
+            self.frequency.setCurrentIndex(frequency_index)
         parsed_time = QTime.fromString(
             settings.daily_time,
             "HH:mm",
         )
         if parsed_time.isValid():
             self.daily_time.setTime(parsed_time)
-        self.run_on_startup.setChecked(
-            settings.run_on_startup
-        )
+        self.run_on_startup.setChecked(settings.run_on_startup)
         self.notify_new.setChecked(settings.notify_new)
-        self.notify_changed.setChecked(
-            settings.notify_changed
-        )
-        self.notify_failures.setChecked(
-            settings.notify_failures
-        )
-        self.state_label.setText(
-            _render_state(state)
-        )
+        self.notify_changed.setChecked(settings.notify_changed)
+        self.notify_failures.setChecked(settings.notify_failures)
+        self.state_label.setText(_render_state(state))
         self._update_enabled_state()
 
     def selected_provider_ids(self) -> tuple[str, ...]:
         result: list[str] = []
         for row in range(self.sources.rowCount()):
             item = self.sources.item(row, 0)
-            if (
-                item is not None
-                and item.checkState()
-                == Qt.CheckState.Checked
-            ):
-                provider_id = str(
-                    item.data(
-                        Qt.ItemDataRole.UserRole
-                    )
-                    or ""
-                ).strip()
+            if item is not None and item.checkState() == Qt.CheckState.Checked:
+                provider_id = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
                 if provider_id:
                     result.append(provider_id)
         return tuple(result)
@@ -352,28 +294,18 @@ class TenderCollectorScheduleDialog(QDialog):
     def build_settings(
         self,
     ) -> CollectorScheduleSettings:
-        profile_id = str(
-            self.profile.currentData() or ""
-        )
+        profile_id = str(self.profile.currentData() or "")
         frequency = self.frequency.currentData()
         return CollectorScheduleSettings(
             enabled=self.enabled.isChecked(),
             profile_id=profile_id,
             provider_ids=self.selected_provider_ids(),
             frequency=frequency,
-            daily_time=self.daily_time.time().toString(
-                "HH:mm"
-            ),
-            run_on_startup=(
-                self.run_on_startup.isChecked()
-            ),
+            daily_time=self.daily_time.time().toString("HH:mm"),
+            run_on_startup=(self.run_on_startup.isChecked()),
             notify_new=self.notify_new.isChecked(),
-            notify_changed=(
-                self.notify_changed.isChecked()
-            ),
-            notify_failures=(
-                self.notify_failures.isChecked()
-            ),
+            notify_changed=(self.notify_changed.isChecked()),
+            notify_failures=(self.notify_failures.isChecked()),
         )
 
     def set_status(
@@ -384,12 +316,8 @@ class TenderCollectorScheduleDialog(QDialog):
     ) -> None:
         self.status_label.setText(message)
         self.status_label.setProperty("error", error)
-        self.status_label.style().unpolish(
-            self.status_label
-        )
-        self.status_label.style().polish(
-            self.status_label
-        )
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def _emit_save(self) -> None:
         try:
@@ -400,9 +328,7 @@ class TenderCollectorScheduleDialog(QDialog):
         self.save_requested.emit(settings)
 
     def _emit_run_now(self) -> None:
-        profile_id = str(
-            self.profile.currentData() or ""
-        ).strip()
+        profile_id = str(self.profile.currentData() or "").strip()
         providers = self.selected_provider_ids()
         if not profile_id:
             self.set_status(
@@ -423,8 +349,7 @@ class TenderCollectorScheduleDialog(QDialog):
 
     def _update_daily_time_state(self) -> None:
         self.daily_time.setEnabled(
-            self.frequency.currentData()
-            == CollectorScheduleFrequency.DAILY
+            self.frequency.currentData() == CollectorScheduleFrequency.DAILY
             and self.enabled.isChecked()
         )
 
@@ -507,11 +432,7 @@ def _render_state(
         f"Последнее завершение: "
         f"{_format_time(state.last_completed_at)}   ·   "
         f"Статус: {state.last_status}"
-        + (
-            f"\nПоследняя ошибка: {state.last_error}"
-            if state.last_error
-            else ""
-        )
+        + (f"\nПоследняя ошибка: {state.last_error}" if state.last_error else "")
     )
 
 
@@ -519,14 +440,10 @@ def _format_time(value: str) -> str:
     if not value:
         return "—"
     try:
-        parsed = datetime.fromisoformat(
-            value.replace("Z", "+00:00")
-        )
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return value
-    return parsed.astimezone().strftime(
-        "%d.%m.%Y %H:%M"
-    )
+    return parsed.astimezone().strftime("%d.%m.%Y %H:%M")
 
 
 __all__ = ["TenderCollectorScheduleDialog"]

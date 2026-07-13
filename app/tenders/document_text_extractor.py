@@ -100,38 +100,23 @@ class TenderTextExtractionResult:
 
     @property
     def extracted_count(self) -> int:
-        return sum(
-            item.status == TextExtractionStatus.EXTRACTED
-            for item in self.documents
-        )
+        return sum(item.status == TextExtractionStatus.EXTRACTED for item in self.documents)
 
     @property
     def reused_count(self) -> int:
-        return sum(
-            item.status == TextExtractionStatus.REUSED
-            for item in self.documents
-        )
+        return sum(item.status == TextExtractionStatus.REUSED for item in self.documents)
 
     @property
     def partial_count(self) -> int:
-        return sum(
-            item.status == TextExtractionStatus.PARTIAL
-            for item in self.documents
-        )
+        return sum(item.status == TextExtractionStatus.PARTIAL for item in self.documents)
 
     @property
     def unsupported_count(self) -> int:
-        return sum(
-            item.status == TextExtractionStatus.UNSUPPORTED
-            for item in self.documents
-        )
+        return sum(item.status == TextExtractionStatus.UNSUPPORTED for item in self.documents)
 
     @property
     def failed_count(self) -> int:
-        return sum(
-            item.status == TextExtractionStatus.FAILED
-            for item in self.documents
-        )
+        return sum(item.status == TextExtractionStatus.FAILED for item in self.documents)
 
     @property
     def total_character_count(self) -> int:
@@ -176,26 +161,18 @@ class TenderDocumentTextExtractor:
         if max_input_bytes < 1024:
             raise ValueError("max_input_bytes must be at least 1024")
         if max_text_characters < 1000:
-            raise ValueError(
-                "max_text_characters must be at least 1000"
-            )
+            raise ValueError("max_text_characters must be at least 1000")
         if max_archive_entries < 1:
             raise ValueError("max_archive_entries must be positive")
         if max_archive_uncompressed_bytes < 1024:
-            raise ValueError(
-                "max_archive_uncompressed_bytes must be at least 1024"
-            )
+            raise ValueError("max_archive_uncompressed_bytes must be at least 1024")
         if max_archive_depth < 0:
-            raise ValueError(
-                "max_archive_depth must be non-negative"
-            )
+            raise ValueError("max_archive_depth must be non-negative")
 
         self.max_input_bytes = int(max_input_bytes)
         self.max_text_characters = int(max_text_characters)
         self.max_archive_entries = int(max_archive_entries)
-        self.max_archive_uncompressed_bytes = int(
-            max_archive_uncompressed_bytes
-        )
+        self.max_archive_uncompressed_bytes = int(max_archive_uncompressed_bytes)
         self.max_archive_depth = int(max_archive_depth)
         self._pdf_reader_factory = pdf_reader_factory
 
@@ -227,10 +204,7 @@ class TenderDocumentTextExtractor:
                 document_format=source.suffix.lower().lstrip("."),
                 status=TextExtractionStatus.FAILED,
                 text="",
-                error_message=(
-                    "Файл превышает безопасный лимит извлечения: "
-                    f"{size} байт"
-                ),
+                error_message=(f"Файл превышает безопасный лимит извлечения: {size} байт"),
             )
 
         try:
@@ -266,9 +240,7 @@ class TenderDocumentTextExtractor:
                 document_format=document_format,
                 status=TextExtractionStatus.FAILED,
                 text="",
-                error_message=(
-                    "Документ превышает безопасный лимит извлечения"
-                ),
+                error_message=("Документ превышает безопасный лимит извлечения"),
             )
 
         try:
@@ -288,8 +260,7 @@ class TenderDocumentTextExtractor:
                 )
             else:
                 raise UnsupportedDocumentFormatError(
-                    f"Формат {suffix or '<без расширения>'} "
-                    "не поддерживается"
+                    f"Формат {suffix or '<без расширения>'} не поддерживается"
                 )
         except UnsupportedDocumentFormatError as exc:
             return RawTextExtraction(
@@ -330,15 +301,9 @@ class TenderDocumentTextExtractor:
         if suffix == ".xml":
             try:
                 root = ET.fromstring(decoded)
-                decoded = "\n".join(
-                    part.strip()
-                    for part in root.itertext()
-                    if part.strip()
-                )
+                decoded = "\n".join(part.strip() for part in root.itertext() if part.strip())
             except ET.ParseError:
-                warnings.append(
-                    "XML не разобран как структура; использован исходный текст."
-                )
+                warnings.append("XML не разобран как структура; использован исходный текст.")
 
         text = _normalize_text(decoded)
         return RawTextExtraction(
@@ -408,19 +373,13 @@ class TenderDocumentTextExtractor:
                 )
 
         if not sections:
-            warnings.append(
-                "В DOCX не найден извлекаемый текст."
-            )
+            warnings.append("В DOCX не найден извлекаемый текст.")
 
         text = _join_sections(sections)
         return RawTextExtraction(
             source_name=source_name,
             document_format="docx",
-            status=(
-                TextExtractionStatus.EXTRACTED
-                if text
-                else TextExtractionStatus.PARTIAL
-            ),
+            status=(TextExtractionStatus.EXTRACTED if text else TextExtractionStatus.PARTIAL),
             text=text,
             sections=tuple(sections),
             warnings=tuple(warnings),
@@ -448,16 +407,11 @@ class TenderDocumentTextExtractor:
                         name,
                     )
                 )
-                sheets = tuple(
-                    (Path(name).stem, name)
-                    for name in worksheet_names
-                )
+                sheets = tuple((Path(name).stem, name) for name in worksheet_names)
 
             for sheet_name, member in sheets:
                 if member not in names:
-                    warnings.append(
-                        f"Лист {sheet_name}: XML-файл не найден."
-                    )
+                    warnings.append(f"Лист {sheet_name}: XML-файл не найден.")
                     continue
                 text = _xlsx_sheet_text(
                     archive.read(member),
@@ -474,19 +428,13 @@ class TenderDocumentTextExtractor:
                 )
 
         if not sections:
-            warnings.append(
-                "В XLSX не найдено извлекаемых значений."
-            )
+            warnings.append("В XLSX не найдено извлекаемых значений.")
 
         text = _join_sections(sections)
         return RawTextExtraction(
             source_name=source_name,
             document_format="xlsx",
-            status=(
-                TextExtractionStatus.EXTRACTED
-                if text
-                else TextExtractionStatus.PARTIAL
-            ),
+            status=(TextExtractionStatus.EXTRACTED if text else TextExtractionStatus.PARTIAL),
             text=text,
             sections=tuple(sections),
             warnings=tuple(warnings),
@@ -497,10 +445,7 @@ class TenderDocumentTextExtractor:
         payload: bytes,
         source_name: str,
     ) -> RawTextExtraction:
-        factory = (
-            self._pdf_reader_factory
-            or _discover_pdf_reader_factory()
-        )
+        factory = self._pdf_reader_factory or _discover_pdf_reader_factory()
         if factory is None:
             raise UnsupportedDocumentFormatError(
                 "Для извлечения PDF установите пакет pypdf "
@@ -514,9 +459,7 @@ class TenderDocumentTextExtractor:
                 try:
                     decrypted = decrypt("")
                 except Exception as exc:
-                    raise RuntimeError(
-                        "PDF защищён паролем"
-                    ) from exc
+                    raise RuntimeError("PDF защищён паролем") from exc
                 if not decrypted:
                     raise RuntimeError("PDF защищён паролем")
 
@@ -528,15 +471,11 @@ class TenderDocumentTextExtractor:
             try:
                 text = page.extract_text() or ""
             except Exception as exc:
-                warnings.append(
-                    f"Страница {index}: {type(exc).__name__}: {exc}"
-                )
+                warnings.append(f"Страница {index}: {type(exc).__name__}: {exc}")
                 continue
             normalized = _normalize_text(text)
             if not normalized:
-                warnings.append(
-                    f"Страница {index}: текстовый слой отсутствует."
-                )
+                warnings.append(f"Страница {index}: текстовый слой отсутствует.")
                 continue
             sections.append(
                 ExtractedTextSection(
@@ -574,9 +513,7 @@ class TenderDocumentTextExtractor:
         archive_depth: int,
     ) -> RawTextExtraction:
         if archive_depth >= self.max_archive_depth:
-            raise UnsupportedDocumentFormatError(
-                "Достигнут предел вложенности ZIP-архивов"
-            )
+            raise UnsupportedDocumentFormatError("Достигнут предел вложенности ZIP-архивов")
 
         sections: list[ExtractedTextSection] = []
         warnings: list[str] = []
@@ -596,27 +533,17 @@ class TenderDocumentTextExtractor:
                 if member.is_dir():
                     continue
                 if not _safe_archive_member(member.filename):
-                    warnings.append(
-                        f"Пропущен небезопасный путь: {member.filename}"
-                    )
+                    warnings.append(f"Пропущен небезопасный путь: {member.filename}")
                     continue
 
                 total_uncompressed += max(0, int(member.file_size))
-                if (
-                    total_uncompressed
-                    > self.max_archive_uncompressed_bytes
-                ):
-                    warnings.append(
-                        "Достигнут лимит распакованного объёма ZIP."
-                    )
+                if total_uncompressed > self.max_archive_uncompressed_bytes:
+                    warnings.append("Достигнут лимит распакованного объёма ZIP.")
                     break
 
                 suffix = Path(member.filename).suffix.lower()
                 if suffix not in self.SUPPORTED_SUFFIXES:
-                    warnings.append(
-                        f"Пропущен неподдерживаемый файл: "
-                        f"{member.filename}"
-                    )
+                    warnings.append(f"Пропущен неподдерживаемый файл: {member.filename}")
                     continue
 
                 member_payload = archive.read(member)
@@ -635,14 +562,9 @@ class TenderDocumentTextExtractor:
                             source_name=member.filename,
                         )
                     )
-                warnings.extend(
-                    f"{member.filename}: {warning}"
-                    for warning in child.warnings
-                )
+                warnings.extend(f"{member.filename}: {warning}" for warning in child.warnings)
                 if child.error_message:
-                    warnings.append(
-                        f"{member.filename}: {child.error_message}"
-                    )
+                    warnings.append(f"{member.filename}: {child.error_message}")
 
         text = _join_sections(sections)
         status = TextExtractionStatus.EXTRACTED
@@ -650,9 +572,7 @@ class TenderDocumentTextExtractor:
             status = TextExtractionStatus.PARTIAL
 
         if processed_entries == 0:
-            warnings.append(
-                "В ZIP не найдено поддерживаемых документов."
-            )
+            warnings.append("В ZIP не найдено поддерживаемых документов.")
 
         return RawTextExtraction(
             source_name=source_name,
@@ -670,19 +590,14 @@ class TenderDocumentTextExtractor:
         if len(extraction.text) <= self.max_text_characters:
             return extraction
 
-        warning = (
-            "Текст сокращён до безопасного лимита "
-            f"{self.max_text_characters} символов."
-        )
+        warning = f"Текст сокращён до безопасного лимита {self.max_text_characters} символов."
         return RawTextExtraction(
             source_name=extraction.source_name,
             document_format=extraction.document_format,
             status=TextExtractionStatus.PARTIAL,
             text=extraction.text[: self.max_text_characters],
             sections=extraction.sections,
-            warnings=tuple(
-                _ordered_unique((*extraction.warnings, warning))
-            ),
+            warnings=tuple(_ordered_unique((*extraction.warnings, warning))),
             error_message=extraction.error_message,
         )
 
@@ -766,24 +681,17 @@ class TenderDocumentTextService:
                 document,
                 RawTextExtraction(
                     source_name=document.name,
-                    document_format=(
-                        Path(document.name).suffix.lower().lstrip(".")
-                    ),
+                    document_format=(Path(document.name).suffix.lower().lstrip(".")),
                     status=TextExtractionStatus.FAILED,
                     text="",
-                    error_message=(
-                        "Документ отсутствует в локальном хранилище"
-                    ),
+                    error_message=("Документ отсутствует в локальном хранилище"),
                 ),
                 checksum=document.checksum_sha256,
                 source_path=document.local_path,
             )
 
         source_path = document.local_path
-        checksum = (
-            document.checksum_sha256.strip().casefold()
-            or _file_sha256(source_path)
-        )
+        checksum = document.checksum_sha256.strip().casefold() or _file_sha256(source_path)
 
         if not force:
             reusable = self._find_reusable(
@@ -821,13 +729,8 @@ class TenderDocumentTextService:
         *,
         force: bool = False,
     ) -> TenderTextExtractionResult:
-        documents = self.document_store.list_documents(
-            registry_key.strip()
-        )
-        results = tuple(
-            self.extract_document(document, force=force)
-            for document in documents
-        )
+        documents = self.document_store.list_documents(registry_key.strip())
+        results = tuple(self.extract_document(document, force=force) for document in documents)
         return TenderTextExtractionResult(
             registry_key=registry_key.strip(),
             documents=results,
@@ -935,10 +838,7 @@ class TenderDocumentTextService:
     ) -> StoredDocumentText:
         moment = _utc_now()
         extraction_key = hashlib.sha256(
-            (
-                f"{document.document_key}|{checksum}|"
-                f"{extraction.document_format}"
-            ).encode("utf-8")
+            (f"{document.document_key}|{checksum}|{extraction.document_format}").encode("utf-8")
         ).hexdigest()
 
         text_path: Path | None = None
@@ -952,9 +852,7 @@ class TenderDocumentTextService:
                 Path(document.name).stem,
                 fallback=document.document_id or "document",
             )
-            text_path = folder / (
-                f"{name}-{extraction_key[:10]}.txt"
-            )
+            text_path = folder / (f"{name}-{extraction_key[:10]}.txt")
             _atomic_write_text(text_path, extraction.text)
 
         stored = StoredDocumentText(
@@ -1008,11 +906,7 @@ class TenderDocumentTextService:
                     stored.registry_key,
                     str(stored.source_path or ""),
                     (
-                        str(
-                            stored.text_path.relative_to(
-                                self.output_directory
-                            )
-                        )
+                        str(stored.text_path.relative_to(self.output_directory))
                         if stored.text_path is not None
                         else ""
                     ),
@@ -1043,27 +937,15 @@ class TenderDocumentTextService:
             extraction_key=str(row["extraction_key"]),
             document_key=str(row["document_key"]),
             registry_key=str(row["registry_key"]),
-            source_path=(
-                Path(source_path_raw)
-                if source_path_raw
-                else None
-            ),
-            text_path=(
-                self.output_directory / Path(text_path_raw)
-                if text_path_raw
-                else None
-            ),
+            source_path=(Path(source_path_raw) if source_path_raw else None),
+            text_path=(self.output_directory / Path(text_path_raw) if text_path_raw else None),
             document_format=str(row["document_format"]),
             status=status,
             checksum_sha256=str(row["checksum_sha256"]),
             character_count=int(row["character_count"] or 0),
             section_count=int(row["section_count"] or 0),
             extracted_at=str(row["extracted_at"]),
-            warnings=tuple(
-                line
-                for line in str(row["warnings"] or "").splitlines()
-                if line
-            ),
+            warnings=tuple(line for line in str(row["warnings"] or "").splitlines() if line),
             error_message=str(row["error_message"] or ""),
         )
 
@@ -1181,10 +1063,7 @@ def _xlsx_shared_strings(
     main_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
     values: list[str] = []
     for item in root.findall(f".//{{{main_ns}}}si"):
-        text = "".join(
-            element.text or ""
-            for element in item.iter(f"{{{main_ns}}}t")
-        )
+        text = "".join(element.text or "" for element in item.iter(f"{{{main_ns}}}t"))
         values.append(_normalize_text(text))
     return tuple(values)
 
@@ -1204,21 +1083,15 @@ def _xlsx_sheet_paths(
 
     rel_root = ET.fromstring(archive.read(rels_member))
     relations = {
-        str(element.attrib.get("Id", "")): str(
-            element.attrib.get("Target", "")
-        )
-        for element in rel_root.findall(
-            f".//{{{package_ns}}}Relationship"
-        )
+        str(element.attrib.get("Id", "")): str(element.attrib.get("Target", ""))
+        for element in rel_root.findall(f".//{{{package_ns}}}Relationship")
     }
 
     workbook_root = ET.fromstring(archive.read(workbook_member))
     result: list[tuple[str, str]] = []
     for sheet in workbook_root.findall(f".//{{{main_ns}}}sheet"):
         name = str(sheet.attrib.get("name", "Лист"))
-        relationship_id = str(
-            sheet.attrib.get(f"{{{rel_ns}}}id", "")
-        )
+        relationship_id = str(sheet.attrib.get(f"{{{rel_ns}}}id", ""))
         target = relations.get(relationship_id, "")
         if not target:
             continue
@@ -1228,9 +1101,7 @@ def _xlsx_sheet_paths(
         elif target.startswith("xl/"):
             member = target
         else:
-            member = str(
-                PurePosixPath("xl") / PurePosixPath(target)
-            )
+            member = str(PurePosixPath("xl") / PurePosixPath(target))
         member = _normalize_archive_path(member)
         result.append((name, member))
 
@@ -1281,10 +1152,7 @@ def _xlsx_cell_value(
     value_node = cell.find(f"{{{namespace}}}v")
 
     if cell_type == "inlineStr":
-        text = "".join(
-            element.text or ""
-            for element in cell.iter(f"{{{namespace}}}t")
-        )
+        text = "".join(element.text or "" for element in cell.iter(f"{{{namespace}}}t"))
         value = _normalize_text(text)
     elif value_node is None or value_node.text is None:
         value = ""
@@ -1318,11 +1186,7 @@ def _excel_column_index(reference: str) -> int:
 
 def _safe_archive_member(name: str) -> bool:
     path = PurePosixPath(name.replace("\\", "/"))
-    return (
-        not path.is_absolute()
-        and ".." not in path.parts
-        and bool(path.name)
-    )
+    return not path.is_absolute() and ".." not in path.parts and bool(path.name)
 
 
 def _normalize_archive_path(value: str) -> str:
@@ -1373,9 +1237,7 @@ def _safe_component(
     )
     rendered = rendered.strip(" .")
     if not rendered:
-        rendered = hashlib.sha256(
-            fallback.encode("utf-8")
-        ).hexdigest()[:16]
+        rendered = hashlib.sha256(fallback.encode("utf-8")).hexdigest()[:16]
     return rendered[:120]
 
 

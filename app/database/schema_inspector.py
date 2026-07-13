@@ -2,6 +2,7 @@
 
 Модуль не зависит от ORM-моделей и безопасно работает со старыми SQLite-базами.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

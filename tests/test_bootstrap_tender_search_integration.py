@@ -6,9 +6,7 @@ from pathlib import Path
 
 
 def test_bootstrap_installs_tender_search_controller() -> None:
-    source = (
-        Path(__file__).parents[1] / "app" / "bootstrap.py"
-    ).read_text(encoding="utf-8")
+    source = (Path(__file__).parents[1] / "app" / "bootstrap.py").read_text(encoding="utf-8")
 
     assert "TenderSearchUiController" in source
     assert "context.paths.data_dir" in source

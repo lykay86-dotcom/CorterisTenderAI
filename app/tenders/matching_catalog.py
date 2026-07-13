@@ -77,9 +77,15 @@ class MatchingCatalogSettings:
         if not 0 <= self.minimum_score <= self.medium_score <= self.high_score <= 100:
             raise ValueError("invalid score thresholds")
         for name in (
-            "title_strong_weight", "title_weak_weight", "body_strong_weight",
-            "body_weak_weight", "tag_strong_weight", "tag_weak_weight",
-            "action_bonus", "multi_direction_bonus", "okpd2_weight",
+            "title_strong_weight",
+            "title_weak_weight",
+            "body_strong_weight",
+            "body_weak_weight",
+            "tag_strong_weight",
+            "tag_weak_weight",
+            "action_bonus",
+            "multi_direction_bonus",
+            "okpd2_weight",
         ):
             if not 0 <= getattr(self, name) <= 100:
                 raise ValueError(f"{name} must be between 0 and 100")
@@ -103,17 +109,27 @@ class MatchingCatalog:
                 MatchingEntryKind.SYNONYM,
                 MatchingEntryKind.TRANSLITERATION,
             }
-            rules.append(DirectionRule(
-                direction=direction,
-                strong_terms=_unique(item.term for item in items if item.kind in strong_kinds),
-                weak_terms=_unique(item.term for item in items if item.kind == MatchingEntryKind.WEAK_KEYWORD),
-                okpd2_codes=_unique(item.term for item in items if item.kind == MatchingEntryKind.OKPD2),
-            ))
+            rules.append(
+                DirectionRule(
+                    direction=direction,
+                    strong_terms=_unique(item.term for item in items if item.kind in strong_kinds),
+                    weak_terms=_unique(
+                        item.term for item in items if item.kind == MatchingEntryKind.WEAK_KEYWORD
+                    ),
+                    okpd2_codes=_unique(
+                        item.term for item in items if item.kind == MatchingEntryKind.OKPD2
+                    ),
+                )
+            )
         settings = self.settings
         return CorterisSearchProfile(
             rules=tuple(rules),
-            action_terms=_unique(item.term for item in active if item.kind == MatchingEntryKind.ACTION),
-            hard_exclusion_terms=_unique(item.term for item in active if item.kind == MatchingEntryKind.EXCLUSION),
+            action_terms=_unique(
+                item.term for item in active if item.kind == MatchingEntryKind.ACTION
+            ),
+            hard_exclusion_terms=_unique(
+                item.term for item in active if item.kind == MatchingEntryKind.EXCLUSION
+            ),
             minimum_score=settings.minimum_score,
             medium_score=settings.medium_score,
             high_score=settings.high_score,
@@ -175,7 +191,9 @@ class MatchingCatalogRepository:
                 "SELECT COUNT(*) AS total FROM collector_matching_catalog_entries"
             ).fetchone()["total"]
             if int(count) == 0:
-                self._replace(connection, _default_entries(), MatchingCatalogSettings(), "system-default")
+                self._replace(
+                    connection, _default_entries(), MatchingCatalogSettings(), "system-default"
+                )
 
     def load(self) -> MatchingCatalog:
         self.initialize()
@@ -205,7 +223,10 @@ class MatchingCatalogRepository:
         saved_by: str = "user",
     ) -> MatchingCatalog:
         values = tuple(entries)
-        identities = {(item.group_key.casefold(), item.term.casefold(), item.kind, item.direction) for item in values}
+        identities = {
+            (item.group_key.casefold(), item.term.casefold(), item.kind, item.direction)
+            for item in values
+        }
         if len(identities) != len(values):
             raise ValueError("matching catalog contains duplicate entries")
         self.initialize()
@@ -240,11 +261,22 @@ class MatchingCatalogRepository:
                 entry_id, group_key, term, kind, direction, canonical_term,
                 weight_percent, category, source, active, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [(
-                item.entry_id, item.group_key, item.term, item.kind.value,
-                item.direction.value if item.direction else "", item.canonical_term,
-                item.weight_percent, item.category, item.source, int(item.active), moment,
-            ) for item in entries],
+            [
+                (
+                    item.entry_id,
+                    item.group_key,
+                    item.term,
+                    item.kind.value,
+                    item.direction.value if item.direction else "",
+                    item.canonical_term,
+                    item.weight_percent,
+                    item.category,
+                    item.source,
+                    int(item.active),
+                    moment,
+                )
+                for item in entries
+            ],
         )
         settings_payload = _settings_payload(settings)
         connection.execute(
@@ -263,7 +295,13 @@ class MatchingCatalogRepository:
         }
         connection.execute(
             "INSERT INTO collector_matching_catalog_revisions VALUES (?, ?, ?, ?, ?)",
-            (uuid4().hex, revision, moment, saved_by, json.dumps(snapshot, ensure_ascii=False, sort_keys=True)),
+            (
+                uuid4().hex,
+                revision,
+                moment,
+                saved_by,
+                json.dumps(snapshot, ensure_ascii=False, sort_keys=True),
+            ),
         )
 
     def _connect(self) -> sqlite3.Connection:
@@ -298,19 +336,28 @@ def _default_entries() -> tuple[MatchingCatalogEntry, ...]:
     return tuple(result)
 
 
-def _default_entry(group: str, term: str, kind: MatchingEntryKind, direction: TenderDirection | None) -> MatchingCatalogEntry:
+def _default_entry(
+    group: str, term: str, kind: MatchingEntryKind, direction: TenderDirection | None
+) -> MatchingCatalogEntry:
     identity = hashlib.sha256(f"{group}|{kind.value}|{term}".encode("utf-8")).hexdigest()[:24]
-    return MatchingCatalogEntry(identity, group, term, kind, direction, category="default", source="built-in")
+    return MatchingCatalogEntry(
+        identity, group, term, kind, direction, category="default", source="built-in"
+    )
 
 
 def _row_to_entry(row: sqlite3.Row) -> MatchingCatalogEntry:
     direction = str(row["direction"])
     return MatchingCatalogEntry(
-        entry_id=str(row["entry_id"]), group_key=str(row["group_key"]),
-        term=str(row["term"]), kind=MatchingEntryKind(str(row["kind"])),
+        entry_id=str(row["entry_id"]),
+        group_key=str(row["group_key"]),
+        term=str(row["term"]),
+        kind=MatchingEntryKind(str(row["kind"])),
         direction=TenderDirection(direction) if direction else None,
-        canonical_term=str(row["canonical_term"]), weight_percent=int(row["weight_percent"]),
-        category=str(row["category"]), source=str(row["source"]), active=bool(row["active"]),
+        canonical_term=str(row["canonical_term"]),
+        weight_percent=int(row["weight_percent"]),
+        category=str(row["category"]),
+        source=str(row["source"]),
+        active=bool(row["active"]),
     )
 
 
@@ -320,10 +367,16 @@ def _settings_payload(settings: MatchingCatalogSettings) -> dict[str, int]:
 
 def _entry_payload(item: MatchingCatalogEntry) -> dict[str, object]:
     return {
-        "entry_id": item.entry_id, "group_key": item.group_key, "term": item.term,
-        "kind": item.kind.value, "direction": item.direction.value if item.direction else "",
-        "canonical_term": item.canonical_term, "weight_percent": item.weight_percent,
-        "category": item.category, "source": item.source, "active": item.active,
+        "entry_id": item.entry_id,
+        "group_key": item.group_key,
+        "term": item.term,
+        "kind": item.kind.value,
+        "direction": item.direction.value if item.direction else "",
+        "canonical_term": item.canonical_term,
+        "weight_percent": item.weight_percent,
+        "category": item.category,
+        "source": item.source,
+        "active": item.active,
     }
 
 
@@ -340,6 +393,9 @@ def _unique(values: Iterable[str]) -> tuple[str, ...]:
 
 
 __all__ = [
-    "MatchingCatalog", "MatchingCatalogEntry", "MatchingCatalogRepository",
-    "MatchingCatalogSettings", "MatchingEntryKind",
+    "MatchingCatalog",
+    "MatchingCatalogEntry",
+    "MatchingCatalogRepository",
+    "MatchingCatalogSettings",
+    "MatchingEntryKind",
 ]

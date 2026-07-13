@@ -103,18 +103,13 @@ class AsyncHttpClientConfig:
     follow_redirects: bool = True
     trust_env: bool = True
     ca_bundle_path: Path | None = None
-    user_agent: str = (
-        "CorterisTenderAI/1.5.1 "
-        "(Windows; tender collector; +https://corteris.ru)"
-    )
+    user_agent: str = "CorterisTenderAI/1.5.1 (Windows; tender collector; +https://corteris.ru)"
 
     def __post_init__(self) -> None:
         if self.max_connections < 1:
             raise ValueError("max_connections must be positive")
         if self.max_keepalive_connections < 0:
-            raise ValueError(
-                "max_keepalive_connections must be non-negative"
-            )
+            raise ValueError("max_keepalive_connections must be non-negative")
         if self.keepalive_expiry_seconds <= 0:
             raise ValueError("keepalive_expiry_seconds must be positive")
         if self.max_response_bytes < 1024:
@@ -166,9 +161,7 @@ class AsyncHttpClient:
         random_source: random.Random | None = None,
     ) -> None:
         self.config = config or AsyncHttpClientConfig()
-        self.rate_limiter = rate_limiter or AsyncRateLimiter(
-            default_policy=RateLimitPolicy()
-        )
+        self.rate_limiter = rate_limiter or AsyncRateLimiter(default_policy=RateLimitPolicy())
         self._random = random_source or random.Random()
         self._owns_client = client is None
         self._closed = False
@@ -176,16 +169,12 @@ class AsyncHttpClient:
 
     @staticmethod
     def _create_client(config: AsyncHttpClientConfig) -> httpx.AsyncClient:
-        ssl_context = build_ssl_context(
-            config.ca_bundle_path
-        )
+        ssl_context = build_ssl_context(config.ca_bundle_path)
         return httpx.AsyncClient(
             timeout=config.timeouts.to_httpx(),
             limits=httpx.Limits(
                 max_connections=config.max_connections,
-                max_keepalive_connections=(
-                    config.max_keepalive_connections
-                ),
+                max_keepalive_connections=(config.max_keepalive_connections),
                 keepalive_expiry=config.keepalive_expiry_seconds,
             ),
             verify=ssl_context,
@@ -310,23 +299,16 @@ class AsyncHttpClient:
                 retryable_status = True
 
             if retryable_status and attempt < policy.max_attempts:
-                retry_after = parse_retry_after(
-                    response.headers.get("retry-after", "")
-                )
+                retry_after = parse_retry_after(response.headers.get("retry-after", ""))
                 delay = (
-                    retry_after
-                    if retry_after is not None
-                    else self._retry_delay(policy, attempt)
+                    retry_after if retry_after is not None else self._retry_delay(policy, attempt)
                 )
                 if status_code == 429:
                     if retry_after is None and delay <= 0:
-                        delay = self.rate_limiter.policy_for(
-                            url
-                        ).block_after_429_seconds
+                        delay = self.rate_limiter.policy_for(url).block_after_429_seconds
                     await self.rate_limiter.block(url, delay)
                 LOGGER.warning(
-                    "collector_http_retry provider=%s status=%s "
-                    "attempt=%s delay=%.3f url=%s",
+                    "collector_http_retry provider=%s status=%s attempt=%s delay=%.3f url=%s",
                     normalized_provider_id,
                     status_code,
                     attempt,
@@ -351,8 +333,7 @@ class AsyncHttpClient:
                 )
 
             LOGGER.info(
-                "collector_http_success provider=%s status=%s "
-                "attempt=%s bytes=%s url=%s",
+                "collector_http_success provider=%s status=%s attempt=%s bytes=%s url=%s",
                 normalized_provider_id,
                 status_code,
                 attempt,
@@ -362,10 +343,7 @@ class AsyncHttpClient:
             return HttpResponse(
                 url=str(response.url),
                 status_code=status_code,
-                headers={
-                    key.casefold(): value
-                    for key, value in response.headers.items()
-                },
+                headers={key.casefold(): value for key, value in response.headers.items()},
                 body=response.content,
             )
 
@@ -424,9 +402,7 @@ class AsyncHttpClient:
             return await perform()
 
         request_task = asyncio.create_task(perform())
-        cancel_task = asyncio.create_task(
-            cancellation_token.wait_cancelled()
-        )
+        cancel_task = asyncio.create_task(cancellation_token.wait_cancelled())
         done, pending = await asyncio.wait(
             {request_task, cancel_task},
             return_when=asyncio.FIRST_COMPLETED,
@@ -460,8 +436,7 @@ class AsyncHttpClient:
     ) -> float:
         base = min(
             policy.max_delay_seconds,
-            policy.base_delay_seconds
-            * (policy.backoff_multiplier ** max(0, attempt - 1)),
+            policy.base_delay_seconds * (policy.backoff_multiplier ** max(0, attempt - 1)),
         )
         if base <= 0 or policy.jitter_ratio <= 0:
             return base
@@ -506,9 +481,7 @@ def sanitize_url(url: str) -> str:
     parsed = urlsplit(url)
     query = []
     for key, value in parse_qsl(parsed.query, keep_blank_values=True):
-        query.append(
-            (key, "***" if _SENSITIVE_QUERY_NAMES.search(key) else value)
-        )
+        query.append((key, "***" if _SENSITIVE_QUERY_NAMES.search(key) else value))
     return urlunsplit(
         (
             parsed.scheme,

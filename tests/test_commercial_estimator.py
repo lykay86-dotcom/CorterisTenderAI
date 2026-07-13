@@ -36,9 +36,7 @@ def _line(category: CommercialCostCategory, amount: str) -> CommercialCostLine:
 
 
 def test_empty_draft_does_not_invent_prices_or_profit() -> None:
-    result = CommercialEstimator().calculate(
-        CommercialEstimateDraft(registry_key="tender:1")
-    )
+    result = CommercialEstimator().calculate(CommercialEstimateDraft(registry_key="tender:1"))
 
     assert result.status == CommercialEstimateStatus.DATA_INSUFFICIENT
     assert result.known_cost == Decimal("0.00")
@@ -60,16 +58,18 @@ def test_complete_estimate_calculates_exact_profit_margin_and_exposure() -> None
         _line(CommercialCostCategory.WORKING_CAPITAL, "15000"),
         _line(CommercialCostCategory.BANK_GUARANTEE, "10000"),
     )
-    result = CommercialEstimator().calculate(CommercialEstimateDraft(
-        registry_key="tender:1",
-        lines=lines,
-        proposed_revenue=Decimal("1000000"),
-        revenue_evidence=CommercialEvidence("Коммерческое предложение"),
-        advance_percent=Decimal("20"),
-        payment_delay_days=30,
-        payment_evidence=CommercialEvidence("Проект контракта"),
-        target_margin_percent=Decimal("20"),
-    ))
+    result = CommercialEstimator().calculate(
+        CommercialEstimateDraft(
+            registry_key="tender:1",
+            lines=lines,
+            proposed_revenue=Decimal("1000000"),
+            revenue_evidence=CommercialEvidence("Коммерческое предложение"),
+            advance_percent=Decimal("20"),
+            payment_delay_days=30,
+            payment_evidence=CommercialEvidence("Проект контракта"),
+            target_margin_percent=Decimal("20"),
+        )
+    )
 
     assert result.status == CommercialEstimateStatus.COMPLETE
     assert result.total_cost == Decimal("850000.00")

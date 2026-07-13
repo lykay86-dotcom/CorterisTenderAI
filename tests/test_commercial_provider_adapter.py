@@ -20,9 +20,7 @@ from app.tenders.providers.commercial_catalog import (
 
 def test_disabled_adapter_reports_not_configured_without_network() -> None:
     async def scenario() -> None:
-        settings = create_commercial_provider_catalog(
-            environment={}
-        ).get("b2b_center")
+        settings = create_commercial_provider_catalog(environment={}).get("b2b_center")
         provider = AsyncCommercialAccessProvider(settings)
 
         health = await provider.check_health()

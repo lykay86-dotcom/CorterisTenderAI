@@ -151,10 +151,7 @@ def test_cancellation_keeps_provider_results_already_completed() -> None:
         await asyncio.sleep(0.08)
         token.cancel("Остановлено тестом")
         result = await asyncio.wait_for(task, timeout=1)
-        outcomes = {
-            outcome.provider_id: outcome.status
-            for outcome in result.outcomes
-        }
+        outcomes = {outcome.provider_id: outcome.status for outcome in result.outcomes}
 
         assert result.cancelled
         assert outcomes["fast"] == AsyncProviderSearchStatus.SUCCESS

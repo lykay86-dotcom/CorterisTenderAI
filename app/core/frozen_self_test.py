@@ -89,9 +89,7 @@ def run_frozen_self_test(
     report = FrozenSelfTestReport(
         application=APP_NAME,
         version=APP_VERSION,
-        created_at=datetime.now().astimezone().isoformat(
-            timespec="seconds"
-        ),
+        created_at=datetime.now().astimezone().isoformat(timespec="seconds"),
         frozen=PathManager.is_frozen(),
         executable=str(Path(sys.executable).resolve()),
         success=all(item.ok for item in checks),
@@ -101,9 +99,7 @@ def run_frozen_self_test(
     target = (
         Path(output_path).expanduser().resolve()
         if output_path is not None
-        else context.paths.data_dir
-        / "diagnostics"
-        / "frozen_self_test.json"
+        else context.paths.data_dir / "diagnostics" / "frozen_self_test.json"
     )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
@@ -126,9 +122,7 @@ def run_frozen_self_test_from_argv(
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--self-test-output", default="")
-    namespace, _ = parser.parse_known_args(
-        list(argv if argv is not None else sys.argv[1:])
-    )
+    namespace, _ = parser.parse_known_args(list(argv if argv is not None else sys.argv[1:]))
     if not namespace.self_test:
         raise ValueError("--self-test is required")
 
@@ -164,11 +158,7 @@ def _check_imports(modules: Iterable[str]) -> FrozenSelfTestCheck:
 def _check_resources(context: StartupContext) -> FrozenSelfTestCheck:
     templates = context.paths.templates_dir
     template_files = (
-        sorted(
-            str(item.relative_to(templates))
-            for item in templates.rglob("*")
-            if item.is_file()
-        )
+        sorted(str(item.relative_to(templates)) for item in templates.rglob("*") if item.is_file())
         if templates.is_dir()
         else []
     )
@@ -177,9 +167,7 @@ def _check_resources(context: StartupContext) -> FrozenSelfTestCheck:
         name="bundled_resources",
         ok=ok,
         message=(
-            "Шаблоны приложения доступны."
-            if ok
-            else "Каталог шаблонов отсутствует или пуст."
+            "Шаблоны приложения доступны." if ok else "Каталог шаблонов отсутствует или пуст."
         ),
         details={
             "bundle_dir": str(context.paths.bundle_dir),
@@ -314,17 +302,14 @@ def _check_provider_composition(
         runtime = create_collector_network_runtime()
         try:
             settings = ProviderEnablementRepository(
-                context.paths.temp_dir
-                / f"provider_settings_{uuid4().hex}.json"
+                context.paths.temp_dir / f"provider_settings_{uuid4().hex}.json"
             )
             providers = create_default_async_providers(
                 runtime,
                 provider_settings_repository=settings,
                 include_disabled=True,
             )
-            return tuple(
-                provider.descriptor.id for provider in providers
-            )
+            return tuple(provider.descriptor.id for provider in providers)
         finally:
             await runtime.aclose()
 

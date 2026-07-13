@@ -1,4 +1,5 @@
 """Сводная диагностика базы данных для интерфейса и техподдержки."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -59,7 +60,9 @@ class DiagnosticsService:
             foreign_keys = int(connection.scalar(text("PRAGMA foreign_keys")) or 0) == 1
             schema_version = 0
             if "schema_version" in tables:
-                schema_version = int(connection.scalar(text("SELECT version FROM schema_version WHERE id=1")) or 0)
+                schema_version = int(
+                    connection.scalar(text("SELECT version FROM schema_version WHERE id=1")) or 0
+                )
 
         if integrity.lower() != "ok":
             issues.append(f"Нарушение целостности SQLite: {integrity}")
@@ -68,9 +71,7 @@ class DiagnosticsService:
         if journal_mode.lower() != "wal":
             issues.append(f"Режим журнала отличается от WAL: {journal_mode}")
         if schema_version != CURRENT_SCHEMA_VERSION:
-            issues.append(
-                f"Версия схемы {schema_version}, ожидается {CURRENT_SCHEMA_VERSION}"
-            )
+            issues.append(f"Версия схемы {schema_version}, ожидается {CURRENT_SCHEMA_VERSION}")
 
         database = self.engine.url.database
         database_path = Path(database).resolve() if database else Path()

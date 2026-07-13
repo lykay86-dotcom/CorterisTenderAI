@@ -23,11 +23,7 @@ async def fake_checker(provider_ids):
                 else ProviderHealthStatus.NOT_CONFIGURED
             ),
             checked_at="2026-07-12T12:00:00+00:00",
-            message=(
-                "ЕИС отвечает"
-                if provider_id == "eis"
-                else "Требуется bearer-токен"
-            ),
+            message=("ЕИС отвечает" if provider_id == "eis" else "Требуется bearer-токен"),
             latency_ms=125,
         )
         for provider_id in provider_ids
@@ -40,20 +36,13 @@ def test_manager_exposes_all_sources_without_network(tmp_path) -> None:
         environment={},
     )
 
-    states = {
-        item.provider_id: item
-        for item in manager.states()
-    }
+    states = {item.provider_id: item for item in manager.states()}
 
     assert states["eis"].enabled
     assert states["eis"].ui_state == ProviderUiState.LIMITED
-    assert states["mos_supplier"].ui_state == (
-        ProviderUiState.NOT_CONFIGURED
-    )
+    assert states["mos_supplier"].ui_state == (ProviderUiState.NOT_CONFIGURED)
     assert not states["b2b_center"].enabled
-    assert states["b2b_center"].ui_state == (
-        ProviderUiState.DISABLED
-    )
+    assert states["b2b_center"].ui_state == (ProviderUiState.DISABLED)
     assert len(states) == 10
 
 
@@ -69,9 +58,7 @@ def test_manager_persists_switch_and_commercial_switch(
 
     assert state.enabled
     assert state.ui_state == ProviderUiState.NOT_CONFIGURED
-    commercial = (
-        manager.commercial_settings_repository.load()
-    )
+    commercial = manager.commercial_settings_repository.load()
     assert commercial["b2b_center"].enabled
 
 
@@ -82,21 +69,11 @@ def test_health_check_persists_success_and_error(tmp_path) -> None:
         health_checker=fake_checker,
     )
 
-    states = __import__("asyncio").run(
-        manager.check_providers(
-            ("eis", "mos_supplier")
-        )
-    )
+    states = __import__("asyncio").run(manager.check_providers(("eis", "mos_supplier")))
     by_id = {item.provider_id: item for item in states}
 
     assert by_id["eis"].ui_state == ProviderUiState.UNVERIFIED
-    assert by_id["eis"].last_success_at == (
-        "2026-07-12T12:00:00+00:00"
-    )
-    assert by_id["mos_supplier"].ui_state == (
-        ProviderUiState.NOT_CONFIGURED
-    )
-    records = ProviderCheckRepository(
-        tmp_path / "collector_provider_health.json"
-    ).load()
+    assert by_id["eis"].last_success_at == ("2026-07-12T12:00:00+00:00")
+    assert by_id["mos_supplier"].ui_state == (ProviderUiState.NOT_CONFIGURED)
+    records = ProviderCheckRepository(tmp_path / "collector_provider_health.json").load()
     assert records["eis"].latency_ms == 125

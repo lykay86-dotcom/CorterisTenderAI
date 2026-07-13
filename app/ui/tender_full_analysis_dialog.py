@@ -29,6 +29,7 @@ from app.tenders.full_analysis import (
     FullAnalysisStatus,
     TenderFullAnalysisResult,
 )
+from app.core.ai.schemas import AiAnalysisStatus
 from app.ui.theme.colors import ThemeName, get_palette
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
@@ -177,7 +178,9 @@ class TenderFullAnalysisDialog(QDialog):
     def set_result(self, result: TenderFullAnalysisResult) -> None:
         self._result = result
         self.cancel_button.setEnabled(False)
-        self.progress.setValue(100 if result.status != FullAnalysisStatus.CANCELLED else self.progress.value())
+        self.progress.setValue(
+            100 if result.status != FullAnalysisStatus.CANCELLED else self.progress.value()
+        )
         self.message_label.setText(
             "Полный анализ завершён."
             if result.status == FullAnalysisStatus.COMPLETED
@@ -205,7 +208,9 @@ class TenderFullAnalysisDialog(QDialog):
         if analysis is None:
             return
         path, _filter = QFileDialog.getSaveFileName(
-            self, "Экспорт AI-анализа", f"{self.registry_key.replace(':', '_')}_ai_analysis.html",
+            self,
+            "Экспорт AI-анализа",
+            f"{self.registry_key.replace(':', '_')}_ai_analysis.html",
             "HTML (*.html);;JSON (*.json)",
         )
         if not path:
@@ -242,12 +247,20 @@ def _render_result(result: TenderFullAnalysisResult) -> str:
     summary = result.summary
     summary_html = "<p>Offline-резюме не сформировано.</p>"
     if summary is not None:
-        facts = "".join(
-            f"<li><b>{escape(item.label)}:</b> {escape(item.value)}</li>"
-            for item in summary.facts
-        ) or "<li>Нет подтверждённых фактов.</li>"
-        risks = "".join(f"<li>{escape(item)}</li>" for item in summary.risks) or "<li>Не выявлено.</li>"
-        missing = "".join(f"<li>{escape(item)}</li>" for item in summary.missing_information) or "<li>Не выявлено.</li>"
+        facts = (
+            "".join(
+                f"<li><b>{escape(item.label)}:</b> {escape(item.value)}</li>"
+                for item in summary.facts
+            )
+            or "<li>Нет подтверждённых фактов.</li>"
+        )
+        risks = (
+            "".join(f"<li>{escape(item)}</li>" for item in summary.risks) or "<li>Не выявлено.</li>"
+        )
+        missing = (
+            "".join(f"<li>{escape(item)}</li>" for item in summary.missing_information)
+            or "<li>Не выявлено.</li>"
+        )
         summary_html = (
             f"<h3>Краткое резюме: {escape(summary.headline)}</h3>"
             f"<p><b>Источник:</b> {escape(summary.source.value)}</p>"
@@ -282,17 +295,30 @@ def _render_ai_summary(result: TenderFullAnalysisResult) -> str:
     summary = result.summary
     if summary is None:
         return "<h3>AI summary is unavailable</h3><p>Run full analysis first.</p>"
-    facts = "".join(
-        "<li><b>{label}:</b> {value} <small>({source}; confidence {confidence:.0%}; {provenance})</small></li>".format(
-            label=escape(item.label), value=escape(item.value),
-            source=escape(item.source), confidence=item.confidence,
-            provenance=escape(item.provenance),
+    facts = (
+        "".join(
+            "<li><b>{label}:</b> {value} <small>({source}; confidence {confidence:.0%}; {provenance})</small></li>".format(
+                label=escape(item.label),
+                value=escape(item.value),
+                source=escape(item.source),
+                confidence=item.confidence,
+                provenance=escape(item.provenance),
+            )
+            for item in summary.facts
         )
-        for item in summary.facts
-    ) or "<li>No confirmed facts.</li>"
-    risks = "".join(f"<li>{escape(item)}</li>" for item in summary.risks) or "<li>None detected.</li>"
-    stops = "".join(f"<li>{escape(item)}</li>" for item in summary.stop_factors) or "<li>None detected.</li>"
-    missing = "".join(f"<li>{escape(item)}</li>" for item in summary.missing_information) or "<li>None.</li>"
+        or "<li>No confirmed facts.</li>"
+    )
+    risks = (
+        "".join(f"<li>{escape(item)}</li>" for item in summary.risks) or "<li>None detected.</li>"
+    )
+    stops = (
+        "".join(f"<li>{escape(item)}</li>" for item in summary.stop_factors)
+        or "<li>None detected.</li>"
+    )
+    missing = (
+        "".join(f"<li>{escape(item)}</li>" for item in summary.missing_information)
+        or "<li>None.</li>"
+    )
     return (
         f"<h2>{escape(summary.headline)}</h2>"
         f"<p><b>Recommendation:</b> {escape(summary.recommendation)} (confidence {summary.recommendation_confidence:.0%})</p>"
@@ -318,7 +344,8 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
             proof = (
                 f"<small>{escape(evidence.document_id)} · confidence {evidence.confidence:.0%}<br>"
                 f"Цитата: {escape(evidence.quote)}</small>"
-                if evidence else "<small>Неподтверждённый вывод — не влияет на рекомендацию.</small>"
+                if evidence
+                else "<small>Неподтверждённый вывод — не влияет на рекомендацию.</small>"
             )
             rows.append(f"<li><b>{escape(item.statement)}</b><br>{proof}</li>")
         return "".join(rows) or "<li>Не выявлено.</li>"
@@ -328,15 +355,37 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         for name in analysis.requirements.__dataclass_fields__
         for item in getattr(analysis.requirements, name)
     )
-    missing = "".join(f"<li>{escape(item)}</li>" for item in analysis.missing_documents) or "<li>Не выявлено.</li>"
+    missing = (
+        "".join(f"<li>{escape(item)}</li>" for item in analysis.missing_documents)
+        or "<li>Не выявлено.</li>"
+    )
+    status_text = {
+        AiAnalysisStatus.COMPLETE: "Завершён",
+        AiAnalysisStatus.PARTIAL: "Частичный результат",
+        AiAnalysisStatus.NO_DOCUMENTS: "Нет документов для анализа",
+        AiAnalysisStatus.PROVIDER_DISABLED: "AI-провайдер отключён",
+        AiAnalysisStatus.PROVIDER_ERROR: "AI-провайдер недоступен",
+        AiAnalysisStatus.INVALID_RESPONSE: "Ответ AI отклонён",
+        AiAnalysisStatus.CACHE_INCOMPATIBLE: "Кеш несовместим",
+    }.get(analysis.status, "Неизвестный безопасный статус")
+    warnings = "".join(f"<li>{escape(item)}</li>" for item in analysis.warnings) or "<li>Нет.</li>"
+    context_note = (
+        "<p><b>Внимание:</b> контекст сокращён по безопасному лимиту; "
+        "результат не считается полным.</p>"
+        if analysis.context_truncated
+        else ""
+    )
     return (
-        f"<h2>AI-анализ документации</h2><p><b>Статус:</b> {escape(analysis.status)}</p>"
+        f"<h2>AI-анализ документации</h2><p><b>Статус:</b> {escape(status_text)}</p>"
+        f"<p><b>Контекст:</b> {analysis.context_document_count} документов, "
+        f"{analysis.context_character_count} символов</p>{context_note}"
         f"<h3>Краткое резюме</h3><p>{escape(analysis.summary)}</p>"
         f"<h3>Требования</h3><ul>{render_findings(requirements)}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
         f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"
         f"<h3>Недостающие документы</h3><ul>{missing}</ul>"
+        f"<h3>Технические предупреждения</h3><ul>{warnings}</ul>"
         f"<h3>Итог AI</h3><p>{escape(analysis.final_ai_conclusion)}</p>"
     )
 

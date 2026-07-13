@@ -52,7 +52,7 @@ from app.tenders.tender_summary import (
     TenderSummary,
 )
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
-from app.core.ai.schemas import AiDocumentAnalysis
+from app.core.ai.schemas import AiAnalysisStatus, AiDocumentAnalysis
 
 
 class FullAnalysisStage(StrEnum):
@@ -172,6 +172,7 @@ class TenderFullAnalysisService:
         requirements = None
         score = None
         legacy = None
+        ai_document_analysis = None
 
         def emit(stage, message, completed, current=0, total=0):
             if progress_callback is not None:
@@ -247,9 +248,7 @@ class TenderFullAnalysisService:
                         path,
                         document_key=(
                             "archive-member:"
-                            + hashlib.sha256(
-                                f"{key}|{path.resolve()}".encode("utf-8")
-                            ).hexdigest()
+                            + hashlib.sha256(f"{key}|{path.resolve()}".encode("utf-8")).hexdigest()
                         ),
                         force=force_extraction,
                     )
@@ -271,7 +270,11 @@ class TenderFullAnalysisService:
                 warnings.append(f"Ошибок извлечения текста: {text_result.failed_count}")
             token.throw_if_cancelled()
 
-            emit(FullAnalysisStage.ANALYZING_REQUIREMENTS, "Анализ требований, лицензий и договора…", 6)
+            emit(
+                FullAnalysisStage.ANALYZING_REQUIREMENTS,
+                "Анализ требований, лицензий и договора…",
+                6,
+            )
             requirements = self.requirement_service.analyze(
                 key,
                 force_extraction=False,
@@ -281,7 +284,11 @@ class TenderFullAnalysisService:
             token.throw_if_cancelled()
 
             if self.legacy_bridge is not None:
-                emit(FullAnalysisStage.RUNNING_LEGACY_ANALYSIS, "Передача данных в существующий AnalysisEngine…", 6)
+                emit(
+                    FullAnalysisStage.RUNNING_LEGACY_ANALYSIS,
+                    "Передача данных в существующий AnalysisEngine…",
+                    6,
+                )
                 try:
                     latest = self.text_service.list_results(key)
                     legacy = self.legacy_bridge.sync_and_analyze(
@@ -304,13 +311,24 @@ class TenderFullAnalysisService:
                 else None
             )
             commercial_estimate = latest_commercial[1] if latest_commercial else None
-            ai_document_analysis = (
-                self.ai_document_analysis_service.analyze(key)
-                if self.ai_document_analysis_service is not None
-                else None
-            )
+            if self.ai_document_analysis_service is not None:
+                try:
+                    ai_document_analysis = self.ai_document_analysis_service.analyze(key)
+                except Exception:
+                    ai_document_analysis = AiDocumentAnalysis(
+                        key,
+                        "AI analysis is temporarily unavailable.",
+                        status=AiAnalysisStatus.PROVIDER_ERROR,
+                    )
+                ai_warning = _ai_status_warning(ai_document_analysis.status)
+                if ai_warning:
+                    warnings.append(ai_warning)
+                warnings.extend(ai_document_analysis.warnings)
             decision = (
-                self.participation_decision_service.evaluate(key)
+                self.participation_decision_service.evaluate(
+                    key,
+                    ai_document_analysis=ai_document_analysis,
+                )
                 if self.participation_decision_service is not None
                 else None
             )
@@ -332,7 +350,9 @@ class TenderFullAnalysisService:
                 verification=verification,
                 stop_assessment=stop_assessment,
                 commercial_estimate=commercial_estimate,
-                company_profile=(self.capability_repository.load() if self.capability_repository else None),
+                company_profile=(
+                    self.capability_repository.load() if self.capability_repository else None
+                ),
             )
             if self.summary_repository is not None:
                 self.summary_repository.save_tender_summary(summary)
@@ -395,6 +415,29 @@ def _ordered_unique(values) -> tuple[str, ...]:
         seen.add(key)
         result.append(rendered)
     return tuple(result)
+
+
+def _ai_status_warning(status: AiAnalysisStatus | str) -> str:
+    messages = {
+        AiAnalysisStatus.PARTIAL: "AI-анализ выполнен частично.",
+        AiAnalysisStatus.NO_DOCUMENTS: ("AI-анализ не выполнен: подходящие документы отсутствуют."),
+        AiAnalysisStatus.PROVIDER_DISABLED: (
+            "AI-провайдер отключён; использован локальный анализ."
+        ),
+        AiAnalysisStatus.PROVIDER_ERROR: (
+            "AI-провайдер временно недоступен; локальный анализ продолжен."
+        ),
+        AiAnalysisStatus.INVALID_RESPONSE: (
+            "Ответ AI отклонён защитной проверкой; локальный анализ продолжен."
+        ),
+        AiAnalysisStatus.CACHE_INCOMPATIBLE: (
+            "Сохранённый AI-анализ несовместим; локальный анализ продолжен."
+        ),
+    }
+    try:
+        return messages.get(AiAnalysisStatus(status), "")
+    except (TypeError, ValueError):
+        return "AI-анализ завершён с неизвестным безопасным статусом."
 
 
 __all__ = [

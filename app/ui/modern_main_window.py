@@ -74,9 +74,7 @@ class ModernMainWindow(QMainWindow):
 
         legacy_content = self._legacy_window.takeCentralWidget()
         if legacy_content is None:
-            legacy_content = self._placeholder(
-                "Рабочие модули прежней версии недоступны."
-            )
+            legacy_content = self._placeholder("Рабочие модули прежней версии недоступны.")
         else:
             legacy_content.setParent(self.workspace.pages)
             legacy_content.setWindowFlags(Qt.WindowType.Widget)
@@ -91,10 +89,7 @@ class ModernMainWindow(QMainWindow):
         self.workspace.add_page(
             "ai",
             "AI-анализ",
-            self._placeholder(
-                "AI-анализ будет перенесён в новый интерфейс "
-                "в следующих коммитах."
-            ),
+            self._placeholder("AI-анализ будет перенесён в новый интерфейс в следующих коммитах."),
         )
         self.business_repository = BusinessMetricsRepository()
 
@@ -124,40 +119,29 @@ class ModernMainWindow(QMainWindow):
         self.workspace.add_page(
             "documents",
             "Документы",
-            self._placeholder(
-                "Единый центр документов находится в разработке."
-            ),
+            self._placeholder("Единый центр документов находится в разработке."),
         )
         self.workspace.add_page(
             "clients",
             "Клиенты",
-            self._placeholder(
-                "Карточки заказчиков и клиентов появятся позже."
-            ),
+            self._placeholder("Карточки заказчиков и клиентов появятся позже."),
         )
         self.workspace.add_page(
             "analytics",
             "Аналитика",
-            self._placeholder(
-                "Графики и аналитика будут добавлены в следующем спринте."
-            ),
+            self._placeholder("Графики и аналитика будут добавлены в следующем спринте."),
         )
         self.workspace.add_page(
             "settings",
             "Настройки",
-            self._placeholder(
-                "Настройки прежней версии доступны в разделе «Тендеры»."
-            ),
+            self._placeholder("Настройки прежней версии доступны в разделе «Тендеры»."),
         )
 
         self._connect_actions()
-        self.dashboard_controller.tender_selected.connect(
-            self._open_tender_from_dashboard
-        )
+        self.dashboard_controller.tender_selected.connect(self._open_tender_from_dashboard)
         self.dashboard_controller.refresh_succeeded.connect(
             lambda snapshot: self.statusBar().showMessage(
-                f"Dashboard обновлён · тендеров: "
-                f"{len(snapshot.tenders)}",
+                f"Dashboard обновлён · тендеров: {len(snapshot.tenders)}",
                 4000,
             )
         )
@@ -169,12 +153,8 @@ class ModernMainWindow(QMainWindow):
         )
 
         for page in (self.quotes_page, self.estimates_page):
-            page.tender_open_requested.connect(
-                self._open_tender_from_dashboard
-            )
-            page.workflow_changed.connect(
-                self._business_workflow_changed
-            )
+            page.tender_open_requested.connect(self._open_tender_from_dashboard)
+            page.workflow_changed.connect(self._business_workflow_changed)
 
         self.apply_theme(self._theme)
         self.workspace.sidebar.select("dashboard")
@@ -195,12 +175,8 @@ class ModernMainWindow(QMainWindow):
     def _connect_actions(self) -> None:
         self.workspace.topbar.theme_toggled.connect(self.toggle_theme)
         self.workspace.topbar.search_requested.connect(self._global_search)
-        self.workspace.topbar.ai_clicked.connect(
-            lambda: self.workspace.sidebar.select("ai")
-        )
-        self.workspace.topbar.notifications_clicked.connect(
-            self._show_notifications
-        )
+        self.workspace.topbar.ai_clicked.connect(lambda: self.workspace.sidebar.select("ai"))
+        self.workspace.topbar.notifications_clicked.connect(self._show_notifications)
         self.workspace.topbar.profile_clicked.connect(self._show_profile)
 
         self.dashboard_page.find_tenders_requested.connect(
@@ -264,22 +240,14 @@ class ModernMainWindow(QMainWindow):
         self.estimates_page.apply_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme.value)
 
-        self.workspace.topbar.theme_button.setText(
-            "☀" if self._theme == ThemeName.DARK else "🌙"
-        )
+        self.workspace.topbar.theme_button.setText("☀" if self._theme == ThemeName.DARK else "🌙")
         self.workspace.topbar.theme_button.setToolTip(
-            "Включить светлую тему"
-            if self._theme == ThemeName.DARK
-            else "Включить тёмную тему"
+            "Включить светлую тему" if self._theme == ThemeName.DARK else "Включить тёмную тему"
         )
 
     def toggle_theme(self) -> None:
         """Switch between the dark and light themes."""
-        new_theme = (
-            ThemeName.LIGHT
-            if self._theme == ThemeName.DARK
-            else ThemeName.DARK
-        )
+        new_theme = ThemeName.LIGHT if self._theme == ThemeName.DARK else ThemeName.DARK
         self.apply_theme(new_theme)
 
     def _global_search(self, query: str) -> None:

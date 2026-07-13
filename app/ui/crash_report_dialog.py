@@ -40,9 +40,7 @@ class CrashReportDialog(QDialog):
         self,
         report: CrashReportResult,
         *,
-        support_bundle_provider: (
-            SupportBundleProvider | None
-        ) = None,
+        support_bundle_provider: (SupportBundleProvider | None) = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
@@ -88,17 +86,12 @@ class CrashReportDialog(QDialog):
         info_layout.setSpacing(6)
 
         self.error_label = QLabel(
-            (
-                f"{report.exception_type}: "
-                f"{report.exception_message or 'без сообщения'}"
-            ),
+            (f"{report.exception_type}: {report.exception_message or 'без сообщения'}"),
             info,
         )
         self.error_label.setObjectName("CrashReportError")
         self.error_label.setWordWrap(True)
-        self.error_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.error_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         info_layout.addWidget(self.error_label)
 
         self.path_label = QLabel(
@@ -107,9 +100,7 @@ class CrashReportDialog(QDialog):
         )
         self.path_label.setObjectName("CrashReportPath")
         self.path_label.setWordWrap(True)
-        self.path_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         info_layout.addWidget(self.path_label)
 
         root.addWidget(info)
@@ -140,23 +131,15 @@ class CrashReportDialog(QDialog):
             "Открыть папку отчёта",
             self,
         )
-        self.open_folder_button.clicked.connect(
-            self._open_report_folder
-        )
+        self.open_folder_button.clicked.connect(self._open_report_folder)
 
         self.save_bundle_button = QPushButton(
             "Сохранить пакет диагностики…",
             self,
         )
-        self.save_bundle_button.setObjectName(
-            "CrashReportBundleButton"
-        )
-        self.save_bundle_button.setEnabled(
-            support_bundle_provider is not None
-        )
-        self.save_bundle_button.clicked.connect(
-            self._save_support_bundle
-        )
+        self.save_bundle_button.setObjectName("CrashReportBundleButton")
+        self.save_bundle_button.setEnabled(support_bundle_provider is not None)
+        self.save_bundle_button.clicked.connect(self._save_support_bundle)
 
         actions.addWidget(self.copy_button)
         actions.addWidget(self.open_folder_button)
@@ -168,9 +151,7 @@ class CrashReportDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        self.buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         self.buttons.rejected.connect(self.reject)
         root.addWidget(self.buttons)
 
@@ -181,17 +162,11 @@ class CrashReportDialog(QDialog):
         if application is None:
             return
         application.clipboard().setText(
-            (
-                f"{self.error_label.text()}\n"
-                f"{self.path_label.text()}\n\n"
-                f"{self.report.traceback_text}"
-            )
+            (f"{self.error_label.text()}\n{self.path_label.text()}\n\n{self.report.traceback_text}")
         )
 
     def _open_report_folder(self) -> None:
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(self.report.path.parent))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.report.path.parent)))
 
     def _save_support_bundle(self) -> None:
         provider = self.support_bundle_provider
@@ -207,10 +182,7 @@ class CrashReportDialog(QDialog):
             self,
             "Сохранить пакет технической диагностики",
             str(Path.home() / "Documents" / default_name),
-            (
-                "Пакет диагностики CORTERIS (*.ctsupport);;"
-                "ZIP-архив (*.zip)"
-            ),
+            ("Пакет диагностики CORTERIS (*.ctsupport);;ZIP-архив (*.zip)"),
         )
         if not filename:
             return
@@ -311,9 +283,7 @@ class QtCrashBridge(QObject):
 
         self.handler = handler
         self.parent_window: QWidget | None = None
-        self.support_bundle_provider: (
-            SupportBundleProvider | None
-        ) = None
+        self.support_bundle_provider: SupportBundleProvider | None = None
         self._dialog_open = False
 
         self.report_requested.connect(
@@ -362,9 +332,7 @@ class QtCrashBridge(QObject):
             )
             dialog = CrashReportDialog(
                 report,
-                support_bundle_provider=(
-                    self.support_bundle_provider
-                ),
+                support_bundle_provider=(self.support_bundle_provider),
                 theme=theme,
                 parent=parent,
             )

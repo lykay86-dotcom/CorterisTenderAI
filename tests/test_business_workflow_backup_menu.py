@@ -27,13 +27,9 @@ def test_workflow_page_exposes_backup_center_and_actions(
     _app()
     backup_service = WorkflowBackupService()
     page = BusinessWorkflowPage(
-        repository=BusinessMetricsRepository(
-            tmp_path / "workflow.json"
-        ),
+        repository=BusinessMetricsRepository(tmp_path / "workflow.json"),
         backup_service=backup_service,
-        backup_catalog_service=WorkflowBackupCatalogService(
-            backup_service
-        ),
+        backup_catalog_service=WorkflowBackupCatalogService(backup_service),
         auto_backup_service=WorkflowAutoBackupService(
             tmp_path / "auto_backup_settings.json",
             backup_service=backup_service,
@@ -41,10 +37,7 @@ def test_workflow_page_exposes_backup_center_and_actions(
     )
 
     assert page.data_button.text().endswith("Данные")
-    assert [
-        action.text()
-        for action in page.data_menu.actions()
-    ] == [
+    assert [action.text() for action in page.data_menu.actions()] == [
         "Состояние системы…",
         "",
         "Центр резервных копий…",

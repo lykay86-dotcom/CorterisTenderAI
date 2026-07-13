@@ -69,14 +69,8 @@ def test_parallel_search_preserves_registry_order() -> None:
         "ЕИС",
         "РТС",
     ]
-    assert [
-        outcome.provider_id
-        for outcome in result.outcomes
-    ] == ["eis", "rts_tender"]
-    assert all(
-        outcome.status == ProviderSearchStatus.SUCCESS
-        for outcome in result.outcomes
-    )
+    assert [outcome.provider_id for outcome in result.outcomes] == ["eis", "rts_tender"]
+    assert all(outcome.status == ProviderSearchStatus.SUCCESS for outcome in result.outcomes)
 
 
 def test_search_can_select_specific_providers() -> None:
@@ -96,9 +90,7 @@ def test_search_can_select_specific_providers() -> None:
             ),
         ),
     )
-    engine = TenderSearchEngine(
-        TenderProviderRegistry(providers)
-    )
+    engine = TenderSearchEngine(TenderProviderRegistry(providers))
 
     result = engine.search(
         TenderSearchQuery(),
@@ -118,9 +110,7 @@ def test_disabled_provider_is_skipped_unless_requested() -> None:
             enabled=False,
         )
     )
-    engine = TenderSearchEngine(
-        TenderProviderRegistry((disabled,))
-    )
+    engine = TenderSearchEngine(TenderProviderRegistry((disabled,)))
 
     normal = engine.search(TenderSearchQuery())
     explicit = engine.search(

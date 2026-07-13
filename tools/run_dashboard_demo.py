@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Standalone Dashboard visual-review launcher."""
 
 from __future__ import annotations
@@ -20,9 +21,7 @@ from app.ui.theme.colors import ThemeName
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Run Corteris Dashboard with synthetic demo data."
-    )
+    parser = argparse.ArgumentParser(description="Run Corteris Dashboard with synthetic demo data.")
     parser.add_argument(
         "--theme",
         choices=("dark", "light"),
@@ -41,9 +40,7 @@ def main() -> int:
         theme=ThemeName(args.theme),
         demo_mode=True,
     )
-    window.setWindowTitle(
-        "Corteris Tender AI — Dashboard Visual Review"
-    )
+    window.setWindowTitle("Corteris Tender AI — Dashboard Visual Review")
     window.resize(max(760, args.width), max(640, args.height))
     window.show()
 

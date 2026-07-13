@@ -21,9 +21,7 @@ def test_registry_dialog_requests_analysis_for_selected_tender(
     tmp_path,
 ) -> None:
     app = _app()
-    repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     repository.record_profile_run(
         _run(_evaluated_tender()),
         run_id="run-analysis",

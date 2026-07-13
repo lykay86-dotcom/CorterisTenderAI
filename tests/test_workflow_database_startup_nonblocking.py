@@ -32,9 +32,7 @@ def test_corrupted_database_startup_never_opens_modal_dialog(
     monkeypatch,
 ) -> None:
     app = _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     repository.path.write_text("{broken", encoding="utf-8")
 
     backup_service = WorkflowBackupService()
@@ -52,9 +50,7 @@ def test_corrupted_database_startup_never_opens_modal_dialog(
 
     def forbidden_exec(self) -> int:
         modal_calls.append(True)
-        raise AssertionError(
-            "Startup diagnostics must not open a modal dialog"
-        )
+        raise AssertionError("Startup diagnostics must not open a modal dialog")
 
     monkeypatch.setattr(
         WorkflowDatabaseRecoveryDialog,
@@ -74,7 +70,5 @@ def test_corrupted_database_startup_never_opens_modal_dialog(
     app.processEvents()
 
     assert modal_calls == []
-    assert not list(
-        (tmp_path / "backups").rglob("*.ctbackup")
-    )
+    assert not list((tmp_path / "backups").rglob("*.ctbackup"))
     assert page._auto_backup_timer.isActive()

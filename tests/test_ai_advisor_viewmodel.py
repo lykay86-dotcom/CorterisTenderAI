@@ -1,9 +1,11 @@
 from app.ui.viewmodels.ai_advisor_viewmodel import AiAdvisorViewModel
 
+
 def test_empty_state():
     vm = AiAdvisorViewModel()
     assert vm.state.status == "online"
     assert vm.state.action.key == "find_tenders"
+
 
 def test_normalization():
     vm = AiAdvisorViewModel()
@@ -11,6 +13,7 @@ def test_normalization():
     vm.set_focus(title="Тендер", score=140)
     assert vm.state.metrics.new_tenders == 0
     assert vm.state.focus.score == 100
+
 
 def test_reason_limit():
     vm = AiAdvisorViewModel()

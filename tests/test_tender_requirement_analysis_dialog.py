@@ -80,16 +80,11 @@ def test_dialog_filters_critical_findings() -> None:
         analysis.registry_key,
         analysis=analysis,
     )
-    index = dialog.severity_combo.findData(
-        FindingSeverity.CRITICAL.value
-    )
+    index = dialog.severity_combo.findData(FindingSeverity.CRITICAL.value)
     dialog.severity_combo.setCurrentIndex(index)
 
     assert dialog.visible_findings
-    assert all(
-        item.severity == FindingSeverity.CRITICAL
-        for item in dialog.visible_findings
-    )
+    assert all(item.severity == FindingSeverity.CRITICAL for item in dialog.visible_findings)
     app.processEvents()
 
 
@@ -97,9 +92,7 @@ def test_dialog_emits_normal_and_force_analysis_requests() -> None:
     app = _app()
     dialog = TenderRequirementAnalysisDialog("procurement:003")
     requests: list[tuple[str, bool]] = []
-    dialog.analysis_requested.connect(
-        lambda key, force: requests.append((key, force))
-    )
+    dialog.analysis_requested.connect(lambda key, force: requests.append((key, force)))
 
     dialog.run_button.click()
     dialog.force_button.click()

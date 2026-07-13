@@ -13,9 +13,7 @@ def create_default_provider_registry(
     http_transport: HttpTransport | None = None,
 ) -> TenderProviderRegistry:
     providers = [
-        provider
-        for provider in create_builtin_providers()
-        if provider.descriptor.id != "eis"
+        provider for provider in create_builtin_providers() if provider.descriptor.id != "eis"
     ]
     providers.insert(
         0,

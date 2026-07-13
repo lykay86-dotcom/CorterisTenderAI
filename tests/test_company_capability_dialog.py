@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
@@ -19,14 +20,10 @@ def _app() -> QApplication:
 
 def test_dialog_builds_and_saves_confirmed_profile(tmp_path) -> None:
     app = _app()
-    repository = CompanyCapabilityProfileRepository(
-        tmp_path / "company_capability_profile.json"
-    )
+    repository = CompanyCapabilityProfileRepository(tmp_path / "company_capability_profile.json")
     dialog = CompanyCapabilityDialog(repository)
     dialog.company_name.setText("ООО КОРТЕРИС")
-    dialog.text_fields["business_directions"].setText(
-        "видеонаблюдение; СКУД"
-    )
+    dialog.text_fields["business_directions"].setText("видеонаблюдение; СКУД")
     dialog.text_fields["self_install_regions"].setText("Москва")
     dialog.text_fields["confirmed_experience"].setText("Контракт №1")
     dialog.text_fields["equipment"].setText("IP-камера")

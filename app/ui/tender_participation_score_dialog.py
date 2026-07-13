@@ -68,9 +68,7 @@ class TenderParticipationScoreDialog(QDialog):
             "Оценка ещё не рассчитана",
             summary,
         )
-        self.recommendation_label.setObjectName(
-            "ParticipationRecommendation"
-        )
+        self.recommendation_label.setObjectName("ParticipationRecommendation")
         self.recommendation_label.setWordWrap(True)
         summary_layout.addWidget(self.score_value)
         summary_layout.addWidget(self.recommendation_label, 1)
@@ -98,9 +96,7 @@ class TenderParticipationScoreDialog(QDialog):
         )
         self.components_table.verticalHeader().setVisible(False)
         self.components_table.horizontalHeader().setStretchLastSection(True)
-        self.components_table.setEditTriggers(
-            QTableWidget.EditTrigger.NoEditTriggers
-        )
+        self.components_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         root.addWidget(self.components_table, 1)
 
         self.details = QTextBrowser(self)
@@ -114,9 +110,7 @@ class TenderParticipationScoreDialog(QDialog):
         )
         self.recalculate_button.setObjectName("PrimaryActionButton")
         self.recalculate_button.clicked.connect(
-            lambda _checked=False: self.recalculate_requested.emit(
-                self.registry_key
-            )
+            lambda _checked=False: self.recalculate_requested.emit(self.registry_key)
         )
         actions.addWidget(self.recalculate_button)
         actions.addStretch(1)
@@ -124,9 +118,7 @@ class TenderParticipationScoreDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
@@ -147,27 +139,17 @@ class TenderParticipationScoreDialog(QDialog):
     def set_score(self, score: CorterisParticipationScore) -> None:
         self._score = score
         self.score_value.setText(f"{score.total_score}/100")
-        self.recommendation_label.setText(
-            score.recommendation_text
-        )
+        self.recommendation_label.setText(score.recommendation_text)
         self.recommendation_label.setProperty(
             "recommendation",
             score.recommendation.value,
         )
-        self.recommendation_label.style().unpolish(
-            self.recommendation_label
-        )
-        self.recommendation_label.style().polish(
-            self.recommendation_label
-        )
+        self.recommendation_label.style().unpolish(self.recommendation_label)
+        self.recommendation_label.style().polish(self.recommendation_label)
 
         self.components_table.setRowCount(len(score.components))
         for row, component in enumerate(score.components):
-            maximum = (
-                str(component.maximum)
-                if component.maximum > 0
-                else "штраф"
-            )
+            maximum = str(component.maximum) if component.maximum > 0 else "штраф"
             values = (
                 component.title,
                 str(component.score),
@@ -195,10 +177,12 @@ class TenderParticipationScoreDialog(QDialog):
             "medium": "средняя",
             "low": "низкая",
         }
-        reasons = "\n".join(
-            f"• {item.title}: {item.detail} ({item.impact:+d})"
-            for item in decision.evidence
-        ) or "• Причины не сформированы"
+        reasons = (
+            "\n".join(
+                f"• {item.title}: {item.detail} ({item.impact:+d})" for item in decision.evidence
+            )
+            or "• Причины не сформированы"
+        )
         stops = "\n".join(f"• {item}" for item in decision.stop_factors) or "• Нет"
         missing = "\n".join(f"□ {item}" for item in decision.missing) or "• Нет"
         actions = "\n".join(f"✔ {item}" for item in decision.actions) or "• Нет"
@@ -211,17 +195,13 @@ class TenderParticipationScoreDialog(QDialog):
             f"\n\nНе хватает данных:\n{missing}"
             f"\n\nПлан действий:\n{actions}"
         )
-        self.decision_label.setProperty(
-            "recommendation", decision.recommendation.value
-        )
+        self.decision_label.setProperty("recommendation", decision.recommendation.value)
         self.decision_label.style().unpolish(self.decision_label)
         self.decision_label.style().polish(self.decision_label)
 
     def set_busy(self, busy: bool, *, message: str = "") -> None:
         self.recalculate_button.setEnabled(not busy)
-        self.recalculate_button.setText(
-            "Расчёт…" if busy else "Пересчитать по документам"
-        )
+        self.recalculate_button.setText("Расчёт…" if busy else "Пересчитать по документам")
         if message:
             self.set_status(message)
 
@@ -344,9 +324,7 @@ def _render_stop_factor_evidence(score: CorterisParticipationScore) -> str:
         "clear": "CLEAR — блокирующие условия не выявлены",
         "conditional": "CONDITIONAL — участие возможно после устранения условий",
         "data_insufficient": "DATA_INSUFFICIENT — данных недостаточно для решения",
-        "blocked_by_requirement": (
-            "BLOCKED_BY_REQUIREMENT — участие заблокировано требованием"
-        ),
+        "blocked_by_requirement": ("BLOCKED_BY_REQUIREMENT — участие заблокировано требованием"),
     }[assessment.status.value]
     cards = []
     for factor in assessment.factors:
@@ -368,11 +346,7 @@ def _render_stop_factor_evidence(score: CorterisParticipationScore) -> str:
                 escape(evidence.remediation),
             )
         )
-    details = (
-        f"<ul>{''.join(cards)}</ul>"
-        if cards
-        else "<p>Факторы не выявлены.</p>"
-    )
+    details = f"<ul>{''.join(cards)}</ul>" if cards else "<p>Факторы не выявлены.</p>"
     return f"<h2>Решение Stop-Factor: {escape(status_text)}</h2>{details}"
 
 

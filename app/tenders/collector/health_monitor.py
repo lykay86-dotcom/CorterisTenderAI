@@ -36,9 +36,7 @@ class ProviderHealthPolicy:
         if self.cooldown_seconds < 0:
             raise ValueError("cooldown_seconds must be non-negative")
         if self.unavailable_threshold < self.failure_threshold:
-            raise ValueError(
-                "unavailable_threshold cannot be below failure_threshold"
-            )
+            raise ValueError("unavailable_threshold cannot be below failure_threshold")
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,10 +92,7 @@ class ProviderHealthMonitor:
         utcnow: Callable[[], datetime] | None = None,
     ) -> None:
         self.default_policy = default_policy or ProviderHealthPolicy()
-        self._policies = {
-            key.strip().casefold(): value
-            for key, value in (policies or {}).items()
-        }
+        self._policies = {key.strip().casefold(): value for key, value in (policies or {}).items()}
         self._clock = clock
         self._utcnow = utcnow or (lambda: datetime.now(timezone.utc))
         self._states: dict[str, _ProviderHealthState] = {}
@@ -192,14 +187,10 @@ class ProviderHealthMonitor:
 
             if state.consecutive_failures >= policy.unavailable_threshold:
                 state.status = ProviderOperationalStatus.UNAVAILABLE
-                state.cooldown_until = (
-                    self._clock() + policy.cooldown_seconds * 3
-                )
+                state.cooldown_until = self._clock() + policy.cooldown_seconds * 3
             elif state.consecutive_failures >= policy.failure_threshold:
                 state.status = ProviderOperationalStatus.COOLDOWN
-                state.cooldown_until = (
-                    self._clock() + policy.cooldown_seconds
-                )
+                state.cooldown_until = self._clock() + policy.cooldown_seconds
             else:
                 state.status = ProviderOperationalStatus.DEGRADED
             return self._snapshot(state)
@@ -256,10 +247,7 @@ class ProviderHealthMonitor:
         with self._lock:
             for state in self._states.values():
                 self._refresh_cooldown(state)
-            return tuple(
-                self._snapshot(self._states[key])
-                for key in sorted(self._states)
-            )
+            return tuple(self._snapshot(self._states[key]) for key in sorted(self._states))
 
     def _state(self, provider_id: str) -> _ProviderHealthState:
         normalized = self._normalize_id(provider_id)
@@ -271,7 +259,8 @@ class ProviderHealthMonitor:
 
     def _refresh_cooldown(self, state: _ProviderHealthState) -> None:
         if (
-            state.status in {
+            state.status
+            in {
                 ProviderOperationalStatus.COOLDOWN,
                 ProviderOperationalStatus.UNAVAILABLE,
             }
@@ -287,9 +276,7 @@ class ProviderHealthMonitor:
     ) -> ProviderHealthSnapshot:
         average = None
         if state.latency_samples:
-            average = round(
-                state.total_latency_ms / state.latency_samples
-            )
+            average = round(state.total_latency_ms / state.latency_samples)
         return ProviderHealthSnapshot(
             provider_id=state.provider_id,
             status=state.status,

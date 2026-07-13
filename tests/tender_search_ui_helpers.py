@@ -59,8 +59,7 @@ def make_profile_run(
             law="44-ФЗ",
             region="Москва",
             description=(
-                "Поставка и монтаж 24 IP-видеокамер, "
-                "видеорегистратора и системы хранения."
+                "Поставка и монтаж 24 IP-видеокамер, видеорегистратора и системы хранения."
             ),
             tags=("видеонаблюдение", "монтаж"),
         )
@@ -96,9 +95,7 @@ def make_profile_run(
                 provider_id="eis",
                 display_name="ЕИС Закупки",
                 status=(
-                    ProviderSearchStatus.SUCCESS
-                    if include_tender
-                    else ProviderSearchStatus.EMPTY
+                    ProviderSearchStatus.SUCCESS if include_tender else ProviderSearchStatus.EMPTY
                 ),
                 elapsed_ms=250,
                 item_count=len(items),
@@ -118,11 +115,7 @@ def make_profile_run(
         total_count=len(accepted),
         accepted_count=len(accepted),
         rejected_count=0,
-        direction_counts=(
-            {TenderDirection.VIDEO_SURVEILLANCE: 1}
-            if accepted
-            else {}
-        ),
+        direction_counts=({TenderDirection.VIDEO_SURVEILLANCE: 1} if accepted else {}),
     )
     return TenderSearchProfileRun(
         profile=profile,

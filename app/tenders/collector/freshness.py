@@ -99,10 +99,7 @@ class FreshnessBatchResult:
 
     @property
     def due_soon_count(self) -> int:
-        return sum(
-            item.status == TenderFreshnessStatus.DUE_SOON
-            for item in self.items
-        )
+        return sum(item.status == TenderFreshnessStatus.DUE_SOON for item in self.items)
 
     @property
     def expired_count(self) -> int:
@@ -126,10 +123,7 @@ class TenderFreshnessService:
         now: datetime | str | None = None,
     ) -> FreshnessBatchResult:
         current = _aware_datetime(now) if now is not None else _utc_now_dt()
-        items = tuple(
-            self.evaluate_item(item, now=current)
-            for item in verification.items
-        )
+        items = tuple(self.evaluate_item(item, now=current) for item in verification.items)
         return FreshnessBatchResult(
             items=items,
             evaluated_at=_iso_utc(current),
@@ -154,8 +148,7 @@ class TenderFreshnessService:
         )
         due = last_verified + timedelta(minutes=interval)
         deadline_expired = (
-            deadline.seconds_remaining is not None
-            and deadline.seconds_remaining <= 0
+            deadline.seconds_remaining is not None and deadline.seconds_remaining <= 0
         )
 
         if deadline_expired:
@@ -307,10 +300,7 @@ def _recheck_policy(
         return 0, "Критичные данные ещё не были подтверждены."
     if verification.unresolved_conflict_count:
         return 0, "Есть нерешённый конфликт критичных данных."
-    if (
-        verification.tender.application_deadline is not None
-        and not deadline.timezone_confirmed
-    ):
+    if verification.tender.application_deadline is not None and not deadline.timezone_confirmed:
         return 0, "Часовой пояс срока подачи не подтверждён."
     if _metadata_flag(
         metadata,
@@ -348,10 +338,7 @@ def _fresh_reason(
     deadline: DeadlineNormalization,
     interval: int,
 ) -> str:
-    if (
-        deadline.seconds_remaining is not None
-        and deadline.seconds_remaining <= 48 * 60 * 60
-    ):
+    if deadline.seconds_remaining is not None and deadline.seconds_remaining <= 48 * 60 * 60:
         return (
             "До окончания подачи менее 48 часов; назначена "
             f"повторная проверка через {interval} мин."

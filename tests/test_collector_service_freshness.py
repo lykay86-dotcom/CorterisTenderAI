@@ -34,9 +34,7 @@ class Engine:
             deadline_day=14,
         )
         return AsyncProviderBatchResult(
-            results=(
-                TenderSearchResult(provider_id="eis", items=(tender,)),
-            ),
+            results=(TenderSearchResult(provider_id="eis", items=(tender,)),),
             outcomes=(
                 AsyncProviderSearchOutcome(
                     provider_id="eis",
@@ -55,15 +53,11 @@ class Engine:
 def test_service_checks_freshness_before_ranking(tmp_path) -> None:
     async def scenario() -> None:
         events = []
-        repository = CollectorStateRepository(
-            tmp_path / "tender_registry.sqlite3"
-        )
+        repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
         service = CollectorService(
             Engine(),
             repository,
-            freshness_service=TenderFreshnessService(
-                user_timezone="UTC"
-            ),
+            freshness_service=TenderFreshnessService(user_timezone="UTC"),
         )
         result = await service.collect(
             TenderSearchQuery(keywords=("видеонаблюдение",)),
@@ -71,11 +65,11 @@ def test_service_checks_freshness_before_ranking(tmp_path) -> None:
         )
 
         phases = [event.phase for event in events]
-        assert phases.index(
-            CollectorProgressPhase.VERIFYING
-        ) < phases.index(
-            CollectorProgressPhase.CHECKING_FRESHNESS
-        ) < phases.index(CollectorProgressPhase.RANKING)
+        assert (
+            phases.index(CollectorProgressPhase.VERIFYING)
+            < phases.index(CollectorProgressPhase.CHECKING_FRESHNESS)
+            < phases.index(CollectorProgressPhase.RANKING)
+        )
         assert result.metadata["due_soon_count"] == 1
         key = result.deduplication.items[0].canonical_key
         state = repository.get_freshness_state(key)

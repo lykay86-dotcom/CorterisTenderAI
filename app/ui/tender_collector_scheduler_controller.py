@@ -72,79 +72,49 @@ class TenderCollectorSchedulerUiController(QObject):
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self.data_directory = Path(
-            data_directory
-        ).expanduser()
+        self.data_directory = Path(data_directory).expanduser()
         self.profile_repository = profile_repository
         self.provider_manager = provider_manager
         self.start_collector_callback = start_collector
         self.is_collector_busy = is_collector_busy
         self.scheduler = CollectorScheduler(
-            CollectorScheduleRepository(
-                self.data_directory
-                / "collector_schedule.json"
-            )
+            CollectorScheduleRepository(self.data_directory / "collector_schedule.json")
         )
         self.freshness_repository = CollectorStateRepository(
             self.data_directory / "tender_registry.sqlite3"
         )
-        self.notification_repository = (
-            CollectorNotificationRepository(
-                self.data_directory
-                / "collector_notifications.json"
-            )
+        self.notification_repository = CollectorNotificationRepository(
+            self.data_directory / "collector_notifications.json"
         )
-        self.notification_service = (
-            CollectorNotificationService()
-        )
+        self.notification_service = CollectorNotificationService()
         self._theme = ThemeName(theme)
         self._main_window: QWidget | None = None
-        self._schedule_dialog: (
-            TenderCollectorScheduleDialog | None
-        ) = None
-        self._notifications_dialog: (
-            TenderCollectorNotificationsDialog | None
-        ) = None
+        self._schedule_dialog: TenderCollectorScheduleDialog | None = None
+        self._notifications_dialog: TenderCollectorNotificationsDialog | None = None
         self._scheduled_active = False
 
         self.schedule_action = QAction(
             "Планировщик тендеров…",
             self,
         )
-        self.schedule_action.setObjectName(
-            "actionTenderCollectorSchedule"
-        )
-        self.schedule_action.setShortcut(
-            QKeySequence("Ctrl+Shift+P")
-        )
-        self.schedule_action.triggered.connect(
-            self.open_schedule_dialog
-        )
+        self.schedule_action.setObjectName("actionTenderCollectorSchedule")
+        self.schedule_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
+        self.schedule_action.triggered.connect(self.open_schedule_dialog)
 
         self.notifications_action = QAction(
             "Уведомления сборщика…",
             self,
         )
-        self.notifications_action.setObjectName(
-            "actionTenderCollectorNotifications"
-        )
-        self.notifications_action.setShortcut(
-            QKeySequence("Ctrl+Shift+N")
-        )
-        self.notifications_action.triggered.connect(
-            self.open_notifications_dialog
-        )
+        self.notifications_action.setObjectName("actionTenderCollectorNotifications")
+        self.notifications_action.setShortcut(QKeySequence("Ctrl+Shift+N"))
+        self.notifications_action.triggered.connect(self.open_notifications_dialog)
 
         self.timer = QTimer(self)
         self.timer.setInterval(30_000)
         self.timer.timeout.connect(self.poll)
 
-        collector_finished_signal.connect(
-            self.on_collector_finished
-        )
-        collector_failed_signal.connect(
-            self.on_collector_failed
-        )
+        collector_finished_signal.connect(self.on_collector_finished)
+        collector_failed_signal.connect(self.on_collector_failed)
         self._update_notification_action()
 
     def install_on_main_window(
@@ -158,41 +128,18 @@ class TenderCollectorSchedulerUiController(QObject):
         if menu is not None:
             if self.schedule_action not in menu.actions():
                 menu.addAction(self.schedule_action)
-            if (
-                self.notifications_action
-                not in menu.actions()
-            ):
-                menu.addAction(
-                    self.notifications_action
-                )
+            if self.notifications_action not in menu.actions():
+                menu.addAction(self.notifications_action)
         if toolbar is not None:
-            if (
-                self.schedule_action
-                not in toolbar.actions()
-            ):
+            if self.schedule_action not in toolbar.actions():
                 toolbar.addAction(self.schedule_action)
-            if (
-                self.notifications_action
-                not in toolbar.actions()
-            ):
-                toolbar.addAction(
-                    self.notifications_action
-                )
+            if self.notifications_action not in toolbar.actions():
+                toolbar.addAction(self.notifications_action)
         if menu is None and toolbar is None:
-            if (
-                self.schedule_action
-                not in main_window.actions()
-            ):
-                main_window.addAction(
-                    self.schedule_action
-                )
-            if (
-                self.notifications_action
-                not in main_window.actions()
-            ):
-                main_window.addAction(
-                    self.notifications_action
-                )
+            if self.schedule_action not in main_window.actions():
+                main_window.addAction(self.schedule_action)
+            if self.notifications_action not in main_window.actions():
+                main_window.addAction(self.notifications_action)
 
         if not self.timer.isActive():
             self.timer.start()
@@ -215,27 +162,15 @@ class TenderCollectorSchedulerUiController(QObject):
 
     @Slot()
     def open_schedule_dialog(self) -> None:
-        parent = (
-            self._main_window
-            if isinstance(self._main_window, QWidget)
-            else None
-        )
+        parent = self._main_window if isinstance(self._main_window, QWidget) else None
         if self._schedule_dialog is None:
-            self._schedule_dialog = (
-                TenderCollectorScheduleDialog(
-                    theme=self._theme,
-                    parent=parent,
-                )
+            self._schedule_dialog = TenderCollectorScheduleDialog(
+                theme=self._theme,
+                parent=parent,
             )
-            self._schedule_dialog.save_requested.connect(
-                self.save_settings
-            )
-            self._schedule_dialog.run_now_requested.connect(
-                self.run_now
-            )
-            self._schedule_dialog.notifications_requested.connect(
-                self.open_notifications_dialog
-            )
+            self._schedule_dialog.save_requested.connect(self.save_settings)
+            self._schedule_dialog.run_now_requested.connect(self.run_now)
+            self._schedule_dialog.notifications_requested.connect(self.open_notifications_dialog)
         self.refresh_schedule_dialog()
         self._schedule_dialog.open()
         self._schedule_dialog.raise_()
@@ -246,9 +181,7 @@ class TenderCollectorSchedulerUiController(QObject):
         if self._schedule_dialog is None:
             return
         settings, state = self.scheduler.snapshot()
-        profiles = self.profile_repository.list_profiles(
-            include_disabled=False
-        )
+        profiles = self.profile_repository.list_profiles(include_disabled=False)
         providers = self.provider_manager.states()
         self._schedule_dialog.set_configuration(
             settings,
@@ -275,9 +208,7 @@ class TenderCollectorSchedulerUiController(QObject):
             return
         self.refresh_schedule_dialog()
         if self._schedule_dialog is not None:
-            self._schedule_dialog.set_status(
-                "Расписание сохранено."
-            )
+            self._schedule_dialog.set_status("Расписание сохранено.")
 
     @Slot(str, object)
     def run_now(
@@ -313,14 +244,9 @@ class TenderCollectorSchedulerUiController(QObject):
     def poll(self) -> None:
         freshness_due_at = ""
         try:
-            due_items = self.freshness_repository.list_due_reverification(
-                limit=1
-            )
+            due_items = self.freshness_repository.list_due_reverification(limit=1)
             if due_items:
-                freshness_due_at = (
-                    due_items[0].verification_due_at
-                    or due_items[0].updated_at
-                )
+                freshness_due_at = due_items[0].verification_due_at or due_items[0].updated_at
         except Exception as exc:
             # The regular schedule must remain operational even when the
             # registry is temporarily locked or has not been created yet.
@@ -353,10 +279,7 @@ class TenderCollectorSchedulerUiController(QObject):
             self._scheduled_active = False
             self.scheduler.mark_finished(
                 "start_rejected",
-                error=(
-                    "Запуск отклонён: профиль или источники "
-                    "недоступны."
-                ),
+                error=("Запуск отклонён: профиль или источники недоступны."),
             )
             self.refresh_schedule_dialog()
 
@@ -368,16 +291,12 @@ class TenderCollectorSchedulerUiController(QObject):
         if not isinstance(result, CollectorRunResult):
             return
         if self._scheduled_active:
-            self.scheduler.mark_finished(
-                result.status.value
-            )
+            self.scheduler.mark_finished(result.status.value)
             self._scheduled_active = False
         settings, _ = self.scheduler.snapshot()
-        notifications = (
-            self.notification_service.for_result(
-                result,
-                settings,
-            )
+        notifications = self.notification_service.for_result(
+            result,
+            settings,
         )
         self._publish(notifications)
         self.refresh_schedule_dialog()
@@ -411,9 +330,7 @@ class TenderCollectorSchedulerUiController(QObject):
     ) -> None:
         if not notifications:
             return
-        self.notification_repository.add_many(
-            notifications
-        )
+        self.notification_repository.add_many(notifications)
         self._update_notification_action()
         self.refresh_notifications_dialog()
         for item in notifications:
@@ -427,24 +344,16 @@ class TenderCollectorSchedulerUiController(QObject):
 
     @Slot()
     def open_notifications_dialog(self) -> None:
-        parent = (
-            self._main_window
-            if isinstance(self._main_window, QWidget)
-            else None
-        )
+        parent = self._main_window if isinstance(self._main_window, QWidget) else None
         if self._notifications_dialog is None:
-            self._notifications_dialog = (
-                TenderCollectorNotificationsDialog(
-                    theme=self._theme,
-                    parent=parent,
-                )
+            self._notifications_dialog = TenderCollectorNotificationsDialog(
+                theme=self._theme,
+                parent=parent,
             )
             self._notifications_dialog.mark_all_read_requested.connect(
                 self.mark_all_notifications_read
             )
-            self._notifications_dialog.registry_requested.connect(
-                self._open_registry_via_parent
-            )
+            self._notifications_dialog.registry_requested.connect(self._open_registry_via_parent)
         self.refresh_notifications_dialog()
         self._notifications_dialog.open()
         self._notifications_dialog.raise_()
@@ -466,11 +375,7 @@ class TenderCollectorSchedulerUiController(QObject):
     def _update_notification_action(self) -> None:
         unread = self.notification_repository.unread_count()
         self.notifications_action.setText(
-            (
-                f"Уведомления сборщика ({unread})…"
-                if unread
-                else "Уведомления сборщика…"
-            )
+            (f"Уведомления сборщика ({unread})…" if unread else "Уведомления сборщика…")
         )
 
     def _open_registry_via_parent(self) -> None:

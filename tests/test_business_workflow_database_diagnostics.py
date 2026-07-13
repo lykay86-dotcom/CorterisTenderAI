@@ -27,9 +27,7 @@ def _app() -> QApplication:
 def _page(tmp_path) -> BusinessWorkflowPage:
     backup_service = WorkflowBackupService()
     catalog = WorkflowBackupCatalogService(backup_service)
-    repository = BusinessMetricsRepository(
-        tmp_path / "business_workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     return BusinessWorkflowPage(
         repository=repository,
         backup_service=backup_service,
@@ -49,10 +47,7 @@ def test_data_menu_contains_database_diagnostics(tmp_path) -> None:
     _app()
     page = _page(tmp_path)
 
-    actions = [
-        action.text()
-        for action in page.data_menu.actions()
-    ]
+    actions = [action.text() for action in page.data_menu.actions()]
 
     assert actions[:6] == [
         "Состояние системы…",
@@ -74,10 +69,8 @@ def test_corrupted_database_is_not_auto_backed_up(tmp_path) -> None:
 
     page._check_automatic_backup(force=True)
 
-    automatic_dir = (
-        page.auto_backup_service.backup_directory(
-            page.repository,
-            page.auto_backup_service.load_settings(),
-        )
+    automatic_dir = page.auto_backup_service.backup_directory(
+        page.repository,
+        page.auto_backup_service.load_settings(),
     )
     assert not list(automatic_dir.glob("*.ctbackup"))

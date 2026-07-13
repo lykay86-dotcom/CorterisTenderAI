@@ -40,20 +40,12 @@ class TenderProviderRegistry:
     ) -> None:
         provider_id = provider.descriptor.id.strip()
         if provider_id in self._providers and not replace:
-            raise ValueError(
-                f"Provider already registered: {provider_id}"
-            )
+            raise ValueError(f"Provider already registered: {provider_id}")
 
         effective_enabled = (
-            provider.descriptor.enabled_by_default
-            if enabled is None
-            else bool(enabled)
+            provider.descriptor.enabled_by_default if enabled is None else bool(enabled)
         )
-        effective_priority = (
-            provider.descriptor.priority
-            if priority is None
-            else int(priority)
-        )
+        effective_priority = provider.descriptor.priority if priority is None else int(priority)
         if effective_priority < 0:
             raise ValueError("priority must be non-negative")
 
@@ -67,18 +59,14 @@ class TenderProviderRegistry:
         try:
             entry = self._providers.pop(provider_id)
         except KeyError as exc:
-            raise KeyError(
-                f"Unknown provider: {provider_id}"
-            ) from exc
+            raise KeyError(f"Unknown provider: {provider_id}") from exc
         return entry.provider
 
     def get(self, provider_id: str) -> TenderProvider:
         try:
             return self._providers[provider_id].provider
         except KeyError as exc:
-            raise KeyError(
-                f"Unknown provider: {provider_id}"
-            ) from exc
+            raise KeyError(f"Unknown provider: {provider_id}") from exc
 
     def set_enabled(
         self,
@@ -122,17 +110,10 @@ class TenderProviderRegistry:
         )
 
     def list_enabled(self) -> tuple[TenderProvider, ...]:
-        return tuple(
-            entry.provider
-            for entry in self.list_registered()
-            if entry.enabled
-        )
+        return tuple(entry.provider for entry in self.list_registered() if entry.enabled)
 
     def descriptors(self):
-        return tuple(
-            entry.provider.descriptor
-            for entry in self.list_registered()
-        )
+        return tuple(entry.provider.descriptor for entry in self.list_registered())
 
     def validate_unique_sources(
         self,
@@ -144,19 +125,13 @@ class TenderProviderRegistry:
                 entry.provider.descriptor.source.value,
                 [],
             ).append(entry.id)
-        return {
-            source: tuple(sorted(ids))
-            for source, ids in grouped.items()
-            if len(ids) > 1
-        }
+        return {source: tuple(sorted(ids)) for source, ids in grouped.items() if len(ids) > 1}
 
     def _entry(self, provider_id: str) -> RegisteredProvider:
         try:
             return self._providers[provider_id]
         except KeyError as exc:
-            raise KeyError(
-                f"Unknown provider: {provider_id}"
-            ) from exc
+            raise KeyError(f"Unknown provider: {provider_id}") from exc
 
 
 __all__ = [

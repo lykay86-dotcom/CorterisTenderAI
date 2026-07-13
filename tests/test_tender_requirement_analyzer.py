@@ -51,10 +51,7 @@ def test_analyzer_detects_core_requirements() -> None:
         ),
     )
 
-    assert {
-        item.kind
-        for item in analysis.documents
-    } == {
+    assert {item.kind for item in analysis.documents} == {
         DocumentKind.TECHNICAL_SPECIFICATION,
         DocumentKind.DRAFT_CONTRACT,
     }
@@ -82,14 +79,8 @@ def test_analyzer_reports_missing_core_documents() -> None:
     )
 
     assert len(analysis.missing_documents) == 2
-    assert any(
-        "Техническое задание" in item
-        for item in analysis.missing_documents
-    )
-    assert any(
-        "Проект контракта" in item
-        for item in analysis.missing_documents
-    )
+    assert any("Техническое задание" in item for item in analysis.missing_documents)
+    assert any("Проект контракта" in item for item in analysis.missing_documents)
 
 
 def test_analyzer_marks_state_secret_as_critical_stop_factor() -> None:
@@ -98,18 +89,13 @@ def test_analyzer_marks_state_secret_as_critical_stop_factor() -> None:
         (
             source(
                 "ТЗ.txt",
-                (
-                    "Работы связаны со сведениями, составляющими "
-                    "государственную тайну."
-                ),
+                ("Работы связаны со сведениями, составляющими государственную тайну."),
             ),
         ),
     )
 
     assert len(analysis.stop_factors) == 1
-    assert analysis.stop_factors[0].severity == (
-        FindingSeverity.CRITICAL
-    )
+    assert analysis.stop_factors[0].severity == (FindingSeverity.CRITICAL)
     assert analysis.risk_level == AnalysisRiskLevel.HIGH
 
 
@@ -127,14 +113,9 @@ def test_analyzer_detects_mandatory_sro_as_stop_factor() -> None:
         ),
     )
 
-    assert analysis.findings_for(
-        RequirementCategory.LICENSE
-    )
+    assert analysis.findings_for(RequirementCategory.LICENSE)
     assert analysis.stop_factors
-    assert any(
-        item.pattern_key == "mandatory_sro"
-        for item in analysis.stop_factors
-    )
+    assert any(item.pattern_key == "mandatory_sro" for item in analysis.stop_factors)
 
 
 def test_duplicate_requirement_is_collapsed_per_source() -> None:
@@ -143,10 +124,7 @@ def test_duplicate_requirement_is_collapsed_per_source() -> None:
         (
             source(
                 "Контракт.txt",
-                (
-                    "Обеспечение исполнения контракта 10%. "
-                    "Обеспечение исполнения контракта 10%."
-                ),
+                ("Обеспечение исполнения контракта 10%. Обеспечение исполнения контракта 10%."),
             ),
         ),
     )

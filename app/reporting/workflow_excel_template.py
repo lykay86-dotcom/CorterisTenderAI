@@ -19,32 +19,22 @@ class WorkflowTemplateCopyResult:
 class WorkflowExcelTemplateService:
     """Locate and copy the bundled CORTERIS import template."""
 
-    DEFAULT_FILENAME = (
-        "CORTERIS_Шаблон_массового_импорта.xlsx"
-    )
+    DEFAULT_FILENAME = "CORTERIS_Шаблон_массового_импорта.xlsx"
 
     def __init__(
         self,
         template_path: str | Path | None = None,
     ) -> None:
-        self._explicit_template_path = (
-            Path(template_path)
-            if template_path is not None
-            else None
-        )
+        self._explicit_template_path = Path(template_path) if template_path is not None else None
 
     @property
     def template_path(self) -> Path:
         for candidate in self._candidate_paths():
             if candidate.is_file():
                 return candidate
-        searched = "\n".join(
-            f"• {candidate}"
-            for candidate in self._candidate_paths()
-        )
+        searched = "\n".join(f"• {candidate}" for candidate in self._candidate_paths())
         raise FileNotFoundError(
-            "Не найден встроенный Excel-шаблон импорта.\n"
-            f"Проверенные пути:\n{searched}"
+            f"Не найден встроенный Excel-шаблон импорта.\nПроверенные пути:\n{searched}"
         )
 
     def copy_to(
@@ -71,11 +61,7 @@ class WorkflowExcelTemplateService:
             return (self._explicit_template_path,)
 
         candidates: list[Path] = []
-        relative = (
-            Path("templates")
-            / "workflow"
-            / self.DEFAULT_FILENAME
-        )
+        relative = Path("templates") / "workflow" / self.DEFAULT_FILENAME
 
         # Source checkout.
         project_root = Path(__file__).resolve().parents[2]

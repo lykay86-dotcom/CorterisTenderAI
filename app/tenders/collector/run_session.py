@@ -27,8 +27,7 @@ class _CollectorServiceLike(Protocol):
         provider_ids: Sequence[str] | None = None,
         cancellation_token: CollectorCancellationToken | None = None,
         progress_callback: CollectorProgressCallback | None = None,
-    ) -> CollectorRunResult:
-        ...
+    ) -> CollectorRunResult: ...
 
 
 RuntimeFactory = Callable[[], CollectorNetworkRuntime]
@@ -49,9 +48,7 @@ class CollectorRunSession:
         self.data_directory = Path(data_directory).expanduser()
         self.runtime_factory = runtime_factory
         self.service_factory = service_factory
-        self.include_commercial_catalog = bool(
-            include_commercial_catalog
-        )
+        self.include_commercial_catalog = bool(include_commercial_catalog)
 
     async def run(
         self,
@@ -66,9 +63,7 @@ class CollectorRunSession:
             service = self.service_factory(
                 self.data_directory,
                 runtime,
-                include_commercial_catalog=(
-                    self.include_commercial_catalog
-                ),
+                include_commercial_catalog=(self.include_commercial_catalog),
             )
             return await service.collect(
                 query,

@@ -22,12 +22,8 @@ def _app() -> QApplication:
 def test_workflow_page_exposes_template_button(tmp_path) -> None:
     _app()
     page = BusinessWorkflowPage(
-        repository=BusinessMetricsRepository(
-            tmp_path / "workflow.json"
-        ),
-        excel_template_service=WorkflowExcelTemplateService(
-            tmp_path / "template.xlsx"
-        ),
+        repository=BusinessMetricsRepository(tmp_path / "workflow.json"),
+        excel_template_service=WorkflowExcelTemplateService(tmp_path / "template.xlsx"),
     )
 
     assert page.template_button.text().endswith("Шаблон Excel")

@@ -134,9 +134,7 @@ class CommercialProviderResolvedSettings:
                 "Проверьте договор, условия площадки и право использования API."
             )
         if state == CommercialProviderState.CREDENTIALS_REQUIRED:
-            return (
-                "Доступ подтверждён, но API-ключ или учётные данные не заданы."
-            )
+            return "Доступ подтверждён, но API-ключ или учётные данные не заданы."
         if state == CommercialProviderState.ENDPOINT_REQUIRED:
             return (
                 "Ключ найден, но проверенный API endpoint не настроен. "
@@ -193,9 +191,7 @@ class CommercialSecretResolver:
         environment_variable: str,
         keyring_name: str,
     ) -> str:
-        from_environment = str(
-            self.environment.get(environment_variable, "")
-        ).strip()
+        from_environment = str(self.environment.get(environment_variable, "")).strip()
         if from_environment:
             return from_environment
 
@@ -237,16 +233,10 @@ class CommercialProviderSettingsRepository:
         for provider_id, raw in providers.items():
             if not isinstance(raw, dict):
                 continue
-            result[str(provider_id).strip().casefold()] = (
-                CommercialProviderUserSettings(
-                    enabled=bool(raw.get("enabled", False)),
-                    access_confirmed=bool(
-                        raw.get("access_confirmed", False)
-                    ),
-                    api_base_url=_normalize_api_base_url(
-                        str(raw.get("api_base_url", ""))
-                    ),
-                )
+            result[str(provider_id).strip().casefold()] = CommercialProviderUserSettings(
+                enabled=bool(raw.get("enabled", False)),
+                access_confirmed=bool(raw.get("access_confirmed", False)),
+                api_base_url=_normalize_api_base_url(str(raw.get("api_base_url", ""))),
             )
         return result
 
@@ -261,9 +251,7 @@ class CommercialProviderSettingsRepository:
                 provider_id: {
                     "enabled": value.enabled,
                     "access_confirmed": value.access_confirmed,
-                    "api_base_url": _normalize_api_base_url(
-                        value.api_base_url
-                    ),
+                    "api_base_url": _normalize_api_base_url(value.api_base_url),
                 }
                 for provider_id, value in sorted(settings.items())
             },
@@ -361,9 +349,7 @@ class CommercialProviderCatalog:
         )
 
 
-def default_commercial_provider_definitions() -> tuple[
-    CommercialProviderDefinition, ...
-]:
+def default_commercial_provider_definitions() -> tuple[CommercialProviderDefinition, ...]:
     """Return planned commercial connectors with no assumed API endpoint."""
 
     return (
@@ -441,9 +427,7 @@ def create_commercial_provider_catalog(
     keyring_loader: SecretLoader | None = None,
 ) -> CommercialProviderCatalog:
     repository = (
-        CommercialProviderSettingsRepository(settings_path)
-        if settings_path is not None
-        else None
+        CommercialProviderSettingsRepository(settings_path) if settings_path is not None else None
     )
     resolver = CommercialSecretResolver(
         environment=environment,
@@ -473,13 +457,9 @@ def _definition(
         priority=priority,
         access_requirement=CommercialAccessRequirement.CONTRACT_AND_API,
         enabled_environment_variable=f"CORTERIS_{prefix}_ENABLED",
-        access_confirmed_environment_variable=(
-            f"CORTERIS_{prefix}_ACCESS_CONFIRMED"
-        ),
+        access_confirmed_environment_variable=(f"CORTERIS_{prefix}_ACCESS_CONFIRMED"),
         api_key_environment_variable=f"CORTERIS_{prefix}_API_KEY",
-        api_base_url_environment_variable=(
-            f"CORTERIS_{prefix}_API_BASE_URL"
-        ),
+        api_base_url_environment_variable=(f"CORTERIS_{prefix}_API_BASE_URL"),
         keyring_secret_name=f"collector.{provider_id}.api_key",
     )
 

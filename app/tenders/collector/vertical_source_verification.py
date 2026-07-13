@@ -74,8 +74,7 @@ class VerticalSourceVerification:
         return bool(
             self.live
             and all(
-                stage in by_stage and by_stage[stage].passed
-                for stage in REQUIRED_VERTICAL_STAGES
+                stage in by_stage and by_stage[stage].passed for stage in REQUIRED_VERTICAL_STAGES
             )
         )
 
@@ -122,7 +121,9 @@ class VerticalSourceVerification:
                 )
                 for item in raw_steps
                 if isinstance(item, Mapping)
-            ) if isinstance(raw_steps, (list, tuple)) else (),
+            )
+            if isinstance(raw_steps, (list, tuple))
+            else (),
             error_message=str(payload.get("error_message", "")),
         )
 
@@ -243,16 +244,26 @@ class VerifiedVerticalSourceSmokeService:
                     details, artifact_count = str(output[0]), int(output[1])
                 else:
                     details, artifact_count = str(output or "Этап завершён."), 0
-                steps.append(VerticalSmokeStep(
-                    stage, True, details, artifact_count,
-                    max(0, int((perf_counter() - started) * 1000)),
-                ))
+                steps.append(
+                    VerticalSmokeStep(
+                        stage,
+                        True,
+                        details,
+                        artifact_count,
+                        max(0, int((perf_counter() - started) * 1000)),
+                    )
+                )
             except Exception as exc:
                 error_message = f"{type(exc).__name__}: {exc}"
-                steps.append(VerticalSmokeStep(
-                    stage, False, error_message, 0,
-                    max(0, int((perf_counter() - started) * 1000)),
-                ))
+                steps.append(
+                    VerticalSmokeStep(
+                        stage,
+                        False,
+                        error_message,
+                        0,
+                        max(0, int((perf_counter() - started) * 1000)),
+                    )
+                )
                 break
         all_stages_passed = len(steps) == len(REQUIRED_VERTICAL_STAGES) and all(
             item.passed for item in steps
@@ -286,7 +297,11 @@ def _now() -> str:
 
 
 __all__ = [
-    "REQUIRED_VERTICAL_STAGES", "VerifiedVerticalSourceSmokeService",
-    "VerticalSmokeStage", "VerticalSmokeStep", "VerticalSourceStatus",
-    "VerticalSourceVerification", "VerticalSourceVerificationRepository",
+    "REQUIRED_VERTICAL_STAGES",
+    "VerifiedVerticalSourceSmokeService",
+    "VerticalSmokeStage",
+    "VerticalSmokeStep",
+    "VerticalSourceStatus",
+    "VerticalSourceVerification",
+    "VerticalSourceVerificationRepository",
 ]

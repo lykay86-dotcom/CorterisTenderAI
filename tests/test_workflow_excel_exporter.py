@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 
 from openpyxl import load_workbook
 
@@ -45,9 +44,7 @@ def _record(
         due_date="2026-07-20",
         created_at="2026-07-10T10:00:00",
         updated_at="2026-07-11T12:00:00",
-        archived_at=(
-            "2026-07-11T17:00:00" if archived else ""
-        ),
+        archived_at=("2026-07-11T17:00:00" if archived else ""),
     )
 
 

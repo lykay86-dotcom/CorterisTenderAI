@@ -55,9 +55,7 @@ def tender_to_payload(tender: UnifiedTender) -> dict[str, Any]:
         },
         "source_url": tender.source_url,
         "published_at": _optional_iso(tender.published_at),
-        "application_deadline": _optional_iso(
-            tender.application_deadline
-        ),
+        "application_deadline": _optional_iso(tender.application_deadline),
         "execution_deadline": _optional_iso(tender.execution_deadline),
         "price": (
             {
@@ -104,9 +102,7 @@ def tender_from_payload(payload: Mapping[str, Any]) -> UnifiedTender:
         price = TenderMoney.from_value(
             str(price_payload.get("amount", "0")),
             currency=str(price_payload.get("currency", "RUB")),
-            includes_vat=_optional_bool(
-                price_payload.get("includes_vat")
-            ),
+            includes_vat=_optional_bool(price_payload.get("includes_vat")),
         )
 
     documents: list[TenderDocument] = []
@@ -127,12 +123,8 @@ def tender_from_payload(payload: Mapping[str, Any]) -> UnifiedTender:
                     url=url,
                     mime_type=str(raw.get("mime_type", "")),
                     size_bytes=_optional_int(raw.get("size_bytes")),
-                    published_at=_optional_datetime(
-                        raw.get("published_at")
-                    ),
-                    checksum_sha256=str(
-                        raw.get("checksum_sha256", "")
-                    ),
+                    published_at=_optional_datetime(raw.get("published_at")),
+                    checksum_sha256=str(raw.get("checksum_sha256", "")),
                 )
             )
 
@@ -143,9 +135,7 @@ def tender_from_payload(payload: Mapping[str, Any]) -> UnifiedTender:
     return UnifiedTender(
         source=TenderSource(str(payload.get("source", "custom"))),
         external_id=str(payload.get("external_id", "")),
-        procurement_number=str(
-            payload.get("procurement_number", "")
-        ),
+        procurement_number=str(payload.get("procurement_number", "")),
         title=str(payload.get("title", "")),
         customer=TenderCustomer(
             name=str(customer_payload.get("name", "")),
@@ -156,12 +146,8 @@ def tender_from_payload(payload: Mapping[str, Any]) -> UnifiedTender:
         ),
         source_url=str(payload.get("source_url", "")),
         published_at=_optional_datetime(payload.get("published_at")),
-        application_deadline=_optional_datetime(
-            payload.get("application_deadline")
-        ),
-        execution_deadline=_optional_date(
-            payload.get("execution_deadline")
-        ),
+        application_deadline=_optional_datetime(payload.get("application_deadline")),
+        execution_deadline=_optional_date(payload.get("execution_deadline")),
         price=price,
         status=_enum_or_default(
             TenderStatus,
@@ -177,12 +163,9 @@ def tender_from_payload(payload: Mapping[str, Any]) -> UnifiedTender:
         region=str(payload.get("region", "")),
         description=str(payload.get("description", "")),
         classification_codes=tuple(
-            str(item)
-            for item in (payload.get("classification_codes") or ())
+            str(item) for item in (payload.get("classification_codes") or ())
         ),
-        tags=tuple(
-            str(item) for item in (payload.get("tags") or ())
-        ),
+        tags=tuple(str(item) for item in (payload.get("tags") or ())),
         documents=tuple(documents),
         raw_metadata=dict(raw_metadata),
     )
@@ -196,16 +179,8 @@ def query_to_payload(query: TenderSearchQuery) -> dict[str, Any]:
         "laws": list(query.laws),
         "date_from": _optional_iso(query.date_from),
         "date_to": _optional_iso(query.date_to),
-        "min_price": (
-            str(Decimal(str(query.min_price)))
-            if query.min_price is not None
-            else None
-        ),
-        "max_price": (
-            str(Decimal(str(query.max_price)))
-            if query.max_price is not None
-            else None
-        ),
+        "min_price": (str(Decimal(str(query.min_price))) if query.min_price is not None else None),
+        "max_price": (str(Decimal(str(query.max_price))) if query.max_price is not None else None),
         "price_currency": query.price_currency,
         "page": query.page,
         "page_size": query.page_size,

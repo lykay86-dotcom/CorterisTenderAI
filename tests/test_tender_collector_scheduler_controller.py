@@ -57,9 +57,7 @@ def _app():
 
 def test_scheduler_installs_actions(tmp_path) -> None:
     app = _app()
-    repository = TenderSearchProfileRepository(
-        tmp_path / "profiles.json"
-    )
+    repository = TenderSearchProfileRepository(tmp_path / "profiles.json")
     repository.initialize()
     signals = Signals()
     window = QMainWindow()

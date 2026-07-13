@@ -28,13 +28,9 @@ class FakeRunner:
 
 
 def _runtime(tmp_path) -> TenderSearchRuntime:
-    profiles = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    profiles = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     profiles.initialize()
-    registry = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    registry = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     registry.record_profile_run(
         _run(_evaluated_tender()),
         run_id="run-1",
@@ -64,9 +60,7 @@ def test_controller_installs_registry_menu_action(tmp_path) -> None:
 
     assert menu is not None
     assert controller.registry_action in menu.actions()
-    assert controller.registry_action.objectName() == (
-        "actionTenderRegistry"
-    )
+    assert controller.registry_action.objectName() == ("actionTenderRegistry")
     assert controller.registry_action.isEnabled()
 
     toolbar = controller._tender_toolbar

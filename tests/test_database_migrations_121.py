@@ -52,7 +52,10 @@ def test_migrates_integer_ids_and_audit_columns(tmp_path):
     engine = get_engine()
     columns = {c["name"] for c in inspect(engine).get_columns("tenders")}
     assert {"updated_at", "deleted_at", "is_deleted", "row_version"} <= columns
-    assert "CHAR" in str(inspect(engine).get_columns("tenders")[0]["type"]).upper() or "VARCHAR" in str(inspect(engine).get_columns("tenders")[0]["type"]).upper()
+    assert (
+        "CHAR" in str(inspect(engine).get_columns("tenders")[0]["type"]).upper()
+        or "VARCHAR" in str(inspect(engine).get_columns("tenders")[0]["type"]).upper()
+    )
     rows = TenderRepository().list()
     assert len(rows) == 1
     assert rows[0].title == "Старый тендер"

@@ -121,11 +121,7 @@ class MosSupplierCheckpointCoordinator:
         if self.repository is None or not self.policy.enabled:
             return None
         moment = completed_at or datetime.now(timezone.utc)
-        observed = [
-            item.published_at
-            for item in result.items
-            if item.published_at is not None
-        ]
+        observed = [item.published_at for item in result.items if item.published_at is not None]
         watermark = max(observed, default=moment)
         if watermark.tzinfo is None:
             watermark = watermark.replace(tzinfo=timezone.utc)
@@ -185,9 +181,7 @@ def _parse_watermark(value: str) -> datetime | None:
         parsed = datetime.fromisoformat(rendered.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return parsed if parsed.tzinfo is not None else parsed.replace(
-        tzinfo=timezone.utc
-    )
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
 
 
 __all__ = [

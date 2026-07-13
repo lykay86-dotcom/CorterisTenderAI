@@ -53,9 +53,7 @@ def test_edit_dialog_prefills_and_locks_identity_fields() -> None:
 
 def test_dialog_recalculates_margin_from_total_and_profit() -> None:
     _app()
-    dialog = BusinessRecordDialog(
-        initial_kind=BusinessRecordKind.ESTIMATE
-    )
+    dialog = BusinessRecordDialog(initial_kind=BusinessRecordKind.ESTIMATE)
 
     dialog.total_spin.setValue(800000)
     dialog.profit_spin.setValue(160000)

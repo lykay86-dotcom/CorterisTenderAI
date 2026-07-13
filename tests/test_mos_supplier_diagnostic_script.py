@@ -9,18 +9,12 @@ import sys
 
 
 def test_mos_diagnostic_adds_project_root_before_app_imports() -> None:
-    source = (
-        Path(__file__).parents[1]
-        / "scripts"
-        / "check_mos_supplier_api.py"
-    ).read_text(encoding="utf-8")
+    source = (Path(__file__).parents[1] / "scripts" / "check_mos_supplier_api.py").read_text(
+        encoding="utf-8"
+    )
 
-    bootstrap = (
-        "PROJECT_ROOT = Path(__file__).resolve().parents[1]"
-    )
-    app_import = (
-        "from app.tenders.collector.network_runtime import"
-    )
+    bootstrap = "PROJECT_ROOT = Path(__file__).resolve().parents[1]"
+    app_import = "from app.tenders.collector.network_runtime import"
 
     assert bootstrap in source
     assert source.index(bootstrap) < source.index(app_import)

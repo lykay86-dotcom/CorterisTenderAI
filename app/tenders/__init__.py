@@ -257,7 +257,10 @@ __all__ = [
 ]
 
 from app.tenders.full_analysis import (
-    FullAnalysisProgress, FullAnalysisStage, FullAnalysisStatus,
-    TenderFullAnalysisResult, TenderFullAnalysisService,
+    FullAnalysisProgress,
+    FullAnalysisStage,
+    FullAnalysisStatus,
+    TenderFullAnalysisResult,
+    TenderFullAnalysisService,
 )
 from app.tenders.safe_archive import SafeArchiveExtractor

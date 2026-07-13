@@ -1,4 +1,5 @@
 """Безопасное резервное копирование локальной SQLite."""
+
 from __future__ import annotations
 
 import sqlite3

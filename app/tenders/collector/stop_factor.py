@@ -159,7 +159,9 @@ class StopFactorAssessment:
                 StopFactor.from_payload(dict(item))
                 for item in raw_factors
                 if isinstance(item, dict)
-            ) if isinstance(raw_factors, (list, tuple)) else (),
+            )
+            if isinstance(raw_factors, (list, tuple))
+            else (),
             evaluated_at=str(payload.get("evaluated_at", "")),
             input_fingerprint=str(payload.get("input_fingerprint", "")),
         )
@@ -184,62 +186,72 @@ class StopFactorEngine:
 
         deadline = tender.application_deadline
         if deadline is not None and deadline.astimezone(timezone.utc) <= moment:
-            factors.append(self._factor(
-                StopFactorKind.DEADLINE_EXPIRED,
-                StopFactorStatus.BLOCKED_BY_REQUIREMENT,
-                "Срок подачи заявки истёк",
-                "Подать заявку после официального срока невозможно.",
-                "critical",
-                _card_evidence(
-                    "Срок подачи заявки",
-                    deadline.isoformat(),
-                    1.0,
-                    "Проверить последнюю официальную редакцию извещения; участвовать можно только при продлении срока.",
-                ),
-            ))
+            factors.append(
+                self._factor(
+                    StopFactorKind.DEADLINE_EXPIRED,
+                    StopFactorStatus.BLOCKED_BY_REQUIREMENT,
+                    "Срок подачи заявки истёк",
+                    "Подать заявку после официального срока невозможно.",
+                    "critical",
+                    _card_evidence(
+                        "Срок подачи заявки",
+                        deadline.isoformat(),
+                        1.0,
+                        "Проверить последнюю официальную редакцию извещения; участвовать можно только при продлении срока.",
+                    ),
+                )
+            )
 
         if not self.profile.is_configured:
             missing = ", ".join(self.profile.missing_sections) or "профиль не подтверждён"
-            factors.append(self._factor(
-                StopFactorKind.COMPANY_PROFILE_INCOMPLETE,
-                StopFactorStatus.DATA_INSUFFICIENT,
-                "Недостаточно данных о возможностях компании",
-                missing,
-                "high",
-                StopFactorEvidence(
-                    document="Профиль возможностей компании",
-                    page="не применимо",
-                    section="Обязательные разделы",
-                    quote=missing,
-                    confidence=1.0,
-                    remediation="Заполнить и явно подтвердить профиль компании в интерфейсе.",
-                ),
-            ))
+            factors.append(
+                self._factor(
+                    StopFactorKind.COMPANY_PROFILE_INCOMPLETE,
+                    StopFactorStatus.DATA_INSUFFICIENT,
+                    "Недостаточно данных о возможностях компании",
+                    missing,
+                    "high",
+                    StopFactorEvidence(
+                        document="Профиль возможностей компании",
+                        page="не применимо",
+                        section="Обязательные разделы",
+                        quote=missing,
+                        confidence=1.0,
+                        remediation="Заполнить и явно подтвердить профиль компании в интерфейсе.",
+                    ),
+                )
+            )
 
         if analysis is None:
-            factors.append(self._factor(
-                StopFactorKind.REQUIREMENTS_UNVERIFIED,
-                StopFactorStatus.DATA_INSUFFICIENT,
-                "Критические требования не проверены",
-                "Нет структурированного анализа локальных документов закупки.",
-                "high",
-                StopFactorEvidence(
-                    document="Комплект документов закупки",
-                    page="не определена",
-                    section="Требования к участнику",
-                    quote="Структурированный анализ требований отсутствует.",
-                    confidence=1.0,
-                    remediation="Скачать документы из официального источника и выполнить полный анализ требований.",
-                ),
-            ))
+            factors.append(
+                self._factor(
+                    StopFactorKind.REQUIREMENTS_UNVERIFIED,
+                    StopFactorStatus.DATA_INSUFFICIENT,
+                    "Критические требования не проверены",
+                    "Нет структурированного анализа локальных документов закупки.",
+                    "high",
+                    StopFactorEvidence(
+                        document="Комплект документов закупки",
+                        page="не определена",
+                        section="Требования к участнику",
+                        quote="Структурированный анализ требований отсутствует.",
+                        confidence=1.0,
+                        remediation="Скачать документы из официального источника и выполнить полный анализ требований.",
+                    ),
+                )
+            )
         else:
             factors.extend(self._analysis_factors(analysis, tender))
 
-        profile_terms = normalize_text(" ".join((
-            *self.profile.business_directions,
-            *self.profile.self_performed_directions,
-            *self.profile.subcontracted_directions,
-        )))
+        profile_terms = normalize_text(
+            " ".join(
+                (
+                    *self.profile.business_directions,
+                    *self.profile.self_performed_directions,
+                    *self.profile.subcontracted_directions,
+                )
+            )
+        )
         if self.profile.is_configured and profile_terms:
             tender_text = normalize_text(f"{tender.title} {tender.description}")
             if tender_text and not any(
@@ -247,23 +259,32 @@ class StopFactorEngine:
                 for term in self.profile.business_directions
                 if normalize_text(term)
             ):
-                factors.append(self._factor(
-                    StopFactorKind.DIRECTION_MISMATCH,
-                    StopFactorStatus.CONDITIONAL,
-                    "Направление закупки не подтверждено профилем",
-                    "Предмет закупки не совпал с подтверждёнными направлениями компании.",
-                    "medium",
-                    _card_evidence(
-                        "Предмет закупки",
-                        tender.title or "Наименование отсутствует",
-                        0.75,
-                        "Подтвердить применимое направление или возможность привлечения субподрядчика.",
-                    ),
-                ))
+                factors.append(
+                    self._factor(
+                        StopFactorKind.DIRECTION_MISMATCH,
+                        StopFactorStatus.CONDITIONAL,
+                        "Направление закупки не подтверждено профилем",
+                        "Предмет закупки не совпал с подтверждёнными направлениями компании.",
+                        "medium",
+                        _card_evidence(
+                            "Предмет закупки",
+                            tender.title or "Наименование отсутствует",
+                            0.75,
+                            "Подтвердить применимое направление или возможность привлечения субподрядчика.",
+                        ),
+                    )
+                )
 
         ordered = _deduplicate(factors)
         fingerprint = hashlib.sha256(
-            repr((registry_key, tender.application_deadline, analysis.source_fingerprint if analysis else "", self.profile.to_dict())).encode("utf-8")
+            repr(
+                (
+                    registry_key,
+                    tender.application_deadline,
+                    analysis.source_fingerprint if analysis else "",
+                    self.profile.to_dict(),
+                )
+            ).encode("utf-8")
         ).hexdigest()
         return StopFactorAssessment(
             registry_key=registry_key,
@@ -279,11 +300,15 @@ class StopFactorEngine:
         tender: UnifiedTender,
     ) -> tuple[StopFactor, ...]:
         result: list[StopFactor] = []
-        capabilities = normalize_text(" ".join((
-            *self.profile.licenses,
-            *self.profile.license_work_types,
-            *self.profile.sro_memberships,
-        )))
+        capabilities = normalize_text(
+            " ".join(
+                (
+                    *self.profile.licenses,
+                    *self.profile.license_work_types,
+                    *self.profile.sro_memberships,
+                )
+            )
+        )
         for finding in analysis.stop_factors:
             required = _required_capability(finding.pattern_key)
             if required and required in capabilities:
@@ -295,12 +320,14 @@ class StopFactorEngine:
                 if "license" in finding.pattern_key or "mchs" in finding.pattern_key
                 else StopFactorKind.REQUIREMENT_BLOCK
             )
-            result.append(self._from_finding(
-                finding,
-                kind,
-                StopFactorStatus.BLOCKED_BY_REQUIREMENT,
-                "Подтвердить соответствие требованию документом либо отказаться от участия.",
-            ))
+            result.append(
+                self._from_finding(
+                    finding,
+                    kind,
+                    StopFactorStatus.BLOCKED_BY_REQUIREMENT,
+                    "Подтвердить соответствие требованию документом либо отказаться от участия.",
+                )
+            )
 
         for finding in analysis.license_requirements:
             required = _required_capability(finding.pattern_key)
@@ -310,26 +337,32 @@ class StopFactorEngine:
                     if finding.severity == FindingSeverity.CRITICAL
                     else StopFactorStatus.CONDITIONAL
                 )
-                result.append(self._from_finding(
-                    finding,
-                    StopFactorKind.REQUIRED_SRO_MISSING if "sro" in finding.pattern_key else StopFactorKind.REQUIRED_LICENSE_MISSING,
-                    status,
-                    "Добавить подтверждающий документ в профиль или проверить допустимость привлечения партнёра.",
-                ))
+                result.append(
+                    self._from_finding(
+                        finding,
+                        StopFactorKind.REQUIRED_SRO_MISSING
+                        if "sro" in finding.pattern_key
+                        else StopFactorKind.REQUIRED_LICENSE_MISSING,
+                        status,
+                        "Добавить подтверждающий документ в профиль или проверить допустимость привлечения партнёра.",
+                    )
+                )
 
         if analysis.experience_requirements:
             for finding in analysis.experience_requirements:
                 confirmed = bool(self.profile.confirmed_experience)
-                result.append(self._from_finding(
-                    finding,
-                    StopFactorKind.REQUIRED_EXPERIENCE_UNCONFIRMED,
-                    StopFactorStatus.CONDITIONAL,
-                    (
-                        "Сопоставить требование с подтверждённым опытом и приложить документы исполнения."
-                        if confirmed
-                        else "Добавить исполненные контракты в профиль и приложить подтверждение опыта."
-                    ),
-                ))
+                result.append(
+                    self._from_finding(
+                        finding,
+                        StopFactorKind.REQUIRED_EXPERIENCE_UNCONFIRMED,
+                        StopFactorStatus.CONDITIONAL,
+                        (
+                            "Сопоставить требование с подтверждённым опытом и приложить документы исполнения."
+                            if confirmed
+                            else "Добавить исполненные контракты в профиль и приложить подтверждение опыта."
+                        ),
+                    )
+                )
 
         for finding in analysis.security_requirements:
             limit = (
@@ -345,45 +378,60 @@ class StopFactorEngine:
                     StopFactorStatus.BLOCKED_BY_REQUIREMENT,
                     "Увеличить подтверждённый лимит обеспечения или получить банковскую гарантию.",
                 )
-                result.append(StopFactor(
-                    factor.factor_id,
-                    factor.kind,
-                    factor.status,
-                    factor.title,
-                    f"Требуется {required_amount}; подтверждённый лимит {limit}.",
-                    factor.criticality,
-                    factor.evidence,
-                ))
+                result.append(
+                    StopFactor(
+                        factor.factor_id,
+                        factor.kind,
+                        factor.status,
+                        factor.title,
+                        f"Требуется {required_amount}; подтверждённый лимит {limit}.",
+                        factor.criticality,
+                        factor.evidence,
+                    )
+                )
             elif required_amount is not None and limit is None:
-                result.append(self._from_finding(
-                    finding,
-                    StopFactorKind.SECURITY_CAPACITY_EXCEEDED,
-                    StopFactorStatus.DATA_INSUFFICIENT,
-                    "Указать подтверждённый лимит обеспечения в профиле компании.",
-                ))
+                result.append(
+                    self._from_finding(
+                        finding,
+                        StopFactorKind.SECURITY_CAPACITY_EXCEEDED,
+                        StopFactorStatus.DATA_INSUFFICIENT,
+                        "Указать подтверждённый лимит обеспечения в профиле компании.",
+                    )
+                )
 
         if analysis.missing_documents:
             missing = ", ".join(analysis.missing_documents)
-            result.append(self._factor(
-                StopFactorKind.DOCUMENTS_MISSING,
-                StopFactorStatus.DATA_INSUFFICIENT,
-                "Комплект документов неполный",
-                missing,
-                "high",
-                StopFactorEvidence(
-                    document="Комплект документов закупки",
-                    page="не определена",
-                    section="Полнота комплекта",
-                    quote=missing,
-                    confidence=1.0,
-                    remediation="Получить недостающие документы из официального источника и повторить анализ.",
-                ),
-            ))
+            result.append(
+                self._factor(
+                    StopFactorKind.DOCUMENTS_MISSING,
+                    StopFactorStatus.DATA_INSUFFICIENT,
+                    "Комплект документов неполный",
+                    missing,
+                    "high",
+                    StopFactorEvidence(
+                        document="Комплект документов закупки",
+                        page="не определена",
+                        section="Полнота комплекта",
+                        quote=missing,
+                        confidence=1.0,
+                        remediation="Получить недостающие документы из официального источника и повторить анализ.",
+                    ),
+                )
+            )
         return _deduplicate(result)
 
-    def _from_finding(self, finding: RequirementFinding, kind: StopFactorKind, status: StopFactorStatus, remediation: str) -> StopFactor:
+    def _from_finding(
+        self,
+        finding: RequirementFinding,
+        kind: StopFactorKind,
+        status: StopFactorStatus,
+        remediation: str,
+    ) -> StopFactor:
         return self._factor(
-            kind, status, finding.title, finding.value or finding.snippet,
+            kind,
+            status,
+            finding.title,
+            finding.value or finding.snippet,
             finding.severity.value,
             StopFactorEvidence(
                 document=finding.source_name,
@@ -396,15 +444,28 @@ class StopFactorEngine:
         )
 
     @staticmethod
-    def _factor(kind: StopFactorKind, status: StopFactorStatus, title: str, description: str, criticality: str, evidence: StopFactorEvidence) -> StopFactor:
+    def _factor(
+        kind: StopFactorKind,
+        status: StopFactorStatus,
+        title: str,
+        description: str,
+        criticality: str,
+        evidence: StopFactorEvidence,
+    ) -> StopFactor:
         identity = hashlib.sha256(
-            repr((kind.value, status.value, title, evidence.document, evidence.quote)).encode("utf-8")
+            repr((kind.value, status.value, title, evidence.document, evidence.quote)).encode(
+                "utf-8"
+            )
         ).hexdigest()[:24]
         return StopFactor(identity, kind, status, title, description, criticality, evidence)
 
 
-def _card_evidence(section: str, quote: str, confidence: float, remediation: str) -> StopFactorEvidence:
-    return StopFactorEvidence("Карточка закупки", "не применимо", section, quote, confidence, remediation)
+def _card_evidence(
+    section: str, quote: str, confidence: float, remediation: str
+) -> StopFactorEvidence:
+    return StopFactorEvidence(
+        "Карточка закупки", "не применимо", section, quote, confidence, remediation
+    )
 
 
 def _page_from_snippet(snippet: str) -> str:
@@ -458,6 +519,10 @@ def _deduplicate(factors: Iterable[StopFactor]) -> tuple[StopFactor, ...]:
 
 
 __all__ = [
-    "StopFactor", "StopFactorAssessment", "StopFactorEngine",
-    "StopFactorEvidence", "StopFactorKind", "StopFactorStatus",
+    "StopFactor",
+    "StopFactorAssessment",
+    "StopFactorEngine",
+    "StopFactorEvidence",
+    "StopFactorKind",
+    "StopFactorStatus",
 ]

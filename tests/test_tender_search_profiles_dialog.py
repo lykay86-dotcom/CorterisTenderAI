@@ -25,13 +25,11 @@ def _app() -> QApplication:
 
 
 def _repository(tmp_path) -> TenderSearchProfileRepository:
-    return TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    return TenderSearchProfileRepository(tmp_path / "search_profiles.json")
 
 
 def test_panel_initializes_builtin_profile_list(tmp_path) -> None:
-    app = _app()
+    _application = _app()
     repository = _repository(tmp_path)
 
     panel = TenderSearchProfilesPanel(repository)
@@ -42,7 +40,7 @@ def test_panel_initializes_builtin_profile_list(tmp_path) -> None:
 
 
 def test_panel_creates_and_saves_custom_copy(tmp_path) -> None:
-    app = _app()
+    _application = _app()
     repository = _repository(tmp_path)
     panel = TenderSearchProfilesPanel(repository)
 
@@ -58,7 +56,7 @@ def test_panel_creates_and_saves_custom_copy(tmp_path) -> None:
 
 
 def test_panel_blocks_builtin_delete_without_modal(tmp_path) -> None:
-    app = _app()
+    _application = _app()
     repository = _repository(tmp_path)
     panel = TenderSearchProfilesPanel(repository)
 
@@ -70,7 +68,7 @@ def test_panel_blocks_builtin_delete_without_modal(tmp_path) -> None:
 
 
 def test_panel_toggle_and_run_signal(tmp_path) -> None:
-    app = _app()
+    _application = _app()
     repository = _repository(tmp_path)
     panel = TenderSearchProfilesPanel(repository)
     requested: list[str] = []
@@ -88,7 +86,7 @@ def test_panel_toggle_and_run_signal(tmp_path) -> None:
 
 
 def test_restore_builtins_preserves_custom_profiles(tmp_path) -> None:
-    app = _app()
+    _application = _app()
     repository = _repository(tmp_path)
     repository.initialize()
 
@@ -106,16 +104,12 @@ def test_restore_builtins_preserves_custom_profiles(tmp_path) -> None:
     panel = TenderSearchProfilesPanel(repository)
     panel._restore_builtins()
 
-    assert repository.get("all-corteris").name == (
-        "Все направления Кортерис"
-    )
-    assert repository.get("custom-preserved").name == (
-        "Сохранить меня"
-    )
+    assert repository.get("all-corteris").name == ("Все направления Кортерис")
+    assert repository.get("custom-preserved").name == ("Сохранить меня")
 
 
 def test_dialog_forwards_run_signal(tmp_path) -> None:
-    app = _app()
+    _application = _app()
     repository = _repository(tmp_path)
     dialog = TenderSearchProfilesDialog(repository)
     requested: list[str] = []

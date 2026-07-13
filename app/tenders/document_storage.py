@@ -81,10 +81,7 @@ class TenderDocumentDownloadResult:
 
     @property
     def downloaded_count(self) -> int:
-        return sum(
-            item.status == DocumentDownloadStatus.DOWNLOADED
-            for item in self.documents
-        )
+        return sum(item.status == DocumentDownloadStatus.DOWNLOADED for item in self.documents)
 
     @property
     def reused_count(self) -> int:
@@ -99,10 +96,7 @@ class TenderDocumentDownloadResult:
 
     @property
     def failed_count(self) -> int:
-        return sum(
-            item.status == DocumentDownloadStatus.FAILED
-            for item in self.documents
-        )
+        return sum(item.status == DocumentDownloadStatus.FAILED for item in self.documents)
 
     @property
     def total_count(self) -> int:
@@ -250,9 +244,7 @@ class TenderDocumentStore:
                 f"HTTP {response.status_code} при скачивании документа"
             )
         if not response.body:
-            raise TenderDocumentDownloadError(
-                "Сервер вернул пустой файл документа"
-            )
+            raise TenderDocumentDownloadError("Сервер вернул пустой файл документа")
         if _looks_like_html(response):
             raise TenderDocumentDownloadError(
                 "Вместо файла получена HTML-страница проверки доступа"
@@ -261,9 +253,7 @@ class TenderDocumentStore:
         checksum = hashlib.sha256(response.body).hexdigest()
         expected_checksum = document.checksum_sha256.strip().casefold()
         if expected_checksum and expected_checksum != checksum:
-            raise TenderDocumentDownloadError(
-                "Контрольная сумма документа не совпадает"
-            )
+            raise TenderDocumentDownloadError("Контрольная сумма документа не совпадает")
 
         moment = _utc_iso(downloaded_at)
         registry_key = tender_registry_key(tender)
@@ -284,12 +274,8 @@ class TenderDocumentStore:
                 or mimetypes.guess_type(filename)[0]
                 or "application/octet-stream"
             )
-            relative_blob = blob_path.relative_to(
-                self.root_directory
-            ).as_posix()
-            relative_target = target_path.relative_to(
-                self.root_directory
-            ).as_posix()
+            relative_blob = blob_path.relative_to(self.root_directory).as_posix()
+            relative_target = target_path.relative_to(self.root_directory).as_posix()
             document_key = _document_key(registry_key, document.url)
 
             self.initialize()
@@ -527,11 +513,7 @@ class TenderDocumentStore:
         row: sqlite3.Row,
     ) -> StoredTenderDocument:
         relative = str(row["relative_path"] or "")
-        local_path = (
-            self.root_directory / Path(relative)
-            if relative
-            else None
-        )
+        local_path = self.root_directory / Path(relative) if relative else None
         status_raw = str(row["status"])
         try:
             status = DocumentDownloadStatus(status_raw)
@@ -594,8 +576,7 @@ class TenderDocumentDownloadService:
         http_transport: HttpTransport | None = None,
         timeout_seconds: float = 45.0,
         user_agent: str = (
-            "CorterisTenderAI/1.5.1 "
-            "(+https://corteris.ru; tender document download)"
+            "CorterisTenderAI/1.5.1 (+https://corteris.ru; tender document download)"
         ),
     ) -> None:
         if timeout_seconds <= 0:
@@ -622,12 +603,8 @@ class TenderDocumentDownloadService:
 
         if refresh_catalog or not documents:
             try:
-                provider = self.provider_registry.get(
-                    tender.source.value
-                )
-                documents = tuple(
-                    provider.list_documents(tender.external_id)
-                )
+                provider = self.provider_registry.get(tender.source.value)
+                documents = tuple(provider.list_documents(tender.external_id))
             except (
                 KeyError,
                 ProviderCapabilityError,
@@ -637,10 +614,7 @@ class TenderDocumentDownloadService:
                 if not documents:
                     catalog_warning = str(exc)
                 else:
-                    catalog_warning = (
-                        "Не удалось обновить список документов: "
-                        f"{exc}"
-                    )
+                    catalog_warning = f"Не удалось обновить список документов: {exc}"
 
         results: list[StoredTenderDocument] = []
         unique_documents = _unique_documents(documents)
@@ -661,8 +635,7 @@ class TenderDocumentDownloadService:
                     headers={
                         "User-Agent": self.user_agent,
                         "Accept": (
-                            "application/pdf,application/zip,"
-                            "application/octet-stream,*/*;q=0.8"
+                            "application/pdf,application/zip,application/octet-stream,*/*;q=0.8"
                         ),
                     },
                     timeout_seconds=self.timeout_seconds,

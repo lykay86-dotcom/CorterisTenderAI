@@ -38,9 +38,7 @@ class TenderCollectorNotificationsDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self._theme = ThemeName(theme)
-        self.setWindowTitle(
-            "Уведомления Tender Collector"
-        )
+        self.setWindowTitle("Уведомления Tender Collector")
         self.resize(880, 520)
 
         root = QVBoxLayout(self)
@@ -51,16 +49,10 @@ class TenderCollectorNotificationsDialog(QDialog):
 
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(
-            ("Дата", "Тип", "Событие", "Сообщение")
-        )
+        self.table.setHorizontalHeaderLabels(("Дата", "Тип", "Событие", "Сообщение"))
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setStretchLastSection(
-            True
-        )
-        self.table.setEditTriggers(
-            QTableWidget.EditTrigger.NoEditTriggers
-        )
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         root.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
@@ -79,19 +71,13 @@ class TenderCollectorNotificationsDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
         root.addLayout(actions)
 
-        self.read_button.clicked.connect(
-            self.mark_all_read_requested.emit
-        )
-        self.registry_button.clicked.connect(
-            self.registry_requested.emit
-        )
+        self.read_button.clicked.connect(self.mark_all_read_requested.emit)
+        self.registry_button.clicked.connect(self.registry_requested.emit)
         self.apply_theme(self._theme)
 
     def set_notifications(
@@ -104,20 +90,14 @@ class TenderCollectorNotificationsDialog(QDialog):
             self.table.setItem(
                 row,
                 0,
-                QTableWidgetItem(
-                    _format_time(item.created_at)
-                ),
+                QTableWidgetItem(_format_time(item.created_at)),
             )
             self.table.setItem(
                 row,
                 1,
                 QTableWidgetItem(item.kind.value),
             )
-            title = (
-                item.title
-                if not item.read
-                else f"{item.title} · прочитано"
-            )
+            title = item.title if not item.read else f"{item.title} · прочитано"
             self.table.setItem(
                 row,
                 2,
@@ -164,14 +144,10 @@ class TenderCollectorNotificationsDialog(QDialog):
 
 def _format_time(value: str) -> str:
     try:
-        parsed = datetime.fromisoformat(
-            value.replace("Z", "+00:00")
-        )
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return value
-    return parsed.astimezone().strftime(
-        "%d.%m.%Y %H:%M"
-    )
+    return parsed.astimezone().strftime("%d.%m.%Y %H:%M")
 
 
 __all__ = ["TenderCollectorNotificationsDialog"]

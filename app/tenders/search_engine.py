@@ -24,7 +24,6 @@ from app.tenders.models import (
 from app.tenders.provider_base import (
     ProviderCapabilityError,
     ProviderNotConfiguredError,
-    TenderProvider,
     TenderProviderError,
     TenderSearchQuery,
     TenderSearchResult,
@@ -78,11 +77,7 @@ class AggregatedTenderSearchResult:
 
     @property
     def successful_provider_ids(self) -> tuple[str, ...]:
-        return tuple(
-            outcome.provider_id
-            for outcome in self.outcomes
-            if outcome.successful
-        )
+        return tuple(outcome.provider_id for outcome in self.outcomes if outcome.successful)
 
     @property
     def failed_provider_ids(self) -> tuple[str, ...]:
@@ -151,10 +146,7 @@ class TenderSearchEngine:
         if parallel and entries:
             executions = self._search_parallel(entries, query)
         else:
-            executions = tuple(
-                self._execute_provider(entry, query)
-                for entry in entries
-            )
+            executions = tuple(self._execute_provider(entry, query) for entry in entries)
 
         raw_items: list[UnifiedTender] = []
         outcomes: list[ProviderSearchOutcome] = []
@@ -165,10 +157,7 @@ class TenderSearchEngine:
 
         merged_items = self._deduplicate(
             raw_items,
-            provider_priorities={
-                entry.id: entry.priority
-                for entry in entries
-            },
+            provider_priorities={entry.id: entry.priority for entry in entries},
         )
 
         completed = datetime.now()
@@ -183,10 +172,7 @@ class TenderSearchEngine:
             duplicate_count=len(raw_items) - len(merged_items),
             provider_count=len(entries),
             completed_provider_count=sum(
-                1
-                for outcome in outcomes
-                if outcome.status
-                != ProviderSearchStatus.TIMED_OUT
+                1 for outcome in outcomes if outcome.status != ProviderSearchStatus.TIMED_OUT
             ),
             started_at=started.isoformat(timespec="seconds"),
             completed_at=completed.isoformat(timespec="seconds"),
@@ -230,9 +216,7 @@ class TenderSearchEngine:
                     result=None,
                     outcome=ProviderSearchOutcome(
                         provider_id=entry.id,
-                        display_name=(
-                            entry.provider.descriptor.display_name
-                        ),
+                        display_name=(entry.provider.descriptor.display_name),
                         status=ProviderSearchStatus.FAILED,
                         elapsed_ms=0,
                         error_type=type(exc).__name__,
@@ -248,25 +232,17 @@ class TenderSearchEngine:
                 result=None,
                 outcome=ProviderSearchOutcome(
                     provider_id=entry.id,
-                    display_name=(
-                        entry.provider.descriptor.display_name
-                    ),
+                    display_name=(entry.provider.descriptor.display_name),
                     status=ProviderSearchStatus.TIMED_OUT,
                     elapsed_ms=int(self.timeout_seconds * 1000),
                     error_type="TimeoutError",
-                    error_message=(
-                        "Провайдер не завершил поиск за "
-                        f"{self.timeout_seconds:g} сек."
-                    ),
+                    error_message=(f"Провайдер не завершил поиск за {self.timeout_seconds:g} сек."),
                 ),
             )
 
         executor.shutdown(wait=False, cancel_futures=True)
 
-        return tuple(
-            execution_by_id[entry.id]
-            for entry in entries
-        )
+        return tuple(execution_by_id[entry.id] for entry in entries)
 
     @staticmethod
     def _execute_provider(
@@ -332,11 +308,7 @@ class TenderSearchEngine:
                 ),
             )
 
-        status = (
-            ProviderSearchStatus.SUCCESS
-            if result.items
-            else ProviderSearchStatus.EMPTY
-        )
+        status = ProviderSearchStatus.SUCCESS if result.items else ProviderSearchStatus.EMPTY
         return _ProviderExecution(
             entry=entry,
             result=result,
@@ -359,40 +331,23 @@ class TenderSearchEngine:
         registered = self.registry.list_registered()
 
         if provider_ids is None:
-            return tuple(
-                entry
-                for entry in registered
-                if include_disabled or entry.enabled
-            )
+            return tuple(entry for entry in registered if include_disabled or entry.enabled)
 
         requested = tuple(
             dict.fromkeys(
-                provider_id.strip()
-                for provider_id in provider_ids
-                if provider_id.strip()
+                provider_id.strip() for provider_id in provider_ids if provider_id.strip()
             )
         )
-        registered_by_id = {
-            entry.id: entry
-            for entry in registered
-        }
-        unknown = [
-            provider_id
-            for provider_id in requested
-            if provider_id not in registered_by_id
-        ]
+        registered_by_id = {entry.id: entry for entry in registered}
+        unknown = [provider_id for provider_id in requested if provider_id not in registered_by_id]
         if unknown:
-            raise KeyError(
-                "Unknown tender providers: "
-                + ", ".join(unknown)
-            )
+            raise KeyError("Unknown tender providers: " + ", ".join(unknown))
 
         requested_set = set(requested)
         return tuple(
             entry
             for entry in registered
-            if entry.id in requested_set
-            and (include_disabled or entry.enabled)
+            if entry.id in requested_set and (include_disabled or entry.enabled)
         )
 
     @classmethod
@@ -423,10 +378,7 @@ class TenderSearchEngine:
                 provider_priorities=provider_priorities,
             )
 
-        return [
-            merged_by_cross_key[key]
-            for key in order
-        ]
+        return [merged_by_cross_key[key] for key in order]
 
     @classmethod
     def _merge_tenders(
@@ -490,18 +442,9 @@ class TenderSearchEngine:
                 secondary.customer,
             ),
             source_url=primary.source_url,
-            published_at=(
-                primary.published_at
-                or secondary.published_at
-            ),
-            application_deadline=(
-                primary.application_deadline
-                or secondary.application_deadline
-            ),
-            execution_deadline=(
-                primary.execution_deadline
-                or secondary.execution_deadline
-            ),
+            published_at=(primary.published_at or secondary.published_at),
+            application_deadline=(primary.application_deadline or secondary.application_deadline),
+            execution_deadline=(primary.execution_deadline or secondary.execution_deadline),
             price=cls._merge_money(
                 primary.price,
                 secondary.price,
@@ -529,9 +472,7 @@ class TenderSearchEngine:
                     *secondary.classification_codes,
                 )
             ),
-            tags=_ordered_unique(
-                (*primary.tags, *secondary.tags)
-            ),
+            tags=_ordered_unique((*primary.tags, *secondary.tags)),
             documents=cls._merge_documents(
                 primary.documents,
                 secondary.documents,
@@ -557,19 +498,11 @@ class TenderSearchEngine:
         )
 
         if left_priority != right_priority:
-            return (
-                (left, right)
-                if left_priority < right_priority
-                else (right, left)
-            )
+            return (left, right) if left_priority < right_priority else (right, left)
 
         left_score = cls._richness_score(left)
         right_score = cls._richness_score(right)
-        return (
-            (left, right)
-            if left_score >= right_score
-            else (right, left)
-        )
+        return (left, right) if left_score >= right_score else (right, left)
 
     @staticmethod
     def _richness_score(item: UnifiedTender) -> int:
@@ -614,21 +547,13 @@ class TenderSearchEngine:
         if secondary is None:
             return primary
 
-        if (
-            primary.amount == 0
-            and secondary.amount > 0
-        ):
+        if primary.amount == 0 and secondary.amount > 0:
             return secondary
         return TenderMoney(
             amount=primary.amount,
-            currency=(
-                primary.currency
-                or secondary.currency
-            ),
+            currency=(primary.currency or secondary.currency),
             includes_vat=(
-                primary.includes_vat
-                if primary.includes_vat is not None
-                else secondary.includes_vat
+                primary.includes_vat if primary.includes_vat is not None else secondary.includes_vat
             ),
         )
 

@@ -36,9 +36,7 @@ def _record(
         title=f"КП {record_id}",
         status=BusinessStatus.READY.value,
         updated_at="2026-07-11T12:00:00",
-        archived_at=(
-            "2026-07-11T13:00:00" if archived else ""
-        ),
+        archived_at=("2026-07-11T13:00:00" if archived else ""),
     )
 
 

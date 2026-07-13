@@ -24,9 +24,7 @@ def _save(repository, tender, run_id: str):
         provider_ids=(tender.source.value,),
     )
     deduplicated = TenderDeduplicator().deduplicate((tender,))
-    verifier = TenderVerificationService(
-        history_loader=repository.get_verification_history
-    )
+    verifier = TenderVerificationService(history_loader=repository.get_verification_history)
     verification = verifier.verify(
         deduplicated,
         observed_at=f"2026-07-12T{10 + int(run_id[-1])}:00:00+00:00",
@@ -56,9 +54,7 @@ def test_current_schema_contains_review_and_freshness_tables(tmp_path) -> None:
         )
         tables = {
             row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
 
     assert version == COLLECTOR_SCHEMA_VERSION == 13
@@ -77,9 +73,7 @@ def test_current_schema_contains_review_and_freshness_tables(tmp_path) -> None:
 
 
 def test_provenance_conflict_and_state_are_persisted(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     repository.start_run(TenderSearchQuery(), run_id="run-1")
     eis = make_tender(
         source=TenderSource.EIS,
@@ -92,9 +86,7 @@ def test_provenance_conflict_and_state_are_persisted(tmp_path) -> None:
         amount="1900000.00",
         raw_metadata={"aggregator": True},
     )
-    deduplicated = TenderDeduplicator().deduplicate(
-        (eis, aggregator)
-    )
+    deduplicated = TenderDeduplicator().deduplicate((eis, aggregator))
     verification = TenderVerificationService().verify(
         deduplicated,
         observed_at="2026-07-12T12:00:00+00:00",
@@ -126,9 +118,7 @@ def test_provenance_conflict_and_state_are_persisted(tmp_path) -> None:
 def test_previous_official_value_is_not_downgraded_by_aggregator(
     tmp_path,
 ) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     official = make_tender(
         source=TenderSource.EIS,
         external_id="official-1",
@@ -157,9 +147,7 @@ def test_previous_official_value_is_not_downgraded_by_aggregator(
     )
     second, _ = _save(repository, aggregator, "run-2")
     selected_tender = second.deduplication.items[0].tender
-    history = repository.get_verification_history(
-        second.deduplication.items[0]
-    )
+    history = repository.get_verification_history(second.deduplication.items[0])
 
     assert str(selected_tender.price.amount) == "1500000.00"
     assert selected_tender.application_deadline == official.application_deadline
@@ -171,12 +159,6 @@ def test_previous_official_value_is_not_downgraded_by_aggregator(
     assert str(record.price_amount) == "1500000.00"
     assert history is not None
     assert history.registry_key == key
-    assert history.selected_candidates["price"].trust_level == (
-        SourceTrustLevel.EIS
-    )
-    assert history.selected_candidates[
-        "application_deadline"
-    ].trust_level == SourceTrustLevel.EIS
-    assert history.selected_candidates["status"].trust_level == (
-        SourceTrustLevel.EIS
-    )
+    assert history.selected_candidates["price"].trust_level == (SourceTrustLevel.EIS)
+    assert history.selected_candidates["application_deadline"].trust_level == SourceTrustLevel.EIS
+    assert history.selected_candidates["status"].trust_level == (SourceTrustLevel.EIS)

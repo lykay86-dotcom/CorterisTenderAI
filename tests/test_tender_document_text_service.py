@@ -54,9 +54,7 @@ def test_service_persists_and_reuses_text(tmp_path) -> None:
     assert second.status == TextExtractionStatus.REUSED
     assert first.text_path is not None
     assert first.text_path.is_file()
-    assert service.read_text(first) == (
-        "Монтаж системы видеонаблюдения"
-    )
+    assert service.read_text(first) == ("Монтаж системы видеонаблюдения")
 
 
 def test_service_reextracts_changed_document(tmp_path) -> None:

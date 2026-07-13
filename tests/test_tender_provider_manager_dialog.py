@@ -60,15 +60,11 @@ def test_dialog_renders_sources_and_emits_switch() -> None:
     dialog = TenderProviderManagerDialog(_states())
     changes: list[tuple[str, bool]] = []
     dialog.provider_enabled_changed.connect(
-        lambda provider_id, enabled: changes.append(
-            (provider_id, enabled)
-        )
+        lambda provider_id, enabled: changes.append((provider_id, enabled))
     )
 
     item = dialog.table.item(1, 0)
-    item.setCheckState(
-        __import__("PySide6").QtCore.Qt.CheckState.Checked
-    )
+    item.setCheckState(__import__("PySide6").QtCore.Qt.CheckState.Checked)
 
     assert dialog.table.rowCount() == 2
     assert changes == [("mos_supplier", True)]

@@ -27,12 +27,8 @@ from app.tenders.providers.mos_supplier_api import (
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
-SEARCH_BODY = (
-    FIXTURES / "mos_supplier_search_documented_contract.json"
-).read_bytes()
-CARD_BODY = (
-    FIXTURES / "mos_supplier_card_documented_contract.json"
-).read_bytes()
+SEARCH_BODY = (FIXTURES / "mos_supplier_search_documented_contract.json").read_bytes()
+CARD_BODY = (FIXTURES / "mos_supplier_card_documented_contract.json").read_bytes()
 
 
 def _client(handler):

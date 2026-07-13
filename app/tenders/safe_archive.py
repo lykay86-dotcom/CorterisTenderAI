@@ -74,9 +74,26 @@ class SafeArchiveExtractor:
 
     ARCHIVE_SUFFIXES = {".zip", ".rar", ".7z"}
     BLOCKED_SUFFIXES = {
-        ".exe", ".dll", ".com", ".bat", ".cmd", ".ps1", ".psm1",
-        ".vbs", ".vbe", ".js", ".jse", ".msi", ".msp", ".scr",
-        ".cpl", ".jar", ".lnk", ".hta", ".reg", ".sys",
+        ".exe",
+        ".dll",
+        ".com",
+        ".bat",
+        ".cmd",
+        ".ps1",
+        ".psm1",
+        ".vbs",
+        ".vbe",
+        ".js",
+        ".jse",
+        ".msi",
+        ".msp",
+        ".scr",
+        ".cpl",
+        ".jar",
+        ".lnk",
+        ".hta",
+        ".reg",
+        ".sys",
     }
 
     def __init__(
@@ -146,9 +163,7 @@ class SafeArchiveExtractor:
         state: _ExtractionState,
     ) -> None:
         if depth > self.max_depth:
-            state.warnings.append(
-                f"Превышена глубина вложенности архива: {archive_path.name}"
-            )
+            state.warnings.append(f"Превышена глубина вложенности архива: {archive_path.name}")
             return
         try:
             archive = ZipFile(archive_path)
@@ -167,9 +182,7 @@ class SafeArchiveExtractor:
                     continue
                 state.entry_count += 1
                 if state.entry_count > self.max_entries:
-                    raise UnsafeArchiveError(
-                        f"Архив содержит более {self.max_entries} файлов"
-                    )
+                    raise UnsafeArchiveError(f"Архив содержит более {self.max_entries} файлов")
                 safe_relative, reason = _safe_member_path(info.filename)
                 if safe_relative is None:
                     state.members.append(
@@ -260,9 +273,7 @@ class SafeArchiveExtractor:
                                     "Файл превысил допустимый размер во время распаковки"
                                 )
                             if state.total_bytes + written > self.max_total_bytes:
-                                raise UnsafeArchiveError(
-                                    "Превышен общий лимит распаковки"
-                                )
+                                raise UnsafeArchiveError("Превышен общий лимит распаковки")
                             output.write(chunk)
                     os.replace(temporary, target)
                 except Exception as exc:
@@ -343,10 +354,7 @@ def _is_symlink(info: ZipInfo) -> bool:
 
 
 def _safe_component(value: str) -> str:
-    rendered = "".join(
-        "_" if char in '<>:"/\\|?*' or ord(char) < 32 else char
-        for char in value
-    )
+    rendered = "".join("_" if char in '<>:"/\\|?*' or ord(char) < 32 else char for char in value)
     rendered = " ".join(rendered.split()).strip(" .")
     return (rendered or "file")[:160]
 

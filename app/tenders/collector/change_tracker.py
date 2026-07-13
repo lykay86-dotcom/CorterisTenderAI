@@ -126,10 +126,7 @@ class TenderChangeTracker:
 
         if old.application_deadline != new.application_deadline:
             change_type = TenderChangeType.METADATA_CHANGED
-            if (
-                old.application_deadline is not None
-                and new.application_deadline is not None
-            ):
+            if old.application_deadline is not None and new.application_deadline is not None:
                 change_type = (
                     TenderChangeType.DEADLINE_EXTENDED
                     if new.application_deadline > old.application_deadline

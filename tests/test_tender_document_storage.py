@@ -103,8 +103,7 @@ def _tender(
         title="Монтаж системы видеонаблюдения",
         customer=TenderCustomer(name="Заказчик"),
         source_url=(
-            "https://zakupki.gov.ru/epz/order/notice/"
-            f"ea20/view/common-info.html?regNumber={number}"
+            f"https://zakupki.gov.ru/epz/order/notice/ea20/view/common-info.html?regNumber={number}"
         ),
         documents=documents,
     )
@@ -137,9 +136,7 @@ def test_service_discovers_and_downloads_provider_documents(
 ) -> None:
     document = _document()
     provider = _provider((document,))
-    transport = FakeTransport(
-        {document.url: _response(document.url)}
-    )
+    transport = FakeTransport({document.url: _response(document.url)})
     store = TenderDocumentStore(tmp_path / "documents")
     service = TenderDocumentDownloadService(
         TenderProviderRegistry((provider,)),
@@ -166,9 +163,7 @@ def test_repeated_download_reuses_local_file_without_http(
 ) -> None:
     document = _document()
     provider = _provider((document,))
-    transport = FakeTransport(
-        {document.url: _response(document.url)}
-    )
+    transport = FakeTransport({document.url: _response(document.url)})
     service = TenderDocumentDownloadService(
         TenderProviderRegistry((provider,)),
         TenderDocumentStore(tmp_path / "documents"),
@@ -222,12 +217,8 @@ def test_identical_content_is_stored_as_one_unique_blob(tmp_path) -> None:
         refresh_catalog=False,
     )
 
-    assert first.documents[0].status == (
-        DocumentDownloadStatus.DOWNLOADED
-    )
-    assert second.documents[0].status == (
-        DocumentDownloadStatus.DEDUPLICATED
-    )
+    assert first.documents[0].status == (DocumentDownloadStatus.DOWNLOADED)
+    assert second.documents[0].status == (DocumentDownloadStatus.DEDUPLICATED)
     assert first.documents[0].local_path != second.documents[0].local_path
     assert store.statistics().unique_blob_count == 1
     assert store.statistics().document_count == 2
@@ -264,9 +255,7 @@ def test_html_access_page_is_recorded_as_failure(tmp_path) -> None:
 def test_force_download_bypasses_url_reuse(tmp_path) -> None:
     document = _document()
     provider = _provider((document,))
-    transport = FakeTransport(
-        {document.url: _response(document.url)}
-    )
+    transport = FakeTransport({document.url: _response(document.url)})
     service = TenderDocumentDownloadService(
         TenderProviderRegistry((provider,)),
         TenderDocumentStore(tmp_path / "documents"),

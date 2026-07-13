@@ -55,9 +55,7 @@ def test_composite_match_merges_platform_records_without_shared_number() -> None
     result = TenderDeduplicator().deduplicate((first, second))
 
     assert result.merged_count == 1
-    assert DeduplicationMatchLevel.COMPOSITE in (
-        result.groups[0].match_levels
-    )
+    assert DeduplicationMatchLevel.COMPOSITE in (result.groups[0].match_levels)
 
 
 def test_distinct_tenders_remain_separate() -> None:

@@ -36,7 +36,14 @@ class AggregatorDiscoveryDialog(QDialog):
         root = QVBoxLayout(self)
         self.table = QTableWidget(0, 6, self)
         self.table.setHorizontalHeaderLabels(
-            ("Статус", "Агрегатор", "Название", "Запрос в официальный источник", "Обнаружено", "Примечание")
+            (
+                "Статус",
+                "Агрегатор",
+                "Название",
+                "Запрос в официальный источник",
+                "Обнаружено",
+                "Примечание",
+            )
         )
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)

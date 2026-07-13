@@ -24,12 +24,8 @@ def test_workflow_page_uses_local_crash_report_directory(
     tmp_path,
 ) -> None:
     _app()
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
-    crash_service = CrashReportService(
-        tmp_path / "custom_crashes"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
+    crash_service = CrashReportService(tmp_path / "custom_crashes")
     catalog = CrashReportCatalogService(crash_service)
 
     page = BusinessWorkflowPage(
@@ -40,6 +36,4 @@ def test_workflow_page_uses_local_crash_report_directory(
 
     assert page.crash_report_service is crash_service
     assert page.crash_report_catalog_service is catalog
-    assert page.crash_report_service.directory == (
-        tmp_path / "custom_crashes"
-    )
+    assert page.crash_report_service.directory == (tmp_path / "custom_crashes")

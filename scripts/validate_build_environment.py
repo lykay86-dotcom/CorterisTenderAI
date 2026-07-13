@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """Preflight validation before PyInstaller builds Corteris Tender AI."""
 
 from __future__ import annotations
@@ -148,11 +149,7 @@ def _check_platform(allow_non_windows: bool) -> CheckResult:
 
 
 def _check_paths() -> CheckResult:
-    missing = [
-        relative
-        for relative in REQUIRED_PATHS
-        if not (PROJECT_ROOT / relative).exists()
-    ]
+    missing = [relative for relative in REQUIRED_PATHS if not (PROJECT_ROOT / relative).exists()]
     return CheckResult(
         "project_structure",
         not missing,
@@ -172,9 +169,7 @@ def _check_imports() -> CheckResult:
         try:
             import_module(module_name)
         except Exception as exc:
-            failures.append(
-                f"{module_name}: {type(exc).__name__}: {exc}"
-            )
+            failures.append(f"{module_name}: {type(exc).__name__}: {exc}")
         else:
             loaded.append(module_name)
     return CheckResult(
@@ -215,9 +210,7 @@ def _check_ssl() -> CheckResult:
 def _check_collector_database() -> CheckResult:
     root = Path(tempfile.mkdtemp(prefix="corteris_build_db_"))
     try:
-        repository = CollectorStateRepository(
-            root / "tender_registry.sqlite3"
-        )
+        repository = CollectorStateRepository(root / "tender_registry.sqlite3")
         repository.initialize()
         with repository._connect() as connection:
             score_table = connection.execute(
@@ -231,11 +224,7 @@ def _check_collector_database() -> CheckResult:
         return CheckResult(
             "collector_database",
             ok,
-            (
-                "Collector schema initializes."
-                if ok
-                else "Collector score table was not created."
-            ),
+            ("Collector schema initializes." if ok else "Collector score table was not created."),
             {"database": str(repository.path)},
         )
     except Exception as exc:
@@ -257,9 +246,7 @@ def _check_provider_factory() -> CheckResult:
                 runtime,
                 include_disabled=True,
             )
-            return tuple(
-                provider.descriptor.id for provider in providers
-            )
+            return tuple(provider.descriptor.id for provider in providers)
         finally:
             await runtime.aclose()
 

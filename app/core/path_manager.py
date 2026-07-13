@@ -94,9 +94,7 @@ class PathManager:
         config_dir = self._env_path(
             "CORTERIS_CONFIG_DIR", user_config_dir(APP_ID, APP_PUBLISHER)
         ).resolve()
-        log_dir = self._env_path(
-            "CORTERIS_LOG_DIR", user_log_dir(APP_ID, APP_PUBLISHER)
-        ).resolve()
+        log_dir = self._env_path("CORTERIS_LOG_DIR", user_log_dir(APP_ID, APP_PUBLISHER)).resolve()
         cache_dir = self._env_path(
             "CORTERIS_CACHE_DIR", user_cache_dir(APP_ID, APP_PUBLISHER)
         ).resolve()

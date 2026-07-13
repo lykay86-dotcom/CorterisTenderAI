@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date, datetime
-from typing import Iterable, Mapping
+from typing import Iterable
 
 from app.tenders.collector.models import (
     DeduplicationGroup,
@@ -49,15 +49,9 @@ _STATUS_PRIORITY = {
 
 _ALIAS_MATCH_LEVEL = {
     TenderAliasType.EIS_NUMBER: DeduplicationMatchLevel.EIS_NUMBER,
-    TenderAliasType.PROCUREMENT_NUMBER: (
-        DeduplicationMatchLevel.PROCUREMENT_NUMBER
-    ),
-    TenderAliasType.PLATFORM_NUMBER: (
-        DeduplicationMatchLevel.PLATFORM_NUMBER
-    ),
-    TenderAliasType.SOURCE_EXTERNAL_ID: (
-        DeduplicationMatchLevel.SOURCE_EXTERNAL_ID
-    ),
+    TenderAliasType.PROCUREMENT_NUMBER: (DeduplicationMatchLevel.PROCUREMENT_NUMBER),
+    TenderAliasType.PLATFORM_NUMBER: (DeduplicationMatchLevel.PLATFORM_NUMBER),
+    TenderAliasType.SOURCE_EXTERNAL_ID: (DeduplicationMatchLevel.SOURCE_EXTERNAL_ID),
     TenderAliasType.COMPOSITE: DeduplicationMatchLevel.COMPOSITE,
     TenderAliasType.CONTENT: DeduplicationMatchLevel.CONTENT,
 }
@@ -74,9 +68,7 @@ class TenderDeduplicator:
         items: Iterable[NormalizedTender | UnifiedTender],
     ) -> DeduplicationResult:
         normalized = tuple(
-            item
-            if isinstance(item, NormalizedTender)
-            else self.normalizer.normalize(item)
+            item if isinstance(item, NormalizedTender) else self.normalizer.normalize(item)
             for item in items
         )
         if not normalized:
@@ -162,71 +154,44 @@ class TenderDeduplicator:
         ]
         metadata["collector_merged_count"] = len(source_tenders)
         metadata["collector_identity_keys"] = sorted(
-            {
-                alias.key
-                for normalized in items
-                for alias in normalized.aliases
-            }
+            {alias.key for normalized in items for alias in normalized.aliases}
         )
 
         merged_tender = UnifiedTender(
             source=base.source,
             external_id=base.external_id,
             procurement_number=_best_procurement_number(items),
-            title=_longest_nonempty(
-                tender.title for tender in source_tenders
-            ) or base.title,
+            title=_longest_nonempty(tender.title for tender in source_tenders) or base.title,
             customer=_merge_customer(source_tenders, base.customer),
             source_url=base.source_url,
-            published_at=_earliest_datetime(
-                tender.published_at for tender in source_tenders
-            ),
+            published_at=_earliest_datetime(tender.published_at for tender in source_tenders),
             application_deadline=_latest_datetime(
                 tender.application_deadline for tender in source_tenders
             ),
-            execution_deadline=_latest_date(
-                tender.execution_deadline for tender in source_tenders
-            ),
+            execution_deadline=_latest_date(tender.execution_deadline for tender in source_tenders),
             price=_best_price(source_tenders, base.price),
             status=max(
                 (tender.status for tender in source_tenders),
                 key=lambda value: _STATUS_PRIORITY[value],
             ),
             procedure_type=base.procedure_type,
-            law=_longest_nonempty(
-                tender.law for tender in source_tenders
-            ),
-            region=_longest_nonempty(
-                tender.region for tender in source_tenders
-            ),
-            description=_longest_nonempty(
-                tender.description for tender in source_tenders
-            ),
+            law=_longest_nonempty(tender.law for tender in source_tenders),
+            region=_longest_nonempty(tender.region for tender in source_tenders),
+            description=_longest_nonempty(tender.description for tender in source_tenders),
             classification_codes=_ordered_unique(
-                code
-                for tender in source_tenders
-                for code in tender.classification_codes
+                code for tender in source_tenders for code in tender.classification_codes
             ),
-            tags=_ordered_unique(
-                tag
-                for tender in source_tenders
-                for tag in tender.tags
-            ),
+            tags=_ordered_unique(tag for tender in source_tenders for tag in tender.tags),
             documents=documents,
             raw_metadata=metadata,
         )
         normalized = self.normalizer.normalize(merged_tender)
 
-        all_aliases = _unique_aliases(
-            alias
-            for item in items
-            for alias in item.aliases
-        )
+        all_aliases = _unique_aliases(alias for item in items for alias in item.aliases)
         procurement_aliases = tuple(
             alias.key
             for alias in all_aliases
-            if alias.alias_type
-            == TenderAliasType.PROCUREMENT_NUMBER
+            if alias.alias_type == TenderAliasType.PROCUREMENT_NUMBER
         )
         canonical = (
             sorted(procurement_aliases)[0]
@@ -272,11 +237,7 @@ def _match_levels(
             counts[alias.key] = counts.get(alias.key, 0) + 1
             types[alias.key] = alias.alias_type
 
-    levels = {
-        _ALIAS_MATCH_LEVEL[types[key]]
-        for key, count in counts.items()
-        if count > 1
-    }
+    levels = {_ALIAS_MATCH_LEVEL[types[key]] for key, count in counts.items() if count > 1}
     return tuple(sorted(levels, key=lambda value: value.value))
 
 
@@ -284,11 +245,7 @@ def _best_procurement_number(
     items: Iterable[NormalizedTender],
 ) -> str:
     candidates = sorted(
-        (
-            item
-            for item in items
-            if item.normalized_procurement_number
-        ),
+        (item for item in items if item.normalized_procurement_number),
         key=lambda item: (
             -max(alias.strength for alias in item.aliases),
             -len(item.normalized_procurement_number),
@@ -308,21 +265,11 @@ def _merge_customer(
 ) -> TenderCustomer:
     tenders_tuple = tuple(tenders)
     return TenderCustomer(
-        name=_longest_nonempty(
-            tender.customer.name for tender in tenders_tuple
-        ) or fallback.name,
-        inn=_longest_nonempty(
-            tender.customer.inn for tender in tenders_tuple
-        ),
-        kpp=_longest_nonempty(
-            tender.customer.kpp for tender in tenders_tuple
-        ),
-        region=_longest_nonempty(
-            tender.customer.region for tender in tenders_tuple
-        ),
-        address=_longest_nonempty(
-            tender.customer.address for tender in tenders_tuple
-        ),
+        name=_longest_nonempty(tender.customer.name for tender in tenders_tuple) or fallback.name,
+        inn=_longest_nonempty(tender.customer.inn for tender in tenders_tuple),
+        kpp=_longest_nonempty(tender.customer.kpp for tender in tenders_tuple),
+        region=_longest_nonempty(tender.customer.region for tender in tenders_tuple),
+        address=_longest_nonempty(tender.customer.address for tender in tenders_tuple),
     )
 
 
@@ -358,9 +305,7 @@ def _merge_documents(
             current = by_key.get(key)
             if current is None or _document_priority(document) > _document_priority(current):
                 by_key[key] = document
-    return tuple(
-        sorted(by_key.values(), key=lambda item: (item.name.casefold(), item.url))
-    )
+    return tuple(sorted(by_key.values(), key=lambda item: (item.name.casefold(), item.url)))
 
 
 def _document_priority(document: TenderDocument) -> tuple[int, int, int]:
@@ -416,9 +361,7 @@ def _unique_aliases(
         current = by_key.get(alias.key)
         if current is None or alias.strength > current.strength:
             by_key[alias.key] = alias
-    return tuple(
-        sorted(by_key.values(), key=lambda item: (-item.strength, item.key))
-    )
+    return tuple(sorted(by_key.values(), key=lambda item: (-item.strength, item.key)))
 
 
 __all__ = ["TenderDeduplicator"]

@@ -42,9 +42,7 @@ def test_journal_records_orders_limits_and_clears(tmp_path) -> None:
 
 
 def test_journal_exports_utf8_text(tmp_path) -> None:
-    journal = SystemHealthJournal(
-        tmp_path / "system_health.json"
-    )
+    journal = SystemHealthJournal(tmp_path / "system_health.json")
     journal.record(
         severity=SystemHealthSeverity.SUCCESS,
         component="database",

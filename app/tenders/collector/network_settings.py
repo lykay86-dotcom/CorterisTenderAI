@@ -31,18 +31,14 @@ class ProviderNetworkSettings:
 
 @dataclass(frozen=True, slots=True)
 class CollectorNetworkSettings:
-    providers: Mapping[str, ProviderNetworkSettings] = field(
-        default_factory=dict
-    )
+    providers: Mapping[str, ProviderNetworkSettings] = field(default_factory=dict)
 
     def get(self, provider_id: str) -> ProviderNetworkSettings:
         normalized = provider_id.strip().casefold()
         try:
             return self.providers[normalized]
         except KeyError as exc:
-            raise KeyError(
-                f"Network settings are not defined for {provider_id}"
-            ) from exc
+            raise KeyError(f"Network settings are not defined for {provider_id}") from exc
 
     @property
     def domain_rate_limits(self) -> dict[str, RateLimitPolicy]:
@@ -54,10 +50,7 @@ class CollectorNetworkSettings:
 
     @property
     def health_policies(self) -> dict[str, ProviderHealthPolicy]:
-        return {
-            provider_id: settings.health
-            for provider_id, settings in self.providers.items()
-        }
+        return {provider_id: settings.health for provider_id, settings in self.providers.items()}
 
 
 def default_collector_network_settings() -> CollectorNetworkSettings:

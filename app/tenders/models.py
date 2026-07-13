@@ -63,9 +63,7 @@ class TenderDocument:
             raise ValueError("TenderDocument.name must not be empty")
         _validate_http_url(self.url, field_name="TenderDocument.url")
         if self.size_bytes is not None and self.size_bytes < 0:
-            raise ValueError(
-                "TenderDocument.size_bytes must be non-negative"
-            )
+            raise ValueError("TenderDocument.size_bytes must be non-negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,9 +128,7 @@ def normalize_money_amount(
     try:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
-        raise ValueError(
-            f"Invalid {field_name}: {value!r}"
-        ) from exc
+        raise ValueError(f"Invalid {field_name}: {value!r}") from exc
     if not amount.is_finite():
         raise ValueError(f"{field_name} must be finite")
     if amount < 0:
@@ -183,9 +179,7 @@ class UnifiedTender:
     execution_deadline: date | None = None
     price: TenderMoney | None = None
     status: TenderStatus = TenderStatus.UNKNOWN
-    procedure_type: TenderProcedureType = (
-        TenderProcedureType.UNKNOWN
-    )
+    procedure_type: TenderProcedureType = TenderProcedureType.UNKNOWN
     law: str = ""
     region: str = ""
     description: str = ""
@@ -200,13 +194,9 @@ class UnifiedTender:
 
     def __post_init__(self) -> None:
         if not self.external_id.strip():
-            raise ValueError(
-                "UnifiedTender.external_id must not be empty"
-            )
+            raise ValueError("UnifiedTender.external_id must not be empty")
         if not self.procurement_number.strip():
-            raise ValueError(
-                "UnifiedTender.procurement_number must not be empty"
-            )
+            raise ValueError("UnifiedTender.procurement_number must not be empty")
         if not self.title.strip():
             raise ValueError("UnifiedTender.title must not be empty")
         _validate_http_url(
@@ -218,16 +208,11 @@ class UnifiedTender:
             and self.published_at is not None
             and self.application_deadline < self.published_at
         ):
-            raise ValueError(
-                "application_deadline cannot precede published_at"
-            )
+            raise ValueError("application_deadline cannot precede published_at")
 
     @property
     def identity_key(self) -> str:
-        return (
-            f"{self.source.value}:"
-            f"{self.external_id.strip().casefold()}"
-        )
+        return f"{self.source.value}:{self.external_id.strip().casefold()}"
 
     @property
     def cross_source_key(self) -> str:
@@ -270,9 +255,7 @@ class UnifiedTender:
 def _validate_http_url(value: str, *, field_name: str) -> None:
     parsed = urlparse(value.strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"{field_name} must be an absolute HTTP(S) URL"
-        )
+        raise ValueError(f"{field_name} must be an absolute HTTP(S) URL")
 
 
 __all__ = [

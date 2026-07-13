@@ -19,9 +19,7 @@ def test_summary_is_persisted_in_registry_database(tmp_path) -> None:
     )
 
     repository.save_tender_summary(summary)
-    payload = repository.get_latest_tender_summary_payload(
-        normalized.canonical_key
-    )
+    payload = repository.get_latest_tender_summary_payload(normalized.canonical_key)
 
     assert payload is not None
     assert payload["registry_key"] == normalized.canonical_key

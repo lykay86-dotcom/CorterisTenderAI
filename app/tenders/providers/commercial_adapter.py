@@ -59,9 +59,7 @@ class AsyncCommercialAccessProvider(AsyncTenderProvider):
         del external_id
         if cancellation_token is not None:
             cancellation_token.throw_if_cancelled()
-        raise ProviderNotConfiguredError(
-            self._operation_message("получение карточки")
-        )
+        raise ProviderNotConfiguredError(self._operation_message("получение карточки"))
 
     async def list_documents(
         self,
@@ -72,9 +70,7 @@ class AsyncCommercialAccessProvider(AsyncTenderProvider):
         del external_id
         if cancellation_token is not None:
             cancellation_token.throw_if_cancelled()
-        raise ProviderNotConfiguredError(
-            self._operation_message("получение документов")
-        )
+        raise ProviderNotConfiguredError(self._operation_message("получение документов"))
 
     async def check_health(
         self,
@@ -84,24 +80,18 @@ class AsyncCommercialAccessProvider(AsyncTenderProvider):
         if cancellation_token is not None:
             cancellation_token.throw_if_cancelled()
         status = ProviderHealthStatus.NOT_CONFIGURED
-        if self.settings.state == (
-            CommercialProviderState.READY_FOR_VERIFICATION
-        ):
+        if self.settings.state == (CommercialProviderState.READY_FOR_VERIFICATION):
             status = ProviderHealthStatus.UNKNOWN
         return ProviderHealth(
             provider_id=self.descriptor.id,
             status=status,
-            checked_at=datetime.now(timezone.utc).isoformat(
-                timespec="seconds"
-            ),
+            checked_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             message=self.settings.message,
             latency_ms=0,
         )
 
     def validate_configuration(self) -> tuple[str, ...]:
-        if self.settings.state == (
-            CommercialProviderState.READY_FOR_VERIFICATION
-        ):
+        if self.settings.state == (CommercialProviderState.READY_FOR_VERIFICATION):
             return (
                 "Настройки заполнены, но реальный API-контракт ещё не "
                 "подтверждён тестовым разрешённым ответом.",
@@ -109,10 +99,7 @@ class AsyncCommercialAccessProvider(AsyncTenderProvider):
         return (self.settings.message,)
 
     def _operation_message(self, operation: str) -> str:
-        return (
-            f"{self.descriptor.display_name}: {operation} недоступно. "
-            f"{self.settings.message}"
-        )
+        return f"{self.descriptor.display_name}: {operation} недоступно. {self.settings.message}"
 
 
 def create_commercial_access_providers(
@@ -120,9 +107,7 @@ def create_commercial_access_providers(
     *,
     enabled_only: bool = False,
 ) -> tuple[AsyncCommercialAccessProvider, ...]:
-    selected = (
-        item for item in settings if (item.enabled or not enabled_only)
-    )
+    selected = (item for item in settings if (item.enabled or not enabled_only))
     return tuple(AsyncCommercialAccessProvider(item) for item in selected)
 
 

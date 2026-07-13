@@ -24,9 +24,7 @@ def _callbacks():
 
 
 def test_only_live_pass_of_every_stage_can_be_working(tmp_path) -> None:
-    repository = VerticalSourceVerificationRepository(
-        tmp_path / "registry.sqlite3"
-    )
+    repository = VerticalSourceVerificationRepository(tmp_path / "registry.sqlite3")
     service = VerifiedVerticalSourceSmokeService(repository)
 
     verification = service.run(
@@ -43,9 +41,7 @@ def test_only_live_pass_of_every_stage_can_be_working(tmp_path) -> None:
 
 
 def test_fixture_pass_is_unverified_and_cannot_promote_source(tmp_path) -> None:
-    repository = VerticalSourceVerificationRepository(
-        tmp_path / "registry.sqlite3"
-    )
+    repository = VerticalSourceVerificationRepository(tmp_path / "registry.sqlite3")
     verification = VerifiedVerticalSourceSmokeService(repository).run(
         "eis",
         "fixture",
@@ -59,9 +55,7 @@ def test_fixture_pass_is_unverified_and_cannot_promote_source(tmp_path) -> None:
 
 
 def test_missing_or_failed_stage_records_failure_and_stops_pipeline(tmp_path) -> None:
-    repository = VerticalSourceVerificationRepository(
-        tmp_path / "registry.sqlite3"
-    )
+    repository = VerticalSourceVerificationRepository(tmp_path / "registry.sqlite3")
     callbacks = _callbacks()
     callbacks.pop(VerticalSmokeStage.DOCUMENTS)
 
@@ -90,9 +84,7 @@ def test_health_available_is_unverified_until_vertical_smoke_passes(tmp_path) ->
             for provider_id in provider_ids
         }
 
-    repository = VerticalSourceVerificationRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = VerticalSourceVerificationRepository(tmp_path / "tender_registry.sqlite3")
     manager = CollectorProviderManager(
         tmp_path,
         environment={},

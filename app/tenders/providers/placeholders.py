@@ -37,9 +37,7 @@ class PlaceholderTenderProvider(TenderProvider):
         query: TenderSearchQuery,
     ) -> TenderSearchResult:
         if not self.descriptor.capabilities.search:
-            raise ProviderCapabilityError(
-                f"{self.descriptor.display_name} does not support search"
-            )
+            raise ProviderCapabilityError(f"{self.descriptor.display_name} does not support search")
         raise ProviderNotConfiguredError(
             f"{self.descriptor.display_name}: connector is not configured"
         )
@@ -50,8 +48,7 @@ class PlaceholderTenderProvider(TenderProvider):
     ) -> UnifiedTender:
         if not self.descriptor.capabilities.tender_details:
             raise ProviderCapabilityError(
-                f"{self.descriptor.display_name} "
-                "does not support tender details"
+                f"{self.descriptor.display_name} does not support tender details"
             )
         raise ProviderNotConfiguredError(
             f"{self.descriptor.display_name}: connector is not configured"
@@ -63,8 +60,7 @@ class PlaceholderTenderProvider(TenderProvider):
     ) -> Sequence[TenderDocument]:
         if not self.descriptor.capabilities.documents:
             raise ProviderCapabilityError(
-                f"{self.descriptor.display_name} "
-                "does not support documents"
+                f"{self.descriptor.display_name} does not support documents"
             )
         raise ProviderNotConfiguredError(
             f"{self.descriptor.display_name}: connector is not configured"
@@ -74,17 +70,12 @@ class PlaceholderTenderProvider(TenderProvider):
         return ProviderHealth(
             provider_id=self.descriptor.id,
             status=ProviderHealthStatus.NOT_CONFIGURED,
-            checked_at=datetime.now(timezone.utc).isoformat(
-                timespec="seconds"
-            ),
+            checked_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             message="Коннектор подготовлен, но ещё не настроен.",
         )
 
     def validate_configuration(self) -> tuple[str, ...]:
-        return (
-            "Реальная интеграция будет подключена "
-            "в следующих коммитах.",
-        )
+        return ("Реальная интеграция будет подключена в следующих коммитах.",)
 
 
 def create_builtin_providers() -> tuple[TenderProvider, ...]:

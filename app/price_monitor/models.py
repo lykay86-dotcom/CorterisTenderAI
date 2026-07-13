@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
+
 @dataclass(slots=True)
 class PriceOffer:
     supplier: str
@@ -61,6 +62,7 @@ class PriceOffer:
     def to_dict(self) -> dict:
         return asdict(self)
 
+
 @dataclass(slots=True)
 class TenderRequirement:
     name: str
@@ -75,6 +77,7 @@ class TenderRequirement:
     require_certificate: bool = False
     require_official_supply: bool = False
 
+
 @dataclass(slots=True)
 class MatchResult:
     offer: PriceOffer
@@ -87,4 +90,8 @@ class MatchResult:
 
     @property
     def rank_key(self) -> tuple:
-        return (0 if self.compliant else 1, self.total.get("total_net", float("inf")), -self.confidence)
+        return (
+            0 if self.compliant else 1,
+            self.total.get("total_net", float("inf")),
+            -self.confidence,
+        )

@@ -29,9 +29,7 @@ class DocumentGenerator:
         self.template_dir = (
             Path(prefs.template_dir)
             if prefs.template_dir
-            else Path(__file__).resolve().parents[2]
-            / "templates"
-            / "company"
+            else Path(__file__).resolve().parents[2] / "templates" / "company"
         )
         self.business_metrics = BusinessMetricsRepository()
 
@@ -81,36 +79,23 @@ class DocumentGenerator:
         report: dict,
         estimate: dict,
     ) -> Path:
-        path = (
-            self.output_dir(tender_id)
-            / "Коммерческое_предложение.docx"
-        )
-        template = (
-            self.template_dir
-            / "01_Коммерческое_предложение.docx"
-        )
+        path = self.output_dir(tender_id) / "Коммерческое_предложение.docx"
+        template = self.template_dir / "01_Коммерческое_предложение.docx"
         doc = Document(template) if template.exists() else Document()
 
         values = {
             "[ТЕКУЩАЯ ДАТА]": date.today().strftime("%d.%m.%Y"),
             "[АВТОМАТИЧЕСКИЙ НОМЕР]": f"КП-{tender_id:05d}",
-            "[НАИМЕНОВАНИЕ ЗАКАЗЧИКА]": (
-                report["tender"].get("customer") or "Не указан"
-            ),
+            "[НАИМЕНОВАНИЕ ЗАКАЗЧИКА]": (report["tender"].get("customer") or "Не указан"),
             "[НОМЕР И НАЗВАНИЕ ЗАКУПКИ]": (
-                f"{report['tender'].get('number', '')} "
-                f"{report['tender']['title']}"
+                f"{report['tender'].get('number', '')} {report['tender']['title']}"
             ),
-            "[НАИМЕНОВАНИЕ И АДРЕС ОБЪЕКТА]": (
-                report["tender"]["title"]
-            ),
+            "[НАИМЕНОВАНИЕ И АДРЕС ОБЪЕКТА]": (report["tender"]["title"]),
             "[СУММА]": f"{estimate['total']:,.2f}",
             "[СТАВКА]": str(estimate["vat_percent"]),
             "[СУММА НДС]": f"{estimate['vat']:,.2f}",
             "[СРОК]": "согласно документации закупки",
-            "[УСЛОВИЯ]": (
-                "согласно проекту договора после проверки рисков"
-            ),
+            "[УСЛОВИЯ]": ("согласно проекту договора после проверки рисков"),
         }
         self._replace(doc, values)
         doc.add_heading("Расчёт стоимости", level=1)
@@ -131,11 +116,7 @@ class DocumentGenerator:
             cells[0].text = item["name"]
             cells[1].text = str(item["quantity"])
             cells[2].text = item["unit"]
-            cells[3].text = (
-                f"{item['price'] / item['quantity']:,.2f}"
-                if item["quantity"]
-                else "0"
-            )
+            cells[3].text = f"{item['price'] / item['quantity']:,.2f}" if item["quantity"] else "0"
             cells[4].text = f"{item['price']:,.2f}"
 
         doc.add_paragraph(
@@ -147,9 +128,7 @@ class DocumentGenerator:
             "рентабельность по выручке: "
             f"{estimate['margin_percent']:.2f}%."
         )
-        doc.add_paragraph(
-            f"Рекомендация системы: {report['recommendation']}"
-        )
+        doc.add_paragraph(f"Рекомендация системы: {report['recommendation']}")
         doc.save(path)
 
         self._record_business_outputs(
@@ -165,10 +144,7 @@ class DocumentGenerator:
         tender_id: int,
         report: dict,
     ) -> Path:
-        path = (
-            self.output_dir(tender_id)
-            / "Таблица_соответствия.xlsx"
-        )
+        path = self.output_dir(tender_id) / "Таблица_соответствия.xlsx"
         workbook = Workbook()
         worksheet = workbook.active
         worksheet.title = "Соответствие"
@@ -186,8 +162,7 @@ class DocumentGenerator:
             worksheet.append(
                 [
                     equipment["name"],
-                    "Подлежит подбору, "
-                    f"{equipment['quantity']} {equipment['unit']}",
+                    f"Подлежит подбору, {equipment['quantity']} {equipment['unit']}",
                     "Требуется проверка",
                     "Паспорт/сертификат",
                     "Не предлагать несоответствующие аналоги",
@@ -221,35 +196,19 @@ class DocumentGenerator:
         tender_id: int,
         report: dict,
     ) -> Path:
-        path = (
-            self.output_dir(tender_id)
-            / "Запрос_на_разъяснение.docx"
-        )
-        template = (
-            self.template_dir
-            / "03_Запрос_на_разъяснение.docx"
-        )
+        path = self.output_dir(tender_id) / "Запрос_на_разъяснение.docx"
+        template = self.template_dir / "03_Запрос_на_разъяснение.docx"
         doc = Document(template) if template.exists() else Document()
         self._replace(
             doc,
             {
-                "[ТЕКУЩАЯ ДАТА]": date.today().strftime(
-                    "%d.%m.%Y"
-                ),
-                "[АВТОМАТИЧЕСКИЙ НОМЕР]": (
-                    f"ЗР-{tender_id:05d}"
-                ),
-                "[НАИМЕНОВАНИЕ ЗАКАЗЧИКА]": (
-                    report["tender"].get("customer")
-                    or "Не указан"
-                ),
+                "[ТЕКУЩАЯ ДАТА]": date.today().strftime("%d.%m.%Y"),
+                "[АВТОМАТИЧЕСКИЙ НОМЕР]": (f"ЗР-{tender_id:05d}"),
+                "[НАИМЕНОВАНИЕ ЗАКАЗЧИКА]": (report["tender"].get("customer") or "Не указан"),
                 "[НОМЕР И НАЗВАНИЕ ЗАКУПКИ]": (
-                    f"{report['tender'].get('number', '')} "
-                    f"{report['tender']['title']}"
+                    f"{report['tender'].get('number', '')} {report['tender']['title']}"
                 ),
-                "[НАИМЕНОВАНИЕ И АДРЕС ОБЪЕКТА]": (
-                    report["tender"]["title"]
-                ),
+                "[НАИМЕНОВАНИЕ И АДРЕС ОБЪЕКТА]": (report["tender"]["title"]),
             },
         )
 
@@ -326,7 +285,4 @@ class DocumentGenerator:
                 title=f"КП — {tender_title}",
             )
         except Exception:
-            LOGGER.exception(
-                "Не удалось синхронизировать КП и смету "
-                "с Dashboard KPI"
-            )
+            LOGGER.exception("Не удалось синхронизировать КП и смету с Dashboard KPI")

@@ -8,9 +8,7 @@ from app.repositories.business_metrics import (
 
 
 def test_snapshot_is_isolated_and_replace_is_atomic(tmp_path) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     record = repository.save_record(
         kind=BusinessRecordKind.ESTIMATE,
         tender_id="T-83",
@@ -26,7 +24,5 @@ def test_snapshot_is_isolated_and_replace_is_atomic(tmp_path) -> None:
     repository.replace_payload(snapshot)
 
     assert repository.get_record(record.id).title == "Из копии"
-    temporary = repository.path.with_suffix(
-        repository.path.suffix + ".restore.tmp"
-    )
+    temporary = repository.path.with_suffix(repository.path.suffix + ".restore.tmp")
     assert not temporary.exists()

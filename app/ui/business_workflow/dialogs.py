@@ -42,9 +42,7 @@ class BusinessRecordDialog(QDialog):
     def __init__(
         self,
         *,
-        initial_kind: BusinessRecordKind | str = (
-            BusinessRecordKind.PROPOSAL
-        ),
+        initial_kind: BusinessRecordKind | str = (BusinessRecordKind.PROPOSAL),
         record: BusinessWorkflowRecord | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
@@ -54,9 +52,7 @@ class BusinessRecordDialog(QDialog):
         self._theme = ThemeName(theme)
         self._record = record
         self.setWindowTitle(
-            "Редактирование записи"
-            if record is not None
-            else "Новая запись бизнес-процесса"
+            "Редактирование записи" if record is not None else "Новая запись бизнес-процесса"
         )
         self.setModal(True)
         self.resize(560, 560)
@@ -66,21 +62,16 @@ class BusinessRecordDialog(QDialog):
         root.setSpacing(16)
 
         title = QLabel(
-            "Редактирование записи"
-            if record is not None
-            else "Новая запись",
+            "Редактирование записи" if record is not None else "Новая запись",
             self,
         )
         title.setObjectName("BusinessDialogTitle")
 
         subtitle = QLabel(
             (
-                "Измените название, финансовые показатели, "
-                "срок или связанный файл."
+                "Измените название, финансовые показатели, срок или связанный файл."
                 if record is not None
-                else
-                "Добавьте КП, смету или проект для синхронизации "
-                "с Dashboard."
+                else "Добавьте КП, смету или проект для синхронизации с Dashboard."
             ),
             self,
         )
@@ -94,10 +85,7 @@ class BusinessRecordDialog(QDialog):
         form.setContentsMargins(0, 4, 0, 0)
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(12)
-        form.setLabelAlignment(
-            Qt.AlignmentFlag.AlignRight
-            | Qt.AlignmentFlag.AlignVCenter
-        )
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.kind_combo = QComboBox(self)
         for kind, label in KIND_LABELS.items():
@@ -107,9 +95,7 @@ class BusinessRecordDialog(QDialog):
         self.tender_edit.setPlaceholderText("ID или номер тендера")
 
         self.title_edit = QLineEdit(self)
-        self.title_edit.setPlaceholderText(
-            "Например: КП на систему видеонаблюдения"
-        )
+        self.title_edit.setPlaceholderText("Например: КП на систему видеонаблюдения")
 
         self.status_combo = QComboBox(self)
 
@@ -125,9 +111,7 @@ class BusinessRecordDialog(QDialog):
         self.due_edit.setPlaceholderText("YYYY-MM-DD или ДД.ММ.ГГГГ")
 
         self.file_edit = QLineEdit(self)
-        self.file_edit.setPlaceholderText(
-            "Путь к сформированному документу"
-        )
+        self.file_edit.setPlaceholderText("Путь к сформированному документу")
         browse = QToolButton(self)
         browse.setText("…")
         browse.setToolTip("Выбрать файл")
@@ -152,33 +136,20 @@ class BusinessRecordDialog(QDialog):
         root.addLayout(form)
 
         self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Save
-        ).setText(
-            "Сохранить изменения"
-            if record is not None
-            else "Сохранить"
+        self.buttons.button(QDialogButtonBox.StandardButton.Save).setText(
+            "Сохранить изменения" if record is not None else "Сохранить"
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Cancel
-        ).setText("Отмена")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
         self.buttons.accepted.connect(self._validate_and_accept)
         self.buttons.rejected.connect(self.reject)
         root.addWidget(self.buttons)
 
-        self.kind_combo.currentIndexChanged.connect(
-            self._refresh_statuses
-        )
-        self.total_spin.valueChanged.connect(
-            self._recalculate_margin
-        )
-        self.profit_spin.valueChanged.connect(
-            self._recalculate_margin
-        )
+        self.kind_combo.currentIndexChanged.connect(self._refresh_statuses)
+        self.total_spin.valueChanged.connect(self._recalculate_margin)
+        self.profit_spin.valueChanged.connect(self._recalculate_margin)
 
         if record is not None:
             self._load_record(record)
@@ -197,19 +168,13 @@ class BusinessRecordDialog(QDialog):
 
     def payload(self) -> dict[str, object]:
         return {
-            "kind": BusinessRecordKind(
-                str(self.kind_combo.currentData())
-            ),
+            "kind": BusinessRecordKind(str(self.kind_combo.currentData())),
             "tender_id": self.tender_edit.text().strip(),
             "title": self.title_edit.text().strip(),
-            "status": BusinessStatus(
-                str(self.status_combo.currentData())
-            ),
+            "status": BusinessStatus(str(self.status_combo.currentData())),
             "total": Decimal(str(self.total_spin.value())),
             "profit": Decimal(str(self.profit_spin.value())),
-            "margin_percent": Decimal(
-                str(self.margin_spin.value())
-            ),
+            "margin_percent": Decimal(str(self.margin_spin.value())),
             "due_date": self.due_edit.text().strip(),
             "file_path": self.file_edit.text().strip(),
         }
@@ -299,9 +264,7 @@ class BusinessRecordDialog(QDialog):
 
         self.due_edit.setText(record.due_date)
         self.file_edit.setText(record.file_path)
-        self.file_edit.setEnabled(
-            record.kind == BusinessRecordKind.PROPOSAL.value
-        )
+        self.file_edit.setEnabled(record.kind == BusinessRecordKind.PROPOSAL.value)
 
         if not record.margin_percent:
             self._recalculate_margin()
@@ -310,11 +273,7 @@ class BusinessRecordDialog(QDialog):
         total = Decimal(str(self.total_spin.value()))
         profit = Decimal(str(self.profit_spin.value()))
 
-        margin = (
-            (profit / total * Decimal("100"))
-            if total > 0
-            else Decimal("0")
-        )
+        margin = (profit / total * Decimal("100")) if total > 0 else Decimal("0")
         self.margin_spin.blockSignals(True)
         self.margin_spin.setValue(float(margin))
         self.margin_spin.blockSignals(False)
@@ -330,9 +289,7 @@ class BusinessRecordDialog(QDialog):
         self._refresh_statuses()
 
     def _refresh_statuses(self) -> None:
-        kind = BusinessRecordKind(
-            str(self.kind_combo.currentData())
-        )
+        kind = BusinessRecordKind(str(self.kind_combo.currentData()))
         current = self.status_combo.currentData()
         self.status_combo.clear()
 
@@ -347,9 +304,7 @@ class BusinessRecordDialog(QDialog):
             BusinessRecordKind.PROPOSAL: BusinessStatus.DRAFT,
             BusinessRecordKind.PROJECT: BusinessStatus.PLANNED,
         }[kind]
-        index = self.status_combo.findData(
-            current or preferred.value
-        )
+        index = self.status_combo.findData(current or preferred.value)
         self.status_combo.setCurrentIndex(max(0, index))
 
         is_proposal = kind == BusinessRecordKind.PROPOSAL

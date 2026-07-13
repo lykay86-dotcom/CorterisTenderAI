@@ -29,9 +29,7 @@ def test_dialog_displays_verification_phase() -> None:
             raw_count=5,
             merged_count=4,
             duplicate_count=1,
-            message=(
-                "Проверка критичных полей и происхождения данных…"
-            ),
+            message=("Проверка критичных полей и происхождения данных…"),
         )
     )
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
@@ -53,13 +54,9 @@ def test_dialog_renders_fields_and_emits_resolution(tmp_path) -> None:
     review = _review(tmp_path)
     dialog = TenderVerificationDialog(review)
     emitted = []
-    dialog.resolve_requested.connect(
-        lambda *args: emitted.append(args)
-    )
+    dialog.resolve_requested.connect(lambda *args: emitted.append(args))
     price_row = next(
-        index
-        for index, field in enumerate(review.fields)
-        if field.field_name == "price"
+        index for index, field in enumerate(review.fields) if field.field_name == "price"
     )
     dialog.fields_table.selectRow(price_row)
     dialog.candidates_table.selectRow(0)

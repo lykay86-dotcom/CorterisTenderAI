@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
 
 from app.tenders.collector.eis_checkpoint import (
     EisCheckpointCoordinator,
@@ -13,9 +12,7 @@ from app.tenders.provider_base import TenderSearchQuery, TenderSearchResult
 
 
 def _repository(tmp_path: Path) -> CollectorStateRepository:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     repository.initialize()
     return repository
 
@@ -97,6 +94,4 @@ def test_checkpoint_scope_ignores_page_and_date_range() -> None:
         date_from=date(2026, 7, 10),
     )
 
-    assert EisCheckpointCoordinator.scope_key(first) == (
-        EisCheckpointCoordinator.scope_key(second)
-    )
+    assert EisCheckpointCoordinator.scope_key(first) == (EisCheckpointCoordinator.scope_key(second))

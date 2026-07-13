@@ -23,9 +23,7 @@ def _app() -> QApplication:
 
 def test_dialog_prefills_and_returns_preferences(tmp_path) -> None:
     _app()
-    service = WorkflowAutoBackupService(
-        tmp_path / "settings.json"
-    )
+    service = WorkflowAutoBackupService(tmp_path / "settings.json")
     dialog = WorkflowBackupSettingsDialog(
         WorkflowAutoBackupSettings(
             enabled=True,
@@ -49,9 +47,7 @@ def test_dialog_prefills_and_returns_preferences(tmp_path) -> None:
 
 def test_disabling_schedule_disables_controls(tmp_path) -> None:
     _app()
-    service = WorkflowAutoBackupService(
-        tmp_path / "settings.json"
-    )
+    service = WorkflowAutoBackupService(tmp_path / "settings.json")
     dialog = WorkflowBackupSettingsDialog(
         WorkflowAutoBackupSettings(enabled=True),
         default_directory=tmp_path / "default",

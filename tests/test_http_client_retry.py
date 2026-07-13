@@ -43,11 +43,7 @@ def test_transport_retries_ssl_handshake_timeout() -> None:
         del request
         timeouts.append(timeout)
         if len(timeouts) == 1:
-            raise URLError(
-                TimeoutError(
-                    "_ssl.c:983: The handshake operation timed out"
-                )
-            )
+            raise URLError(TimeoutError("_ssl.c:983: The handshake operation timed out"))
         return FakeResponse(b"success")
 
     transport = UrllibHttpTransport(
@@ -78,11 +74,7 @@ def test_transport_reports_attempt_count_after_retries() -> None:
         nonlocal calls
         del request, timeout
         calls += 1
-        raise URLError(
-            TimeoutError(
-                "_ssl.c:983: The handshake operation timed out"
-            )
-        )
+        raise URLError(TimeoutError("_ssl.c:983: The handshake operation timed out"))
 
     transport = UrllibHttpTransport(
         retry_policy=HttpRetryPolicy(
@@ -112,11 +104,7 @@ def test_certificate_verification_error_is_not_retried() -> None:
         nonlocal calls
         del request, timeout
         calls += 1
-        raise URLError(
-            ssl.SSLCertVerificationError(
-                "certificate verify failed"
-            )
-        )
+        raise URLError(ssl.SSLCertVerificationError("certificate verify failed"))
 
     transport = UrllibHttpTransport(
         retry_policy=HttpRetryPolicy(

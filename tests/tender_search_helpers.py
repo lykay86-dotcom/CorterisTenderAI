@@ -113,15 +113,8 @@ def tender(
             name="Заказчик",
             inn="7700000000",
         ),
-        source_url=(
-            f"https://{source.value}.example.org/"
-            f"{external_id}"
-        ),
-        price=(
-            TenderMoney.from_value(amount)
-            if amount is not None
-            else None
-        ),
+        source_url=(f"https://{source.value}.example.org/{external_id}"),
+        price=(TenderMoney.from_value(amount) if amount is not None else None),
         status=TenderStatus.ACCEPTING_APPLICATIONS,
         description=description,
         region=region,

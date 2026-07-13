@@ -20,14 +20,10 @@ from app.tenders.provider_base import TenderSearchQuery
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SEARCH_PAYLOAD = json.loads(
-    (FIXTURES / "mos_supplier_search_documented_contract.json").read_text(
-        encoding="utf-8"
-    )
+    (FIXTURES / "mos_supplier_search_documented_contract.json").read_text(encoding="utf-8")
 )
 CARD_PAYLOAD = json.loads(
-    (FIXTURES / "mos_supplier_card_documented_contract.json").read_text(
-        encoding="utf-8"
-    )
+    (FIXTURES / "mos_supplier_card_documented_contract.json").read_text(encoding="utf-8")
 )
 
 

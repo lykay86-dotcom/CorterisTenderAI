@@ -131,7 +131,8 @@ class CollectorStateRepository:
         rankings: Mapping[
             str,
             CorterisParticipationScore,
-        ] | None = None,
+        ]
+        | None = None,
         verification: VerificationBatchResult | None = None,
         freshness: FreshnessBatchResult | None = None,
     ) -> CollectionPersistenceSummary:
@@ -158,21 +159,10 @@ class CollectorStateRepository:
         expired_count = 0
         reverification_due_count = 0
         rankings = rankings or {}
-        verification_by_key = (
-            verification.by_canonical_key
-            if verification is not None
-            else {}
-        )
-        freshness_by_key = (
-            freshness.by_canonical_key
-            if freshness is not None
-            else {}
-        )
+        verification_by_key = verification.by_canonical_key if verification is not None else {}
+        freshness_by_key = freshness.by_canonical_key if freshness is not None else {}
 
-        groups_by_key = {
-            group.item.canonical_key: group
-            for group in result.groups
-        }
+        groups_by_key = {group.item.canonical_key: group for group in result.groups}
 
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -239,28 +229,17 @@ class CollectorStateRepository:
                         item,
                         observed_at=moment,
                     )
-                    verification_item = verification_by_key.get(
-                        item.canonical_key
-                    )
-                    if (
-                        verification_item is not None
-                        and verification_run_id
-                    ):
+                    verification_item = verification_by_key.get(item.canonical_key)
+                    if verification_item is not None and verification_run_id:
                         self._persist_verification(
                             connection,
                             verification_run_id,
                             registry_key,
                             verification_item,
                         )
-                        verified_field_count += (
-                            verification_item.verified_field_count
-                        )
-                        conflict_count += (
-                            verification_item.conflict_count
-                        )
-                        unresolved_conflict_count += (
-                            verification_item.unresolved_conflict_count
-                        )
+                        verified_field_count += verification_item.verified_field_count
+                        conflict_count += verification_item.conflict_count
+                        unresolved_conflict_count += verification_item.unresolved_conflict_count
                         verification_incomplete_count += int(
                             verification_item.status
                             in {
@@ -269,9 +248,7 @@ class CollectorStateRepository:
                                 TenderVerificationStatus.CONFLICT,
                             }
                         )
-                    freshness_item = freshness_by_key.get(
-                        item.canonical_key
-                    )
+                    freshness_item = freshness_by_key.get(item.canonical_key)
                     if freshness_item is not None:
                         self._persist_freshness(
                             connection,
@@ -281,15 +258,10 @@ class CollectorStateRepository:
                         )
                         stale_count += int(freshness_item.is_stale)
                         due_soon_count += int(
-                            freshness_item.status
-                            == TenderFreshnessStatus.DUE_SOON
+                            freshness_item.status == TenderFreshnessStatus.DUE_SOON
                         )
-                        expired_count += int(
-                            freshness_item.deadline_expired
-                        )
-                        reverification_due_count += int(
-                            freshness_item.requires_reverification
-                        )
+                        expired_count += int(freshness_item.deadline_expired)
+                        reverification_due_count += int(freshness_item.requires_reverification)
                     inserted_version = self._insert_version(
                         connection,
                         registry_key,
@@ -307,21 +279,14 @@ class CollectorStateRepository:
 
                     if change_set.status == TenderObservationStatus.NEW:
                         new_count += 1
-                    elif (
-                        change_set.status
-                        == TenderObservationStatus.UNCHANGED
-                    ):
+                    elif change_set.status == TenderObservationStatus.UNCHANGED:
                         unchanged_count += 1
                     else:
                         changed_count += 1
 
                     group = groups_by_key.get(item.canonical_key)
-                    source_count = (
-                        len(group.source_items) if group is not None else 1
-                    )
-                    duplicate_count = (
-                        group.duplicate_count if group is not None else 0
-                    )
+                    source_count = len(group.source_items) if group is not None else 1
+                    duplicate_count = group.duplicate_count if group is not None else 0
                     ranking = rankings.get(item.canonical_key)
                     if ranking is not None:
                         self._upsert_score(
@@ -332,15 +297,9 @@ class CollectorStateRepository:
                             source="collector",
                         )
                         ranked_count += 1
-                        if (
-                            ranking.recommendation
-                            == ParticipationRecommendation.RECOMMENDED
-                        ):
+                        if ranking.recommendation == ParticipationRecommendation.RECOMMENDED:
                             recommended_count += 1
-                        elif (
-                            ranking.recommendation
-                            == ParticipationRecommendation.MANUAL_REVIEW
-                        ):
+                        elif ranking.recommendation == ParticipationRecommendation.MANUAL_REVIEW:
                             manual_review_count += 1
                         elif (
                             ranking.recommendation
@@ -421,9 +380,7 @@ class CollectorStateRepository:
             verified_field_count=verified_field_count,
             conflict_count=conflict_count,
             unresolved_conflict_count=unresolved_conflict_count,
-            verification_incomplete_count=(
-                verification_incomplete_count
-            ),
+            verification_incomplete_count=(verification_incomplete_count),
             stale_count=stale_count,
             due_soon_count=due_soon_count,
             expired_count=expired_count,
@@ -442,10 +399,7 @@ class CollectorStateRepository:
     ) -> None:
         self.initialize()
         outcomes = tuple(provider_outcomes)
-        successful = sum(
-            bool(getattr(outcome, "successful", False))
-            for outcome in outcomes
-        )
+        successful = sum(bool(getattr(outcome, "successful", False)) for outcome in outcomes)
         failed = len(outcomes) - successful
         moment = completed_at or _utc_now()
 
@@ -482,9 +436,7 @@ class CollectorStateRepository:
                             _enum_value(getattr(outcome, "status", "")),
                             int(getattr(outcome, "item_count", 0)),
                             int(getattr(outcome, "elapsed_ms", 0)),
-                            stable_json(
-                                list(getattr(outcome, "warnings", ()))
-                            ),
+                            stable_json(list(getattr(outcome, "warnings", ()))),
                             str(getattr(outcome, "error_type", "")),
                             str(getattr(outcome, "error_message", "")),
                         ),
@@ -649,9 +601,7 @@ class CollectorStateRepository:
                 source_id=str(row["source_id"]),
                 source_url=str(row["source_url"]),
                 retrieved_at=str(row["retrieved_at"]),
-                trust_level=SourceTrustLevel(
-                    int(row["trust_level"])
-                ),
+                trust_level=SourceTrustLevel(int(row["trust_level"])),
                 official=bool(row["official"]),
                 verified=bool(row["verified"]),
                 confidence=float(row["confidence"]),
@@ -692,11 +642,7 @@ class CollectorStateRepository:
     ) -> Mapping[str, TenderVerificationState]:
         """Load verification badges for a registry page in one query."""
 
-        normalized = tuple(
-            dict.fromkeys(
-                item.strip() for item in registry_keys if item.strip()
-            )
-        )
+        normalized = tuple(dict.fromkeys(item.strip() for item in registry_keys if item.strip()))
         if not normalized:
             return {}
         self.initialize()
@@ -710,10 +656,7 @@ class CollectorStateRepository:
                 """,
                 normalized,
             ).fetchall()
-        return {
-            str(row["registry_key"]): _row_to_verification_state(row)
-            for row in rows
-        }
+        return {str(row["registry_key"]): _row_to_verification_state(row) for row in rows}
 
     def get_freshness_state(
         self,
@@ -747,11 +690,7 @@ class CollectorStateRepository:
         *,
         now: str | None = None,
     ) -> Mapping[str, TenderFreshnessState]:
-        normalized = tuple(
-            dict.fromkeys(
-                item.strip() for item in registry_keys if item.strip()
-            )
-        )
+        normalized = tuple(dict.fromkeys(item.strip() for item in registry_keys if item.strip()))
         if not normalized:
             return {}
         self.initialize()
@@ -835,9 +774,7 @@ class CollectorStateRepository:
                 verified=bool(row["verified"]),
                 official=bool(row["official"]),
                 confidence=float(row["confidence"]),
-                trust_level=SourceTrustLevel(
-                    int(row["trust_level"])
-                ),
+                trust_level=SourceTrustLevel(int(row["trust_level"])),
                 candidate_id=str(row["candidate_id"]),
             )
             for row in rows
@@ -863,10 +800,7 @@ class CollectorStateRepository:
             WHERE conflicts.registry_key = ?
         """
         if unresolved_only:
-            sql += (
-                " AND conflicts.unresolved = 1"
-                " AND manual.candidate_id IS NULL"
-            )
+            sql += " AND conflicts.unresolved = 1 AND manual.candidate_id IS NULL"
         sql += " ORDER BY conflicts.detected_at DESC, conflicts.rowid DESC"
         with self._lock, self._connect() as connection:
             rows = connection.execute(
@@ -885,19 +819,12 @@ class CollectorStateRepository:
                 FieldConflict(
                     conflict_id=str(row["conflict_id"]),
                     field_name=str(row["field_name"]),
-                    conflict_type=FieldConflictType(
-                        str(row["conflict_type"])
-                    ),
+                    conflict_type=FieldConflictType(str(row["conflict_type"])),
                     candidate_ids=tuple(str(item) for item in ids),
-                    selected_candidate_id=str(
-                        row["selected_candidate_id"]
-                    ),
+                    selected_candidate_id=str(row["selected_candidate_id"]),
                     detected_at=str(row["detected_at"]),
                     critical=bool(row["critical"]),
-                    unresolved=(
-                        bool(row["unresolved"])
-                        and not bool(row["manually_resolved"])
-                    ),
+                    unresolved=(bool(row["unresolved"]) and not bool(row["manually_resolved"])),
                     message=str(row["message"]),
                 )
             )
@@ -994,9 +921,7 @@ class CollectorStateRepository:
         normalized_field = field_name.strip()
         normalized_candidate = candidate_id.strip()
         if not normalized_key or not normalized_field or not normalized_candidate:
-            raise ValueError(
-                "registry_key, field_name and candidate_id are required"
-            )
+            raise ValueError("registry_key, field_name and candidate_id are required")
         moment = resolved_at or _utc_now()
         actor = resolved_by.strip() or "user"
         safe_note = note.strip()[:4000]
@@ -1046,9 +971,7 @@ class CollectorStateRepository:
                     """,
                     (normalized_key, normalized_field, verification_run_id),
                 ).fetchone()
-                previous_id = (
-                    str(previous["candidate_id"]) if previous is not None else ""
-                )
+                previous_id = str(previous["candidate_id"]) if previous is not None else ""
                 connection.execute(
                     """
                     UPDATE collector_tender_field_values
@@ -1097,9 +1020,7 @@ class CollectorStateRepository:
                     """,
                     (normalized_key, normalized_field, verification_run_id),
                 ).fetchone()
-                conflict_id = (
-                    str(conflict["conflict_id"]) if conflict is not None else ""
-                )
+                conflict_id = str(conflict["conflict_id"]) if conflict is not None else ""
                 connection.execute(
                     """
                     UPDATE collector_tender_field_conflicts
@@ -1318,9 +1239,7 @@ class CollectorStateRepository:
             {candidate.field_name: candidate},
         )
         payload = stable_json(tender_to_payload(updated))
-        price_amount = (
-            str(updated.price.amount) if updated.price is not None else None
-        )
+        price_amount = str(updated.price.amount) if updated.price is not None else None
         currency = updated.price.currency if updated.price is not None else ""
         includes_vat = (
             None
@@ -1397,11 +1316,7 @@ class CollectorStateRepository:
             missing_raw = json.loads(str(state["missing_fields_json"] or "[]"))
         except json.JSONDecodeError:
             missing_raw = []
-        missing = (
-            tuple(str(item) for item in missing_raw)
-            if isinstance(missing_raw, list)
-            else ()
-        )
+        missing = tuple(str(item) for item in missing_raw) if isinstance(missing_raw, list) else ()
         unresolved = int(
             connection.execute(
                 """
@@ -1564,9 +1479,7 @@ class CollectorStateRepository:
 
         for conflict in verification.conflicts:
             storage_ids = tuple(
-                candidate_ids[item]
-                for item in conflict.candidate_ids
-                if item in candidate_ids
+                candidate_ids[item] for item in conflict.candidate_ids if item in candidate_ids
             )
             selected_id = candidate_ids.get(
                 conflict.selected_candidate_id,
@@ -1953,9 +1866,7 @@ class CollectorStateRepository:
         for row in rows:
             payload = json.loads(str(row["payload_json"]))
             if isinstance(payload, Mapping):
-                result.append(
-                    CorterisParticipationScore.from_payload(payload)
-                )
+                result.append(CorterisParticipationScore.from_payload(payload))
         return tuple(result)
 
     @staticmethod
@@ -2263,9 +2174,7 @@ class CollectorStateRepository:
     ) -> None:
         tender = item.tender
         payload = stable_json(tender_to_payload(tender))
-        price_amount = (
-            str(tender.price.amount) if tender.price is not None else None
-        )
+        price_amount = str(tender.price.amount) if tender.price is not None else None
         currency = tender.price.currency if tender.price is not None else ""
         includes_vat = (
             None
@@ -2408,10 +2317,7 @@ class CollectorStateRepository:
                 """,
                 (alias.key,),
             ).fetchone()
-            if (
-                existing is not None
-                and str(existing["registry_key"]) != registry_key
-            ):
+            if existing is not None and str(existing["registry_key"]) != registry_key:
                 conflicts += 1
                 continue
             connection.execute(
@@ -2580,9 +2486,7 @@ def _source_payloads(item: NormalizedTender) -> tuple[dict[str, str], ...]:
                 {
                     "source": source,
                     "external_id": external_id,
-                    "procurement_number": str(
-                        raw.get("procurement_number", "")
-                    ),
+                    "procurement_number": str(raw.get("procurement_number", "")),
                     "source_url": source_url,
                 }
             )
@@ -2622,11 +2526,7 @@ def _row_to_field_candidate(row: sqlite3.Row) -> FieldCandidate:
         confidence=float(row["confidence"]),
         selected=bool(row["selected"]),
         historical=bool(row["historical"]),
-        manual_override=(
-            bool(row["manual_selected"])
-            if "manual_selected" in keys
-            else False
-        ),
+        manual_override=(bool(row["manual_selected"]) if "manual_selected" in keys else False),
     )
 
 
@@ -2634,9 +2534,7 @@ def _row_to_field_resolution(
     row: sqlite3.Row,
 ) -> FieldResolutionRecord:
     try:
-        selected_value = json.loads(
-            str(row["selected_value_json"] or "null")
-        )
+        selected_value = json.loads(str(row["selected_value_json"] or "null"))
     except (TypeError, ValueError, json.JSONDecodeError):
         selected_value = str(row["selected_value_json"] or "")
     return FieldResolutionRecord(
@@ -2663,12 +2561,8 @@ def _effective_freshness_state(
     if state.deadline_expired or not state.verification_due_at:
         return state
     try:
-        current = datetime.fromisoformat(
-            (now or _utc_now()).replace("Z", "+00:00")
-        )
-        due = datetime.fromisoformat(
-            state.verification_due_at.replace("Z", "+00:00")
-        )
+        current = datetime.fromisoformat((now or _utc_now()).replace("Z", "+00:00"))
+        due = datetime.fromisoformat(state.verification_due_at.replace("Z", "+00:00"))
     except ValueError:
         return state
     if current.tzinfo is None:
@@ -2700,18 +2594,12 @@ def _row_to_freshness_state(
         stale_reason=str(row["stale_reason"]),
         deadline_original=str(row["deadline_original"]),
         source_timezone=str(row["source_timezone"]),
-        timezone_status=DeadlineTimezoneStatus(
-            str(row["timezone_status"])
-        ),
+        timezone_status=DeadlineTimezoneStatus(str(row["timezone_status"])),
         deadline_utc=str(row["deadline_utc"]),
         user_timezone=str(row["user_timezone"]),
         deadline_user_local=str(row["deadline_user_local"]),
-        seconds_remaining=(
-            int(seconds) if seconds is not None else None
-        ),
-        recheck_interval_minutes=int(
-            row["recheck_interval_minutes"]
-        ),
+        seconds_remaining=(int(seconds) if seconds is not None else None),
+        recheck_interval_minutes=int(row["recheck_interval_minutes"]),
         deadline_expired=bool(row["deadline_expired"]),
         updated_at=str(row["updated_at"]),
     )
@@ -2781,9 +2669,7 @@ def _verification_storage_id(
 ) -> str:
     import hashlib
 
-    return hashlib.sha256(
-        f"{verification_run_id}|{identity}".encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(f"{verification_run_id}|{identity}".encode("utf-8")).hexdigest()
 
 
 def _utc_now() -> str:

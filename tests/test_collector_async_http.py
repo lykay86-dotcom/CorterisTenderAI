@@ -55,9 +55,7 @@ def test_http_client_retries_timeout_then_succeeds() -> None:
                 raise httpx.ConnectTimeout("ssl handshake timed out", request=request)
             return httpx.Response(200, text="ok", request=request)
 
-        raw_client = httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        )
+        raw_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         client = AsyncHttpClient(
             config=_config(),
             rate_limiter=_limiter(),
@@ -92,9 +90,7 @@ def test_http_client_retries_429_and_500() -> None:
                 request=request,
             )
 
-        raw_client = httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        )
+        raw_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         client = AsyncHttpClient(
             config=_config(attempts=3),
             rate_limiter=_limiter(),
@@ -120,9 +116,7 @@ def test_http_client_does_not_retry_403_by_default() -> None:
             calls += 1
             return httpx.Response(403, request=request)
 
-        raw_client = httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        )
+        raw_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         client = AsyncHttpClient(
             config=_config(),
             rate_limiter=_limiter(),
@@ -144,9 +138,7 @@ def test_retry_after_and_url_redaction() -> None:
     now = datetime(2026, 7, 12, tzinfo=timezone.utc)
     assert parse_retry_after("12", now=now) == 12
     assert parse_retry_after("invalid", now=now) is None
-    rendered = sanitize_url(
-        "https://example.org/a?api_key=secret&q=camera#fragment"
-    )
+    rendered = sanitize_url("https://example.org/a?api_key=secret&q=camera#fragment")
     assert "secret" not in rendered
     assert "api_key=%2A%2A%2A" in rendered
     assert "q=camera" in rendered
@@ -165,9 +157,7 @@ def test_certificate_verification_error_is_not_retried() -> None:
                 request=request,
             )
 
-        raw_client = httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        )
+        raw_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         client = AsyncHttpClient(
             config=_config(),
             rate_limiter=_limiter(),
@@ -198,9 +188,7 @@ def test_http_request_can_be_cancelled_while_waiting() -> None:
             await asyncio.sleep(10)
             return httpx.Response(200, request=request)
 
-        raw_client = httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        )
+        raw_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         client = AsyncHttpClient(
             config=_config(),
             rate_limiter=_limiter(),

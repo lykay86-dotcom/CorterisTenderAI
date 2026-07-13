@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import zipfile
 
+
 class BackupService:
     def create(self, destination: Path, sources: list[Path], metadata: dict | None = None) -> Path:
         destination.mkdir(parents=True, exist_ok=True)
@@ -19,7 +20,9 @@ class BackupService:
                     for file in source.rglob("*"):
                         if file.is_file():
                             archive.write(file, f"data/{source.name}/{file.relative_to(source)}")
-            archive.writestr("backup_manifest.json", json.dumps(metadata or {}, ensure_ascii=False, indent=2))
+            archive.writestr(
+                "backup_manifest.json", json.dumps(metadata or {}, ensure_ascii=False, indent=2)
+            )
         return output
 
     def verify(self, archive_path: Path) -> bool:

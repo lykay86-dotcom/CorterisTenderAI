@@ -45,9 +45,7 @@ class ProviderCredentialsDialog(QDialog):
         self.token_input = QLineEdit(self)
         self.token_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.token_input.setPlaceholderText(
-            "Введите новый ключ для сохранения"
-            if configured
-            else "Bearer API-ключ"
+            "Введите новый ключ для сохранения" if configured else "Bearer API-ключ"
         )
         form.addRow("Bearer API-ключ:", self.token_input)
         root.addLayout(form)
@@ -57,8 +55,7 @@ class ProviderCredentialsDialog(QDialog):
         root.addWidget(self.message)
 
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel,
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
         buttons.accepted.connect(self._accept_if_valid)

@@ -18,9 +18,7 @@ def test_participation_decision_is_persisted_in_registry_database(tmp_path) -> N
     tender = make_tender()
     normalized = TenderNormalizer().normalize(tender)
     run_id = repository.start_run(TenderSearchQuery())
-    repository.save_batch(
-        run_id, TenderDeduplicator().deduplicate((normalized,))
-    )
+    repository.save_batch(run_id, TenderDeduplicator().deduplicate((normalized,)))
     decision = ParticipationDecision(
         decision_id="decision-1",
         registry_key=normalized.canonical_key,
@@ -42,9 +40,7 @@ def test_participation_decision_is_persisted_in_registry_database(tmp_path) -> N
     )
 
     repository.save_participation_decision(decision)
-    payload = repository.get_latest_participation_decision_payload(
-        normalized.canonical_key
-    )
+    payload = repository.get_latest_participation_decision_payload(normalized.canonical_key)
 
     assert payload is not None
     assert payload["decision_id"] == "decision-1"

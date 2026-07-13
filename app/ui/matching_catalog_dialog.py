@@ -31,8 +31,15 @@ from app.tenders.matching_catalog import (
 
 
 _HEADERS = (
-    "Активно", "Группа", "Значение", "Тип", "Направление",
-    "Каноническое значение", "Вес, %", "Категория", "Источник",
+    "Активно",
+    "Группа",
+    "Значение",
+    "Тип",
+    "Направление",
+    "Каноническое значение",
+    "Вес, %",
+    "Категория",
+    "Источник",
 )
 
 
@@ -123,8 +130,11 @@ class MatchingCatalogDialog(QDialog):
         active.setChecked(entry.active)
         self.table.setCellWidget(row, 0, active)
         for column, value in (
-            (1, entry.group_key), (2, entry.term),
-            (5, entry.canonical_term), (7, entry.category), (8, entry.source),
+            (1, entry.group_key),
+            (2, entry.term),
+            (5, entry.canonical_term),
+            (7, entry.category),
+            (8, entry.source),
         ):
             item = QTableWidgetItem(value)
             if column == 2:
@@ -148,14 +158,16 @@ class MatchingCatalogDialog(QDialog):
         self.table.setCellWidget(row, 6, weight)
 
     def add_empty_row(self) -> None:
-        self._append_entry(MatchingCatalogEntry(
-            entry_id=uuid4().hex,
-            group_key="new_group",
-            term="новое значение",
-            kind=MatchingEntryKind.STRONG_KEYWORD,
-            direction=TenderDirection.VIDEO_SURVEILLANCE,
-            source="user",
-        ))
+        self._append_entry(
+            MatchingCatalogEntry(
+                entry_id=uuid4().hex,
+                group_key="new_group",
+                term="новое значение",
+                kind=MatchingEntryKind.STRONG_KEYWORD,
+                direction=TenderDirection.VIDEO_SURVEILLANCE,
+                source="user",
+            )
+        )
 
     def remove_selected_rows(self) -> None:
         rows = sorted({index.row() for index in self.table.selectedIndexes()}, reverse=True)
@@ -166,7 +178,10 @@ class MatchingCatalogDialog(QDialog):
         try:
             settings = MatchingCatalogSettings(
                 **{
-                    **{name: getattr(self._settings, name) for name in self._settings.__dataclass_fields__},
+                    **{
+                        name: getattr(self._settings, name)
+                        for name in self._settings.__dataclass_fields__
+                    },
                     "minimum_score": self.minimum_score.value(),
                     "medium_score": self.medium_score.value(),
                     "high_score": self.high_score.value(),
@@ -206,18 +221,20 @@ class MatchingCatalogDialog(QDialog):
             term_item = self.table.item(row, 2)
             entry_id = str(term_item.data(Qt.ItemDataRole.UserRole) or uuid4().hex)
             direction_value = str(direction_widget.currentData() or "")
-            result.append(MatchingCatalogEntry(
-                entry_id=entry_id,
-                group_key=self._text(row, 1),
-                term=self._text(row, 2),
-                kind=MatchingEntryKind(str(kind_widget.currentData())),
-                direction=TenderDirection(direction_value) if direction_value else None,
-                canonical_term=self._text(row, 5),
-                weight_percent=weight_widget.value(),
-                category=self._text(row, 7),
-                source=self._text(row, 8) or "user",
-                active=active_widget.isChecked(),
-            ))
+            result.append(
+                MatchingCatalogEntry(
+                    entry_id=entry_id,
+                    group_key=self._text(row, 1),
+                    term=self._text(row, 2),
+                    kind=MatchingEntryKind(str(kind_widget.currentData())),
+                    direction=TenderDirection(direction_value) if direction_value else None,
+                    canonical_term=self._text(row, 5),
+                    weight_percent=weight_widget.value(),
+                    category=self._text(row, 7),
+                    source=self._text(row, 8) or "user",
+                    active=active_widget.isChecked(),
+                )
+            )
         return tuple(result)
 
     def _text(self, row: int, column: int) -> str:

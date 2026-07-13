@@ -20,7 +20,4 @@ def test_default_network_settings_are_conservative() -> None:
     )
     assert mos.rate_limit.max_concurrent == 1
     assert settings.domain_rate_limits["zakupki.gov.ru"] is eis.rate_limit
-    assert (
-        settings.domain_rate_limits["api.zakupki.mos.ru"]
-        is mos.rate_limit
-    )
+    assert settings.domain_rate_limits["api.zakupki.mos.ru"] is mos.rate_limit

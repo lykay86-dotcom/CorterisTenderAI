@@ -67,10 +67,6 @@ def test_analysis_profit_is_fallback_without_saved_estimates() -> None:
         now=NOW,
         business=BusinessMetricsSnapshot(),
     )
-    profit = next(
-        item
-        for item in snapshot.kpis
-        if item.key == "potential_profit"
-    )
+    profit = next(item for item in snapshot.kpis if item.key == "potential_profit")
 
     assert profit.value == "150 000 ₽"

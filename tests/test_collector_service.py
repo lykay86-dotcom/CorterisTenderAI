@@ -82,9 +82,7 @@ def test_service_persists_partial_batch_without_losing_results(
     tmp_path,
 ) -> None:
     async def scenario() -> None:
-        repository = CollectorStateRepository(
-            tmp_path / "tender_registry.sqlite3"
-        )
+        repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
         service = CollectorService(FakeEngine(_batch()), repository)
 
         result = await service.collect(
@@ -108,9 +106,7 @@ def test_service_persists_partial_batch_without_losing_results(
 
 def test_service_marks_run_failed_on_pipeline_exception(tmp_path) -> None:
     async def scenario() -> None:
-        repository = CollectorStateRepository(
-            tmp_path / "tender_registry.sqlite3"
-        )
+        repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
         service = CollectorService(FailingEngine(), repository)
 
         try:
@@ -121,9 +117,7 @@ def test_service_marks_run_failed_on_pipeline_exception(tmp_path) -> None:
             raise AssertionError("RuntimeError expected")
 
         with repository._connect() as connection:
-            row = connection.execute(
-                "SELECT * FROM collector_runs"
-            ).fetchone()
+            row = connection.execute("SELECT * FROM collector_runs").fetchone()
         assert row is not None
         assert row["status"] == CollectionRunStatus.FAILED.value
         assert row["error_type"] == "RuntimeError"

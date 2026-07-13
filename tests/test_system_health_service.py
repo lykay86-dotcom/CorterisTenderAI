@@ -41,9 +41,7 @@ def _services(tmp_path):
 def test_snapshot_is_healthy_with_database_and_valid_backup(
     tmp_path,
 ) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
         tender_id="T-87",
@@ -57,9 +55,7 @@ def test_snapshot_is_healthy_with_database_and_valid_backup(
         backup_dir / "valid.ctbackup",
         created_at=datetime(2026, 7, 11, 23, 0),
     )
-    journal = SystemHealthJournal(
-        tmp_path / "journal.json"
-    )
+    journal = SystemHealthJournal(tmp_path / "journal.json")
 
     snapshot = SystemHealthService().collect(
         repository=repository,
@@ -79,9 +75,7 @@ def test_snapshot_is_healthy_with_database_and_valid_backup(
 def test_snapshot_reports_corrupted_database_and_backup(
     tmp_path,
 ) -> None:
-    repository = BusinessMetricsRepository(
-        tmp_path / "workflow.json"
-    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow.json")
     repository.path.write_text("{broken", encoding="utf-8")
     backup, catalog, database_health, auto = _services(tmp_path)
     backup_dir = tmp_path / "backups"
@@ -96,9 +90,7 @@ def test_snapshot_reports_corrupted_database_and_backup(
         database_health_service=database_health,
         auto_backup_service=auto,
         backup_catalog_service=catalog,
-        journal=SystemHealthJournal(
-            tmp_path / "journal.json"
-        ),
+        journal=SystemHealthJournal(tmp_path / "journal.json"),
         backup_directories=[backup_dir],
     )
 

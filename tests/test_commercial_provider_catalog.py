@@ -26,9 +26,7 @@ def test_default_catalog_contains_all_planned_commercial_sources() -> None:
     ]
     assert all(not item.descriptor.enabled_by_default for item in definitions)
     assert all(
-        item.descriptor.implementation_status
-        == "commercial_access_pending"
-        for item in definitions
+        item.descriptor.implementation_status == "commercial_access_pending" for item in definitions
     )
 
 
@@ -45,33 +43,34 @@ def test_readiness_progresses_without_marking_provider_available() -> None:
     base = {
         "CORTERIS_B2B_ENABLED": "true",
     }
-    assert create_commercial_provider_catalog(
-        environment=base
-    ).get("b2b_center").state == CommercialProviderState.CONTRACT_REQUIRED
+    assert (
+        create_commercial_provider_catalog(environment=base).get("b2b_center").state
+        == CommercialProviderState.CONTRACT_REQUIRED
+    )
 
     with_contract = {
         **base,
         "CORTERIS_B2B_ACCESS_CONFIRMED": "true",
     }
-    assert create_commercial_provider_catalog(
-        environment=with_contract
-    ).get("b2b_center").state == CommercialProviderState.CREDENTIALS_REQUIRED
+    assert (
+        create_commercial_provider_catalog(environment=with_contract).get("b2b_center").state
+        == CommercialProviderState.CREDENTIALS_REQUIRED
+    )
 
     with_key = {
         **with_contract,
         "CORTERIS_B2B_API_KEY": "secret-value-123456",
     }
-    assert create_commercial_provider_catalog(
-        environment=with_key
-    ).get("b2b_center").state == CommercialProviderState.ENDPOINT_REQUIRED
+    assert (
+        create_commercial_provider_catalog(environment=with_key).get("b2b_center").state
+        == CommercialProviderState.ENDPOINT_REQUIRED
+    )
 
     ready = {
         **with_key,
         "CORTERIS_B2B_API_BASE_URL": "https://api.example.test/",
     }
-    settings = create_commercial_provider_catalog(
-        environment=ready
-    ).get("b2b_center")
+    settings = create_commercial_provider_catalog(environment=ready).get("b2b_center")
 
     assert settings.state == CommercialProviderState.READY_FOR_VERIFICATION
     assert not settings.is_working
@@ -109,9 +108,7 @@ def test_non_secret_settings_repository_roundtrip(tmp_path) -> None:
         CommercialProviderUserSettings(
             enabled=True,
             access_confirmed=True,
-            api_base_url=(
-                "https://user:password@api.example.test/v1?token=secret"
-            ),
+            api_base_url=("https://user:password@api.example.test/v1?token=secret"),
         ),
     )
     sanitized = repository.load()["b2b_center"]

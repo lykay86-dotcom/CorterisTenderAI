@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from pathlib import Path
 from typing import Iterable
 
 from app.parsers.documents import classify_document

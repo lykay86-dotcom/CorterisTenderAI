@@ -70,13 +70,9 @@ class FailingAnalysisService(FakeAnalysisService):
 
 
 def _runtime(tmp_path, service) -> TenderSearchRuntime:
-    profiles = TenderSearchProfileRepository(
-        tmp_path / "search_profiles.json"
-    )
+    profiles = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     profiles.initialize()
-    registry_repository = TenderRegistryRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    registry_repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     registry_repository.record_profile_run(
         _run(_evaluated_tender()),
         run_id="run-analysis",

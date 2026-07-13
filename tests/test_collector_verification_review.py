@@ -14,9 +14,7 @@ from tests.collector_c3_helpers import make_tender
 
 
 def test_review_groups_sources_by_field(tmp_path) -> None:
-    repository = CollectorStateRepository(
-        tmp_path / "tender_registry.sqlite3"
-    )
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
     repository.start_run(TenderSearchQuery(), run_id="review-run")
     eis = make_tender(
         source=TenderSource.EIS,

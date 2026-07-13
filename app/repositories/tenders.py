@@ -37,9 +37,7 @@ class TenderRepository:
 
     def list(self) -> list[Tender]:
         with session_scope() as session:
-            stmt = select(Tender).order_by(
-                Tender.created_at.desc()
-            )
+            stmt = select(Tender).order_by(Tender.created_at.desc())
             active = _active_filter(Tender)
             if active is not None:
                 stmt = stmt.where(active)
@@ -93,9 +91,7 @@ class TenderRepository:
     ) -> list[Document]:
         identifier = _coerce_identifier(tender_id)
         with session_scope() as session:
-            stmt = select(Document).where(
-                Document.tender_id == identifier
-            )
+            stmt = select(Document).where(Document.tender_id == identifier)
             active = _active_filter(Document)
             if active is not None:
                 stmt = stmt.where(active)
@@ -117,9 +113,7 @@ class TenderRepository:
 
             tender = session.get(Tender, identifier)
             if tender is None:
-                raise ValueError(
-                    f"Тендер не найден: {tender_id}"
-                )
+                raise ValueError(f"Тендер не найден: {tender_id}")
 
             tender.score = report["score"]
             tender.recommendation = report["recommendation"]

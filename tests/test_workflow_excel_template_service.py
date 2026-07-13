@@ -12,16 +12,9 @@ from app.reporting.workflow_excel_template import (
 
 
 def _sheet_names(path: Path) -> list[str]:
-    namespace = {
-        "main": (
-            "http://schemas.openxmlformats.org/"
-            "spreadsheetml/2006/main"
-        )
-    }
+    namespace = {"main": ("http://schemas.openxmlformats.org/spreadsheetml/2006/main")}
     with ZipFile(path) as archive:
-        root = ET.fromstring(
-            archive.read("xl/workbook.xml")
-        )
+        root = ET.fromstring(archive.read("xl/workbook.xml"))
     return [
         item.attrib["name"]
         for item in root.findall(
@@ -63,9 +56,7 @@ def test_template_contains_dropdown_validations() -> None:
     )
 
     with ZipFile(source) as archive:
-        import_sheet = archive.read(
-            "xl/worksheets/sheet1.xml"
-        ).decode("utf-8")
+        import_sheet = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
 
     assert "dataValidations" in import_sheet
     assert "B2:B501" in import_sheet
@@ -83,9 +74,7 @@ def test_template_has_validation_formula_column() -> None:
     )
 
     with ZipFile(source) as archive:
-        import_sheet = archive.read(
-            "xl/worksheets/sheet1.xml"
-        ).decode("utf-8")
+        import_sheet = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
 
     assert "COUNTIFS" in import_sheet
     assert 'r="L2"' in import_sheet

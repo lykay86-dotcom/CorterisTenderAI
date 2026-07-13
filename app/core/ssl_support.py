@@ -82,9 +82,7 @@ def describe_ssl_context(
     return SslContextInfo(
         ca_certificates=count,
         explicit_ca_bundle=(
-            str(Path(explicit_ca_bundle).expanduser().resolve())
-            if explicit_ca_bundle
-            else ""
+            str(Path(explicit_ca_bundle).expanduser().resolve()) if explicit_ca_bundle else ""
         ),
         certifi_bundle=str(certifi_path) if certifi_path else "",
         verify_mode=getattr(context.verify_mode, "name", str(context.verify_mode)),

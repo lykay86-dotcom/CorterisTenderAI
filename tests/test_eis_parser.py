@@ -21,12 +21,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_search_parser_normalizes_44fz_and_223fz_cards() -> None:
-    html = (FIXTURES / "eis_search_results.html").read_text(
-        encoding="utf-8"
-    )
-    parsed = EisHtmlParser(
-        base_url="https://zakupki.gov.ru/"
-    ).parse_search(html)
+    html = (FIXTURES / "eis_search_results.html").read_text(encoding="utf-8")
+    parsed = EisHtmlParser(base_url="https://zakupki.gov.ru/").parse_search(html)
 
     assert parsed.total == 2
     assert len(parsed.items) == 2
@@ -51,12 +47,8 @@ def test_search_parser_normalizes_44fz_and_223fz_cards() -> None:
 
 
 def test_document_parser_returns_downloadable_files_only() -> None:
-    html = (FIXTURES / "eis_documents.html").read_text(
-        encoding="utf-8"
-    )
-    documents = EisHtmlParser(
-        base_url="https://zakupki.gov.ru/"
-    ).parse_documents(html)
+    html = (FIXTURES / "eis_documents.html").read_text(encoding="utf-8")
+    documents = EisHtmlParser(base_url="https://zakupki.gov.ru/").parse_documents(html)
 
     assert [document.name for document in documents] == [
         "Описание объекта закупки.pdf",

@@ -91,11 +91,7 @@ class DashboardPage(QWidget):
         self._themed_sections: list[DashboardSection] = []
         self._layout_spec: DashboardLayoutSpec | None = None
         self._data_state = DataState.ready()
-        self._demo_mode = (
-            demo_mode_from_environment()
-            if demo_mode is None
-            else bool(demo_mode)
-        )
+        self._demo_mode = demo_mode_from_environment() if demo_mode is None else bool(demo_mode)
 
         self.setObjectName("DashboardPage")
         self.setSizePolicy(
@@ -110,9 +106,7 @@ class DashboardPage(QWidget):
         self.scroll.setObjectName("DashboardScroll")
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self.canvas = QWidget(self.scroll)
         self.canvas.setObjectName("DashboardCanvas")
@@ -152,9 +146,7 @@ class DashboardPage(QWidget):
         self.title_label = QLabel("Рабочий стол")
         self.title_label.setObjectName("DashboardTitle")
 
-        self.subtitle_label = QLabel(
-            "Ключевые показатели, тендеры и действия на сегодня."
-        )
+        self.subtitle_label = QLabel("Ключевые показатели, тендеры и действия на сегодня.")
         self.subtitle_label.setObjectName("DashboardSubtitle")
 
         title_column.addWidget(self.title_label)
@@ -162,18 +154,14 @@ class DashboardPage(QWidget):
 
         self.updated_label = QLabel("Данные ещё не обновлялись")
         self.updated_label.setObjectName("DashboardUpdated")
-        self.updated_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
+        self.updated_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.refresh_button = OutlineButton(
             "Обновить",
             icon_text="↻",
             theme=self._theme,
         )
-        self.refresh_button.clicked.connect(
-            self.viewmodel.request_refresh
-        )
+        self.refresh_button.clicked.connect(self.viewmodel.request_refresh)
 
         header.addLayout(title_column, 1)
         header.addWidget(self.updated_label)
@@ -185,9 +173,7 @@ class DashboardPage(QWidget):
             theme=self._theme,
             parent=self.canvas,
         )
-        self.status_banner.action_requested.connect(
-            self._handle_status_action
-        )
+        self.status_banner.action_requested.connect(self._handle_status_action)
         self.main_layout.addWidget(self.status_banner)
 
     def _build_kpi_zone(self) -> None:
@@ -216,12 +202,8 @@ class DashboardPage(QWidget):
             parent=self.tender_section,
         )
         self.tender_feed.setMinimumHeight(360)
-        self.tender_feed.tender_open_requested.connect(
-            self.tender_open_requested
-        )
-        self.tender_feed.state_action_requested.connect(
-            self._handle_data_state_action
-        )
+        self.tender_feed.tender_open_requested.connect(self.tender_open_requested)
+        self.tender_feed.state_action_requested.connect(self._handle_data_state_action)
         self.tender_section.add_widget(self.tender_feed)
 
         self.ai_advisor = AiAdvisor(
@@ -252,9 +234,7 @@ class DashboardPage(QWidget):
             columns=2,
             parent=self.quick_section,
         )
-        self.quick_actions.action_requested.connect(
-            self._handle_quick_action
-        )
+        self.quick_actions.action_requested.connect(self._handle_quick_action)
         self.quick_section.add_widget(self.quick_actions)
 
         self.activity_section = self._section(
@@ -268,9 +248,7 @@ class DashboardPage(QWidget):
             parent=self.activity_section,
         )
         self.activity_feed.setMinimumHeight(250)
-        self.activity_feed.action_requested.connect(
-            self._handle_activity_action
-        )
+        self.activity_feed.action_requested.connect(self._handle_activity_action)
         self.activity_section.add_widget(self.activity_feed)
 
         self.secondary_grid.addWidget(self.quick_section, 0, 0)
@@ -283,9 +261,7 @@ class DashboardPage(QWidget):
 
     def _build_keyboard_navigation(self) -> None:
         self.shortcut_manager = DashboardShortcutManager(self)
-        self.shortcut_manager.action_requested.connect(
-            self._handle_keyboard_action
-        )
+        self.shortcut_manager.action_requested.connect(self._handle_keyboard_action)
         self.setFocusProxy(self.refresh_button)
         self._configure_tab_order()
 
@@ -319,9 +295,7 @@ class DashboardPage(QWidget):
         elif action_key == "focus_tenders":
             self.tender_feed.focus_table()
         elif action_key == "focus_advisor":
-            self.ai_advisor.action_button.setFocus(
-                Qt.FocusReason.ShortcutFocusReason
-            )
+            self.ai_advisor.action_button.setFocus(Qt.FocusReason.ShortcutFocusReason)
         elif action_key == "focus_quick_actions":
             self.quick_actions.focus_first()
         elif action_key == "focus_activity":
@@ -346,10 +320,7 @@ class DashboardPage(QWidget):
         self._demo_mode = True
 
         self.set_data_state(
-            DataState.loading(
-                "Подготавливаем демонстрационные KPI, тендеры "
-                "и AI-рекомендации."
-            )
+            DataState.loading("Подготавливаем демонстрационные KPI, тендеры и AI-рекомендации.")
         )
 
         for kpi in demo.kpis:
@@ -365,17 +336,13 @@ class DashboardPage(QWidget):
         self.viewmodel.set_recent_tenders(demo.tenders)
         self.viewmodel.set_ai_recommendations(demo.recommendations)
         self.activity_feed.set_entries(demo.activities)
-        self.activity_section.set_badge(
-            str(len(demo.activities))
-        )
+        self.activity_section.set_badge(str(len(demo.activities)))
 
         self.set_data_state(DataState.ready())
         self._sync_advisor_from_dashboard()
         self._configure_tab_order()
 
-        self.subtitle_label.setText(
-            "Демонстрационный режим — используются синтетические данные."
-        )
+        self.subtitle_label.setText("Демонстрационный режим — используются синтетические данные.")
         self.quick_actions.set_badge("find_tenders", "DEMO")
         self.status_banner.show_status(
             title="Демонстрационный режим",
@@ -411,14 +378,8 @@ class DashboardPage(QWidget):
         self.activity_feed.clear()
         self.activity_section.set_badge("Сегодня")
         self.quick_actions.set_badge("find_tenders", "")
-        self.subtitle_label.setText(
-            "Ключевые показатели, тендеры и действия на сегодня."
-        )
-        self.set_data_state(
-            DataState.empty(
-                "Новые тендеры появятся после запуска поиска."
-            )
-        )
+        self.subtitle_label.setText("Ключевые показатели, тендеры и действия на сегодня.")
+        self.set_data_state(DataState.empty("Новые тендеры появятся после запуска поиска."))
         self.status_banner.clear()
         self._configure_tab_order()
         self.demo_mode_changed.emit(False)
@@ -465,17 +426,13 @@ class DashboardPage(QWidget):
         if refreshing:
             if not preserve_content:
                 self.set_data_state(
-                    DataState.loading(
-                        "Получаем актуальные тендеры, KPI "
-                        "и AI-рекомендации."
-                    )
+                    DataState.loading("Получаем актуальные тендеры, KPI и AI-рекомендации.")
                 )
 
             self.status_banner.show_status(
                 title="Фоновое обновление",
                 message=(
-                    "Получаем актуальные тендеры и показатели. "
-                    "Интерфейс остаётся доступным."
+                    "Получаем актуальные тендеры и показатели. Интерфейс остаётся доступным."
                     if preserve_content
                     else "Получаем актуальные тендеры и показатели."
                 ),
@@ -484,16 +441,11 @@ class DashboardPage(QWidget):
             )
             return
 
-        if (
-            not preserve_content
-            and self._data_state.kind == DataStateKind.LOADING
-        ):
+        if not preserve_content and self._data_state.kind == DataStateKind.LOADING:
             next_state = (
                 DataState.ready()
                 if self.tender_feed.model.rowCount() > 0
-                else DataState.empty(
-                    "По текущим условиям тендеры не найдены."
-                )
+                else DataState.empty("По текущим условиям тендеры не найдены.")
             )
             self.set_data_state(next_state)
 
@@ -578,9 +530,7 @@ class DashboardPage(QWidget):
         self.activity_feed.setMinimumHeight(spec.activity_min_height)
 
         self.updated_label.setVisible(not spec.compact)
-        self.subtitle_label.setVisible(
-            spec.density.value not in {"narrow"}
-        )
+        self.subtitle_label.setVisible(spec.density.value not in {"narrow"})
 
         self._reflow_grid(
             self.primary_grid,
@@ -649,46 +599,26 @@ class DashboardPage(QWidget):
 
     def _connect_dashboard_viewmodel(self) -> None:
         self.viewmodel.kpi_changed.connect(self._on_kpi_changed)
-        self.viewmodel.recent_tenders_changed.connect(
-            self.set_recent_tenders
-        )
-        self.viewmodel.ai_recommendations_changed.connect(
-            self.set_ai_recommendations
-        )
-        self.viewmodel.state_changed.connect(
-            lambda _state: self._refresh_updated_label()
-        )
+        self.viewmodel.recent_tenders_changed.connect(self.set_recent_tenders)
+        self.viewmodel.ai_recommendations_changed.connect(self.set_ai_recommendations)
+        self.viewmodel.state_changed.connect(lambda _state: self._refresh_updated_label())
 
     def _connect_advisor_viewmodel(self) -> None:
-        self.advisor_viewmodel.status_changed.connect(
-            self.ai_advisor.set_status
-        )
-        self.advisor_viewmodel.metrics_changed.connect(
-            self._render_advisor_metrics
-        )
-        self.advisor_viewmodel.focus_changed.connect(
-            self._render_advisor_focus
-        )
+        self.advisor_viewmodel.status_changed.connect(self.ai_advisor.set_status)
+        self.advisor_viewmodel.metrics_changed.connect(self._render_advisor_metrics)
+        self.advisor_viewmodel.focus_changed.connect(self._render_advisor_focus)
         self.advisor_viewmodel.reasons_changed.connect(
             lambda reasons: self.ai_advisor.set_reasons(list(reasons))
         )
-        self.advisor_viewmodel.warning_changed.connect(
-            self.ai_advisor.set_warning
-        )
-        self.advisor_viewmodel.action_changed.connect(
-            self._render_advisor_action
-        )
-        self.ai_advisor.action_requested.connect(
-            self._handle_advisor_action
-        )
+        self.advisor_viewmodel.warning_changed.connect(self.ai_advisor.set_warning)
+        self.advisor_viewmodel.action_changed.connect(self._render_advisor_action)
+        self.ai_advisor.action_requested.connect(self._handle_advisor_action)
 
     def refresh_from_state(self) -> None:
         for key, kpi in self.viewmodel.state.kpis.items():
             self._on_kpi_changed(key, kpi)
         self.set_recent_tenders(self.viewmodel.state.recent_tenders)
-        self.set_ai_recommendations(
-            self.viewmodel.state.ai_recommendations
-        )
+        self.set_ai_recommendations(self.viewmodel.state.ai_recommendations)
         self._refresh_updated_label()
         self._sync_advisor_from_dashboard()
 
@@ -703,9 +633,7 @@ class DashboardPage(QWidget):
             self.set_data_state(
                 DataState.ready()
                 if tenders
-                else DataState.empty(
-                    "Новые тендеры появятся после запуска поиска."
-                )
+                else DataState.empty("Новые тендеры появятся после запуска поиска.")
             )
 
         self._sync_advisor_from_dashboard()
@@ -718,14 +646,11 @@ class DashboardPage(QWidget):
 
     def set_activities(
         self,
-        activities: list[ActivityEntry]
-        | tuple[ActivityEntry, ...],
+        activities: list[ActivityEntry] | tuple[ActivityEntry, ...],
     ) -> None:
         """Replace Activity Feed content from a controller."""
         self.activity_feed.set_entries(activities)
-        self.activity_section.set_badge(
-            str(len(activities)) if activities else "Сегодня"
-        )
+        self.activity_section.set_badge(str(len(activities)) if activities else "Сегодня")
         self._configure_tab_order()
 
     def set_kpi(
@@ -770,11 +695,7 @@ class DashboardPage(QWidget):
             return
 
         state = self.viewmodel.state
-        recommendations = (
-            state.ai_recommendations
-            if recommendations is None
-            else recommendations
-        )
+        recommendations = state.ai_recommendations if recommendations is None else recommendations
 
         self.advisor_viewmodel.set_metrics(
             new_tenders=self._kpi_int("new_tenders"),
@@ -813,9 +734,7 @@ class DashboardPage(QWidget):
             for item in recommendations
             if item.severity in {"warning", "danger"}
         ]
-        self.advisor_viewmodel.set_warning(
-            warnings[0] if warnings else ""
-        )
+        self.advisor_viewmodel.set_warning(warnings[0] if warnings else "")
         self.advisor_viewmodel.set_action(
             text="Открыть приоритетный тендер",
             key=f"open_tender:{priority.number}",
@@ -948,9 +867,7 @@ class DashboardPage(QWidget):
             action_key=action_key,
         )
         self.activity_feed.add_entry(entry)
-        self.activity_section.set_badge(
-            str(len(self.activity_feed.entries))
-        )
+        self.activity_section.set_badge(str(len(self.activity_feed.entries)))
         self._configure_tab_order()
 
     def _handle_advisor_action(self, action_key: str) -> None:

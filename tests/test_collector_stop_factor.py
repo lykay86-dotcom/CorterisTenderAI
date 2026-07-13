@@ -70,8 +70,7 @@ def test_expired_deadline_is_blocked_with_complete_evidence() -> None:
 
     assert assessment.status == StopFactorStatus.BLOCKED_BY_REQUIREMENT
     factor = next(
-        item for item in assessment.factors
-        if item.kind == StopFactorKind.DEADLINE_EXPIRED
+        item for item in assessment.factors if item.kind == StopFactorKind.DEADLINE_EXPIRED
     )
     assert factor.evidence.document
     assert factor.evidence.page
@@ -95,14 +94,8 @@ def test_missing_mandatory_sro_blocks_but_confirmed_sro_removes_block() -> None:
     )
 
     assert missing.status == StopFactorStatus.BLOCKED_BY_REQUIREMENT
-    assert any(
-        item.kind == StopFactorKind.REQUIRED_SRO_MISSING
-        for item in missing.factors
-    )
-    assert not any(
-        item.kind == StopFactorKind.REQUIRED_SRO_MISSING
-        for item in confirmed.factors
-    )
+    assert any(item.kind == StopFactorKind.REQUIRED_SRO_MISSING for item in missing.factors)
+    assert not any(item.kind == StopFactorKind.REQUIRED_SRO_MISSING for item in confirmed.factors)
 
 
 def test_high_score_cannot_override_structured_block() -> None:
@@ -136,17 +129,14 @@ def test_security_above_confirmed_limit_is_blocked() -> None:
         amount="10000000",
         deadline_day=30,
     )
-    analysis = _analysis(
-        "Обеспечение исполнения контракта составляет 10%."
-    )
+    analysis = _analysis("Обеспечение исполнения контракта составляет 10%.")
 
-    assessment = StopFactorEngine(profile).evaluate(
-        "tender:1", tender, analysis=analysis, now=NOW
-    )
+    assessment = StopFactorEngine(profile).evaluate("tender:1", tender, analysis=analysis, now=NOW)
 
     assert assessment.status == StopFactorStatus.BLOCKED_BY_REQUIREMENT
     factor = next(
-        item for item in assessment.factors
+        item
+        for item in assessment.factors
         if item.kind == StopFactorKind.SECURITY_CAPACITY_EXCEEDED
     )
     assert "1000000.00" in factor.description
@@ -175,9 +165,7 @@ def test_stop_factor_assessment_is_stored_separately(tmp_path) -> None:
         rankings={normalized.canonical_key: score},
     )
 
-    assert repository.get_latest_stop_factor_assessment(
-        normalized.canonical_key
-    ) == assessment
+    assert repository.get_latest_stop_factor_assessment(normalized.canonical_key) == assessment
     with repository._connect() as connection:
         stored = connection.execute(
             "SELECT document_name, page_reference, quote_fragment, remediation "

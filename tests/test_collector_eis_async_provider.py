@@ -111,11 +111,7 @@ def test_async_eis_get_tender_and_documents() -> None:
 
         async def handler(request: httpx.Request) -> httpx.Response:
             calls.append(str(request.url))
-            body = (
-                DOCUMENTS_HTML
-                if "documents.html" in request.url.path
-                else SEARCH_HTML
-            )
+            body = DOCUMENTS_HTML if "documents.html" in request.url.path else SEARCH_HTML
             return httpx.Response(
                 200,
                 content=body,
@@ -126,9 +122,7 @@ def test_async_eis_get_tender_and_documents() -> None:
         client, raw = _client(handler)
         provider = AsyncEisTenderProvider(client)
         tender = await provider.get_tender("0373100000126000001")
-        documents = await provider.list_documents(
-            "0373100000126000001"
-        )
+        documents = await provider.list_documents("0373100000126000001")
 
         assert tender.procurement_number == "0373100000126000001"
         assert [item.name for item in documents] == [

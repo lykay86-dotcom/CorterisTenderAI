@@ -140,9 +140,7 @@ class BusinessMetricsRepository:
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = (
-            Path(path)
-            if path is not None
-            else get_settings().data_dir / "business_workflow.json"
+            Path(path) if path is not None else get_settings().data_dir / "business_workflow.json"
         )
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
@@ -155,29 +153,17 @@ class BusinessMetricsRepository:
         archived_only: bool = False,
     ) -> list[BusinessWorkflowRecord]:
         """List records with explicit archive visibility control."""
-        normalized_kind = (
-            BusinessRecordKind(kind).value
-            if kind is not None
-            else None
-        )
+        normalized_kind = BusinessRecordKind(kind).value if kind is not None else None
         records = self._read_records()
 
         if archived_only:
-            records = [
-                record for record in records if record.is_archived
-            ]
+            records = [record for record in records if record.is_archived]
         elif not include_archived:
-            records = [
-                record for record in records if not record.is_archived
-            ]
+            records = [record for record in records if not record.is_archived]
 
         if normalized_kind is None:
             return records
-        return [
-            record
-            for record in records
-            if record.kind == normalized_kind
-        ]
+        return [record for record in records if record.kind == normalized_kind]
 
     def get_record(
         self,
@@ -185,11 +171,7 @@ class BusinessMetricsRepository:
     ) -> BusinessWorkflowRecord | None:
         """Return one workflow record by its stable UUID."""
         return next(
-            (
-                record
-                for record in self._read_records()
-                if record.id == record_id
-            ),
+            (record for record in self._read_records() if record.id == record_id),
             None,
         )
 
@@ -202,9 +184,7 @@ class BusinessMetricsRepository:
         """Return newest audit events for one workflow record."""
         with self._lock:
             events = [
-                event
-                for event in self._read_events_unlocked()
-                if event.record_id == record_id
+                event for event in self._read_events_unlocked() if event.record_id == record_id
             ]
 
         events.sort(
@@ -219,21 +199,15 @@ class BusinessMetricsRepository:
         """Return an isolated JSON-compatible copy of the full store."""
         with self._lock:
             payload = self._read_payload_unlocked()
-            return json.loads(
-                json.dumps(payload, ensure_ascii=False)
-            )
+            return json.loads(json.dumps(payload, ensure_ascii=False))
 
     def replace_payload(self, payload: dict[str, Any]) -> None:
         """Atomically replace the store with a validated snapshot."""
         if not isinstance(payload, dict):
-            raise TypeError(
-                "Снимок бизнес-процессов должен быть объектом"
-            )
+            raise TypeError("Снимок бизнес-процессов должен быть объектом")
 
         with self._lock:
-            temporary = self.path.with_suffix(
-                self.path.suffix + ".restore.tmp"
-            )
+            temporary = self.path.with_suffix(self.path.suffix + ".restore.tmp")
             try:
                 temporary.write_text(
                     json.dumps(
@@ -366,53 +340,27 @@ class BusinessMetricsRepository:
         with self._lock:
             records = self._read_records_unlocked()
             existing = next(
-                (
-                    record
-                    for record in records
-                    if record.id == record_id
-                ),
+                (record for record in records if record.id == record_id),
                 None,
             )
             if existing is None:
                 raise KeyError(record_id)
             if existing.is_archived:
-                raise ValueError(
-                    "Архивную запись нужно сначала восстановить"
-                )
+                raise ValueError("Архивную запись нужно сначала восстановить")
 
-            next_title = (
-                existing.title
-                if title is _UNSET
-                else str(title).strip()
-            )
+            next_title = existing.title if title is _UNSET else str(title).strip()
             if not next_title:
                 raise ValueError("Наименование не может быть пустым")
 
-            next_total = (
-                existing.total
-                if total is _UNSET
-                else self._number(total)
-            )
-            next_profit = (
-                existing.profit
-                if profit is _UNSET
-                else self._number(profit)
-            )
+            next_total = existing.total if total is _UNSET else self._number(total)
+            next_profit = existing.profit if profit is _UNSET else self._number(profit)
             next_margin = (
                 existing.margin_percent
                 if margin_percent is _UNSET
                 else self._number(margin_percent)
             )
-            next_file = (
-                existing.file_path
-                if file_path is _UNSET
-                else str(file_path).strip()
-            )
-            next_due = (
-                existing.due_date
-                if due_date is _UNSET
-                else str(due_date).strip()
-            )
+            next_file = existing.file_path if file_path is _UNSET else str(file_path).strip()
+            next_due = existing.due_date if due_date is _UNSET else str(due_date).strip()
 
             if next_total < 0:
                 raise ValueError("Сумма не может быть отрицательной")
@@ -428,16 +376,11 @@ class BusinessMetricsRepository:
                     "margin_percent": float(next_margin),
                     "file_path": next_file,
                     "due_date": next_due,
-                    "updated_at": datetime.now().isoformat(
-                        timespec="seconds"
-                    ),
+                    "updated_at": datetime.now().isoformat(timespec="seconds"),
                 }
             )
 
-            result = [
-                updated if record.id == record_id else record
-                for record in records
-            ]
+            result = [updated if record.id == record_id else record for record in records]
             events = self._field_change_events(
                 existing,
                 updated,
@@ -487,9 +430,7 @@ class BusinessMetricsRepository:
             if updated is None:
                 raise KeyError(record_id)
             if updated.is_archived:
-                raise ValueError(
-                    "Нельзя изменять статус архивной записи"
-                )
+                raise ValueError("Нельзя изменять статус архивной записи")
 
             event = self._new_event(
                 record_id=record_id,
@@ -534,11 +475,7 @@ class BusinessMetricsRepository:
         with self._lock:
             records = self._read_records_unlocked()
             existing = next(
-                (
-                    record
-                    for record in records
-                    if record.id == record_id
-                ),
+                (record for record in records if record.id == record_id),
                 None,
             )
             if existing is None:
@@ -552,17 +489,10 @@ class BusinessMetricsRepository:
                     "updated_at": now,
                 }
             )
-            result = [
-                updated if record.id == record_id else record
-                for record in records
-            ]
+            result = [updated if record.id == record_id else record for record in records]
             event = self._new_event(
                 record_id=record_id,
-                action=(
-                    BusinessAuditAction.ARCHIVED
-                    if archived
-                    else BusinessAuditAction.RESTORED
-                ),
+                action=(BusinessAuditAction.ARCHIVED if archived else BusinessAuditAction.RESTORED),
                 field="archived_at",
                 old_value=existing.archived_at,
                 new_value=updated.archived_at,
@@ -580,11 +510,7 @@ class BusinessMetricsRepository:
         today: date | None = None,
         activity_limit: int = 6,
     ) -> BusinessMetricsSnapshot:
-        records = [
-            record
-            for record in self._read_records()
-            if not record.is_archived
-        ]
+        records = [record for record in self._read_records() if not record.is_archived]
         current_date = today or date.today()
 
         proposals = [
@@ -612,11 +538,7 @@ class BusinessMetricsRepository:
             )
         ]
 
-        attention = sum(
-            1
-            for record in records
-            if self._requires_attention(record, current_date)
-        )
+        attention = sum(1 for record in records if self._requires_attention(record, current_date))
         potential_profit, sources = self._potential_profit(records)
         activities = tuple(
             self._activity(record)
@@ -687,11 +609,7 @@ class BusinessMetricsRepository:
                 archived_at=existing.archived_at if existing else "",
             )
 
-            result = [
-                item
-                for item in records
-                if item.id != record.id
-            ]
+            result = [item for item in records if item.id != record.id]
             result.append(record)
 
             if existing is None:
@@ -738,9 +656,7 @@ class BusinessMetricsRepository:
             }
 
         try:
-            payload = json.loads(
-                self.path.read_text(encoding="utf-8")
-            )
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return {
                 "schema_version": self.SCHEMA_VERSION,
@@ -814,9 +730,7 @@ class BusinessMetricsRepository:
             "records": [asdict(record) for record in records],
             "events": [asdict(event) for event in events],
         }
-        temporary = self.path.with_suffix(
-            self.path.suffix + ".tmp"
-        )
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
         temporary.write_text(
             json.dumps(
                 payload,
@@ -873,17 +787,10 @@ class BusinessMetricsRepository:
             id=str(uuid4()),
             record_id=record_id,
             action=BusinessAuditAction(action).value,
-            occurred_at=(
-                occurred_at
-                or datetime.now().isoformat(timespec="seconds")
-            ),
+            occurred_at=(occurred_at or datetime.now().isoformat(timespec="seconds")),
             field=field,
-            old_value=BusinessMetricsRepository._audit_value(
-                old_value
-            ),
-            new_value=BusinessMetricsRepository._audit_value(
-                new_value
-            ),
+            old_value=BusinessMetricsRepository._audit_value(old_value),
+            new_value=BusinessMetricsRepository._audit_value(new_value),
         )
 
     @staticmethod
@@ -893,7 +800,6 @@ class BusinessMetricsRepository:
         if isinstance(value, Decimal):
             return format(value, "f")
         return str(value)
-
 
     def _potential_profit(
         self,
@@ -969,8 +875,7 @@ class BusinessMetricsRepository:
         }
         tone = (
             "warning"
-            if self._status(record)
-            in {BusinessStatus.BLOCKED, BusinessStatus.REVIEW}
+            if self._status(record) in {BusinessStatus.BLOCKED, BusinessStatus.REVIEW}
             else "success"
             if self._status(record)
             in {
@@ -984,10 +889,7 @@ class BusinessMetricsRepository:
         return BusinessActivity(
             key=f"business-{record.id}",
             title=f"{labels.get(record.kind, record.kind)}: {record.title}",
-            description=(
-                f"Тендер {record.tender_id} · "
-                f"статус {record.status}"
-            ),
+            description=(f"Тендер {record.tender_id} · статус {record.status}"),
             timestamp=self._updated_at(record),
             tone=tone,
             action_key=f"open_tender_id:{record.tender_id}",

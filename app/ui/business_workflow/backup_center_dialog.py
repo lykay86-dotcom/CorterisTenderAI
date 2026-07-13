@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.workflow_backup import (
-    WorkflowBackupRestoreResult,
     WorkflowBackupService,
 )
 from app.core.workflow_backup_catalog import (
@@ -104,17 +103,13 @@ class WorkflowBackupCenterDialog(QDialog):
             "Добавить внешний файл…",
             self,
         )
-        self.add_file_button.clicked.connect(
-            self._add_external_file
-        )
+        self.add_file_button.clicked.connect(self._add_external_file)
 
         self.open_folder_button = QPushButton(
             "Открыть папку",
             self,
         )
-        self.open_folder_button.clicked.connect(
-            self._open_selected_folder
-        )
+        self.open_folder_button.clicked.connect(self._open_selected_folder)
         self.open_folder_button.setEnabled(False)
 
         toolbar.addWidget(self.refresh_button)
@@ -131,21 +126,13 @@ class WorkflowBackupCenterDialog(QDialog):
         self.table = QTableWidget(0, len(self.COLUMNS), self)
         self.table.setObjectName("BackupCenterTable")
         self.table.setHorizontalHeaderLabels(self.COLUMNS)
-        self.table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(False)
         self.table.verticalHeader().hide()
-        self.table.itemSelectionChanged.connect(
-            self._selection_changed
-        )
+        self.table.itemSelectionChanged.connect(self._selection_changed)
 
         header = self.table.horizontalHeader()
         for column in (0, 1, 3, 4, 5, 6):
@@ -176,9 +163,7 @@ class WorkflowBackupCenterDialog(QDialog):
         self.details_label = QLabel("", self.details_frame)
         self.details_label.setObjectName("BackupCenterDetailsText")
         self.details_label.setWordWrap(True)
-        self.details_label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        self.details_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         details_layout.addWidget(self.details_label)
 
         root.addWidget(self.details_frame)
@@ -190,9 +175,7 @@ class WorkflowBackupCenterDialog(QDialog):
             "Проверить повторно",
             self,
         )
-        self.verify_button.clicked.connect(
-            self._verify_selected
-        )
+        self.verify_button.clicked.connect(self._verify_selected)
         self.verify_button.setEnabled(False)
 
         self.restore_button = QPushButton(
@@ -200,9 +183,7 @@ class WorkflowBackupCenterDialog(QDialog):
             self,
         )
         self.restore_button.setObjectName("BackupCenterRestoreButton")
-        self.restore_button.clicked.connect(
-            self._restore_selected
-        )
+        self.restore_button.clicked.connect(self._restore_selected)
         self.restore_button.setEnabled(False)
 
         self.delete_button = QPushButton(
@@ -210,9 +191,7 @@ class WorkflowBackupCenterDialog(QDialog):
             self,
         )
         self.delete_button.setObjectName("BackupCenterDeleteButton")
-        self.delete_button.clicked.connect(
-            self._delete_selected
-        )
+        self.delete_button.clicked.connect(self._delete_selected)
         self.delete_button.setEnabled(False)
 
         action_row.addWidget(self.verify_button)
@@ -224,9 +203,7 @@ class WorkflowBackupCenterDialog(QDialog):
             QDialogButtonBox.StandardButton.Close,
             self,
         )
-        self.buttons.button(
-            QDialogButtonBox.StandardButton.Close
-        ).setText("Закрыть")
+        self.buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         self.buttons.rejected.connect(self.reject)
         action_row.addWidget(self.buttons)
 
@@ -243,11 +220,7 @@ class WorkflowBackupCenterDialog(QDialog):
         return None
 
     def refresh(self) -> None:
-        current_path = (
-            self.selected_entry.path
-            if self.selected_entry is not None
-            else None
-        )
+        current_path = self.selected_entry.path if self.selected_entry is not None else None
         try:
             self.entries = self.catalog_service.list_backups(
                 self.directories,
@@ -264,9 +237,7 @@ class WorkflowBackupCenterDialog(QDialog):
         self.table.setRowCount(len(self.entries))
         for row, entry in enumerate(self.entries):
             values = (
-                entry.created_timestamp.strftime(
-                    "%d.%m.%Y %H:%M:%S"
-                ),
+                entry.created_timestamp.strftime("%d.%m.%Y %H:%M:%S"),
                 entry.display_kind,
                 entry.path.name,
                 str(entry.inspection.record_count),
@@ -278,13 +249,11 @@ class WorkflowBackupCenterDialog(QDialog):
                 item = QTableWidgetItem(value)
                 if column in {0, 3, 4, 5}:
                     item.setTextAlignment(
-                        Qt.AlignmentFlag.AlignRight
-                        | Qt.AlignmentFlag.AlignVCenter
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                     )
                 else:
                     item.setTextAlignment(
-                        Qt.AlignmentFlag.AlignLeft
-                        | Qt.AlignmentFlag.AlignVCenter
+                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
                     )
                 item.setToolTip(str(entry.path))
                 self.table.setItem(row, column, item)
@@ -318,22 +287,16 @@ class WorkflowBackupCenterDialog(QDialog):
 
         self.verify_button.setEnabled(selected)
         self.open_folder_button.setEnabled(selected)
-        self.restore_button.setEnabled(
-            bool(entry and entry.valid)
-        )
+        self.restore_button.setEnabled(bool(entry and entry.valid))
         self.delete_button.setEnabled(selected)
 
         if entry is None:
-            self.details_title.setText(
-                "Выберите резервную копию."
-            )
+            self.details_title.setText("Выберите резервную копию.")
             self.details_label.clear()
             return
 
         self.details_title.setText(entry.path.name)
-        created = entry.created_timestamp.strftime(
-            "%d.%m.%Y %H:%M:%S"
-        )
+        created = entry.created_timestamp.strftime("%d.%m.%Y %H:%M:%S")
         details = [
             f"Путь: {entry.path}",
             f"Тип: {entry.display_kind}",
@@ -352,10 +315,7 @@ class WorkflowBackupCenterDialog(QDialog):
         if entry.inspection.errors:
             details.append("")
             details.append("Ошибки:")
-            details.extend(
-                f"• {error}"
-                for error in entry.inspection.errors
-            )
+            details.extend(f"• {error}" for error in entry.inspection.errors)
         self.details_label.setText("\n".join(details))
 
     def _add_external_file(self) -> None:
@@ -363,10 +323,7 @@ class WorkflowBackupCenterDialog(QDialog):
             self,
             "Добавить резервную копию",
             str(Path.home() / "Documents"),
-            (
-                "Резервная копия CORTERIS (*.ctbackup *.zip);;"
-                "Все файлы (*)"
-            ),
+            ("Резервная копия CORTERIS (*.ctbackup *.zip);;Все файлы (*)"),
         )
         if not filename:
             return
@@ -392,9 +349,7 @@ class WorkflowBackupCenterDialog(QDialog):
         entry = self.selected_entry
         if entry is None:
             return
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(entry.path.parent))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(entry.path.parent)))
 
     def _restore_selected(self) -> None:
         entry = self.selected_entry
@@ -413,8 +368,7 @@ class WorkflowBackupCenterDialog(QDialog):
                 "Перед восстановлением автоматически создаётся "
                 "страховочная копия текущих данных."
             ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -441,21 +395,12 @@ class WorkflowBackupCenterDialog(QDialog):
         if entry is None:
             return
 
-        external_text = (
-            "\n\nЭто внешний файл, добавленный вручную."
-            if not entry.managed
-            else ""
-        )
+        external_text = "\n\nЭто внешний файл, добавленный вручную." if not entry.managed else ""
         answer = QMessageBox.warning(
             self,
             "Удалить резервную копию?",
-            (
-                f"Файл будет удалён без возможности восстановления:\n"
-                f"{entry.path}"
-                f"{external_text}"
-            ),
-            QMessageBox.StandardButton.Yes
-            | QMessageBox.StandardButton.Cancel,
+            (f"Файл будет удалён без возможности восстановления:\n{entry.path}{external_text}"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -475,11 +420,7 @@ class WorkflowBackupCenterDialog(QDialog):
             )
             return
 
-        self.external_files = [
-            path
-            for path in self.external_files
-            if path != deleted
-        ]
+        self.external_files = [path for path in self.external_files if path != deleted]
         self.refresh()
 
     def apply_theme(self, theme: ThemeName | str) -> None:
@@ -570,9 +511,7 @@ class WorkflowBackupCenterDialog(QDialog):
         result: list[Path] = []
         seen: set[str] = set()
         for path in paths:
-            identity = str(
-                path.expanduser().resolve(strict=False)
-            ).casefold()
+            identity = str(path.expanduser().resolve(strict=False)).casefold()
             if identity in seen:
                 continue
             seen.add(identity)

@@ -37,9 +37,7 @@ class ProviderEnablementRepository:
             if not self.path.is_file():
                 return {}
             try:
-                payload = json.loads(
-                    self.path.read_text(encoding="utf-8")
-                )
+                payload = json.loads(self.path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError, TypeError):
                 return {}
             if not isinstance(payload, dict):
@@ -65,9 +63,7 @@ class ProviderEnablementRepository:
                 "schema_version": self.SCHEMA_VERSION,
                 "providers": dict(sorted(normalized.items())),
             }
-            temporary = self.path.with_suffix(
-                self.path.suffix + ".tmp"
-            )
+            temporary = self.path.with_suffix(self.path.suffix + ".tmp")
             temporary.write_text(
                 json.dumps(
                     payload,
