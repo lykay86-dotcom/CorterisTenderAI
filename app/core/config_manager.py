@@ -96,7 +96,7 @@ class ConfigManager:
         self._data = copy.deepcopy(self.defaults)
         try:
             self.save()
-        except ConfigError:
+        except (ConfigError, OSError):
             # Read-only storage still gets a safe in-memory configuration.
             pass
         return self.snapshot()
