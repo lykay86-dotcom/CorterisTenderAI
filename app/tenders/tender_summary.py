@@ -32,6 +32,24 @@ class TenderSummary:
     missing_information: tuple[str, ...]
     generated_at: str
 
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "registry_key": self.registry_key,
+            "source": self.source.value,
+            "headline": self.headline,
+            "facts": [
+                {
+                    "label": item.label,
+                    "value": item.value,
+                    "source": item.source,
+                }
+                for item in self.facts
+            ],
+            "risks": list(self.risks),
+            "missing_information": list(self.missing_information),
+            "generated_at": self.generated_at,
+        }
+
 
 class DeterministicTenderSummaryGenerator:
     """Build a fact-only summary; it never invents or changes decisions."""

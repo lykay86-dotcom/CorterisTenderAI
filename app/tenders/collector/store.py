@@ -66,6 +66,7 @@ from app.tenders.tender_registry import TenderRegistryRepository
 
 if TYPE_CHECKING:
     from app.tenders.participation_decision import ParticipationDecision
+    from app.tenders.tender_summary import TenderSummary
 
 
 class CollectorStateRepository:
@@ -1827,6 +1828,48 @@ class CollectorStateRepository:
                 FROM collector_participation_decisions
                 WHERE registry_key = ?
                 ORDER BY decided_at DESC, rowid DESC
+                LIMIT 1
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = json.loads(str(row["payload_json"]))
+        return dict(payload) if isinstance(payload, Mapping) else None
+
+    def save_tender_summary(self, summary: "TenderSummary") -> None:
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO collector_tender_summaries(
+                    summary_id, registry_key, source, generated_at, payload_json
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    uuid4().hex,
+                    summary.registry_key,
+                    summary.source.value,
+                    summary.generated_at,
+                    stable_json(summary.to_payload()),
+                ),
+            )
+
+    def get_latest_tender_summary_payload(
+        self,
+        registry_key: str,
+    ) -> Mapping[str, object] | None:
+        normalized = registry_key.strip()
+        if not normalized:
+            return None
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT payload_json
+                FROM collector_tender_summaries
+                WHERE registry_key = ?
+                ORDER BY generated_at DESC, rowid DESC
                 LIMIT 1
                 """,
                 (normalized,),
