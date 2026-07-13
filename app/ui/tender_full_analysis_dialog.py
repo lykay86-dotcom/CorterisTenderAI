@@ -8,9 +8,11 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QTabWidget,
@@ -28,6 +30,7 @@ from app.tenders.full_analysis import (
     TenderFullAnalysisResult,
 )
 from app.ui.theme.colors import ThemeName, get_palette
+from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
 
 _STAGE_LABELS = {
@@ -124,12 +127,16 @@ class TenderFullAnalysisDialog(QDialog):
         self.score_button.clicked.connect(
             lambda _checked=False: self.score_requested.emit(self.registry_key)
         )
+        self.export_ai_button = QPushButton("Экспорт AI-анализа", self)
+        self.export_ai_button.clicked.connect(self._export_ai_analysis)
+        self.export_ai_button.setEnabled(False)
         for button in (self.documents_button, self.requirements_button, self.score_button):
             button.setEnabled(False)
         actions.addWidget(self.cancel_button)
         actions.addWidget(self.documents_button)
         actions.addWidget(self.requirements_button)
         actions.addWidget(self.score_button)
+        actions.addWidget(self.export_ai_button)
         actions.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
         buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
@@ -191,6 +198,22 @@ class TenderFullAnalysisDialog(QDialog):
         self.summary.setHtml(_render_result(result))
         self.ai_summary.setHtml(_render_ai_summary(result))
         self.ai_analysis.setHtml(_render_ai_document_analysis(result))
+        self.export_ai_button.setEnabled(result.ai_document_analysis is not None)
+
+    def _export_ai_analysis(self) -> None:
+        analysis = self._result.ai_document_analysis if self._result else None
+        if analysis is None:
+            return
+        path, _filter = QFileDialog.getSaveFileName(
+            self, "Экспорт AI-анализа", f"{self.registry_key.replace(':', '_')}_ai_analysis.html",
+            "HTML (*.html);;JSON (*.json)",
+        )
+        if not path:
+            return
+        try:
+            TenderAiAnalysisExporter().export(analysis, path)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Ошибка экспорта", str(exc))
 
     def set_error(self, message: str) -> None:
         self.cancel_button.setEnabled(False)
