@@ -45,6 +45,8 @@ from app.tenders.commercial_estimator import (
     CommercialEstimateRepository,
     CommercialEstimateResult,
 )
+from app.tenders.participation_decision_service import ParticipationDecisionService
+from app.tenders.collector.company_capability import CompanyCapabilityProfileRepository
 from app.tenders.tender_summary import (
     DeterministicTenderSummaryGenerator,
     TenderSummary,
@@ -127,6 +129,8 @@ class TenderFullAnalysisService:
         commercial_estimate_repository: CommercialEstimateRepository | None = None,
         summary_generator: DeterministicTenderSummaryGenerator | None = None,
         summary_repository: CollectorStateRepository | None = None,
+        participation_decision_service: ParticipationDecisionService | None = None,
+        capability_repository: CompanyCapabilityProfileRepository | None = None,
     ) -> None:
         self.tender_registry = tender_registry
         self.document_service = document_service
@@ -139,6 +143,8 @@ class TenderFullAnalysisService:
         self.commercial_estimate_repository = commercial_estimate_repository
         self.summary_generator = summary_generator or DeterministicTenderSummaryGenerator()
         self.summary_repository = summary_repository
+        self.participation_decision_service = participation_decision_service
+        self.capability_repository = capability_repository
 
     def run(
         self,
@@ -293,7 +299,33 @@ class TenderFullAnalysisService:
                 else None
             )
             commercial_estimate = latest_commercial[1] if latest_commercial else None
-            summary = self.summary_generator.generate(key, tender, requirements)
+            decision = (
+                self.participation_decision_service.evaluate(key)
+                if self.participation_decision_service is not None
+                else None
+            )
+            if decision is not None and self.summary_repository is not None:
+                self.summary_repository.save_participation_decision(decision)
+            verification = (
+                self.summary_repository.get_verification_state(key)
+                if self.summary_repository is not None
+                else None
+            )
+            stop_assessment = (
+                self.summary_repository.get_latest_stop_factor_assessment(key)
+                if self.summary_repository is not None
+                else None
+            )
+            summary = self.summary_generator.generate(
+                key,
+                tender,
+                requirements,
+                decision=decision,
+                verification=verification,
+                stop_assessment=stop_assessment,
+                commercial_estimate=commercial_estimate,
+                company_profile=(self.capability_repository.load() if self.capability_repository else None),
+            )
             if self.summary_repository is not None:
                 self.summary_repository.save_tender_summary(summary)
             status = FullAnalysisStatus.PARTIAL if warnings else FullAnalysisStatus.COMPLETED

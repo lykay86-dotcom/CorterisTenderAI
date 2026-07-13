@@ -24,3 +24,10 @@ def test_dialog_emits_cancel_and_updates_progress() -> None:
     assert requested == ["procurement:test"]
     assert dialog.progress.value() == 25
     app.processEvents()
+
+
+def test_dialog_has_dedicated_ai_summary_tab() -> None:
+    dialog = TenderFullAnalysisDialog("procurement:test")
+
+    assert dialog.tabs.count() == 3
+    assert dialog.tabs.tabText(2) == "AI summary"

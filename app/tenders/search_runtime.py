@@ -169,14 +169,15 @@ def create_tender_search_runtime(
         data_path / "tender_registry.sqlite3"
     )
     aggregator_discovery_repository.initialize()
+    capability_repository = CompanyCapabilityProfileRepository(
+        data_path / "company_capability_profile.json"
+    )
     participation_score_service = CorterisParticipationScoreService(
         tender_registry,
         collector_state_repository,
         text_service=text_extraction_service,
         requirement_analysis_service=requirement_analysis_service,
-        capability_repository=CompanyCapabilityProfileRepository(
-            data_path / "company_capability_profile.json"
-        ),
+        capability_repository=capability_repository,
         matching_catalog_repository=matching_catalog_repository,
     )
     from app.tenders.participation_decision_service import (
@@ -202,6 +203,8 @@ def create_tender_search_runtime(
         legacy_bridge=LegacyAnalysisBridge(),
         commercial_estimate_repository=commercial_estimate_repository,
         summary_repository=collector_state_repository,
+        participation_decision_service=participation_decision_service,
+        capability_repository=capability_repository,
     )
 
     return TenderSearchRuntime(
