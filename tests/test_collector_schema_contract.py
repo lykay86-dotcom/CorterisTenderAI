@@ -21,9 +21,12 @@ def test_newer_collector_schema_is_never_downgraded(tmp_path) -> None:
             (str(COLLECTOR_SCHEMA_VERSION + 1),),
         )
 
-    with sqlite3.connect(database) as connection, pytest.raises(
-        RuntimeError,
-        match="newer",
+    with (
+        sqlite3.connect(database) as connection,
+        pytest.raises(
+            RuntimeError,
+            match="newer",
+        ),
     ):
         CollectorSchemaMigrator().migrate(connection)
 
@@ -44,6 +47,4 @@ def test_specialized_repositories_do_not_own_collector_ddl() -> None:
     )
 
     for path in repository_files:
-        assert "CREATE TABLE IF NOT EXISTS collector_" not in path.read_text(
-            encoding="utf-8"
-        )
+        assert "CREATE TABLE IF NOT EXISTS collector_" not in path.read_text(encoding="utf-8")

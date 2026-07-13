@@ -329,9 +329,7 @@ def _preferred_datetime_group(values: list[datetime]) -> list[datetime]:
     """Prefer timezone-confirmed candidates without inventing a source zone."""
 
     aware = [
-        value
-        for value in values
-        if value.tzinfo is not None and value.utcoffset() is not None
+        value for value in values if value.tzinfo is not None and value.utcoffset() is not None
     ]
     return aware or values
 

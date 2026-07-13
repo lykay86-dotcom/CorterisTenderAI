@@ -92,9 +92,7 @@ def test_naive_deadline_is_data_insufficient_instead_of_localized() -> None:
 
     assert assessment.status == StopFactorStatus.DATA_INSUFFICIENT
     factor = next(
-        item
-        for item in assessment.factors
-        if item.kind == StopFactorKind.DEADLINE_TIMEZONE_UNKNOWN
+        item for item in assessment.factors if item.kind == StopFactorKind.DEADLINE_TIMEZONE_UNKNOWN
     )
     assert factor.evidence.quote == "2026-07-11T00:00:00"
 
