@@ -16,8 +16,16 @@
   и Windows GitHub Actions matrix для Python 3.12/3.13.
 - Локальный полный регресс прошёл в обычном и изолированном режимах:
   `725 passed` в каждом; Ruff, mypy, security scan и dependency audit успешны.
-- Prerequisite остаётся `IN PROGRESS` до зелёной серверной matrix и принятия
-  отдельного PR; AI Orchestrator, C17 и C19 не реализовывались.
+- PR #22 слит в `main` коммитом `ebfdf01`; обязательные jobs Python 3.12 и 3.13
+  прошли на PR и повторно на merge-коммите в `main`.
+- Для `main` включена защита: обязательный PR, актуальная ветка, оба стабильных
+  quality-gate check context, запрет force-push и удаления; правила действуют
+  для администратора.
+- Prerequisite переведён в `DONE`; RM-111 остаётся `IN PROGRESS`. AI
+  Orchestrator, C17 и C19 в этом пакете не реализовывались.
+- В post-job логах GitHub есть неблокирующие предупреждения о переходе official
+  actions с Node.js 20 на Node.js 24 и cleanup Git-кэша; итог обоих jobs —
+  `SUCCESS`, обновление action pins остаётся обслуживающей задачей CI.
 
 ## 2026-07-13 — Roadmap v2
 - RM-107 переведён в `DONE`.

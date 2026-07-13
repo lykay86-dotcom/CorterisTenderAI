@@ -20,14 +20,15 @@ baseline дал `719 passed, 2 failed`: два offline-теста прочита
 токен из Windows Credential Manager, а диагностический тест выполнил реальный
 API-запрос. С временно пустым keyring оба теста проходят (`2 passed`).
 
-Quality-gate пакет реализован локально. Полный регресс даёт `725 passed` как с
-обычным Windows Credential Manager, так и с принудительно пустым keyring. Ruff,
-фиксированный mypy-контур, security scan, migration/build/import smoke checks и
-dependency audit проходят. Добавлена Windows GitHub Actions matrix для Python
-3.12 и 3.13; prerequisite остаётся `IN PROGRESS` до её зелёного выполнения в PR.
+Prerequisite завершён: PR #22 слит в `main` коммитом `ebfdf01`. Полный регресс
+даёт `725 passed` как с обычным Windows Credential Manager, так и с
+принудительно пустым keyring. Windows quality gate прошёл на Python 3.12 и 3.13
+в PR и повторно на `main`; Ruff, фиксированный mypy-контур, security scan,
+migration/build/import smoke checks и dependency audit успешны. Защита `main`
+требует PR, актуальную ветку и оба quality-gate check.
 
-До закрытия prerequisite запрещено начинать реализацию AI Orchestrator. Пакет
-не должен менять AI-бизнес-логику, C17 canonicalization или C19 live verification.
+RM-111 остаётся `IN PROGRESS`: выполнен только его технический prerequisite.
+AI-бизнес-логика, C17 canonicalization и C19 live verification не изменялись.
 
 ## Предыдущий этап
 **RM-110 — стабилизация Tender Intelligence**
@@ -62,5 +63,6 @@ dependency audit проходят. Добавлена Windows GitHub Actions mat
 - 631 passed (без отдельного теста crash-reporting).
 
 ## Текущее действие
-Опубликовать и принять отдельный PR ветки `fix/rm-111-quality-gate` после
-зелёной Windows matrix. AI Orchestrator, C17 и C19 в пакет не входят.
+Перейти к design/implementation этапу AI Orchestrator в границах
+`docs/RM-111_AUDIT.md`, переиспользуя существующие analyzer, repository,
+decision engine и full-analysis flow. Следующий RM не назначен.

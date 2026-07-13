@@ -146,6 +146,10 @@
 
 ## Обязательный prerequisite RM-111 — воспроизводимый quality gate
 
+Статус prerequisite: `DONE` (PR #22, merge `ebfdf01`). Обе обязательные
+Windows-проверки на Python 3.12 и 3.13 прошли на PR и повторно на `main`;
+branch protection требует PR, актуальную ветку и оба check context.
+
 До реализации бизнес-логики AI Orchestrator в рамках RM-111 необходимо:
 
 - изолировать offline-тесты от Windows Credential Manager и реальных API;
