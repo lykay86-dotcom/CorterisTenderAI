@@ -80,6 +80,39 @@ def test_expired_deadline_is_blocked_with_complete_evidence() -> None:
     assert factor.evidence.confidence == 1.0
 
 
+def test_naive_deadline_is_data_insufficient_instead_of_localized() -> None:
+    tender = replace(
+        make_tender(title="Монтаж видеонаблюдения"),
+        application_deadline=datetime(2026, 7, 11),
+    )
+
+    assessment = StopFactorEngine(_profile()).evaluate(
+        "tender:1", tender, analysis=_analysis("Извещение."), now=NOW
+    )
+
+    assert assessment.status == StopFactorStatus.DATA_INSUFFICIENT
+    factor = next(
+        item for item in assessment.factors if item.kind == StopFactorKind.DEADLINE_TIMEZONE_UNKNOWN
+    )
+    assert factor.evidence.quote == "2026-07-11T00:00:00"
+
+
+def test_naive_evaluation_time_is_rejected() -> None:
+    tender = make_tender(title="Монтаж видеонаблюдения", deadline_day=30)
+
+    try:
+        StopFactorEngine(_profile()).evaluate(
+            "tender:1",
+            tender,
+            analysis=_analysis("Извещение."),
+            now=datetime(2026, 7, 12),
+        )
+    except ValueError as error:
+        assert "timezone-aware" in str(error)
+    else:
+        raise AssertionError("naive evaluation time must be rejected")
+
+
 def test_missing_mandatory_sro_blocks_but_confirmed_sro_removes_block() -> None:
     analysis = _analysis(
         "Участник должен иметь обязательное членство в СРО и предоставить выписку из реестра СРО."

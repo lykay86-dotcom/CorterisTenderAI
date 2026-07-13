@@ -13,6 +13,8 @@ from threading import RLock
 from time import perf_counter
 from uuid import uuid4
 
+from app.tenders.collector_database import initialize_collector_database
+
 
 class VerticalSourceStatus(StrEnum):
     NOT_CONFIGURED = "not_configured"
@@ -135,25 +137,8 @@ class VerticalSourceVerificationRepository:
 
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._lock, self._connect() as connection:
-            connection.executescript("""
-                CREATE TABLE IF NOT EXISTS collector_vertical_source_verifications (
-                    verification_id TEXT PRIMARY KEY,
-                    provider_id TEXT NOT NULL,
-                    connection_mode TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    started_at TEXT NOT NULL,
-                    completed_at TEXT NOT NULL,
-                    live INTEGER NOT NULL DEFAULT 0,
-                    error_message TEXT NOT NULL DEFAULT '',
-                    payload_json TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_vertical_verification_provider
-                    ON collector_vertical_source_verifications(
-                        provider_id,
-                        completed_at DESC
-                    );
-            """)
+        with self._lock:
+            initialize_collector_database(self.path)
 
     def save(self, verification: VerticalSourceVerification) -> VerticalSourceVerification:
         self.initialize()

@@ -15,27 +15,15 @@ from app.tenders.collector.models import (
     TenderIdentityAlias,
 )
 from app.tenders.collector.normalizer import TenderNormalizer
+from app.tenders.collector.verification import source_trust_level
 from app.tenders.models import (
     TenderCustomer,
     TenderDocument,
     TenderMoney,
-    TenderSource,
     TenderStatus,
     UnifiedTender,
 )
 
-
-_SOURCE_PRIORITY = {
-    TenderSource.EIS: 100,
-    TenderSource.SBER_A: 80,
-    TenderSource.RTS_TENDER: 80,
-    TenderSource.ROSELTORG: 80,
-    TenderSource.GAZPROMBANK: 75,
-    TenderSource.B2B_CENTER: 70,
-    TenderSource.TEK_TORG: 70,
-    TenderSource.COMMERCIAL: 60,
-    TenderSource.CUSTOM: 50,
-}
 
 _STATUS_PRIORITY = {
     TenderStatus.CANCELLED: 100,
@@ -216,7 +204,7 @@ def _representative_priority(
     item: NormalizedTender,
 ) -> tuple[int, int, int, str]:
     return (
-        _SOURCE_PRIORITY.get(item.tender.source, 0),
+        int(source_trust_level(item.tender)),
         item.completeness_score,
         len(item.tender.documents),
         item.tender.identity_key,
@@ -325,14 +313,25 @@ def _earliest_datetime(
     values: Iterable[datetime | None],
 ) -> datetime | None:
     actual = [value for value in values if value is not None]
-    return min(actual) if actual else None
+    comparable = _preferred_datetime_group(actual)
+    return min(comparable) if comparable else None
 
 
 def _latest_datetime(
     values: Iterable[datetime | None],
 ) -> datetime | None:
     actual = [value for value in values if value is not None]
-    return max(actual) if actual else None
+    comparable = _preferred_datetime_group(actual)
+    return max(comparable) if comparable else None
+
+
+def _preferred_datetime_group(values: list[datetime]) -> list[datetime]:
+    """Prefer timezone-confirmed candidates without inventing a source zone."""
+
+    aware = [
+        value for value in values if value.tzinfo is not None and value.utcoffset() is not None
+    ]
+    return aware or values
 
 
 def _latest_date(values: Iterable[date | None]) -> date | None:

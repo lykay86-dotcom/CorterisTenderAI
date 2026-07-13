@@ -639,6 +639,12 @@ def _trust_level(
     return SourceTrustLevel.PUBLIC_CARD
 
 
+def source_trust_level(tender: UnifiedTender) -> SourceTrustLevel:
+    """Return the canonical trust level used by verification and merging."""
+
+    return _trust_level(tender, {})
+
+
 def _parse_trust_level(value: object) -> SourceTrustLevel | None:
     if isinstance(value, SourceTrustLevel):
         return value
@@ -1069,6 +1075,7 @@ __all__ = [
     "FieldConflictType",
     "FieldProvenance",
     "SourceTrustLevel",
+    "source_trust_level",
     "TenderVerificationHistory",
     "TenderVerificationResult",
     "TenderVerificationState",

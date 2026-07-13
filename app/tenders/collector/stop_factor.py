@@ -12,7 +12,7 @@ from typing import Iterable
 
 from app.tenders.collector.company_capability import CompanyCapabilityProfile
 from app.tenders.corteris_filter import normalize_text
-from app.tenders.models import UnifiedTender
+from app.tenders.models import UnifiedTender, is_timezone_aware
 from app.tenders.requirement_analysis import (
     FindingSeverity,
     RequirementFinding,
@@ -29,6 +29,7 @@ class StopFactorStatus(StrEnum):
 
 class StopFactorKind(StrEnum):
     DEADLINE_EXPIRED = "deadline_expired"
+    DEADLINE_TIMEZONE_UNKNOWN = "deadline_timezone_unknown"
     COMPANY_PROFILE_INCOMPLETE = "company_profile_incomplete"
     REQUIREMENTS_UNVERIFIED = "requirements_unverified"
     REQUIRED_LICENSE_MISSING = "required_license_missing"
@@ -181,11 +182,30 @@ class StopFactorEngine:
         analysis: TenderRequirementAnalysis | None = None,
         now: datetime | None = None,
     ) -> StopFactorAssessment:
-        moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        moment = now or datetime.now(timezone.utc)
+        if not is_timezone_aware(moment):
+            raise ValueError("Stop-factor evaluation time must be timezone-aware")
+        moment = moment.astimezone(timezone.utc)
         factors: list[StopFactor] = []
 
         deadline = tender.application_deadline
-        if deadline is not None and deadline.astimezone(timezone.utc) <= moment:
+        if deadline is not None and not is_timezone_aware(deadline):
+            factors.append(
+                self._factor(
+                    StopFactorKind.DEADLINE_TIMEZONE_UNKNOWN,
+                    StopFactorStatus.DATA_INSUFFICIENT,
+                    "Часовой пояс срока подачи не подтверждён",
+                    "Срок нельзя безопасно сравнить с текущим временем без часового пояса.",
+                    "high",
+                    _card_evidence(
+                        "Срок подачи заявки",
+                        deadline.isoformat(),
+                        1.0,
+                        "Проверить часовой пояс в последней официальной редакции извещения.",
+                    ),
+                )
+            )
+        elif deadline is not None and deadline.astimezone(timezone.utc) <= moment:
             factors.append(
                 self._factor(
                     StopFactorKind.DEADLINE_EXPIRED,

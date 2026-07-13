@@ -57,7 +57,7 @@ def test_current_schema_contains_review_and_freshness_tables(tmp_path) -> None:
             for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
 
-    assert version == COLLECTOR_SCHEMA_VERSION == 13
+    assert version == COLLECTOR_SCHEMA_VERSION == 14
     assert {
         "collector_verification_runs",
         "collector_tender_field_values",

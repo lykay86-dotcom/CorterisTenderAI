@@ -20,7 +20,7 @@ def utc_now() -> datetime:
 def json_safe(value: Any) -> Any:
     """Рекурсивно преобразует значение в JSON-совместимый вид."""
     if isinstance(value, Decimal):
-        return float(value)
+        return str(value)
     if isinstance(value, (datetime, date)):
         return value.isoformat()
     if isinstance(value, Path):

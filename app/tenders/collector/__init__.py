@@ -341,7 +341,10 @@ from app.tenders.collector.aggregator_discovery import (
     AggregatorDiscoveryRepository,
     AggregatorDiscoveryStatus,
     AggregatorOfficialVerificationService,
+    OfficialIdentityDecision,
+    OfficialIdentityMatch,
     is_aggregator_discovery,
+    match_official_identity,
 )
 
 __all__ += [
@@ -349,7 +352,10 @@ __all__ += [
     "AggregatorDiscoveryRepository",
     "AggregatorDiscoveryStatus",
     "AggregatorOfficialVerificationService",
+    "OfficialIdentityDecision",
+    "OfficialIdentityMatch",
     "is_aggregator_discovery",
+    "match_official_identity",
 ]
 
 from app.tenders.collector.verification import (
@@ -364,6 +370,7 @@ from app.tenders.collector.verification import (
     TenderVerificationState,
     TenderVerificationStatus,
     VerificationBatchResult,
+    source_trust_level,
 )
 
 __all__ += [
@@ -378,6 +385,7 @@ __all__ += [
     "TenderVerificationState",
     "TenderVerificationStatus",
     "VerificationBatchResult",
+    "source_trust_level",
 ]
 
 from app.tenders.collector.verification_review import (

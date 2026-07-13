@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 from app.config.settings import get_settings
 from app.parsers.documents import SUPPORTED, classify_document, parse_document
 from app.repositories.tenders import TenderRepository
 from app.tenders.safe_archive import SafeArchiveExtractor
+from app.tenders.models import normalize_money_amount
 
 
 class ImportService:
@@ -16,8 +18,20 @@ class ImportService:
         self.repo = TenderRepository()
         self.archive_extractor = archive_extractor or SafeArchiveExtractor()
 
-    def create_tender(self, title: str, number: str = "", url: str = "", nmck: float = 0) -> int:
-        return self.repo.create(title=title, number=number, source_url=url, nmck=nmck).id
+    def create_tender(
+        self,
+        title: str,
+        number: str = "",
+        url: str = "",
+        nmck: Decimal | str | int | float = Decimal("0"),
+    ) -> int:
+        amount = normalize_money_amount(nmck, field_name="nmck")
+        return self.repo.create(
+            title=title,
+            number=number,
+            source_url=url,
+            nmck=amount,
+        ).id
 
     def import_path(self, tender_id: int, source: Path) -> list[str]:
         source = Path(source).expanduser()
