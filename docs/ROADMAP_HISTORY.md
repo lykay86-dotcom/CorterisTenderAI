@@ -1,5 +1,22 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-14 — RM-113 завершён
+
+- PR #28 (`feat(rm-113): add safe local Ollama mode`) слит в `main` коммитом `ef8b296`.
+- Post-merge Quality Gate run `29285835443` завершился статусом `SUCCESS` на Python 3.12
+  и 3.13. Первый Python 3.13 job завершился единичным native Qt access violation в
+  существующем `test_matching_catalog_dialog.py`; повторный job прошёл полностью.
+- Добавлен stable ID `ollama` с loopback-only endpoint policy и нормализацией к `/v1`.
+- Переиспользованы существующие `OpenAICompatibleProvider`, analyzer, Orchestrator,
+  repository, ConfigManager и production DI; второй AI pipeline не создан.
+- Ollama не использует keyring, а bootstrap/save не выполняют сеть или health-check.
+- Невалидная конфигурация и недоступный локальный сервер дают безопасный fallback без
+  раскрытия URL, exception, secret или приватного пути.
+- Новая БД или миграция БД не требуются.
+- Локальная приёмка: целевой набор `58 passed`, полный pytest `808 passed`, Ruff
+  check/format, mypy, secret scan, dependency audit и `git diff --check` успешны.
+- RM-113 переведён в `DONE`; RM-114 назначен следующим активным этапом.
+
 ## 2026-07-13 — RM-112 завершён
 
 - PR #26 (`feat(rm-112): add safe AI provider selection`) слит в `main`

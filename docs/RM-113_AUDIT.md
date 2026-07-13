@@ -52,3 +52,10 @@
 Для Ollama достаточно безопасно разрешить loopback `/v1` endpoint и создать текущий
 `OpenAICompatibleProvider` с несекретным compatibility placeholder. Сеть остаётся возможной
 только при явном запуске анализа через существующий analyzer и Orchestrator.
+
+## Закрытие этапа
+
+Аудит подтверждён реализацией без архитектурного дублирования. Feature PR #28 слит в
+`main` коммитом `ef8b296`; post-merge Quality Gate run `29285835443` успешен на Python
+3.12 и 3.13. Созданы только изменения selection service, существующего UI и тестов.
+Analyzer, Orchestrator, repository, Decision Engine и схема БД не изменялись.

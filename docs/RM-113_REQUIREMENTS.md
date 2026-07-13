@@ -1,6 +1,7 @@
 # RM-113 — требования к безопасному локальному режиму
 
-Дата: 13 июля 2026 года. Исходный HEAD: `7546b65`. Статус: `IN PROGRESS`.
+Дата: 13 июля 2026 года. Исходный HEAD: `7546b65`. Статус: `ACCEPTED`
+(PR #28, merge `ef8b296`).
 
 ## Цель и границы
 
@@ -62,3 +63,12 @@ Unit/runtime/UI/security тесты должны покрывать stable ID, l
 отсутствие keyring и сети при resolve/save/bootstrap, транспорт `/v1/responses`, безопасный
 fallback и сохранение архитектурных инвариантов. Обязательны целевой и полный pytest, Ruff,
 mypy, repository secret scan, dependency audit и `git diff --check`.
+
+## Результат приёмки
+
+- Все требования реализованы без расширения scope на RM-114–RM-116.
+- Целевой набор: `58 passed`; полный локальный pytest: `808 passed`.
+- Ruff check/format, mypy, repository secret scan, dependency audit и
+  `git diff --check` успешны.
+- Post-merge Quality Gate run `29285835443` успешен на Python 3.12 и 3.13.
+- Миграция БД не требуется.
