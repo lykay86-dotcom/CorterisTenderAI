@@ -14,6 +14,15 @@ RM-107 повторно проверен по расширенному Definitio
 
 Статус: `IN PROGRESS`
 
+Обязательный prerequisite RM-111: герметизация offline-тестов и
+воспроизводимый Windows quality gate. На чистом `origin/main` (`b4c1cc7`)
+baseline дал `719 passed, 2 failed`: два offline-теста прочитали сохранённый
+токен из Windows Credential Manager, а диагностический тест выполнил реальный
+API-запрос. С временно пустым keyring оба теста проходят (`2 passed`).
+
+До закрытия prerequisite запрещено начинать реализацию AI Orchestrator. Пакет
+не должен менять AI-бизнес-логику, C17 canonicalization или C19 live verification.
+
 ## Предыдущий этап
 **RM-110 — стабилизация Tender Intelligence**
 
@@ -47,6 +56,7 @@ RM-107 повторно проверен по расширенному Definitio
 - 631 passed (без отдельного теста crash-reporting).
 
 ## Текущее действие
-Подготовить бизнес-требование и аудит RM-111 без реализации следующих этапов.
+Подготовить бизнес-требование и аудит RM-111, затем закрыть назначенный RM-111
+quality-gate prerequisite без реализации следующих этапов.
 
 Рабочая ветка RM-110: `feat/rm-110-tender-intelligence-stabilization`.
