@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from app.core.ai.provider_selection import (
     AiProviderId,
     AiProviderSelectionService,
+    OLLAMA_DEFAULT_BASE_URL,
     OPENAI_DEFAULT_BASE_URL,
 )
 from app.core.config_manager import ConfigManager
@@ -60,8 +61,8 @@ def test_combo_item_data_contains_only_stable_provider_ids(tmp_path) -> None:
         widget.provider_combo.itemData(index) for index in range(widget.provider_combo.count())
     ]
 
-    assert values == ["disabled", "openai", "openai_compatible"]
-    assert all("Ollama" not in widget.provider_combo.itemText(index) for index in range(3))
+    assert values == ["disabled", "openai", "openai_compatible", "ollama"]
+    assert widget.provider_combo.itemText(3) == "Ollama — локально"
 
 
 def test_selected_id_loads_and_saves_canonically(tmp_path, monkeypatch) -> None:
@@ -157,3 +158,46 @@ def test_button_is_save_only_and_restart_notice_is_explicit(tmp_path) -> None:
 
     assert widget.save_button.text() == "Сохранить"
     assert "после перезапуска" in RESTART_NOTICE
+
+
+def test_ollama_enables_local_fields_without_credential_or_keyring(tmp_path) -> None:
+    widget, _config, secret = _widget(tmp_path, secret=SecretStore("saved-cloud-key"))
+
+    widget.provider_combo.setCurrentIndex(widget.provider_combo.findData("ollama"))
+
+    assert widget.model_edit.isEnabled()
+    assert widget.base_url_edit.isEnabled()
+    assert widget.base_url_edit.text() == OLLAMA_DEFAULT_BASE_URL
+    assert not widget.credential_edit.isEnabled()
+    assert widget.credential_edit.placeholderText() != "Сохранён"
+    assert not widget.ollama_hint.isHidden()
+    assert secret.loads == 0
+
+
+def test_saved_custom_ollama_url_is_not_overwritten(tmp_path) -> None:
+    _app()
+    config = ConfigManager(tmp_path / "settings.json")
+    config.update(
+        {
+            "ai": {
+                "provider": "ollama",
+                "model": "qwen3:8b",
+                "base_url": "http://127.42.1.9:9999/v1",
+            }
+        }
+    )
+
+    widget = AiProviderSettingsWidget(AiProviderSelectionService(config, SecretStore()))
+
+    assert widget.selected_provider_id() is AiProviderId.OLLAMA
+    assert widget.base_url_edit.text() == "http://127.42.1.9:9999/v1"
+
+
+def test_switching_from_cloud_to_ollama_clears_saved_credential_indicator(tmp_path) -> None:
+    widget, _config, _secret = _widget(tmp_path, secret=SecretStore("saved-cloud-key"))
+    widget.provider_combo.setCurrentIndex(widget.provider_combo.findData("openai"))
+    assert widget.credential_edit.placeholderText() == "Сохранён"
+
+    widget.provider_combo.setCurrentIndex(widget.provider_combo.findData("ollama"))
+
+    assert widget.credential_edit.placeholderText() == "Не требуется"

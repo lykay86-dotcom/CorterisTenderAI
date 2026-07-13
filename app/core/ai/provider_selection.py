@@ -5,13 +5,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from ipaddress import ip_address
 from typing import Any, Protocol
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from app.ai.provider import AIProvider, DisabledProvider, OpenAICompatibleProvider
 
 OPENAI_API_KEY_SECRET = "openai_api_key"
 OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
+OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434/v1"
+OLLAMA_AUTH_PLACEHOLDER = "ollama"
 DEFAULT_AI_MODEL = "gpt-4.1-mini"
 
 
@@ -21,6 +24,7 @@ class AiProviderId(StrEnum):
     DISABLED = "disabled"
     OPENAI = "openai"
     OPENAI_COMPATIBLE = "openai_compatible"
+    OLLAMA = "ollama"
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +118,10 @@ class AiProviderSelectionService:
             settings.base_url
         ):
             warnings.append("Base URL AI-провайдера некорректен.")
+        if settings.provider_id is AiProviderId.OLLAMA and not _valid_ollama_base_url(
+            settings.base_url
+        ):
+            warnings.append("Локальный Base URL Ollama некорректен.")
         return tuple(warnings)
 
     def migrate_legacy_settings(self, legacy: LegacyAiProviderSettings | None) -> bool:
@@ -168,7 +176,7 @@ class AiProviderSelectionService:
             )
 
         new_credential = credential.strip() if credential is not None else ""
-        if new_credential:
+        if settings.provider_id is not AiProviderId.OLLAMA and new_credential:
             try:
                 self.secret_store.save(OPENAI_API_KEY_SECRET, new_credential)
             except Exception:
@@ -211,7 +219,7 @@ class AiProviderSelectionService:
         return self._resolve(settings, requested_provider_id=requested)
 
     def credential_available(self, provider_id: AiProviderId) -> bool:
-        if provider_id is AiProviderId.DISABLED:
+        if provider_id in {AiProviderId.DISABLED, AiProviderId.OLLAMA}:
             return False
         credential, _warning = self._load_credential()
         return bool(credential)
@@ -242,6 +250,28 @@ class AiProviderSelectionService:
                 requested_provider_id,
                 (),
                 available=True,
+                requires_restart=requires_restart,
+            )
+
+        if settings.provider_id is AiProviderId.OLLAMA:
+            base_url = _normalize_ollama_base_url(settings.base_url)
+            if base_url is None:
+                return _disabled_resolution(
+                    requested_provider_id,
+                    ("Локальный Base URL Ollama некорректен.",),
+                    requires_restart=requires_restart,
+                )
+            provider = OpenAICompatibleProvider(
+                OLLAMA_AUTH_PLACEHOLDER,
+                base_url,
+                settings.model.strip(),
+            )
+            return AiProviderResolution(
+                requested_provider_id=requested_provider_id,
+                effective_provider_id=AiProviderId.OLLAMA,
+                provider=provider,
+                available=True,
+                warnings=(),
                 requires_restart=requires_restart,
             )
 
@@ -296,11 +326,12 @@ class AiProviderSelectionService:
         )
 
     def _save_settings(self, settings: AiProviderSettings) -> None:
-        base_url = (
-            OPENAI_DEFAULT_BASE_URL
-            if settings.provider_id is AiProviderId.OPENAI
-            else settings.base_url.strip()
-        )
+        if settings.provider_id is AiProviderId.OPENAI:
+            base_url = OPENAI_DEFAULT_BASE_URL
+        elif settings.provider_id is AiProviderId.OLLAMA:
+            base_url = _normalize_ollama_base_url(settings.base_url) or OLLAMA_DEFAULT_BASE_URL
+        else:
+            base_url = settings.base_url.strip()
         self.config.update(
             {
                 "ai": {
@@ -345,6 +376,50 @@ def _valid_base_url(value: str) -> bool:
     )
 
 
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.strip().casefold()
+    if normalized == "localhost":
+        return True
+    try:
+        return ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def _normalize_ollama_base_url(value: str) -> str | None:
+    rendered = value.strip()
+    if not rendered or len(rendered) > 2_000 or "?" in rendered or "#" in rendered:
+        return None
+    try:
+        parsed = urlsplit(rendered)
+        port = parsed.port
+    except (TypeError, ValueError):
+        return None
+    if port == 0:
+        return None
+    hostname = parsed.hostname
+    if not (
+        parsed.scheme.casefold() in {"http", "https"}
+        and hostname
+        and _is_loopback_host(hostname)
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.query
+        and not parsed.fragment
+    ):
+        return None
+
+    normalized_host = hostname.casefold()
+    if ":" in normalized_host:
+        normalized_host = f"[{normalized_host}]"
+    netloc = f"{normalized_host}:{port}" if port is not None else normalized_host
+    return urlunsplit((parsed.scheme.casefold(), netloc, "/v1", "", ""))
+
+
+def _valid_ollama_base_url(value: str) -> bool:
+    return _normalize_ollama_base_url(value) is not None
+
+
 def _bounded_setting(value: object) -> str:
     if value is None or isinstance(value, (dict, list, tuple, set)):
         return ""
@@ -383,4 +458,6 @@ __all__ = [
     "LegacyAiProviderSettings",
     "OPENAI_API_KEY_SECRET",
     "OPENAI_DEFAULT_BASE_URL",
+    "OLLAMA_AUTH_PLACEHOLDER",
+    "OLLAMA_DEFAULT_BASE_URL",
 ]
