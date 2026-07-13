@@ -206,6 +206,22 @@ def _render_result(result: TenderFullAnalysisResult) -> str:
     score = result.score
     requirements = result.requirements
     commercial = result.commercial_estimate
+    summary = result.summary
+    summary_html = "<p>Offline-резюме не сформировано.</p>"
+    if summary is not None:
+        facts = "".join(
+            f"<li><b>{escape(item.label)}:</b> {escape(item.value)}</li>"
+            for item in summary.facts
+        ) or "<li>Нет подтверждённых фактов.</li>"
+        risks = "".join(f"<li>{escape(item)}</li>" for item in summary.risks) or "<li>Не выявлено.</li>"
+        missing = "".join(f"<li>{escape(item)}</li>" for item in summary.missing_information) or "<li>Не выявлено.</li>"
+        summary_html = (
+            f"<h3>Краткое резюме: {escape(summary.headline)}</h3>"
+            f"<p><b>Источник:</b> {escape(summary.source.value)}</p>"
+            f"<h4>Подтверждённые факты</h4><ul>{facts}</ul>"
+            f"<h4>Риски</h4><ul>{risks}</ul>"
+            f"<h4>Не хватает данных</h4><ul>{missing}</ul>"
+        )
     warnings = "".join(f"<li>{escape(item)}</li>" for item in result.warnings) or "<li>Нет</li>"
     return (
         f"<h2>{escape(result.procurement_number or result.registry_key)}</h2>"
@@ -224,6 +240,7 @@ def _render_result(result: TenderFullAnalysisResult) -> str:
         f"прибыль: {commercial.profit if commercial and commercial.profit is not None else 'не рассчитана'}"
         f"</p>"
         f"<p><b>Существующий AnalysisEngine:</b> {'выполнен' if result.legacy else 'не выполнен или недоступен'}</p>"
+        f"{summary_html}"
         f"<h3>Предупреждения</h3><ul>{warnings}</ul>"
     )
 

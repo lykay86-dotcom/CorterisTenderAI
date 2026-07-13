@@ -44,6 +44,10 @@ from app.tenders.commercial_estimator import (
     CommercialEstimateRepository,
     CommercialEstimateResult,
 )
+from app.tenders.tender_summary import (
+    DeterministicTenderSummaryGenerator,
+    TenderSummary,
+)
 
 
 class FullAnalysisStage(StrEnum):
@@ -95,6 +99,7 @@ class TenderFullAnalysisResult:
     legacy: LegacyAnalysisBridgeResult | None
     warnings: tuple[str, ...] = ()
     commercial_estimate: CommercialEstimateResult | None = None
+    summary: TenderSummary | None = None
 
     @property
     def successful(self) -> bool:
@@ -119,6 +124,7 @@ class TenderFullAnalysisService:
         archive_extractor: SafeArchiveExtractor | None = None,
         legacy_bridge: LegacyAnalysisBridge | None = None,
         commercial_estimate_repository: CommercialEstimateRepository | None = None,
+        summary_generator: DeterministicTenderSummaryGenerator | None = None,
     ) -> None:
         self.tender_registry = tender_registry
         self.document_service = document_service
@@ -129,6 +135,7 @@ class TenderFullAnalysisService:
         self.archive_extractor = archive_extractor or SafeArchiveExtractor()
         self.legacy_bridge = legacy_bridge
         self.commercial_estimate_repository = commercial_estimate_repository
+        self.summary_generator = summary_generator or DeterministicTenderSummaryGenerator()
 
     def run(
         self,
@@ -283,6 +290,7 @@ class TenderFullAnalysisService:
                 else None
             )
             commercial_estimate = latest_commercial[1] if latest_commercial else None
+            summary = self.summary_generator.generate(key, tender, requirements)
             status = FullAnalysisStatus.PARTIAL if warnings else FullAnalysisStatus.COMPLETED
             emit(FullAnalysisStage.COMPLETED, "Полный анализ завершён.", 8)
             return TenderFullAnalysisResult(
@@ -299,6 +307,7 @@ class TenderFullAnalysisService:
                 legacy=legacy,
                 warnings=_ordered_unique(warnings),
                 commercial_estimate=commercial_estimate,
+                summary=summary,
             )
         except CollectorCancelledError:
             emit(FullAnalysisStage.CANCELLED, token.reason or "Операция остановлена.", 0)
@@ -320,6 +329,7 @@ class TenderFullAnalysisService:
                 legacy=legacy,
                 warnings=_ordered_unique((*warnings, token.reason or "Операция отменена")),
                 commercial_estimate=None,
+                summary=None,
             )
 
 
