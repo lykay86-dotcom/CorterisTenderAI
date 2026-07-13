@@ -51,6 +51,8 @@ from app.tenders.tender_summary import (
     DeterministicTenderSummaryGenerator,
     TenderSummary,
 )
+from app.core.ai.analyzer import TenderDocumentAiAnalysisService
+from app.core.ai.schemas import AiDocumentAnalysis
 
 
 class FullAnalysisStage(StrEnum):
@@ -103,6 +105,7 @@ class TenderFullAnalysisResult:
     warnings: tuple[str, ...] = ()
     commercial_estimate: CommercialEstimateResult | None = None
     summary: TenderSummary | None = None
+    ai_document_analysis: AiDocumentAnalysis | None = None
 
     @property
     def successful(self) -> bool:
@@ -131,6 +134,7 @@ class TenderFullAnalysisService:
         summary_repository: CollectorStateRepository | None = None,
         participation_decision_service: ParticipationDecisionService | None = None,
         capability_repository: CompanyCapabilityProfileRepository | None = None,
+        ai_document_analysis_service: TenderDocumentAiAnalysisService | None = None,
     ) -> None:
         self.tender_registry = tender_registry
         self.document_service = document_service
@@ -145,6 +149,7 @@ class TenderFullAnalysisService:
         self.summary_repository = summary_repository
         self.participation_decision_service = participation_decision_service
         self.capability_repository = capability_repository
+        self.ai_document_analysis_service = ai_document_analysis_service
 
     def run(
         self,
@@ -299,6 +304,11 @@ class TenderFullAnalysisService:
                 else None
             )
             commercial_estimate = latest_commercial[1] if latest_commercial else None
+            ai_document_analysis = (
+                self.ai_document_analysis_service.analyze(key)
+                if self.ai_document_analysis_service is not None
+                else None
+            )
             decision = (
                 self.participation_decision_service.evaluate(key)
                 if self.participation_decision_service is not None
@@ -345,6 +355,7 @@ class TenderFullAnalysisService:
                 warnings=_ordered_unique(warnings),
                 commercial_estimate=commercial_estimate,
                 summary=summary,
+                ai_document_analysis=ai_document_analysis,
             )
         except CollectorCancelledError:
             emit(FullAnalysisStage.CANCELLED, token.reason or "Операция остановлена.", 0)
@@ -367,6 +378,7 @@ class TenderFullAnalysisService:
                 warnings=_ordered_unique((*warnings, token.reason or "Операция отменена")),
                 commercial_estimate=None,
                 summary=None,
+                ai_document_analysis=None,
             )
 
 
