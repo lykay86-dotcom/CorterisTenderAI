@@ -42,6 +42,7 @@ _STAGE_LABELS = {
     FullAnalysisStage.ANALYZING_REQUIREMENTS: "Анализ требований",
     FullAnalysisStage.RUNNING_LEGACY_ANALYSIS: "AnalysisEngine",
     FullAnalysisStage.SCORING: "Оценка участия",
+    FullAnalysisStage.RUNNING_AI: "AI-анализ документации",
     FullAnalysisStage.COMPLETED: "Завершение",
 }
 

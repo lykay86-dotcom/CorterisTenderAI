@@ -51,8 +51,8 @@ from app.tenders.tender_summary import (
     DeterministicTenderSummaryGenerator,
     TenderSummary,
 )
-from app.core.ai.analyzer import TenderDocumentAiAnalysisService
-from app.core.ai.schemas import AiAnalysisStatus, AiDocumentAnalysis
+from app.core.ai.orchestrator import TenderAiOrchestrator
+from app.core.ai.schemas import AiDocumentAnalysis
 
 
 class FullAnalysisStage(StrEnum):
@@ -63,6 +63,7 @@ class FullAnalysisStage(StrEnum):
     ANALYZING_REQUIREMENTS = "analyzing_requirements"
     RUNNING_LEGACY_ANALYSIS = "running_legacy_analysis"
     SCORING = "scoring"
+    RUNNING_AI = "running_ai"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
@@ -78,7 +79,7 @@ class FullAnalysisProgress:
     stage: FullAnalysisStage
     message: str
     completed_steps: int
-    total_steps: int = 8
+    total_steps: int = 9
     current_item: int = 0
     total_items: int = 0
 
@@ -134,7 +135,7 @@ class TenderFullAnalysisService:
         summary_repository: CollectorStateRepository | None = None,
         participation_decision_service: ParticipationDecisionService | None = None,
         capability_repository: CompanyCapabilityProfileRepository | None = None,
-        ai_document_analysis_service: TenderDocumentAiAnalysisService | None = None,
+        ai_orchestrator: TenderAiOrchestrator | None = None,
     ) -> None:
         self.tender_registry = tender_registry
         self.document_service = document_service
@@ -149,7 +150,7 @@ class TenderFullAnalysisService:
         self.summary_repository = summary_repository
         self.participation_decision_service = participation_decision_service
         self.capability_repository = capability_repository
-        self.ai_document_analysis_service = ai_document_analysis_service
+        self.ai_orchestrator = ai_orchestrator
 
     def run(
         self,
@@ -311,19 +312,15 @@ class TenderFullAnalysisService:
                 else None
             )
             commercial_estimate = latest_commercial[1] if latest_commercial else None
-            if self.ai_document_analysis_service is not None:
-                try:
-                    ai_document_analysis = self.ai_document_analysis_service.analyze(key)
-                except Exception:
-                    ai_document_analysis = AiDocumentAnalysis(
-                        key,
-                        "AI analysis is temporarily unavailable.",
-                        status=AiAnalysisStatus.PROVIDER_ERROR,
-                    )
-                ai_warning = _ai_status_warning(ai_document_analysis.status)
-                if ai_warning:
-                    warnings.append(ai_warning)
-                warnings.extend(ai_document_analysis.warnings)
+            if self.ai_orchestrator is not None:
+                emit(
+                    FullAnalysisStage.RUNNING_AI,
+                    "AI-анализ документации…",
+                    8,
+                )
+                orchestration = self.ai_orchestrator.run(key)
+                ai_document_analysis = orchestration.document_analysis
+                warnings.extend(orchestration.warnings)
             decision = (
                 self.participation_decision_service.evaluate(
                     key,
@@ -357,7 +354,7 @@ class TenderFullAnalysisService:
             if self.summary_repository is not None:
                 self.summary_repository.save_tender_summary(summary)
             status = FullAnalysisStatus.PARTIAL if warnings else FullAnalysisStatus.COMPLETED
-            emit(FullAnalysisStage.COMPLETED, "Полный анализ завершён.", 8)
+            emit(FullAnalysisStage.COMPLETED, "Полный анализ завершён.", 9)
             return TenderFullAnalysisResult(
                 registry_key=key,
                 procurement_number=tender.procurement_number,
@@ -415,29 +412,6 @@ def _ordered_unique(values) -> tuple[str, ...]:
         seen.add(key)
         result.append(rendered)
     return tuple(result)
-
-
-def _ai_status_warning(status: AiAnalysisStatus | str) -> str:
-    messages = {
-        AiAnalysisStatus.PARTIAL: "AI-анализ выполнен частично.",
-        AiAnalysisStatus.NO_DOCUMENTS: ("AI-анализ не выполнен: подходящие документы отсутствуют."),
-        AiAnalysisStatus.PROVIDER_DISABLED: (
-            "AI-провайдер отключён; использован локальный анализ."
-        ),
-        AiAnalysisStatus.PROVIDER_ERROR: (
-            "AI-провайдер временно недоступен; локальный анализ продолжен."
-        ),
-        AiAnalysisStatus.INVALID_RESPONSE: (
-            "Ответ AI отклонён защитной проверкой; локальный анализ продолжен."
-        ),
-        AiAnalysisStatus.CACHE_INCOMPATIBLE: (
-            "Сохранённый AI-анализ несовместим; локальный анализ продолжен."
-        ),
-    }
-    try:
-        return messages.get(AiAnalysisStatus(status), "")
-    except (TypeError, ValueError):
-        return "AI-анализ завершён с неизвестным безопасным статусом."
 
 
 __all__ = [
