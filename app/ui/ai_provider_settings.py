@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -16,6 +17,7 @@ from app.core.ai.provider_selection import (
     AiProviderResolution,
     AiProviderSelectionService,
     AiProviderSettings,
+    OLLAMA_DEFAULT_BASE_URL,
     OPENAI_DEFAULT_BASE_URL,
 )
 
@@ -23,8 +25,10 @@ AI_PROVIDER_OPTIONS: tuple[tuple[str, str], ...] = (
     (AiProviderId.DISABLED.value, "Отключено"),
     (AiProviderId.OPENAI.value, "OpenAI API"),
     (AiProviderId.OPENAI_COMPATIBLE.value, "OpenAI-совместимый сервер"),
+    (AiProviderId.OLLAMA.value, "Ollama — локально"),
 )
 RESTART_NOTICE = "Новый AI-провайдер будет применён после перезапуска приложения"
+OLLAMA_HINT = "Ollama должен быть запущен локально, а указанная модель — установлена заранее."
 
 
 class AiProviderSettingsWidget(QWidget):
@@ -48,12 +52,15 @@ class AiProviderSettingsWidget(QWidget):
         self.credential_edit.setPlaceholderText("API-ключ")
         self.model_edit = QLineEdit(self)
         self.base_url_edit = QLineEdit(self)
+        self.ollama_hint = QLabel(OLLAMA_HINT, self)
+        self.ollama_hint.setWordWrap(True)
         self.save_button = QPushButton("Сохранить", self)
 
         form.addRow("Провайдер", self.provider_combo)
         form.addRow("API-ключ", self.credential_edit)
         form.addRow("Модель", self.model_edit)
         form.addRow("Base URL", self.base_url_edit)
+        form.addRow(self.ollama_hint)
         form.addRow(self.save_button)
 
         self.provider_combo.currentIndexChanged.connect(self._sync_fields)
@@ -119,13 +126,21 @@ class AiProviderSettingsWidget(QWidget):
         provider_id = self.selected_provider_id()
         enabled = provider_id is not AiProviderId.DISABLED
         compatible = provider_id is AiProviderId.OPENAI_COMPATIBLE
+        ollama = provider_id is AiProviderId.OLLAMA
         self.model_edit.setEnabled(enabled)
-        self.credential_edit.setEnabled(enabled)
-        self.base_url_edit.setEnabled(compatible)
+        self.credential_edit.setEnabled(enabled and not ollama)
+        self.base_url_edit.setEnabled(compatible or ollama)
+        self.ollama_hint.setVisible(ollama)
         if provider_id is AiProviderId.OPENAI:
             self.base_url_edit.setText(OPENAI_DEFAULT_BASE_URL)
+        elif ollama and self.base_url_edit.text().strip() in {"", OPENAI_DEFAULT_BASE_URL}:
+            self.base_url_edit.setText(OLLAMA_DEFAULT_BASE_URL)
+        self._sync_credential_placeholder(provider_id)
 
     def _sync_credential_placeholder(self, provider_id: AiProviderId) -> None:
+        if provider_id is AiProviderId.OLLAMA:
+            self.credential_edit.setPlaceholderText("Не требуется")
+            return
         saved = (
             self.service is not None
             and provider_id is not AiProviderId.DISABLED
@@ -137,5 +152,6 @@ class AiProviderSettingsWidget(QWidget):
 __all__ = [
     "AI_PROVIDER_OPTIONS",
     "AiProviderSettingsWidget",
+    "OLLAMA_HINT",
     "RESTART_NOTICE",
 ]

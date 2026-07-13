@@ -15,6 +15,8 @@ from app.core.ai.provider_selection import (
     AiProviderSettings,
     AiSecretStore,
     LegacyAiProviderSettings,
+    OLLAMA_AUTH_PLACEHOLDER,
+    OLLAMA_DEFAULT_BASE_URL,
 )
 from app.core.ai.repository import AiDocumentAnalysisRepository
 from app.core.ai.schemas import (
@@ -40,6 +42,8 @@ __all__ = [
     "AiProviderSettings",
     "AiSecretStore",
     "LegacyAiProviderSettings",
+    "OLLAMA_AUTH_PLACEHOLDER",
+    "OLLAMA_DEFAULT_BASE_URL",
     "TenderDocumentAiAnalyzer",
     "TenderDocumentAiAnalysisService",
     "TenderDocumentContextBuilder",
