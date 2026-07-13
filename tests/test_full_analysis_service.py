@@ -13,6 +13,7 @@ from app.tenders.requirement_analysis import TenderRequirementsAnalyzer
 from app.tenders.safe_archive import SafeArchiveExtractionResult
 from tests.collector_c3_helpers import make_tender
 from app.core.ai.schemas import AiDocumentAnalysis
+from app.core.ai.orchestrator import TenderAiOrchestrator
 
 
 class Registry:
@@ -115,7 +116,8 @@ def test_cancelled_before_start_returns_cancelled(tmp_path) -> None:
 
 
 class ExplodingAiService:
-    def analyze(self, _key):
+    def analyze(self, _key, *, force=False):
+        del force
         raise TimeoutError("Authorization: Bearer SECRET\nTraceback: hidden")
 
 
@@ -124,7 +126,8 @@ class StaticAiService:
         self.status = status
         self.warnings = warnings
 
-    def analyze(self, key):
+    def analyze(self, key, *, force=False):
+        del force
         return AiDocumentAnalysis(
             key,
             "Safe AI state",
@@ -153,7 +156,7 @@ def _analysis_service(tmp_path, *, ai_service=None, decision_service=None):
         ScoreService(tender),
         archive_extractor=ArchiveExtractor(),
         legacy_bridge=None,
-        ai_document_analysis_service=ai_service,
+        ai_orchestrator=(TenderAiOrchestrator(ai_service) if ai_service is not None else None),
         participation_decision_service=decision_service,
     )
 
@@ -185,6 +188,20 @@ def test_current_safe_ai_result_is_passed_to_rm107_instead_of_stale_cache(tmp_pa
     assert result.status == FullAnalysisStatus.PARTIAL
     assert decision.ai_analysis is result.ai_document_analysis
     assert decision.ai_analysis.status == "provider_disabled"
+
+
+def test_full_analysis_reports_dedicated_ai_stage(tmp_path) -> None:
+    progress = []
+
+    result = _analysis_service(
+        tmp_path,
+        ai_service=StaticAiService("provider_disabled"),
+    ).run("procurement:test", progress_callback=progress.append)
+
+    assert result.ai_document_analysis is not None
+    assert FullAnalysisStage.RUNNING_AI in {event.stage for event in progress}
+    assert progress[-1].total_steps == 9
+    assert progress[-1].percent == 100
 
 
 def test_truncated_or_invalid_ai_result_keeps_exportable_result(tmp_path) -> None:

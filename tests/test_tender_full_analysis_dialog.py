@@ -42,7 +42,7 @@ def test_dialog_emits_cancel_and_updates_progress() -> None:
     )
     dialog.cancel_button.click()
     assert requested == ["procurement:test"]
-    assert dialog.progress.value() == 25
+    assert dialog.progress.value() == 22
     app.processEvents()
 
 
@@ -52,6 +52,13 @@ def test_dialog_has_dedicated_ai_summary_tab() -> None:
     assert dialog.tabs.count() == 4
     assert dialog.tabs.tabText(2) == "AI summary"
     assert dialog.tabs.tabText(3) == "AI-анализ"
+
+
+def test_dialog_shows_dedicated_ai_progress_stage() -> None:
+    dialog = TenderFullAnalysisDialog("procurement:test")
+
+    row = dialog._stage_rows[FullAnalysisStage.RUNNING_AI]
+    assert dialog.stages.item(row, 0).text() == "AI-анализ документации"
 
 
 def _result(analysis: AiDocumentAnalysis) -> TenderFullAnalysisResult:
