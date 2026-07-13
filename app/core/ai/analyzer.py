@@ -8,6 +8,8 @@ from typing import Mapping
 from app.ai.provider import AIProvider
 from app.core.ai.prompts import SYSTEM_PROMPT
 from app.core.ai.schemas import AiDocument, AiDocumentAnalysis, AiEvidence, AiFinding, AiFindingStatus, TenderRequirements
+from app.core.ai.document_context import TenderDocumentContextBuilder
+from app.core.ai.repository import AiDocumentAnalysisRepository, context_fingerprint
 
 
 class TenderDocumentAiAnalyzer:
@@ -52,3 +54,28 @@ class TenderDocumentAiAnalyzer:
             evidence = AiEvidence(document_id, quote, str(item.get("section", "")), item.get("page"), float(item.get("confidence", 0.0))) if valid else None
             result.append(AiFinding(category, str(item.get("statement", "")), evidence, AiFindingStatus.VERIFIED if valid else AiFindingStatus.UNVERIFIED))
         return tuple(result)
+
+
+class TenderDocumentAiAnalysisService:
+    """Build context, reuse identical results, analyze and persist once."""
+
+    def __init__(
+        self,
+        context_builder: TenderDocumentContextBuilder,
+        analyzer: TenderDocumentAiAnalyzer,
+        repository: AiDocumentAnalysisRepository,
+    ) -> None:
+        self.context_builder = context_builder
+        self.analyzer = analyzer
+        self.repository = repository
+
+    def analyze(self, registry_key: str, *, force: bool = False) -> AiDocumentAnalysis:
+        documents = self.context_builder.build(registry_key)
+        fingerprint = context_fingerprint(documents)
+        if not force:
+            reused = self.repository.reusable(registry_key, fingerprint)
+            if reused is not None:
+                return reused
+        result = self.analyzer.analyze(registry_key, documents)
+        self.repository.save(result, fingerprint)
+        return result
