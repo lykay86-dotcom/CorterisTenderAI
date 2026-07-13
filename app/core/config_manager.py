@@ -36,7 +36,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "ui": {"theme": "system", "language": "ru-RU"},
     "licenses": [],
     "ai": {
-        "provider": "none",
+        "provider": "disabled",
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4.1-mini",
     },
