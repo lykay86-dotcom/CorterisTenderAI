@@ -112,6 +112,55 @@ def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
     assert any(item.source == "ai_document_analysis" for item in decision.evidence)
 
 
+def test_current_unverified_ai_result_overrides_stale_verified_repository_result() -> None:
+    score = SimpleNamespace(
+        total_score=90,
+        recommendation=ParticipationRecommendation.RECOMMENDED,
+        recommendation_text="Participate",
+        components=(),
+        missing_documents=(),
+    )
+    verification = SimpleNamespace(
+        registry_key="procurement:1",
+        status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=0.9,
+        missing_fields=(),
+    )
+    estimate = SimpleNamespace(
+        registry_key="procurement:1",
+        status=CommercialEstimateStatus.COMPLETE,
+        margin_percent=20,
+    )
+    verified = AiFinding(
+        "risk",
+        "Old risk",
+        AiEvidence("doc", "old quote", confidence=0.9),
+        AiFindingStatus.VERIFIED,
+    )
+    stale = AiDocumentAnalysis(
+        "procurement:1", "Old", risks=(verified,), status="complete"
+    )
+    current = AiDocumentAnalysis(
+        "procurement:1",
+        "Provider unavailable",
+        status="provider_error",
+    )
+    service = ParticipationDecisionService(
+        _ScoreService(score),
+        _StateRepository(verification),
+        _EstimateRepository(estimate),
+        ai_analysis_repository=_AiRepository(stale),
+    )
+
+    decision = service.evaluate(
+        "procurement:1",
+        ai_document_analysis=current,
+    )
+
+    assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
+    assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
+
+
 def test_blocked_stop_factor_has_absolute_priority_over_high_score() -> None:
     score = SimpleNamespace(
         total_score=100, recommendation=ParticipationRecommendation.RECOMMENDED,
