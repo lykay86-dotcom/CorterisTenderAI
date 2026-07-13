@@ -1,5 +1,17 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-13 — RM-111 quality-gate prerequisite
+- Решением владельца герметизация credential-тестов и воспроизводимый Windows
+  quality gate назначены обязательным prerequisite текущего RM-111.
+- Основание: baseline чистого `origin/main` (`b4c1cc7`) дал
+  `719 passed, 2 failed`; offline-тесты прочитали Windows Credential Manager,
+  а один тест выполнил реальный API-запрос.
+- При пустом временном keyring оба целевых теста проходят (`2 passed`), что
+  подтверждает зависимость результата от пользовательского credential store.
+- До закрытия prerequisite бизнес-логика AI Orchestrator не реализуется.
+- C17 canonicalization и C19 live verification остаются отдельными будущими
+  work packages и не включаются в RM-111.
+
 ## 2026-07-13 — Roadmap v2
 - RM-107 переведён в `DONE`.
 - RM-108 назначен активным.
