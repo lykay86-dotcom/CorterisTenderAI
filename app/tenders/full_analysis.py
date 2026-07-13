@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -175,7 +176,13 @@ class TenderFullAnalysisService:
         legacy = None
         ai_document_analysis = None
 
-        def emit(stage, message, completed, current=0, total=0):
+        def emit(
+            stage: FullAnalysisStage,
+            message: str,
+            completed: int,
+            current: int = 0,
+            total: int = 0,
+        ) -> None:
             if progress_callback is not None:
                 progress_callback(
                     FullAnalysisProgress(
@@ -401,7 +408,7 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def _ordered_unique(values) -> tuple[str, ...]:
+def _ordered_unique(values: Iterable[object]) -> tuple[str, ...]:
     result = []
     seen = set()
     for value in values:
