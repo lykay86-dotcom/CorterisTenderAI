@@ -206,6 +206,10 @@ class UnifiedTender:
         if (
             self.application_deadline is not None
             and self.published_at is not None
+            and _datetimes_are_comparable(
+                self.application_deadline,
+                self.published_at,
+            )
             and self.application_deadline < self.published_at
         ):
             raise ValueError("application_deadline cannot precede published_at")
@@ -252,6 +256,18 @@ class UnifiedTender:
         )
 
 
+def is_timezone_aware(value: datetime) -> bool:
+    """Return whether a datetime carries an effective UTC offset."""
+
+    return value.tzinfo is not None and value.utcoffset() is not None
+
+
+def _datetimes_are_comparable(first: datetime, second: datetime) -> bool:
+    """Avoid implicit localization and mixed naive/aware comparison errors."""
+
+    return is_timezone_aware(first) == is_timezone_aware(second)
+
+
 def _validate_http_url(value: str, *, field_name: str) -> None:
     parsed = urlparse(value.strip())
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -268,4 +284,5 @@ __all__ = [
     "TenderSource",
     "TenderStatus",
     "UnifiedTender",
+    "is_timezone_aware",
 ]

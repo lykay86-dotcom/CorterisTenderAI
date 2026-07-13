@@ -325,14 +325,27 @@ def _earliest_datetime(
     values: Iterable[datetime | None],
 ) -> datetime | None:
     actual = [value for value in values if value is not None]
-    return min(actual) if actual else None
+    comparable = _preferred_datetime_group(actual)
+    return min(comparable) if comparable else None
 
 
 def _latest_datetime(
     values: Iterable[datetime | None],
 ) -> datetime | None:
     actual = [value for value in values if value is not None]
-    return max(actual) if actual else None
+    comparable = _preferred_datetime_group(actual)
+    return max(comparable) if comparable else None
+
+
+def _preferred_datetime_group(values: list[datetime]) -> list[datetime]:
+    """Prefer timezone-confirmed candidates without inventing a source zone."""
+
+    aware = [
+        value
+        for value in values
+        if value.tzinfo is not None and value.utcoffset() is not None
+    ]
+    return aware or values
 
 
 def _latest_date(values: Iterable[date | None]) -> date | None:

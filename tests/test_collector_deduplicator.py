@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+
 from app.tenders.collector.deduplicator import TenderDeduplicator
 from app.tenders.collector.models import DeduplicationMatchLevel
 from app.tenders.models import TenderSource
@@ -71,3 +74,22 @@ def test_distinct_tenders_remain_separate() -> None:
 
     assert result.merged_count == 2
     assert result.duplicate_count == 0
+
+
+def test_mixed_naive_and_aware_dates_prefer_confirmed_timezone() -> None:
+    first = replace(
+        make_tender(external_id="one"),
+        published_at=datetime(2026, 7, 10),
+        application_deadline=datetime(2026, 7, 20),
+    )
+    confirmed_zone = timezone(timedelta(hours=3))
+    second = replace(
+        make_tender(source=TenderSource.CUSTOM, external_id="two"),
+        published_at=datetime(2026, 7, 11, tzinfo=confirmed_zone),
+        application_deadline=datetime(2026, 7, 19, tzinfo=confirmed_zone),
+    )
+
+    merged = TenderDeduplicator().deduplicate((first, second)).groups[0].item.tender
+
+    assert merged.published_at == second.published_at
+    assert merged.application_deadline == second.application_deadline
