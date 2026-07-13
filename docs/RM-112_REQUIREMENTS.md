@@ -1,7 +1,7 @@
 # RM-112 — требования к выбору AI-провайдера
 
 Дата: 13 июля 2026 года. Исходный HEAD: `ddf0c4c`. Статус:
-`IMPLEMENTED — READY FOR PR`.
+`ACCEPTED` (PR #26, merge `1d559b5`).
 
 ## Цель
 
@@ -169,7 +169,7 @@ citations/provenance, специализированные analyzers, новую
 - Security-тесты доказывают отсутствие secret в config, repr, warning и log.
 - Проходят целевой pytest, полный pytest, Ruff check/format, mypy, secret scan,
   dependency audit и `git diff --check`.
-- После merge PR в `main` RM-112 переводится в `DONE`, RM-113 назначается
+- После merge PR #26 в `main` RM-112 переведён в `DONE`, RM-113 назначен
   следующим активным этапом.
 
 ## Результат приёмки

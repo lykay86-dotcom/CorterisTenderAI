@@ -1,7 +1,11 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-13 — RM-112 подготовлен к завершению
+## 2026-07-13 — RM-112 завершён
 
+- PR #26 (`feat(rm-112): add safe AI provider selection`) слит в `main`
+  коммитом `1d559b5`.
+- Post-merge Quality Gate run `29280757442` завершился статусом `SUCCESS` на
+  Python 3.12 и 3.13.
 - Проведён обязательный аудит settings, keyring, runtime, UI и прямых
   provider-вызовов; требования зафиксированы до application-кода.
 - Секция `ai` существующего `ConfigManager` назначена каноническим persisted
@@ -17,8 +21,7 @@
 - Локальная приёмка: целевой набор `62 passed`, полный pytest `784 passed` за
   52,92 с, Ruff check/format, mypy (9 файлов), secret scan, dependency audit и
   `git diff --check` успешны.
-- Номер PR и merge SHA будут добавлены после публикации и merge; запись о
-  `DONE` и назначение RM-113 вступают в силу при merge.
+- RM-112 переведён в `DONE`; RM-113 назначен следующим активным этапом.
 
 ## 2026-07-13 — RM-111 завершён
 

@@ -1,7 +1,7 @@
 # RM-112 — аудит выбора AI-провайдера
 
 Дата: 13 июля 2026 года. Исходный HEAD: `ddf0c4c`. Статус RM-112:
-`IMPLEMENTED — READY FOR PR`.
+`DONE` (PR #26, merge `1d559b5`).
 
 ## Gate RM-111
 
@@ -170,4 +170,5 @@ repository или HTTP transport.
   также не выполняют network call.
 - Целевой набор: `62 passed`; полный pytest: `784 passed` за 52,92 с. Ruff,
   mypy, secret scan, dependency audit и `git diff --check` успешны.
-- Миграция БД не требуется. Следующий шаг — публикация PR и merge gate.
+- Миграция БД не требуется. PR #26 слит коммитом `1d559b5`; следующим этапом
+  назначен RM-113.
