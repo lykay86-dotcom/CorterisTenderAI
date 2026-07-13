@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Mapping
 
 
 class AiFindingStatus(StrEnum):
@@ -75,3 +76,62 @@ class AiDocumentAnalysis:
     final_ai_conclusion: str = ""
     status: str = "partial"
 
+    def to_payload(self) -> dict[str, object]:
+        def finding(item: AiFinding) -> dict[str, object]:
+            return {
+                "category": item.category,
+                "statement": item.statement,
+                "status": item.status.value,
+                "evidence": (
+                    {
+                        "document_id": item.evidence.document_id,
+                        "quote": item.evidence.quote,
+                        "section": item.evidence.section,
+                        "page": item.evidence.page,
+                        "confidence": item.evidence.confidence,
+                    }
+                    if item.evidence else None
+                ),
+            }
+
+        return {
+            "registry_key": self.registry_key,
+            "summary": self.summary,
+            "requirements": {
+                name: [finding(item) for item in getattr(self.requirements, name)]
+                for name in TenderRequirements.__dataclass_fields__
+            },
+            "risks": [finding(item) for item in self.risks],
+            "suspicious_conditions": [finding(item) for item in self.suspicious_conditions],
+            "contradictions": [finding(item) for item in self.contradictions],
+            "missing_documents": list(self.missing_documents),
+            "final_ai_conclusion": self.final_ai_conclusion,
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, object]) -> "AiDocumentAnalysis":
+        def findings(value: object) -> tuple[AiFinding, ...]:
+            result = []
+            for item in value if isinstance(value, list) else ():
+                if not isinstance(item, Mapping):
+                    continue
+                raw = item.get("evidence")
+                evidence = AiEvidence(
+                    document_id=str(raw.get("document_id", "")), quote=str(raw.get("quote", "")),
+                    section=str(raw.get("section", "")), page=raw.get("page"),
+                    confidence=float(raw.get("confidence", 0.0)),
+                ) if isinstance(raw, Mapping) else None
+                result.append(AiFinding(str(item.get("category", "")), str(item.get("statement", "")), evidence, AiFindingStatus(str(item.get("status", "unverified")))))
+            return tuple(result)
+
+        raw_requirements = payload.get("requirements", {})
+        requirement_map = raw_requirements if isinstance(raw_requirements, Mapping) else {}
+        return cls(
+            registry_key=str(payload.get("registry_key", "")), summary=str(payload.get("summary", "")),
+            requirements=TenderRequirements(**{name: findings(requirement_map.get(name, [])) for name in TenderRequirements.__dataclass_fields__}),
+            risks=findings(payload.get("risks")), suspicious_conditions=findings(payload.get("suspicious_conditions")),
+            contradictions=findings(payload.get("contradictions")),
+            missing_documents=tuple(str(item) for item in payload.get("missing_documents", ()) if isinstance(payload.get("missing_documents"), (list, tuple))),
+            final_ai_conclusion=str(payload.get("final_ai_conclusion", "")), status=str(payload.get("status", "partial")),
+        )
