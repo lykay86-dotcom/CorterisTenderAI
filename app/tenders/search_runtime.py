@@ -14,10 +14,6 @@ if TYPE_CHECKING:
         ParticipationDecisionService,
     )
     from app.tenders.full_analysis import TenderFullAnalysisService
-    from app.ai.provider import DisabledProvider
-    from app.core.ai.analyzer import TenderDocumentAiAnalyzer, TenderDocumentAiAnalysisService
-    from app.core.ai.document_context import TenderDocumentContextBuilder
-    from app.core.ai.repository import AiDocumentAnalysisRepository
     from app.tenders.collector.aggregator_discovery import (
         AggregatorDiscoveryRepository,
     )
@@ -190,6 +186,13 @@ def create_tender_search_runtime(
     from app.tenders.full_analysis import TenderFullAnalysisService
     from app.tenders.legacy_analysis_bridge import LegacyAnalysisBridge
     from app.tenders.safe_archive import SafeArchiveExtractor
+    from app.ai.provider import DisabledProvider
+    from app.core.ai.analyzer import (
+        TenderDocumentAiAnalyzer,
+        TenderDocumentAiAnalysisService,
+    )
+    from app.core.ai.document_context import TenderDocumentContextBuilder
+    from app.core.ai.repository import AiDocumentAnalysisRepository
 
     ai_document_analysis_service = TenderDocumentAiAnalysisService(
         TenderDocumentContextBuilder(text_extraction_service),
