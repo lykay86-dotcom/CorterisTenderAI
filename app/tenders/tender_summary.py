@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import StrEnum
 
 from app.tenders.models import UnifiedTender
@@ -60,8 +61,26 @@ class DeterministicTenderSummaryGenerator:
             facts=tuple(facts),
             risks=risks,
             missing_information=tuple(missing),
-            generated_at="",
+            generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         )
 
 
-__all__ = ["DeterministicTenderSummaryGenerator", "TenderSummary", "TenderSummaryFact", "TenderSummarySource"]
+class SafeTenderSummaryEnhancer:
+    """Allows AI wording only when it exactly preserves deterministic facts."""
+
+    def enhance(self, summary: TenderSummary, headline: str) -> TenderSummary:
+        clean = headline.strip()
+        if not clean:
+            return summary
+        return TenderSummary(
+            registry_key=summary.registry_key,
+            source=TenderSummarySource.AI_ENHANCED,
+            headline=clean,
+            facts=summary.facts,
+            risks=summary.risks,
+            missing_information=summary.missing_information,
+            generated_at=summary.generated_at,
+        )
+
+
+__all__ = ["DeterministicTenderSummaryGenerator", "SafeTenderSummaryEnhancer", "TenderSummary", "TenderSummaryFact", "TenderSummarySource"]
