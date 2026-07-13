@@ -152,7 +152,14 @@ class AiProviderSelectionService:
             )
 
         if settings.provider_id is AiProviderId.DISABLED:
-            self._save_settings(settings)
+            try:
+                self._save_settings(settings)
+            except Exception:
+                return _disabled_resolution(
+                    settings.provider_id.value,
+                    ("AI-настройки не сохранены; provider остался отключён.",),
+                    requires_restart=True,
+                )
             return _disabled_resolution(
                 settings.provider_id.value,
                 (),
@@ -178,7 +185,14 @@ class AiProviderSelectionService:
         )
         if not candidate.available:
             return candidate
-        self._save_settings(settings)
+        try:
+            self._save_settings(settings)
+        except Exception:
+            return _disabled_resolution(
+                settings.provider_id.value,
+                ("AI-настройки не сохранены; provider остался отключён.",),
+                requires_restart=True,
+            )
         return candidate
 
     def resolve_provider(self) -> AiProviderResolution:

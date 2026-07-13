@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import json
+from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -50,6 +51,10 @@ from app.database.diagnostics import DiagnosticsService
 from app.database.maintenance import DatabaseMaintenanceService
 from app.database.session import get_engine
 from app.core.json_serialization import json_dumps
+from app.ui.ai_provider_settings import AiProviderSettingsWidget
+
+if TYPE_CHECKING:
+    from app.core.ai.provider_selection import AiProviderSelectionService
 
 LICENSE_OPTIONS = [
     "Лицензия МЧС",
@@ -76,7 +81,11 @@ TEMPLATE_NAMES = [
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        ai_provider_selection_service: "AiProviderSelectionService | None" = None,
+    ):
         super().__init__()
         self.setWindowTitle("AIBOS Security — Corteris Tender AI 1.2.1")
         self.resize(1480, 920)
@@ -87,6 +96,7 @@ class MainWindow(QMainWindow):
         self.generated_files = []
         self.store = UserSettingsStore()
         self.prefs = self.store.load()
+        self.ai_provider_selection_service = ai_provider_selection_service
         self.catalog = PriceCatalog(
             Path(__file__).resolve().parents[2] / "data" / "price_catalog.xlsx"
         )
@@ -528,24 +538,14 @@ class MainWindow(QMainWindow):
         return w
 
     def _ai_tab(self):
-        w = QWidget()
-        f = QFormLayout(w)
-        self.ai_provider = QComboBox()
-        self.ai_provider.addItems(
-            ["OpenAI API", "OpenAI-совместимый сервер", "Ollama", "Отключено"]
+        self.ai_settings_widget = AiProviderSettingsWidget(
+            self.ai_provider_selection_service,
         )
-        self.api_key = QLineEdit()
-        self.api_key.setEchoMode(QLineEdit.Password)
-        self.api_model = QLineEdit()
-        self.api_url = QLineEdit()
-        b = QPushButton("Сохранить и проверить")
-        b.clicked.connect(self.save_preferences)
-        f.addRow("Провайдер", self.ai_provider)
-        f.addRow("API-ключ", self.api_key)
-        f.addRow("Модель", self.api_model)
-        f.addRow("Base URL", self.api_url)
-        f.addRow(b)
-        return w
+        self.ai_provider = self.ai_settings_widget.provider_combo
+        self.api_key = self.ai_settings_widget.credential_edit
+        self.api_model = self.ai_settings_widget.model_edit
+        self.api_url = self.ai_settings_widget.base_url_edit
+        return self.ai_settings_widget
 
     def _company_tab(self):
         w = QWidget()
@@ -641,9 +641,7 @@ class MainWindow(QMainWindow):
         self.settings_profit.setValue(p.profit_percent)
         self.settings_vat.setValue(p.vat_percent)
         self.settings_risk.setValue(p.risk_percent)
-        self.ai_provider.setCurrentText(p.ai_provider)
-        self.api_model.setText(p.ai_model)
-        self.api_url.setText(p.ai_base_url)
+        self.ai_settings_widget.load()
         for k, e in self.company_fields.items():
             e.setText(str(getattr(p, k)))
         for kind, q in self.asset_labels.items():
@@ -667,16 +665,9 @@ class MainWindow(QMainWindow):
         p.profit_percent = self.settings_profit.value()
         p.vat_percent = self.settings_vat.value()
         p.risk_percent = self.settings_risk.value()
-        p.ai_provider = self.ai_provider.currentText()
-        p.ai_model = self.api_model.text().strip()
-        p.ai_base_url = self.api_url.text().strip()
         p.licenses = [n for n, c in self.license_checks.items() if c.isChecked()]
         for k, e in self.company_fields.items():
             setattr(p, k, e.text().strip())
-        if self.api_key.text().strip():
-            save_secret("openai_api_key", self.api_key.text().strip())
-            self.api_key.clear()
-            self.api_key.setPlaceholderText("Сохранён")
         self.store.save(p)
         self.profit_mode.setCurrentIndex(max(self.profit_mode.findData(p.profit_mode), 0))
         self.profit_percent.setValue(p.profit_percent)

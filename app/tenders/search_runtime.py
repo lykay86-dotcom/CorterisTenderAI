@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from app.ai.provider import AIProvider
     from app.core.ai.orchestrator import TenderAiOrchestrator
     from app.tenders.collector.participation_score_service import (
         CorterisParticipationScoreService,
@@ -75,6 +76,7 @@ def create_tender_search_runtime(
     data_directory: str | Path,
     *,
     http_transport: HttpTransport | None = None,
+    ai_provider: "AIProvider | None" = None,
     max_workers: int = 6,
     timeout_seconds: float = 60.0,
 ) -> TenderSearchRuntime:
@@ -177,7 +179,7 @@ def create_tender_search_runtime(
     ai_analysis_repository = AiDocumentAnalysisRepository(data_path / "tender_ai_analysis.sqlite3")
     ai_document_analysis_service = TenderDocumentAiAnalysisService(
         TenderDocumentContextBuilder(text_extraction_service),
-        TenderDocumentAiAnalyzer(DisabledProvider()),
+        TenderDocumentAiAnalyzer(ai_provider or DisabledProvider()),
         ai_analysis_repository,
     )
     ai_orchestrator = TenderAiOrchestrator(ai_document_analysis_service)

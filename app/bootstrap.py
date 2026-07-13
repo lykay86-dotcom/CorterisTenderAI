@@ -3,20 +3,32 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Callable, Any
 
+from app.core.ai.provider_selection import (
+    AiConfigStore,
+    AiKeyringSecretStore,
+    AiProviderResolution,
+    AiProviderSelectionService,
+    AiSecretStore,
+    LegacyAiProviderSettings,
+)
 from app.core.launch_guard import LaunchGuardService
 from app.core.crash_reporting import (
+    CrashReportResult,
     CrashReportService,
     GlobalCrashHandler,
 )
 from app.core.startup import initialize_core
+from app.config.user_settings import UserSettingsStore
 from app.database.startup_pipeline import initialize_database_pipeline
+from app.tenders.search_runtime import TenderSearchRuntime, create_tender_search_runtime
 
 
 def _find_support_bundle_provider(
     window: object,
-) -> Callable[[str], Any] | None:
+) -> Callable[[str | Path], Any] | None:
     """Find a workflow page capable of creating a support bundle."""
     for attribute in ("quotes_page", "estimates_page"):
         page = getattr(window, attribute, None)
@@ -28,6 +40,46 @@ def _find_support_bundle_provider(
         if callable(provider):
             return provider
     return None
+
+
+def _load_legacy_ai_settings(data_directory: str | Path) -> LegacyAiProviderSettings | None:
+    """Read only non-secret legacy drafts; a damaged legacy file is ignored."""
+
+    try:
+        preferences = UserSettingsStore(Path(data_directory) / "user_settings.json").load()
+    except Exception:
+        return None
+    return LegacyAiProviderSettings(
+        provider_label=preferences.ai_provider,
+        model=preferences.ai_model,
+        base_url=preferences.ai_base_url,
+    )
+
+
+def _create_ai_runtime(
+    data_directory: str | Path,
+    config: AiConfigStore,
+    *,
+    secret_store: AiSecretStore | None = None,
+    legacy_settings: LegacyAiProviderSettings | None = None,
+) -> tuple[AiProviderSelectionService, TenderSearchRuntime, AiProviderResolution]:
+    """Resolve an AI provider and inject it without running provider network code."""
+
+    service = AiProviderSelectionService(
+        config,
+        secret_store if secret_store is not None else AiKeyringSecretStore(),
+    )
+    try:
+        service.migrate_legacy_settings(legacy_settings)
+    except Exception:
+        # A write-protected legacy migration must not prevent safe startup.
+        pass
+    resolution = service.resolve_provider()
+    runtime = create_tender_search_runtime(
+        data_directory,
+        ai_provider=resolution.provider,
+    )
+    return service, runtime, resolution
 
 
 def bootstrap() -> None:
@@ -76,6 +128,14 @@ def bootstrap() -> None:
             "PySide6 или UI-модули не установлены.\nВыполните: pip install -r requirements.txt"
         ) from exc
 
+    ai_provider_selection_service, tender_search_runtime, ai_provider_resolution = (
+        _create_ai_runtime(
+            context.paths.data_dir,
+            context.config,
+            legacy_settings=_load_legacy_ai_settings(context.paths.data_dir),
+        )
+    )
+
     application = QApplication(sys.argv)
     application.setOrganizationName("Corteris")
     application.setApplicationName("Corteris Tender AI")
@@ -86,7 +146,7 @@ def bootstrap() -> None:
         parent=application,
     )
 
-    def handle_crash(report) -> None:
+    def handle_crash(report: CrashReportResult) -> None:
         launch_guard.mark_crash(
             crash_report=report.path,
             details=(f"{report.exception_type}: {report.exception_message}"),
@@ -111,7 +171,9 @@ def bootstrap() -> None:
             raise SystemExit(0)
 
     try:
-        window = ModernMainWindow()
+        window = ModernMainWindow(
+            ai_provider_selection_service=ai_provider_selection_service,
+        )
     except Exception:
         report = crash_handler.capture_current(
             origin="startup_window",
@@ -127,10 +189,14 @@ def bootstrap() -> None:
 
     tender_search_controller = TenderSearchUiController(
         context.paths.data_dir,
+        runtime=tender_search_runtime,
         theme=getattr(window, "_theme", "dark") or "dark",
         parent=window,
     )
     tender_search_controller.install_on_main_window(window)
+
+    if ai_provider_resolution.warnings:
+        window.statusBar().showMessage(ai_provider_resolution.warnings[0], 8000)
 
     window.show()
     exit_code = application.exec()
@@ -142,5 +208,7 @@ def bootstrap() -> None:
 
 __all__ = [
     "_find_support_bundle_provider",
+    "_create_ai_runtime",
+    "_load_legacy_ai_settings",
     "bootstrap",
 ]

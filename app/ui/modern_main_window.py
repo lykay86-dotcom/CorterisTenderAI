@@ -8,6 +8,8 @@ window from covering Sidebar, TopBar and Dashboard.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QLabel,
@@ -29,6 +31,9 @@ from app.ui.theme.colors import ThemeName
 from app.ui.theme.stylesheet import build_stylesheet
 from app.ui.widgets.dashboard_layout import DashboardLayout
 
+if TYPE_CHECKING:
+    from app.core.ai.provider_selection import AiProviderSelectionService
+
 
 class ModernMainWindow(QMainWindow):
     """New Corteris workspace while preserving the existing working modules."""
@@ -36,7 +41,11 @@ class ModernMainWindow(QMainWindow):
     ORGANIZATION = "Corteris"
     APPLICATION = "CorterisTenderAI"
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        ai_provider_selection_service: "AiProviderSelectionService | None" = None,
+    ) -> None:
         super().__init__()
 
         self.setObjectName("ModernMainWindow")
@@ -69,7 +78,9 @@ class ModernMainWindow(QMainWindow):
         # На Windows оно сохраняет собственную геометрию/флаги окна и может
         # перекрывать весь новый интерфейс. Мы создаём его скрытым и переносим
         # только centralWidget в QStackedWidget.
-        self._legacy_window = LegacyMainWindow()
+        self._legacy_window = LegacyMainWindow(
+            ai_provider_selection_service=ai_provider_selection_service,
+        )
         self._legacy_window.hide()
 
         legacy_content = self._legacy_window.takeCentralWidget()
