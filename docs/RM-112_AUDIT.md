@@ -1,7 +1,7 @@
 # RM-112 — аудит выбора AI-провайдера
 
 Дата: 13 июля 2026 года. Исходный HEAD: `ddf0c4c`. Статус RM-112:
-`IN PROGRESS`.
+`IMPLEMENTED — READY FOR PR`.
 
 ## Gate RM-111
 
@@ -57,10 +57,10 @@ AI/runtime/bootstrap/UI/security тесты.
 production bootstrap. Это единственный существующий кандидат на канонический persisted
 source. Секрета в нём нет.
 
-Сейчас невалидный JSON при `ConfigManager.load()` вызывает `ConfigError`. RM-112
-должен изолировать повреждённую AI-секцию и дать disabled fallback; общая
-политика recovery произвольно повреждённого всего config не расширяется за
-границы selection service.
+Во время реализации обнаружено, что невалидный JSON при `ConfigManager.load()`
+прерывал bootstrap раньше selection boundary. `ConfigManager` усилен: невалидный
+JSON и non-object root сбрасываются к безопасным defaults с `provider=disabled`.
+Повреждённая AI-секция дополнительно изолируется selection service.
 
 ### `UserSettingsStore`
 
@@ -158,7 +158,16 @@ repository или HTTP transport.
 Миграция БД не требуется. AI settings хранятся в существующем JSON
 `ConfigManager`, secret — только в keyring. Таблицы и payload AI-анализа не меняются.
 
-## Следующий шаг
+## Итог реализации
 
-Зафиксировать точный контракт в `docs/RM-112_REQUIREMENTS.md`, затем реализовать
-selection service без сетевой активности и без функций RM-113/RM-114.
+- Точный контракт зафиксирован до application-кода в
+  `docs/RM-112_REQUIREMENTS.md` и реализован без функций RM-113/RM-114.
+- Канонический persisted source — `ConfigManager.ai`; stable IDs — `disabled`,
+  `openai`, `openai_compatible`.
+- Выбранный provider внедряется в существующий runtime; единственным местом
+  `provider.analyze()` остаётся `TenderDocumentAiAnalyzer`.
+- Default disabled flow не читает keyring и не выполняет сеть; bootstrap и save
+  также не выполняют network call.
+- Целевой набор: `62 passed`; полный pytest: `784 passed` за 52,92 с. Ruff,
+  mypy, secret scan, dependency audit и `git diff --check` успешны.
+- Миграция БД не требуется. Следующий шаг — публикация PR и merge gate.

@@ -1,5 +1,25 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-13 — RM-112 подготовлен к завершению
+
+- Проведён обязательный аудит settings, keyring, runtime, UI и прямых
+  provider-вызовов; требования зафиксированы до application-кода.
+- Секция `ai` существующего `ConfigManager` назначена каноническим persisted
+  source со stable IDs `disabled`, `openai`, `openai_compatible`.
+- Переиспользованы существующие provider adapters, analyzer и Orchestrator;
+  выбранный provider внедряется в production runtime через bootstrap.
+- Default, неизвестная/повреждённая конфигурация и ошибки keyring безопасно
+  переходят в `disabled` без утечки secret и без сети при bootstrap/save.
+- Legacy label `OpenAI API` не активирует сеть; migration non-secret drafts
+  идемпотентна.
+- Переиспользована существующая ChatGPT/ИИ вкладка; local/Ollama не добавлен.
+- Новая БД или миграция БД не требуются.
+- Локальная приёмка: целевой набор `62 passed`, полный pytest `784 passed` за
+  52,92 с, Ruff check/format, mypy (9 файлов), secret scan, dependency audit и
+  `git diff --check` успешны.
+- Номер PR и merge SHA будут добавлены после публикации и merge; запись о
+  `DONE` и назначение RM-113 вступают в силу при merge.
+
 ## 2026-07-13 — RM-111 завершён
 
 - PR #24 (`feat(rm-111): add unified tender AI orchestrator`) слит в `main`

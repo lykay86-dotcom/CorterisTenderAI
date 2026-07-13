@@ -1,7 +1,7 @@
 # RM-112 — требования к выбору AI-провайдера
 
 Дата: 13 июля 2026 года. Исходный HEAD: `ddf0c4c`. Статус:
-`FROZEN BEFORE IMPLEMENTATION`.
+`IMPLEMENTED — READY FOR PR`.
 
 ## Цель
 
@@ -171,3 +171,12 @@ citations/provenance, специализированные analyzers, новую
   dependency audit и `git diff --check`.
 - После merge PR в `main` RM-112 переводится в `DONE`, RM-113 назначается
   следующим активным этапом.
+
+## Результат приёмки
+
+- Все требования реализованы без расширения scope на local/Ollama и RM-114.
+- Целевой набор из семи обязательных модулей: `62 passed`.
+- Полный локальный pytest: `784 passed` за 52,92 с.
+- Ruff check/format, mypy для 9 файлов, repository secret scan, dependency audit
+  и `git diff --check` успешны.
+- Миграция БД не требуется.
