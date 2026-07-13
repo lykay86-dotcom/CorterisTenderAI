@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app.ai.provider import AIProvider, DisabledProvider, OpenAICompatibleProvider
 from app.bootstrap import _create_ai_runtime
-from app.core.ai.provider_selection import AiProviderId
+from app.core.ai.provider_selection import AiProviderId, OLLAMA_DEFAULT_BASE_URL
 from app.core.ai.schemas import AiDocument
 from app.core.config_manager import ConfigManager
 from app.tenders.search_runtime import create_tender_search_runtime
@@ -129,6 +129,69 @@ def test_bootstrap_disabled_does_not_read_secret_store(tmp_path) -> None:
     assert secret.loads == 0
     assert resolution.effective_provider_id is AiProviderId.DISABLED
     assert runtime.ai_orchestrator is not None
+
+
+def test_bootstrap_ollama_does_not_read_keyring_or_execute_http(tmp_path, monkeypatch) -> None:
+    config = ConfigManager(tmp_path / "settings.json")
+    config.update(
+        {
+            "ai": {
+                "provider": "ollama",
+                "model": "qwen3:8b",
+                "base_url": OLLAMA_DEFAULT_BASE_URL,
+            }
+        }
+    )
+    secret = SecretStore(fail_on_load=True)
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("bootstrap HTTP")),
+    )
+
+    _service, runtime, resolution = _create_ai_runtime(
+        tmp_path / "data",
+        config,
+        secret_store=secret,
+    )
+
+    assert secret.loads == 0
+    assert resolution.effective_provider_id is AiProviderId.OLLAMA
+    assert isinstance(resolution.provider, OpenAICompatibleProvider)
+    assert runtime.ai_orchestrator is not None
+    assert (
+        runtime.ai_orchestrator.document_analysis_service.analyzer.provider is resolution.provider
+    )
+
+
+def test_unavailable_ollama_returns_current_provider_error(tmp_path, monkeypatch) -> None:
+    config = ConfigManager(tmp_path / "settings.json")
+    config.update(
+        {
+            "ai": {
+                "provider": "ollama",
+                "model": "qwen3:8b",
+                "base_url": OLLAMA_DEFAULT_BASE_URL,
+            }
+        }
+    )
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ConnectionError("private exception detail")
+        ),
+    )
+    _service, runtime, _resolution = _create_ai_runtime(
+        tmp_path / "data",
+        config,
+        secret_store=SecretStore(fail_on_load=True),
+    )
+    assert runtime.ai_orchestrator is not None
+    runtime.ai_orchestrator.document_analysis_service.context_builder = Builder()  # type: ignore[assignment]
+
+    result = runtime.ai_orchestrator.run("procurement:ollama-offline", force=True)
+
+    assert result.document_analysis.status == "provider_error"
+    assert "private exception detail" not in repr(result)
 
 
 def test_bootstrap_resolves_selected_provider_without_network(tmp_path, monkeypatch) -> None:
