@@ -68,8 +68,9 @@ def test_current_schema_contains_freshness_state(tmp_path) -> None:
             )
         }
 
-    assert version == COLLECTOR_SCHEMA_VERSION == 11
+    assert version == COLLECTOR_SCHEMA_VERSION == 12
     assert "collector_tender_freshness_state" in tables
+    assert "collector_participation_decisions" in tables
 
 
 def test_freshness_state_is_persisted_and_loaded(tmp_path) -> None:

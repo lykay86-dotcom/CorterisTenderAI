@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from app.tenders.collector.participation_score import (
     CorterisParticipationScore,
 )
+from app.tenders.participation_decision import ParticipationDecision
 from app.ui.theme.colors import ThemeName, get_palette
 
 
@@ -74,6 +75,11 @@ class TenderParticipationScoreDialog(QDialog):
         summary_layout.addWidget(self.score_value)
         summary_layout.addWidget(self.recommendation_label, 1)
         root.addWidget(summary)
+
+        self.decision_label = QLabel("Итоговое решение ещё не сформировано", self)
+        self.decision_label.setObjectName("ParticipationDecision")
+        self.decision_label.setWordWrap(True)
+        root.addWidget(self.decision_label)
 
         note = QLabel(
             "Рейтинг является предварительной рекомендацией и не заменяет "
@@ -177,6 +183,23 @@ class TenderParticipationScoreDialog(QDialog):
         self.set_busy(False)
         self.set_status("Оценка рассчитана по доступным данным.")
 
+    def set_decision(self, decision: ParticipationDecision) -> None:
+        labels = {
+            "participate": "Участвовать",
+            "participate_after_review": "Участвовать после проверки",
+            "do_not_participate": "Не участвовать",
+            "data_insufficient": "Недостаточно данных для решения",
+        }
+        self.decision_label.setText(
+            f"Итог: {labels[decision.recommendation.value]} "
+            f"· уверенность {decision.confidence:.0%}\n{decision.summary}"
+        )
+        self.decision_label.setProperty(
+            "recommendation", decision.recommendation.value
+        )
+        self.decision_label.style().unpolish(self.decision_label)
+        self.decision_label.style().polish(self.decision_label)
+
     def set_busy(self, busy: bool, *, message: str = "") -> None:
         self.recalculate_button.setEnabled(not busy)
         self.recalculate_button.setText(
@@ -231,8 +254,19 @@ class TenderParticipationScoreDialog(QDialog):
                 color: {palette.danger};
             }}
             QLabel#ParticipationScoreNote,
+            QLabel#ParticipationDecision,
             QLabel#ParticipationScoreStatus {{
                 color: {palette.text_secondary};
+            }}
+            QLabel#ParticipationDecision[recommendation="participate"] {{
+                color: {palette.success};
+            }}
+            QLabel#ParticipationDecision[recommendation="participate_after_review"],
+            QLabel#ParticipationDecision[recommendation="data_insufficient"] {{
+                color: {palette.warning};
+            }}
+            QLabel#ParticipationDecision[recommendation="do_not_participate"] {{
+                color: {palette.danger};
             }}
             QLabel#ParticipationScoreStatus[error="true"] {{
                 color: {palette.danger};

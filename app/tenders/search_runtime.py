@@ -10,6 +10,9 @@ if TYPE_CHECKING:
     from app.tenders.collector.participation_score_service import (
         CorterisParticipationScoreService,
     )
+    from app.tenders.participation_decision_service import (
+        ParticipationDecisionService,
+    )
     from app.tenders.full_analysis import TenderFullAnalysisService
     from app.tenders.collector.aggregator_discovery import (
         AggregatorDiscoveryRepository,
@@ -63,6 +66,7 @@ class TenderSearchRuntime:
     participation_score_service: (
         CorterisParticipationScoreService | None
     ) = None
+    participation_decision_service: "ParticipationDecisionService | None" = None
     full_analysis_service: "TenderFullAnalysisService | None" = None
     matching_catalog_repository: MatchingCatalogRepository | None = None
     commercial_estimate_repository: CommercialEstimateRepository | None = None
@@ -175,6 +179,14 @@ def create_tender_search_runtime(
         ),
         matching_catalog_repository=matching_catalog_repository,
     )
+    from app.tenders.participation_decision_service import (
+        ParticipationDecisionService,
+    )
+    participation_decision_service = ParticipationDecisionService(
+        participation_score_service,
+        collector_state_repository,
+        commercial_estimate_repository,
+    )
     from app.tenders.full_analysis import TenderFullAnalysisService
     from app.tenders.legacy_analysis_bridge import LegacyAnalysisBridge
     from app.tenders.safe_archive import SafeArchiveExtractor
@@ -208,6 +220,7 @@ def create_tender_search_runtime(
         participation_score_service=(
             participation_score_service
         ),
+        participation_decision_service=participation_decision_service,
         full_analysis_service=full_analysis_service,
         matching_catalog_repository=matching_catalog_repository,
         commercial_estimate_repository=commercial_estimate_repository,
