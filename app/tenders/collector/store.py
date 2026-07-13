@@ -1879,6 +1879,33 @@ class CollectorStateRepository:
         payload = json.loads(str(row["payload_json"]))
         return dict(payload) if isinstance(payload, Mapping) else None
 
+    def list_tender_summary_payloads(
+        self,
+        registry_key: str,
+        *,
+        limit: int = 20,
+    ) -> tuple[Mapping[str, object], ...]:
+        normalized = registry_key.strip()
+        if not normalized or limit <= 0:
+            return ()
+        self.initialize()
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload_json
+                FROM collector_tender_summaries
+                WHERE registry_key = ?
+                ORDER BY generated_at DESC, rowid DESC
+                LIMIT ?
+                """,
+                (normalized, limit),
+            ).fetchall()
+        return tuple(
+            dict(payload)
+            for row in rows
+            if isinstance((payload := json.loads(str(row["payload_json"]))), Mapping)
+        )
+
     def get_latest_stop_factor_assessment(
         self,
         registry_key: str,

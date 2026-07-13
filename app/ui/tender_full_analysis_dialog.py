@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QPushButton,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextBrowser,
@@ -93,11 +94,15 @@ class TenderFullAnalysisDialog(QDialog):
             self.stages.setItem(row, 1, QTableWidgetItem("Ожидание"))
             self.stages.setItem(row, 2, QTableWidgetItem("—"))
             self._stage_rows[stage] = row
-        root.addWidget(self.stages, 1)
-
         self.summary = QTextBrowser(self)
         self.summary.setObjectName("FullAnalysisSummary")
-        root.addWidget(self.summary, 1)
+        self.ai_summary = QTextBrowser(self)
+        self.ai_summary.setObjectName("TenderAiSummary")
+        self.tabs = QTabWidget(self)
+        self.tabs.addTab(self.stages, "Analysis stages")
+        self.tabs.addTab(self.summary, "Analysis details")
+        self.tabs.addTab(self.ai_summary, "AI summary")
+        root.addWidget(self.tabs, 1)
 
         actions = QHBoxLayout()
         self.cancel_button = QPushButton("Остановить", self)
@@ -181,6 +186,7 @@ class TenderFullAnalysisDialog(QDialog):
         self.requirements_button.setEnabled(result.requirements is not None)
         self.score_button.setEnabled(result.score is not None)
         self.summary.setHtml(_render_result(result))
+        self.ai_summary.setHtml(_render_ai_summary(result))
 
     def set_error(self, message: str) -> None:
         self.cancel_button.setEnabled(False)
@@ -194,7 +200,7 @@ class TenderFullAnalysisDialog(QDialog):
             QDialog {{ color: {palette.text_primary}; background: {palette.app_background}; }}
             QFrame#FullAnalysisHeader {{ background: {palette.card_background}; border: 1px solid {palette.border_default}; border-radius: 9px; }}
             QLabel#FullAnalysisTitle {{ font-size: 21px; font-weight: 700; }}
-            QTableWidget, QTextBrowser#FullAnalysisSummary {{ color: {palette.text_primary}; background: {palette.input_background}; border: 1px solid {palette.border_default}; }}
+            QTableWidget, QTextBrowser#FullAnalysisSummary, QTextBrowser#TenderAiSummary {{ color: {palette.text_primary}; background: {palette.input_background}; border: 1px solid {palette.border_default}; }}
             QPushButton {{ min-height: 32px; color: {palette.text_primary}; background: {palette.elevated_background}; border: 1px solid {palette.border_default}; border-radius: 7px; padding: 4px 10px; font-weight: 600; }}
         """)
 
@@ -242,6 +248,34 @@ def _render_result(result: TenderFullAnalysisResult) -> str:
         f"<p><b>Существующий AnalysisEngine:</b> {'выполнен' if result.legacy else 'не выполнен или недоступен'}</p>"
         f"{summary_html}"
         f"<h3>Предупреждения</h3><ul>{warnings}</ul>"
+    )
+
+
+def _render_ai_summary(result: TenderFullAnalysisResult) -> str:
+    summary = result.summary
+    if summary is None:
+        return "<h3>AI summary is unavailable</h3><p>Run full analysis first.</p>"
+    facts = "".join(
+        "<li><b>{label}:</b> {value} <small>({source}; confidence {confidence:.0%}; {provenance})</small></li>".format(
+            label=escape(item.label), value=escape(item.value),
+            source=escape(item.source), confidence=item.confidence,
+            provenance=escape(item.provenance),
+        )
+        for item in summary.facts
+    ) or "<li>No confirmed facts.</li>"
+    risks = "".join(f"<li>{escape(item)}</li>" for item in summary.risks) or "<li>None detected.</li>"
+    stops = "".join(f"<li>{escape(item)}</li>" for item in summary.stop_factors) or "<li>None detected.</li>"
+    missing = "".join(f"<li>{escape(item)}</li>" for item in summary.missing_information) or "<li>None.</li>"
+    return (
+        f"<h2>{escape(summary.headline)}</h2>"
+        f"<p><b>Recommendation:</b> {escape(summary.recommendation)} (confidence {summary.recommendation_confidence:.0%})</p>"
+        f"<p><b>Explanation:</b> {escape(summary.ai_explanation)}</p>"
+        f"<p><b>Financial result:</b> {escape(summary.financial_summary)}</p>"
+        f"<p><b>Company profile:</b> {escape(summary.company_profile)}</p>"
+        f"<h3>Facts and provenance</h3><ul>{facts}</ul>"
+        f"<h3>Risks</h3><ul>{risks}</ul>"
+        f"<h3>Stop factors</h3><ul>{stops}</ul>"
+        f"<h3>Missing data</h3><ul>{missing}</ul>"
     )
 
 

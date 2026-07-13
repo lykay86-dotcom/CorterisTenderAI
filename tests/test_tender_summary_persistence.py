@@ -33,3 +33,18 @@ def test_empty_registry_key_does_not_query_summary_storage(tmp_path) -> None:
     repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
 
     assert repository.get_latest_tender_summary_payload("  ") is None
+
+
+def test_summary_history_is_available_for_reuse(tmp_path) -> None:
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
+    normalized = TenderNormalizer().normalize(make_tender())
+    run_id = repository.start_run(TenderSearchQuery())
+    repository.save_batch(run_id, TenderDeduplicator().deduplicate((normalized,)))
+    generator = DeterministicTenderSummaryGenerator()
+    first = generator.generate(normalized.canonical_key, normalized.tender)
+    second = generator.generate(normalized.canonical_key, normalized.tender)
+
+    repository.save_tender_summary(first)
+    repository.save_tender_summary(second)
+
+    assert len(repository.list_tender_summary_payloads(normalized.canonical_key)) == 2
