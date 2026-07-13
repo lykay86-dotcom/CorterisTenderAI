@@ -27,8 +27,16 @@ Prerequisite завершён: PR #22 слит в `main` коммитом `ebfdf
 migration/build/import smoke checks и dependency audit успешны. Защита `main`
 требует PR, актуальную ветку и оба quality-gate check.
 
-RM-111 остаётся `IN PROGRESS`: выполнен только его технический prerequisite.
-AI-бизнес-логика, C17 canonicalization и C19 live verification не изменялись.
+RM-111 остаётся `IN PROGRESS`: prerequisite завершён, а реализация ожидает
+серверной приёмки и merge. В ветке `feat/rm-111-ai-orchestrator` подготовлена единая
+application-service точки входа. `TenderFullAnalysisService` вызывает только
+Orchestrator, а текущий `AiDocumentAnalysis` явно передаётся в RM-107. AI не
+вычисляет score/recommendation и не меняет приоритет критического stop-factor.
+
+Локальная приёмка реализации: целевой набор `93 passed`, полный pytest
+`748 passed` за 42,79 с; Ruff check, Ruff format check, mypy для 7 файлов,
+security scan и dependency audit проходят. Миграция БД отсутствует и не
+требуется. C17 canonicalization и C19 live verification не изменялись.
 
 ## Предыдущий этап
 **RM-110 — стабилизация Tender Intelligence**
@@ -63,6 +71,6 @@ AI-бизнес-логика, C17 canonicalization и C19 live verification не
 - 631 passed (без отдельного теста crash-reporting).
 
 ## Текущее действие
-Перейти к design/implementation этапу AI Orchestrator в границах
-`docs/RM-111_AUDIT.md`, переиспользуя существующие analyzer, repository,
-decision engine и full-analysis flow. Следующий RM не назначен.
+Опубликовать PR ветки `feat/rm-111-ai-orchestrator`, дождаться обязательной
+Windows matrix и merge. До merge сохранить RM-111 `IN PROGRESS` и не назначать
+RM-112.

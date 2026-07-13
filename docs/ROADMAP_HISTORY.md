@@ -1,5 +1,28 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-13 — RM-111 AI Orchestrator подготовлен к приёмке
+
+- Проведён аудит всех provider/task-service/repository/Decision Engine/UI/export
+  путей; требования зафиксированы до изменения application-кода.
+- Создан единый stateless `TenderAiOrchestrator`, переиспользующий
+  `TenderDocumentAiAnalysisService` и возвращающий результат текущего запуска.
+- Последняя exception boundary и status-to-warning policy удалены из полного
+  анализа и централизованы в Orchestrator без раскрытия exception, traceback,
+  credentials или приватных путей.
+- `TenderFullAnalysisService` вызывает Orchestrator один раз и явно передаёт
+  текущий AI-результат в RM-107; stale cache не подменяет текущую ошибку.
+- Production runtime создаёт один Orchestrator и один AI repository; по
+  умолчанию сохранён `DisabledProvider`, настройки RM-112/RM-114 не добавлялись.
+- Неиспользуемый legacy `TenderAIService` с собственными score/recommendation и
+  прямым provider-вызовом удалён; совместимые JSON/citation helpers сохранены.
+- UI получил отдельную стадию «AI-анализ документации»; существующее поле
+  `ai_document_analysis` и HTML/JSON export не изменены.
+- Новая БД, таблица или миграция не требуются.
+- Локальная приёмка: целевой набор `93 passed`, полный pytest `748 passed` за
+  42,79 с, Ruff check/format, mypy (7 файлов), security scan и dependency audit
+  успешны.
+- RM-111 остаётся `IN PROGRESS` до merge PR; RM-112 не назначен.
+
 ## 2026-07-13 — RM-111 quality-gate prerequisite
 - Решением владельца герметизация credential-тестов и воспроизводимый Windows
   quality gate назначены обязательным prerequisite текущего RM-111.
