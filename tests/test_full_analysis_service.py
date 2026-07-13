@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-
 from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.participation_score import CorterisParticipationRanker
 from app.tenders.document_storage import TenderDocumentDownloadResult
@@ -26,7 +23,8 @@ class DocumentService:
     def __init__(self, folder): self.folder = folder
     def download_for_tender(self, tender, **kwargs):
         callback = kwargs.get("progress_callback")
-        if callback: pass
+        if callback:
+            pass
         return TenderDocumentDownloadResult(
             tender_registry_key="procurement:test",
             procurement_number=tender.procurement_number,
@@ -58,7 +56,8 @@ class ScoreService:
         return CorterisParticipationRanker().score(self.tender)
 
 
-class Store: pass
+class Store:
+    pass
 
 
 def test_runs_all_stages_and_returns_score(tmp_path) -> None:

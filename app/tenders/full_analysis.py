@@ -16,6 +16,7 @@ from app.tenders.collector.participation_score import CorterisParticipationScore
 from app.tenders.collector.participation_score_service import (
     CorterisParticipationScoreService,
 )
+from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.document_storage import (
     TenderDocumentDownloadResult,
     TenderDocumentDownloadService,
@@ -125,6 +126,7 @@ class TenderFullAnalysisService:
         legacy_bridge: LegacyAnalysisBridge | None = None,
         commercial_estimate_repository: CommercialEstimateRepository | None = None,
         summary_generator: DeterministicTenderSummaryGenerator | None = None,
+        summary_repository: CollectorStateRepository | None = None,
     ) -> None:
         self.tender_registry = tender_registry
         self.document_service = document_service
@@ -136,6 +138,7 @@ class TenderFullAnalysisService:
         self.legacy_bridge = legacy_bridge
         self.commercial_estimate_repository = commercial_estimate_repository
         self.summary_generator = summary_generator or DeterministicTenderSummaryGenerator()
+        self.summary_repository = summary_repository
 
     def run(
         self,
@@ -291,6 +294,8 @@ class TenderFullAnalysisService:
             )
             commercial_estimate = latest_commercial[1] if latest_commercial else None
             summary = self.summary_generator.generate(key, tender, requirements)
+            if self.summary_repository is not None:
+                self.summary_repository.save_tender_summary(summary)
             status = FullAnalysisStatus.PARTIAL if warnings else FullAnalysisStatus.COMPLETED
             emit(FullAnalysisStage.COMPLETED, "Полный анализ завершён.", 8)
             return TenderFullAnalysisResult(

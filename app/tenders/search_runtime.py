@@ -201,6 +201,7 @@ def create_tender_search_runtime(
         archive_extractor=SafeArchiveExtractor(),
         legacy_bridge=LegacyAnalysisBridge(),
         commercial_estimate_repository=commercial_estimate_repository,
+        summary_repository=collector_state_repository,
     )
 
     return TenderSearchRuntime(

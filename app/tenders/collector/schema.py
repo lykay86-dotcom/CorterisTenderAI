@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 
 
-COLLECTOR_SCHEMA_VERSION = 12
+COLLECTOR_SCHEMA_VERSION = 13
 
 
 class CollectorSchemaMigrator:
@@ -623,6 +623,18 @@ class CollectorSchemaMigrator:
                     REFERENCES tender_records(registry_key)
                     ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS collector_tender_summaries (
+                summary_id TEXT PRIMARY KEY,
+                registry_key TEXT NOT NULL,
+                source TEXT NOT NULL,
+                generated_at TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                FOREIGN KEY (registry_key) REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_tender_summaries_latest
+                ON collector_tender_summaries(registry_key, generated_at DESC);
 
             CREATE INDEX IF NOT EXISTS idx_participation_decisions_latest
                 ON collector_participation_decisions(
