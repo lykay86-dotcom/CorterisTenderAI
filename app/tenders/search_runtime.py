@@ -187,11 +187,6 @@ def create_tender_search_runtime(
     from app.tenders.participation_decision_service import (
         ParticipationDecisionService,
     )
-    participation_decision_service = ParticipationDecisionService(
-        participation_score_service,
-        collector_state_repository,
-        commercial_estimate_repository,
-    )
     from app.tenders.full_analysis import TenderFullAnalysisService
     from app.tenders.legacy_analysis_bridge import LegacyAnalysisBridge
     from app.tenders.safe_archive import SafeArchiveExtractor
@@ -200,6 +195,12 @@ def create_tender_search_runtime(
         TenderDocumentContextBuilder(text_extraction_service),
         TenderDocumentAiAnalyzer(DisabledProvider()),
         AiDocumentAnalysisRepository(data_path / "tender_ai_analysis.sqlite3"),
+    )
+    participation_decision_service = ParticipationDecisionService(
+        participation_score_service,
+        collector_state_repository,
+        commercial_estimate_repository,
+        ai_analysis_repository=ai_document_analysis_service.repository,
     )
     full_analysis_service = TenderFullAnalysisService(
         tender_registry,

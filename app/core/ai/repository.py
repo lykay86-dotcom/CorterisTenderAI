@@ -52,3 +52,12 @@ class AiDocumentAnalysisRepository:
                 (registry_key.strip(), fingerprint),
             ).fetchone()
         return AiDocumentAnalysis.from_payload(json.loads(row[0])) if row else None
+
+    def latest(self, registry_key: str) -> AiDocumentAnalysis | None:
+        self.initialize()
+        with sqlite3.connect(self.path) as connection:
+            row = connection.execute(
+                "SELECT payload_json FROM tender_ai_document_analyses WHERE registry_key=? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                (registry_key.strip(),),
+            ).fetchone()
+        return AiDocumentAnalysis.from_payload(json.loads(row[0])) if row else None

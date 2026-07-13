@@ -16,6 +16,7 @@ from app.tenders.collector.participation_score import (
 from app.tenders.collector.stop_factor import StopFactorAssessment
 from app.tenders.collector.verification import TenderVerificationState
 from app.tenders.commercial_estimator import CommercialEstimateResult
+from app.core.ai.schemas import AiDocumentAnalysis
 
 
 class ParticipationDecisionRecommendation(StrEnum):
@@ -63,6 +64,7 @@ class ParticipationDecisionInput:
     stop_factor_assessment: StopFactorAssessment | None = None
     commercial_estimate: CommercialEstimateResult | None = None
     verification: TenderVerificationState | None = None
+    ai_document_analysis: AiDocumentAnalysis | None = None
 
     def __post_init__(self) -> None:
         if not self.registry_key.strip():
@@ -71,6 +73,7 @@ class ParticipationDecisionInput:
             self.stop_factor_assessment,
             self.commercial_estimate,
             self.verification,
+            self.ai_document_analysis,
         ):
             if item is not None and item.registry_key != self.registry_key:
                 raise ValueError("all decision inputs must use the same registry_key")
@@ -136,6 +139,11 @@ class ParticipationDecision:
             "verification_status": (
                 self.input.verification.status.value
                 if self.input.verification is not None
+                else None
+            ),
+            "ai_document_analysis_status": (
+                self.input.ai_document_analysis.status
+                if self.input.ai_document_analysis is not None
                 else None
             ),
         }
