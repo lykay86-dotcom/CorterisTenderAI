@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timezone
+import hashlib
 import math
+import re
 from typing import Mapping
 from uuid import uuid4
 
-from app.ai.provider import AIProvider
+from app.ai.provider import AIProvider, MAX_RAW_RESPONSE_ID_LENGTH
 from app.core.ai.citations import CITATION_RESOLVER_VERSION, resolve_citation
 from app.core.ai.document_context import AI_CONTEXT_VERSION, TenderDocumentContextBuilder
 from app.core.ai.output_schema import (
@@ -39,8 +41,25 @@ MAX_SUMMARY_LENGTH = 12_000
 MAX_STATEMENT_LENGTH = 4_000
 MAX_QUOTE_LENGTH = 8_000
 MAX_SECTION_LENGTH = 1_000
+_MAX_PROVIDER_ID_LENGTH = 80
+_MAX_PROVIDER_MODEL_LENGTH = 200
 _RESOLVER_FAILURE_WARNING = "Citation evidence could not be resolved safely."
 _PROVENANCE_FAILURE_WARNING = "Provenance metadata could not be recorded safely."
+_PUBLIC_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_MODEL_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(?:[/:][A-Za-z0-9][A-Za-z0-9._-]*){0,3}")
+_CREDENTIAL_WORDS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "bearer",
+        "credential",
+        "password",
+        "secret",
+        "token",
+    }
+)
+_CREDENTIAL_PREFIXES = tuple(sorted(_CREDENTIAL_WORDS))
 
 
 class TenderDocumentAiAnalyzer:
@@ -86,12 +105,12 @@ class TenderDocumentAiAnalyzer:
             documents,
             context_fingerprint,
         )
-        raw_response_id = response.get("raw_id")
         try:
+            raw_response_id = response.get("raw_id")
             provenance = self._build_provenance(
                 documents,
                 context_fingerprint=context_fingerprint,
-                provider_response_id=(raw_response_id if isinstance(raw_response_id, str) else ""),
+                provider_response_id=_provider_response_reference(raw_response_id),
             )
         except Exception:
             return _add_warning(
@@ -109,21 +128,26 @@ class TenderDocumentAiAnalyzer:
     ) -> AiAnalysisProvenance:
         metadata = self.provider.metadata
         sources = tuple(
-            AiSourceSnapshot(
-                document_id=document.document_id,
-                display_name=document.name,
-                document_type=document.document_type,
-                checksum_sha256=document.checksum_sha256,
-                verification_status=document.verification_status,
-                received_at=document.received_at,
-                truncated=document.truncated,
-                included_character_count=len(document.text),
-                original_character_count=max(
-                    len(document.text),
-                    document.original_character_count,
+            sorted(
+                (
+                    AiSourceSnapshot(
+                        document_id=document.document_id,
+                        display_name=document.name,
+                        document_type=document.document_type,
+                        checksum_sha256=document.checksum_sha256,
+                        verification_status=document.verification_status,
+                        received_at=document.received_at,
+                        truncated=document.truncated,
+                        included_character_count=len(document.text),
+                        original_character_count=max(
+                            len(document.text),
+                            document.original_character_count,
+                        ),
+                    )
+                    for document in documents
                 ),
+                key=_source_sort_key,
             )
-            for document in documents
         )
         return AiAnalysisProvenance(
             analysis_id=uuid4().hex,
@@ -135,8 +159,16 @@ class TenderDocumentAiAnalyzer:
             analyzer_version=AI_ANALYZER_VERSION,
             context_version=AI_CONTEXT_VERSION,
             citation_resolver_version=CITATION_RESOLVER_VERSION,
-            provider_id=metadata.provider_id,
-            provider_model=metadata.model,
+            provider_id=_provenance_identifier(
+                metadata.provider_id,
+                limit=_MAX_PROVIDER_ID_LENGTH,
+                pattern=_PUBLIC_ID_PATTERN,
+            ),
+            provider_model=_provenance_identifier(
+                metadata.model,
+                limit=_MAX_PROVIDER_MODEL_LENGTH,
+                pattern=_MODEL_ID_PATTERN,
+            ),
             provider_response_id=provider_response_id,
             sources=sources,
         )
@@ -510,6 +542,52 @@ def _without_verified_findings(analysis: AiDocumentAnalysis) -> AiDocumentAnalys
         suspicious_conditions=downgrade(analysis.suspicious_conditions),
         contradictions=downgrade(analysis.contradictions),
         provenance=None,
+    )
+
+
+def _provider_response_reference(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    rendered = value.strip()
+    if (
+        not rendered
+        or len(rendered) > MAX_RAW_RESPONSE_ID_LENGTH
+        or any(ord(char) < 32 or ord(char) == 127 for char in rendered)
+    ):
+        return ""
+    return f"resp_{hashlib.sha256(rendered.encode('utf-8')).hexdigest()}"
+
+
+def _provenance_identifier(
+    value: object,
+    *,
+    limit: int,
+    pattern: re.Pattern[str],
+) -> str:
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > limit:
+        return "unknown"
+    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value):
+        return "unknown"
+    if pattern.fullmatch(value) is None:
+        return "unknown"
+    lowered = value.casefold()
+    words = {word for word in re.split(r"[/:._-]+", lowered) if word}
+    if lowered.startswith(_CREDENTIAL_PREFIXES) or words & _CREDENTIAL_WORDS:
+        return "unknown"
+    return value
+
+
+def _source_sort_key(source: AiSourceSnapshot) -> tuple[object, ...]:
+    return (
+        source.document_id,
+        source.checksum_sha256,
+        source.display_name,
+        source.document_type,
+        source.verification_status,
+        source.received_at,
+        source.truncated,
+        source.included_character_count,
+        source.original_character_count,
     )
 
 

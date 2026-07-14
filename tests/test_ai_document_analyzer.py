@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime
+import hashlib
 import json
 
 import pytest
@@ -14,6 +15,7 @@ from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.output_schema import build_responses_text_format
 from app.core.ai.prompts import AI_PROMPT_VERSION, SYSTEM_PROMPT
 from app.core.ai.repository import AI_ANALYZER_VERSION
+from app.core.ai.repository import context_fingerprint as build_context_fingerprint
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiDocument,
@@ -149,7 +151,9 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
     assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
     assert provenance.provider_id == "test-provider"
     assert provenance.provider_model == "test-model"
-    assert provenance.provider_response_id == "response-123"
+    assert provenance.provider_response_id == (
+        "resp_" + hashlib.sha256(b"response-123").hexdigest()
+    )
     assert [source.to_payload() for source in provenance.sources] == [
         {
             "document_id": document.document_id,
@@ -164,6 +168,138 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
         }
     ]
     assert result.is_current_verified(result.risks[0])
+
+
+def test_hostile_raw_id_mapping_degrades_inside_provenance_boundary() -> None:
+    class HostileResponse(dict[str, object]):
+        def get(self, key, default=None):
+            if key == "raw_id":
+                raise RuntimeError("Authorization: Bearer SECRET")
+            return super().get(key, default)
+
+    class HostileResponseProvider(Provider):
+        def analyze(self, *args, **kwargs) -> dict[str, object]:
+            return HostileResponse(super().analyze(*args, **kwargs))
+
+    result = TenderDocumentAiAnalyzer(
+        HostileResponseProvider(_valid_payload(risks=[_finding()]))
+    ).analyze("procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT)
+
+    assert result.status == "partial"
+    assert result.provenance is None
+    assert result.risks[0].status is AiFindingStatus.UNVERIFIED
+    assert result.risks[0].evidence is None
+    assert result.warnings == ("Provenance metadata could not be recorded safely.",)
+    assert "SECRET" not in repr(result)
+
+
+@pytest.mark.parametrize(
+    ("provider_id", "model", "raw_id", "forbidden"),
+    [
+        (
+            "Authorization:Bearer-SECRET",
+            "gpt-4.1",
+            "token=private?query#fragment",
+            ("Authorization", "SECRET", "token=", "query", "fragment"),
+        ),
+        (
+            "openai",
+            "https://provider.example/model?token=SECRET#fragment",
+            "response body with SECRET",
+            ("https://", "token=", "SECRET", "fragment", "response body"),
+        ),
+        (
+            r"C:\Users\SecretUser\provider",
+            "../private/model",
+            "body\nSECRET",
+            ("SecretUser", "../", "body", "SECRET"),
+        ),
+        (
+            "token=SECRET",
+            "prompt body text",
+            "x" * 201,
+            ("token=", "SECRET", "prompt body", "x" * 64),
+        ),
+        (
+            "openai",
+            "https:credential",
+            "safe-response-id",
+            ("https:credential",),
+        ),
+        (
+            "BearerSECRET",
+            "gpt-4.1",
+            "safe-response-id",
+            ("BearerSECRET", "SECRET"),
+        ),
+    ],
+)
+def test_provenance_persistence_rejects_unsafe_metadata_and_hashes_raw_id(
+    provider_id: str,
+    model: str,
+    raw_id: str,
+    forbidden: tuple[str, ...],
+) -> None:
+    class UnsafeMetadataProvider(Provider):
+        @property
+        def metadata(self) -> AiProviderMetadata:
+            return AiProviderMetadata(provider_id, model)
+
+        def analyze(self, *args, **kwargs) -> dict[str, object]:
+            response = super().analyze(*args, **kwargs)
+            response["raw_id"] = raw_id
+            return response
+
+    result = TenderDocumentAiAnalyzer(UnsafeMetadataProvider(_valid_payload())).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    assert result.provenance is not None
+    assert result.provenance.provider_id in {"openai", "unknown"}
+    assert result.provenance.provider_model in {"gpt-4.1", "unknown"}
+    assert result.provenance.provider_response_id == (
+        ""
+        if len(raw_id) > 200 or any(ord(char) < 32 or ord(char) == 127 for char in raw_id)
+        else "resp_" + hashlib.sha256(raw_id.strip().encode("utf-8")).hexdigest()
+    )
+    serialized = json.dumps(result.to_payload(), ensure_ascii=False)
+    assert all(value not in serialized for value in forbidden)
+
+
+def test_provenance_sources_are_stable_for_reversed_document_order() -> None:
+    first = _document()
+    second = AiDocument(
+        "doc-2",
+        "contract.pdf",
+        "local_document_store",
+        "contract",
+        "2026-07-14T00:00:00+00:00",
+        "verified",
+        "Contract text.",
+        "b" * 64,
+        original_character_count=len("Contract text."),
+    )
+    forward_documents = (first, second)
+    reversed_documents = tuple(reversed(forward_documents))
+    forward_fingerprint = build_context_fingerprint(forward_documents)
+    reversed_fingerprint = build_context_fingerprint(reversed_documents)
+
+    forward = TenderDocumentAiAnalyzer(Provider(_valid_payload())).analyze(
+        "procurement:test",
+        forward_documents,
+        context_fingerprint=forward_fingerprint,
+    )
+    reversed_result = TenderDocumentAiAnalyzer(Provider(_valid_payload())).analyze(
+        "procurement:test",
+        reversed_documents,
+        context_fingerprint=reversed_fingerprint,
+    )
+
+    assert forward_fingerprint == reversed_fingerprint
+    assert forward.provenance is not None
+    assert reversed_result.provenance is not None
+    assert forward.provenance.context_fingerprint == reversed_result.provenance.context_fingerprint
+    assert forward.provenance.sources == reversed_result.provenance.sources
 
 
 def test_resolver_exception_degrades_safely_without_exception_text(monkeypatch) -> None:
