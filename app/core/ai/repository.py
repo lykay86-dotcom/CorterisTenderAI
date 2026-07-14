@@ -183,7 +183,7 @@ class AiDocumentAnalysisRepository:
         self,
         where: str,
         parameters: tuple[object, ...],
-    ) -> list[tuple[str, int]]:
+    ) -> list[tuple[str, object]]:
         self.last_warning = ""
         self.initialize()
         with sqlite3.connect(self.path) as connection:
@@ -198,7 +198,7 @@ class AiDocumentAnalysisRepository:
 
     def _latest_valid(
         self,
-        rows: list[tuple[str, int]],
+        rows: list[tuple[str, object]],
         *,
         expected_registry_key: str,
         return_incompatible: bool,
@@ -207,6 +207,9 @@ class AiDocumentAnalysisRepository:
         incompatible: AiDocumentAnalysis | None = None
         saw_corruption = False
         for payload_json, stored_version in rows:
+            if type(stored_version) is not int:
+                saw_corruption = True
+                continue
             if stored_version > AI_ANALYSIS_SCHEMA_VERSION or stored_version < 1:
                 incompatible = AiDocumentAnalysis(
                     expected_registry_key,
