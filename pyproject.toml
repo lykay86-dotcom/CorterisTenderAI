@@ -50,6 +50,7 @@ target-version="py312"
 [tool.mypy]
 python_version = "3.12"
 files = [
+  "app/ai/provider.py",
   "app/core/json_serialization.py",
   "app/core/ai/orchestrator.py",
   "app/core/ai/provider_selection.py",

@@ -175,7 +175,14 @@ class AiProviderSelectionService:
                 requires_restart=True,
             )
 
-        new_credential = credential.strip() if credential is not None else ""
+        raw_credential = credential if credential is not None else ""
+        if raw_credential and not _valid_credential(raw_credential):
+            return _disabled_resolution(
+                settings.provider_id.value,
+                ("API-ключ AI-провайдера некорректен.",),
+                requires_restart=True,
+            )
+        new_credential = raw_credential.strip()
         if settings.provider_id is not AiProviderId.OLLAMA and new_credential:
             try:
                 self.secret_store.save(OPENAI_API_KEY_SECRET, new_credential)
@@ -265,6 +272,7 @@ class AiProviderSelectionService:
                 OLLAMA_AUTH_PLACEHOLDER,
                 base_url,
                 settings.model.strip(),
+                store_response=None,
             )
             return AiProviderResolution(
                 requested_provider_id=requested_provider_id,
@@ -283,11 +291,16 @@ class AiProviderSelectionService:
                 requires_restart=requires_restart,
             )
 
-        base_url = (
-            OPENAI_DEFAULT_BASE_URL
-            if settings.provider_id is AiProviderId.OPENAI
-            else settings.base_url.strip().rstrip("/")
-        )
+        base_url = OPENAI_DEFAULT_BASE_URL
+        if settings.provider_id is AiProviderId.OPENAI_COMPATIBLE:
+            normalized_base_url = _normalize_base_url(settings.base_url)
+            if normalized_base_url is None:
+                return _disabled_resolution(
+                    requested_provider_id,
+                    ("Base URL AI-провайдера некорректен.",),
+                    requires_restart=requires_restart,
+                )
+            base_url = normalized_base_url
         provider = OpenAICompatibleProvider(
             credential,
             base_url,
@@ -304,19 +317,21 @@ class AiProviderSelectionService:
 
     def _load_credential(self) -> tuple[str, str]:
         try:
-            credential = str(self.secret_store.load(OPENAI_API_KEY_SECRET) or "").strip()
+            raw_credential = str(self.secret_store.load(OPENAI_API_KEY_SECRET) or "")
         except Exception:
             return (
                 "",
                 "Хранилище API-ключа недоступно; AI-провайдер отключён.",
             )
-        return credential, ""
+        if not _valid_credential(raw_credential):
+            return "", "API-ключ AI-провайдера некорректен."
+        return raw_credential.strip(), ""
 
     def _load_raw_settings(self) -> tuple[str, str, str]:
         try:
             requested = _bounded_setting(self.config.get("ai.provider", "disabled"))
             model = _bounded_setting(self.config.get("ai.model", DEFAULT_AI_MODEL))
-            base_url = _bounded_setting(self.config.get("ai.base_url", OPENAI_DEFAULT_BASE_URL))
+            base_url = _bounded_url_setting(self.config.get("ai.base_url", OPENAI_DEFAULT_BASE_URL))
         except Exception:
             return "disabled", DEFAULT_AI_MODEL, OPENAI_DEFAULT_BASE_URL
         return (
@@ -331,7 +346,7 @@ class AiProviderSelectionService:
         elif settings.provider_id is AiProviderId.OLLAMA:
             base_url = _normalize_ollama_base_url(settings.base_url) or OLLAMA_DEFAULT_BASE_URL
         else:
-            base_url = settings.base_url.strip()
+            base_url = _normalize_base_url(settings.base_url) or settings.base_url.strip()
         self.config.update(
             {
                 "ai": {
@@ -359,21 +374,43 @@ def _valid_model(value: str) -> bool:
 
 
 def _valid_base_url(value: str) -> bool:
+    return _normalize_base_url(value) is not None
+
+
+def _normalize_base_url(value: str) -> str | None:
     rendered = value.strip()
-    if not rendered or len(rendered) > 2_000:
-        return False
+    if (
+        not rendered
+        or len(rendered) > 2_000
+        or any(ord(char) < 32 or ord(char) == 127 for char in value)
+    ):
+        return None
     try:
         parsed = urlsplit(rendered)
-        _ = parsed.port
+        port = parsed.port
     except (TypeError, ValueError):
-        return False
-    return bool(
-        parsed.scheme in {"http", "https"}
-        and parsed.hostname
+        return None
+    hostname = parsed.hostname
+    if not (
+        parsed.scheme.casefold() in {"http", "https"}
+        and hostname
         and parsed.username is None
         and parsed.password is None
+        and not parsed.query
         and not parsed.fragment
-    )
+        and port != 0
+    ):
+        return None
+    normalized_host = hostname.casefold()
+    if ":" in normalized_host:
+        normalized_host = f"[{normalized_host}]"
+    netloc = f"{normalized_host}:{port}" if port is not None else normalized_host
+    path = parsed.path.rstrip("/")
+    return urlunsplit((parsed.scheme.casefold(), netloc, path, "", ""))
+
+
+def _valid_credential(value: str) -> bool:
+    return bool(value.strip()) and not any(ord(char) < 32 or ord(char) == 127 for char in value)
 
 
 def _is_loopback_host(host: str) -> bool:
@@ -425,6 +462,16 @@ def _bounded_setting(value: object) -> str:
         return ""
     try:
         rendered = str(value).strip()
+    except Exception:
+        return ""
+    return rendered[:2_000]
+
+
+def _bounded_url_setting(value: object) -> str:
+    if value is None or isinstance(value, (dict, list, tuple, set)):
+        return ""
+    try:
+        rendered = str(value)
     except Exception:
         return ""
     return rendered[:2_000]

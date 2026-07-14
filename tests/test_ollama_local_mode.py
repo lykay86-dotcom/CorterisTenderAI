@@ -161,7 +161,8 @@ def test_transport_targets_responses_only_when_analyze_is_called(tmp_path, monke
         def __exit__(self, *_args) -> None:
             return None
 
-        def read(self) -> bytes:
+        def read(self, limit: int) -> bytes:
+            assert limit == 4 * 1024 * 1024 + 1
             return json.dumps(
                 {
                     "id": "local-response",
@@ -175,7 +176,7 @@ def test_transport_targets_responses_only_when_analyze_is_called(tmp_path, monke
         captured["timeout"] = timeout
         return Response()
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("app.ai.provider._open_without_redirects", fake_urlopen)
     service = _service(tmp_path)
     resolution = service.save_selection(_settings())
 
@@ -189,6 +190,7 @@ def test_transport_targets_responses_only_when_analyze_is_called(tmp_path, monke
             {"role": "system", "content": [{"type": "input_text", "text": "current prompt"}]},
             {"role": "user", "content": [{"type": "input_text", "text": "current context"}]},
         ],
+        "stream": False,
     }
     assert result == {"status": "ok", "text": "local result", "raw_id": "local-response"}
     assert OLLAMA_AUTH_PLACEHOLDER not in repr(result)
