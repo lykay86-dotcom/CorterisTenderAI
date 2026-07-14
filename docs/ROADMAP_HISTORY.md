@@ -1,5 +1,31 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-14 — RM-114 завершён
+
+- PR #30 (`feat(rm-114): harden OpenAI-compatible Responses API`) слит в `main`
+  коммитом `e4caca0`.
+- Post-merge Quality Gate run `29315630189` завершился статусом `SUCCESS`:
+  Python 3.12 — `863 passed in 161.88s`, Python 3.13 — `863 passed in 164.67s`.
+- Обязательный audit и Responses API contract зафиксированы до application-кода.
+- Укреплён существующий `OpenAICompatibleProvider`; второй provider, analyzer,
+  Orchestrator, repository, Decision Engine или AI pipeline не создан.
+- Канонический endpoint — один `POST /responses` без streaming, retry, background mode,
+  Chat Completions fallback, bootstrap/save health-check или сети до явного анализа.
+- Cloud profile отправляет `stream=false` и `store=false`; Ollama переиспользует тот же
+  provider и не получает неподтверждённые optional fields.
+- Redirects запрещены, TLS verification сохранена, response ограничен 4 MiB, а
+  HTTP/JSON/network/TLS/refusal/incomplete ошибки не раскрывают raw body, URL, exception,
+  credential, prompt, документы или приватный путь.
+- Generic base URL и credential boundaries усилены без изменения stable provider IDs,
+  keyring ownership или UI business logic.
+- RM-107 score/recommendation и абсолютный приоритет critical stop-factor сохранены.
+- Локальная приёмка: target `152 passed`, full `863 passed`, Ruff check/format,
+  mypy (10 файлов), secret scan, dependency audit и `git diff --check` успешны.
+- Новая БД или миграция БД не добавлялись. Strict JSON Schema, citations/provenance и
+  специализированный анализ ТЗ остались за RM-115/RM-116/RM-117.
+- RM-114 переведён в `DONE`; RM-115 назначен следующим активным этапом только для
+  отдельного будущего аудита и реализации.
+
 ## 2026-07-14 — RM-113 завершён
 
 - PR #28 (`feat(rm-113): add safe local Ollama mode`) слит в `main` коммитом `ef8b296`.

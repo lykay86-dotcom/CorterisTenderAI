@@ -8,8 +8,9 @@
 - RM-111: `DONE`.
 - RM-112: `DONE`.
 - RM-113: `DONE`.
-- RM-114: `IN PROGRESS`.
-- RM-115–RM-200: `PLANNED`.
+- RM-114: `DONE`.
+- RM-115: `IN PROGRESS`.
+- RM-116–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -134,8 +135,8 @@
 - [x] RM-111 — AI Orchestrator.
 - [x] RM-112 — выбор AI-провайдера.
 - [x] RM-113 — локальный режим.
-- [ ] RM-114 — OpenAI-совместимый API (активный).
-- [ ] RM-115 — строгая JSON-схема.
+- [x] RM-114 — OpenAI-совместимый API.
+- [ ] RM-115 — строгая JSON-схема (активный).
 - [ ] RM-116 — ссылки, цитаты и provenance.
 - [ ] RM-117 — анализ ТЗ.
 - [ ] RM-118 — анализ проекта договора в тендере.
@@ -232,6 +233,29 @@ RM-113; его application-код требовал отдельного ауди
 PR #28 слит в `main` 14 июля 2026 года коммитом `ef8b296`. Post-merge Quality Gate
 run `29285835443` успешно прошёл на Python 3.12 и 3.13. RM-113 соответствует Definition
 of Done; следующим активным этапом назначен RM-114.
+
+## RM-114 — implementation acceptance
+
+Статус реализации: `DONE` (PR #30, merge `e4caca0`).
+
+- укреплён существующий `OpenAICompatibleProvider` без второго HTTP adapter или AI pipeline;
+- закреплён единый синхронный `POST /responses` contract для OpenAI,
+  `openai_compatible` и Ollama request profile;
+- redirects запрещены, response ограничен 4 MiB, timeout валидируется, а HTTP/JSON/network/
+  TLS/refusal/incomplete ошибки возвращаются только как безопасные stable codes;
+- cloud request использует `store=false`, Ollama сохраняет подтверждённый compatibility subset;
+- generic URL и credential boundaries исключают query/fragment/userinfo/control characters и
+  небезопасный Authorization header;
+- сохранены единый analyzer/Orchestrator/repository, существующий bootstrap DI, RM-107
+  score/recommendation и абсолютный приоритет critical stop-factor;
+- новая БД или миграция БД не требуются;
+- локальная приёмка: целевой набор `152 passed`, полный pytest `863 passed`, Ruff
+  check/format, mypy (10 файлов), secret scan, dependency audit и `git diff --check` успешны.
+
+PR #30 слит в `main` 14 июля 2026 года коммитом `e4caca0`. Post-merge Quality Gate
+run `29315630189` успешно прошёл на Python 3.12 (`863 passed`) и Python 3.13
+(`863 passed`). RM-114 соответствует Definition of Done; следующим активным этапом
+назначен RM-115, реализация которого требует отдельного аудита.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.
