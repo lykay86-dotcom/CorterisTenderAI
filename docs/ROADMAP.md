@@ -11,8 +11,9 @@
 - RM-114: `DONE`.
 - RM-115: `DONE`.
 - RM-116: `DONE`.
-- RM-117: `IN PROGRESS`.
-- RM-118–RM-200: `PLANNED`.
+- RM-117: `DONE`.
+- RM-118: `IN PROGRESS`.
+- RM-119–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -140,8 +141,8 @@
 - [x] RM-114 — OpenAI-совместимый API.
 - [x] RM-115 — строгая JSON-схема.
 - [x] RM-116 — ссылки, цитаты и provenance.
-- [ ] RM-117 — анализ ТЗ (активный).
-- [ ] RM-118 — анализ проекта договора в тендере.
+- [x] RM-117 — анализ ТЗ.
+- [ ] RM-118 — анализ проекта договора в тендере (активный).
 - [ ] RM-119 — анализ требований к заявке.
 - [ ] RM-120 — юридические риски.
 - [ ] RM-121 — финансовые риски.
@@ -303,6 +304,30 @@ PR #35 слит в `main` 15 июля 2026 года коммитом `b8ff9b1`. 
 (`1030 passed in 60.47s`); Ruff, mypy (16 файлов), secret scan, smoke tests и dependency
 audit успешны на обеих версиях. RM-116 соответствует Definition of Done; следующим активным
 этапом назначен RM-117, application-код которого требует отдельного аудита.
+
+## RM-117 — implementation acceptance
+
+Статус реализации: `DONE` (PR #37, merge `c9d5a31`).
+
+- детерминированная классификация ТЗ переиспользуется AI context builder без второй таблицы
+  правил; TS documents получают стабильный приоритет и completeness-aware fingerprint;
+- строгая provider-output schema v2 добавляет обязательный раздел из 13 групп без local
+  status/category/verified/decision fields;
+- persisted payload повышен до версии 4, semantic document kind входит в current provenance,
+  legacy/future/corrupt cache обрабатывается fail-closed без миграции SQLite;
+- специализированные TS findings подтверждаются только единым RM-116 citation resolver и
+  только для локально известных TS documents; неподтверждённые findings не влияют на RM-107;
+- existing analyzer/service/Orchestrator/repository/UI/export и один provider call сохранены;
+  новая AI-stage, TS service/repository/table или UI workflow не созданы;
+- локальная приёмка на Python 3.12.7: target `214 passed`, full `1043 passed`, Ruff,
+  mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
+
+PR #37 слит в `main` 15 июля 2026 года коммитом `c9d5a31`. Post-merge Quality Gate run
+`29376283665` успешно прошёл на Python 3.12 (`1043 passed in 100.66s`) и Python 3.13
+(`1043 passed in 150.13s`); Ruff (`509 files`), mypy (16 файлов), secret scan, offline,
+migration, composition и build smoke tests, а также dependency audit успешны на обеих
+версиях. RM-117 соответствует Definition of Done; следующим активным этапом назначен RM-118,
+application-код которого требует отдельного аудита.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.
