@@ -143,7 +143,7 @@ class AiDocumentAnalysisRepository:
                     uuid4().hex,
                     analysis.registry_key,
                     fingerprint,
-                    analysis.status.value,
+                    AiAnalysisStatus(analysis.status).value,
                     json.dumps(
                         analysis.to_payload(),
                         ensure_ascii=False,

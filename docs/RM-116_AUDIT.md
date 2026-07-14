@@ -125,3 +125,26 @@ schemas, analyzer/service, repository fingerprint, RM-107 eligibility predicate,
 and existing exporter. Add the public provider metadata contract. Do not create a database
 migration or a second schema, parser, provider, analyzer, Orchestrator, repository, context
 builder, Decision Engine, exporter, or citation workflow.
+
+## Implementation acceptance preparation
+
+The audited extension was implemented without adding a second provider, analyzer,
+Orchestrator, repository, context builder, output schema, Decision Engine, exporter, or
+citation workflow. Production retains one `AIProvider.analyze(...)` call. No live provider,
+DNS, keyring, saved credential, new database, or migration is required by the local suite.
+
+Acceptance evidence on Python 3.12.7:
+
+- exact RM-116 target: `262 passed in 6.37s`;
+- strict/provider/UI regressions: `93 passed in 3.74s`;
+- full suite: `1014 passed in 50.92s`;
+- Ruff check and format (`507 files`) passed;
+- mypy passed on the expanded fixed contour of 16 production files;
+- repository secret scan passed;
+- `pip_audit --skip-editable`: no known vulnerabilities; editable project skipped as expected;
+- architecture/leak scans found one canonical component per audited boundary, one production
+  provider call, no Chat Completions/retry/fuzzy/web path, and no raw exception/response logging.
+
+This is feature-branch preparation only. RM-116 remains `IN PROGRESS`; feature merge,
+post-merge Windows Quality Gate on Python 3.12/3.13, and merged docs-only closeout remain
+mandatory before RM-116 becomes `DONE` or RM-117 becomes active.

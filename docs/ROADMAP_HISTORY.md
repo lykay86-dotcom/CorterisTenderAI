@@ -1,5 +1,22 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-14 — RM-116: подготовлена feature acceptance
+
+- После обязательного аудита реализованы exact local citations, immutable provenance/source
+  registry, payload v3, provenance-aware cache, безопасная UI-навигация и JSON/HTML export.
+- Provider сообщает только кандидаты и безопасную public metadata; checksum, offsets, locator,
+  citation ID и eligibility вычисляются и проверяются локально.
+- RM-107 принимает только current verified citations; score/recommendation и абсолютный
+  приоритет critical stop-factor не изменены.
+- Переиспользованы существующие provider/analyzer/Orchestrator/repository/context
+  builder/exporter; второй schema/parser/workflow и миграция БД не добавлены.
+- Локально на Python 3.12.7: target `262 passed in 6.37s`, strict/provider/UI `93 passed in
+  3.74s`, full `1014 passed in 50.92s`; Ruff, mypy (16 файлов), secret scan, dependency audit и
+  diff-check успешны.
+- Запись является подготовкой feature PR, а не closeout: RM-116 остаётся `IN PROGRESS`, RM-117
+  остаётся `PLANNED`; обязательны feature merge, post-merge Windows gate 3.12/3.13 и отдельный
+  merged docs-only closeout.
+
 ## 2026-07-14 — RM-115 завершён
 
 - PR #33 (`feat(rm-115): enforce strict Tender Intelligence JSON schema`) слит в `main`

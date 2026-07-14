@@ -5,13 +5,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
+from typing import TYPE_CHECKING, Protocol
 
 from app.core.ai.schemas import AiDocument
+
+if TYPE_CHECKING:
+    from app.tenders.document_text_extractor import StoredDocumentText
 
 
 AI_CONTEXT_VERSION = "2"
 DEFAULT_MAX_DOCUMENT_CHARACTERS = 100_000
 DEFAULT_MAX_TOTAL_CHARACTERS = 400_000
+
+
+class _TextService(Protocol):
+    def list_results(self, registry_key: str) -> tuple[StoredDocumentText, ...]: ...
+
+    def read_text(self, result: StoredDocumentText) -> str: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +51,7 @@ class TenderDocumentContextBuilder:
 
     def __init__(
         self,
-        text_service: object,
+        text_service: _TextService,
         *,
         max_document_characters: int = DEFAULT_MAX_DOCUMENT_CHARACTERS,
         max_total_characters: int = DEFAULT_MAX_TOTAL_CHARACTERS,

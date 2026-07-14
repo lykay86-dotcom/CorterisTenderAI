@@ -149,3 +149,19 @@ offline isolation, and the absence of a migration before opening the feature PR.
 RM-116 remains `IN PROGRESS` through the feature PR. It becomes `DONE`, and RM-117 becomes
 active, only after feature merge, a successful post-merge Windows Quality Gate on Python 3.12
 and 3.13, and a merged docs-only closeout package.
+
+## Feature acceptance evidence
+
+The implementation satisfies the contract locally on Python 3.12.7:
+
+- exact RM-116 target: `262 passed in 6.37s`;
+- strict provider/output/UI regressions: `93 passed in 3.74s`;
+- full suite: `1014 passed in 50.92s`;
+- Ruff check/format, mypy on 16 fixed production files, repository secret scan,
+  `pip_audit --skip-editable`, and diff hygiene passed;
+- dependency audit reported no known vulnerabilities;
+- no database migration or second AI workflow was added;
+- offline/disabled/Ollama paths remain isolated from live provider, DNS, and keyring access.
+
+These results prepare the feature PR and do not close the stage. RM-116 remains `IN PROGRESS`
+and RM-117 remains planned until the completion boundary above is satisfied.
