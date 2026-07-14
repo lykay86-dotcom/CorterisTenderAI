@@ -1,6 +1,6 @@
 # RM-114 Requirements — OpenAI-compatible Responses API
 
-Status: LOCAL ACCEPTANCE PASSED — FINAL ACCEPTANCE PENDING MERGE
+Status: ACCEPTED
 Canonical contract date: 2026-07-14  
 Depends on: RM-107, RM-111, RM-112, RM-113
 
@@ -142,4 +142,15 @@ Implementation was validated from `feat/rm-114-openai-compatible-api` on Python 
 
 All provider tests are offline: no live OpenAI/Ollama endpoint, host keyring, API key, or DNS is used. No database or migration was added. Strict JSON Schema, citations/provenance, and RM-115/RM-116/RM-117 behavior remain out of scope and unimplemented.
 
-This is local acceptance only. The document remains pending final acceptance until the feature PR is merged and the post-merge Windows Quality Gate passes on Python 3.12 and 3.13.
+## Final acceptance — 2026-07-14
+
+Feature PR #30 was merged into `main` as `e4caca0dd8fc45714bb94be160665e961af66313`.
+Post-merge Quality Gate run `29315630189` completed successfully on both required matrix
+versions: Python 3.12 (`863 passed in 161.88s`) and Python 3.13
+(`863 passed in 164.67s`). Ruff check/format, mypy, secret scan, dependency audit, all
+smoke stages, and the full suite passed in both jobs.
+
+The accepted implementation adds no database or migration and preserves the single
+provider/analyzer/Orchestrator/repository graph, existing bootstrap DI, RM-107
+score/recommendation ownership, and critical stop-factor priority. RM-115 behavior was not
+implemented. RM-114 satisfies its Definition of Done and is accepted.
