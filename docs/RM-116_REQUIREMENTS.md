@@ -1,6 +1,6 @@
 # RM-116 Requirements — Verified Citations and Provenance
 
-Status: IMPLEMENTED; FEATURE ACCEPTANCE PREPARED; STAGE IN PROGRESS
+Status: COMPLETED
 Canonical contract date: 2026-07-14
 Depends on: RM-107, RM-110, RM-111, RM-112, RM-113, RM-114, RM-115
 
@@ -147,9 +147,17 @@ offline isolation, and the absence of a migration before opening the feature PR.
 
 ## Completion boundary
 
-RM-116 remains `IN PROGRESS` through the feature PR. It becomes `DONE`, and RM-117 becomes
-active, only after feature merge, a successful post-merge Windows Quality Gate on Python 3.12
-and 3.13, and a merged docs-only closeout package.
+Feature PR #35 was merged into `main` on 2026-07-15 as
+`b8ff9b13b7f67366f16b24c1eedccf9a63cb4d46`.
+
+Post-merge Windows Quality Gate run `29372896780` completed successfully:
+
+- Python 3.12: `1030 passed in 123.59s`; Ruff check, Ruff format (`507 files`), mypy
+  (`16 source files`), secret scan, smoke tests, and dependency audit passed;
+- Python 3.13: `1030 passed in 60.47s`; Ruff check, Ruff format (`507 files`), mypy
+  (`16 source files`), secret scan, smoke tests, and dependency audit passed.
+
+RM-116 is `DONE`; RM-117 is active but requires its own audit before application changes.
 
 ## Feature acceptance evidence
 
@@ -164,5 +172,4 @@ The implementation satisfies the contract locally on Python 3.12.7:
 - no database migration or second AI workflow was added;
 - offline/disabled/Ollama paths remain isolated from live provider, DNS, and keyring access.
 
-These results prepare the feature PR and do not close the stage. RM-116 remains `IN PROGRESS`
-and RM-117 remains planned until the completion boundary above is satisfied.
+These results and the successful post-merge gate satisfy the RM-116 completion boundary.

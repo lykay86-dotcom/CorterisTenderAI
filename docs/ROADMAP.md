@@ -10,8 +10,9 @@
 - RM-113: `DONE`.
 - RM-114: `DONE`.
 - RM-115: `DONE`.
-- RM-116: `IN PROGRESS`.
-- RM-117–RM-200: `PLANNED`.
+- RM-116: `DONE`.
+- RM-117: `IN PROGRESS`.
+- RM-118–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -138,8 +139,8 @@
 - [x] RM-113 — локальный режим.
 - [x] RM-114 — OpenAI-совместимый API.
 - [x] RM-115 — строгая JSON-схема.
-- [ ] RM-116 — ссылки, цитаты и provenance (активный).
-- [ ] RM-117 — анализ ТЗ.
+- [x] RM-116 — ссылки, цитаты и provenance.
+- [ ] RM-117 — анализ ТЗ (активный).
 - [ ] RM-118 — анализ проекта договора в тендере.
 - [ ] RM-119 — анализ требований к заявке.
 - [ ] RM-120 — юридические риски.
@@ -281,9 +282,9 @@ run `29352442656` после повторного запуска успешно 
 прошёл полностью. RM-115 соответствует Definition of Done; следующим активным этапом
 назначен RM-116, application-код которого требует отдельного аудита.
 
-## RM-116 — implementation acceptance preparation
+## RM-116 — implementation acceptance
 
-Статус реализации: `IN PROGRESS` (feature branch acceptance подготовлен).
+Статус реализации: `DONE` (PR #35, merge `b8ff9b1`).
 
 - введены локально проверяемые exact citations, source registry и immutable provenance;
 - persisted payload повышен до версии 3, legacy/future/corrupt cache обрабатывается fail-closed
@@ -297,8 +298,11 @@ run `29352442656` после повторного запуска успешно 
 - локальная приёмка на Python 3.12.7: target `273 passed`, provider/UI regressions `97 passed`,
   full `1029 passed`, Ruff, mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
 
-RM-116 не закрыт и RM-117 не активирован. Остались feature merge, post-merge Windows Quality
-Gate на Python 3.12/3.13 и отдельный merged docs-only closeout.
+PR #35 слит в `main` 15 июля 2026 года коммитом `b8ff9b1`. Post-merge Quality Gate run
+`29372896780` успешно прошёл на Python 3.12 (`1030 passed in 123.59s`) и Python 3.13
+(`1030 passed in 60.47s`); Ruff, mypy (16 файлов), secret scan, smoke tests и dependency
+audit успешны на обеих версиях. RM-116 соответствует Definition of Done; следующим активным
+этапом назначен RM-117, application-код которого требует отдельного аудита.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.
