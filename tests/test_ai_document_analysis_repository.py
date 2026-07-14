@@ -3,6 +3,7 @@ import sqlite3
 
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
+from app.core.ai.citations import CITATION_RESOLVER_VERSION
 from app.core.ai.repository import (
     AI_ANALYZER_VERSION,
     AiDocumentAnalysisRepository,
@@ -54,15 +55,17 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
         provider_output_schema_version="next",
     )
     assert baseline != context_fingerprint(documents, context_version="next")
+    assert baseline != context_fingerprint(documents, citation_resolver_version="next")
     assert baseline != context_fingerprint(
         documents,
         context_parameters={"max_total_characters": 1},
     )
 
 
-def test_rm115_versions_are_current_without_changing_persisted_schema() -> None:
-    assert AI_PROMPT_VERSION == "2"
-    assert AI_ANALYZER_VERSION == "3"
+def test_rm116_versions_are_current_without_changing_provider_output_schema() -> None:
+    assert AI_PROMPT_VERSION == "3"
+    assert AI_ANALYZER_VERSION == "4"
+    assert CITATION_RESOLVER_VERSION == "1"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "1"
     assert AI_ANALYSIS_SCHEMA_VERSION == 3
 

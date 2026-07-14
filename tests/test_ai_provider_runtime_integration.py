@@ -63,7 +63,7 @@ class Builder:
                 "2026-07-13T00:00:00+00:00",
                 "verified",
                 "Tender requirement text",
-                "abc",
+                "a" * 64,
             ),
         )
 

@@ -10,6 +10,7 @@ import sqlite3
 from typing import Mapping
 from uuid import uuid4
 
+from app.core.ai.citations import CITATION_RESOLVER_VERSION
 from app.core.ai.document_context import AI_CONTEXT_VERSION
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
@@ -21,7 +22,7 @@ from app.core.ai.schemas import (
 )
 
 
-AI_ANALYZER_VERSION = "3"
+AI_ANALYZER_VERSION = "4"
 
 
 def context_fingerprint(
@@ -32,6 +33,7 @@ def context_fingerprint(
     analyzer_version: str | None = None,
     provider_output_schema_version: str | None = None,
     context_version: str | None = None,
+    citation_resolver_version: str | None = None,
     context_parameters: Mapping[str, object] | None = None,
 ) -> str:
     """Hash logical context independently of input ordering."""
@@ -62,6 +64,7 @@ def context_fingerprint(
                 provider_output_schema_version or AI_PROVIDER_OUTPUT_SCHEMA_VERSION
             ),
             "context": context_version or AI_CONTEXT_VERSION,
+            "citation_resolver": citation_resolver_version or CITATION_RESOLVER_VERSION,
         },
         "context_parameters": dict(context_parameters or {}),
     }

@@ -33,6 +33,27 @@ def test_service_reuses_analysis_for_unchanged_documents(tmp_path) -> None:
     assert analyzer.fingerprints and len(analyzer.fingerprints[0]) == 64
 
 
+def test_service_passes_cache_lookup_fingerprint_to_analyzer() -> None:
+    class RecordingRepository:
+        last_warning = ""
+
+        def __init__(self):
+            self.lookup_fingerprints = []
+
+        def reusable(self, _key, fingerprint):
+            self.lookup_fingerprints.append(fingerprint)
+            return None
+
+        def save(self, _analysis, _fingerprint):
+            return None
+
+    analyzer = Analyzer()
+    repository = RecordingRepository()
+    TenderDocumentAiAnalysisService(Builder(), analyzer, repository).analyze("procurement:test")
+
+    assert repository.lookup_fingerprints == analyzer.fingerprints
+
+
 def test_service_force_always_runs_new_analysis(tmp_path) -> None:
     analyzer = Analyzer()
     service = TenderDocumentAiAnalysisService(

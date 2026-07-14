@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 import json
 
 import pytest
 
-from app.ai.provider import AIProvider
+from app.ai.provider import AIProvider, AiProviderMetadata
 from app.core.ai.analyzer import TenderDocumentAiAnalyzer
+from app.core.ai.citations import CITATION_RESOLVER_VERSION
+from app.core.ai.document_context import AI_CONTEXT_VERSION
+from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.output_schema import build_responses_text_format
-from app.core.ai.prompts import SYSTEM_PROMPT
-from app.core.ai.schemas import AiDocument, AiFindingStatus, TenderRequirements
+from app.core.ai.prompts import AI_PROMPT_VERSION, SYSTEM_PROMPT
+from app.core.ai.repository import AI_ANALYZER_VERSION
+from app.core.ai.schemas import (
+    AI_ANALYSIS_SCHEMA_VERSION,
+    AiDocument,
+    AiFindingStatus,
+    TenderRequirements,
+)
 
 
 CONTEXT_FINGERPRINT = "f" * 64
@@ -28,6 +38,10 @@ class Provider(AIProvider):
         self.provider_status = provider_status
         self.calls: list[tuple[str, list[str], Mapping[str, object] | None]] = []
 
+    @property
+    def metadata(self) -> AiProviderMetadata:
+        return AiProviderMetadata("test-provider", "test-model")
+
     def analyze(
         self,
         prompt: str,
@@ -39,7 +53,7 @@ class Provider(AIProvider):
         if self.provider_status != "ok":
             return {"status": self.provider_status, "message": "private provider response"}
         text = str(self.payload) if self.raw else json.dumps(self.payload, ensure_ascii=False)
-        return {"status": "ok", "text": text}
+        return {"status": "ok", "text": text, "raw_id": " response-123 "}
 
 
 def _document() -> AiDocument:
@@ -113,6 +127,80 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
             build_responses_text_format(),
         )
     ]
+
+
+def test_successful_response_builds_current_provenance_from_exact_documents() -> None:
+    document = _document()
+    payload = _valid_payload(risks=[_finding()])
+
+    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
+        "procurement:test", (document,), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    provenance = result.provenance
+    assert provenance is not None
+    assert provenance.context_fingerprint == CONTEXT_FINGERPRINT
+    assert datetime.fromisoformat(provenance.created_at).utcoffset() is not None
+    assert provenance.prompt_version == AI_PROMPT_VERSION == "3"
+    assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "1"
+    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 3
+    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "4"
+    assert provenance.context_version == AI_CONTEXT_VERSION == "2"
+    assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
+    assert provenance.provider_id == "test-provider"
+    assert provenance.provider_model == "test-model"
+    assert provenance.provider_response_id == "response-123"
+    assert [source.to_payload() for source in provenance.sources] == [
+        {
+            "document_id": document.document_id,
+            "display_name": document.name,
+            "document_type": document.document_type,
+            "checksum_sha256": document.checksum_sha256,
+            "verification_status": document.verification_status,
+            "received_at": document.received_at,
+            "truncated": document.truncated,
+            "included_character_count": len(document.text),
+            "original_character_count": len(document.text),
+        }
+    ]
+    assert result.is_current_verified(result.risks[0])
+
+
+def test_resolver_exception_degrades_safely_without_exception_text(monkeypatch) -> None:
+    def fail_resolution(**_kwargs):
+        raise RuntimeError("C:/SecretUser/private.pdf")
+
+    monkeypatch.setattr("app.core.ai.analyzer.resolve_citation", fail_resolution)
+
+    result = TenderDocumentAiAnalyzer(Provider(_valid_payload(risks=[_finding()]))).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    assert result.status == "partial"
+    assert result.risks[0].status is AiFindingStatus.UNVERIFIED
+    assert result.risks[0].evidence is None
+    assert "Citation evidence could not be resolved safely." in result.warnings
+    assert "SecretUser" not in " ".join(result.warnings)
+
+
+def test_provenance_exception_degrades_safely_without_exception_text() -> None:
+    class BrokenMetadataProvider(Provider):
+        @property
+        def metadata(self) -> AiProviderMetadata:
+            raise RuntimeError("Authorization: Bearer SECRET")
+
+    result = TenderDocumentAiAnalyzer(
+        BrokenMetadataProvider(_valid_payload(risks=[_finding()]))
+    ).analyze("procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT)
+
+    assert result.status == "partial"
+    assert result.provenance is None
+    assert result.risks[0].status is AiFindingStatus.UNVERIFIED
+    assert result.risks[0].evidence is None
+    assert not result.is_current_verified(result.risks[0])
+    rendered = " ".join(result.warnings)
+    assert rendered == "Provenance metadata could not be recorded safely."
+    assert "SECRET" not in rendered
 
 
 @pytest.mark.parametrize(

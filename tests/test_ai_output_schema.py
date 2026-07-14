@@ -13,6 +13,7 @@ from app.core.ai.output_schema import (
     build_responses_text_format,
     decode_and_validate_provider_output,
 )
+from app.core.ai.prompts import SYSTEM_PROMPT
 from app.core.ai.schemas import TenderRequirements
 
 
@@ -128,8 +129,26 @@ def test_schema_finding_contract_is_bounded_nullable_and_has_no_internal_fields(
         "recommendation",
         "participation_decision",
         "critical_stop_factor",
+        "citation_id",
+        "provenance",
+        "source_registry",
+        "character_start",
+        "character_end",
+        "checksum_sha256",
+        "context_fingerprint",
     ):
         assert f'"{forbidden}"' not in rendered
+
+
+def test_prompt_keeps_provider_output_candidate_only_and_locators_as_hints() -> None:
+    prompt = SYSTEM_PROMPT.casefold()
+
+    assert "exact continuous quote" in prompt
+    assert "exactly one json object" in prompt
+    assert "page and section are optional hints" in prompt
+    assert "local application code" in prompt
+    for forbidden_output in ("links", "citation ids", "provenance"):
+        assert f"do not return {forbidden_output}" in prompt
 
 
 def test_decoder_accepts_minimal_and_full_valid_payloads() -> None:

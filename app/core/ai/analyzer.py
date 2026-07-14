@@ -3,28 +3,34 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timezone
 import math
 from typing import Mapping
+from uuid import uuid4
 
 from app.ai.provider import AIProvider
-from app.core.ai.citations import resolve_citation
-from app.core.ai.document_context import TenderDocumentContextBuilder
+from app.core.ai.citations import CITATION_RESOLVER_VERSION, resolve_citation
+from app.core.ai.document_context import AI_CONTEXT_VERSION, TenderDocumentContextBuilder
 from app.core.ai.output_schema import (
+    AI_PROVIDER_OUTPUT_SCHEMA_VERSION,
     build_responses_text_format,
     decode_and_validate_provider_output,
 )
-from app.core.ai.prompts import SYSTEM_PROMPT
+from app.core.ai.prompts import AI_PROMPT_VERSION, SYSTEM_PROMPT
 from app.core.ai.repository import (
     AI_ANALYZER_VERSION,
     AiDocumentAnalysisRepository,
     context_fingerprint,
 )
 from app.core.ai.schemas import (
+    AI_ANALYSIS_SCHEMA_VERSION,
+    AiAnalysisProvenance,
     AiAnalysisStatus,
     AiDocument,
     AiDocumentAnalysis,
     AiFinding,
     AiFindingStatus,
+    AiSourceSnapshot,
     TenderRequirements,
 )
 
@@ -33,6 +39,8 @@ MAX_SUMMARY_LENGTH = 12_000
 MAX_STATEMENT_LENGTH = 4_000
 MAX_QUOTE_LENGTH = 8_000
 MAX_SECTION_LENGTH = 1_000
+_RESOLVER_FAILURE_WARNING = "Citation evidence could not be resolved safely."
+_PROVENANCE_FAILURE_WARNING = "Provenance metadata could not be recorded safely."
 
 
 class TenderDocumentAiAnalyzer:
@@ -72,11 +80,65 @@ class TenderDocumentAiAnalyzer:
         payload = decode_and_validate_provider_output(response.get("text"))
         if payload is None:
             return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
-        return self._normalize(
+        result = self._normalize(
             registry_key,
             payload.model_dump(),
             documents,
             context_fingerprint,
+        )
+        raw_response_id = response.get("raw_id")
+        try:
+            provenance = self._build_provenance(
+                documents,
+                context_fingerprint=context_fingerprint,
+                provider_response_id=(raw_response_id if isinstance(raw_response_id, str) else ""),
+            )
+        except Exception:
+            return _add_warning(
+                _without_verified_findings(result),
+                _PROVENANCE_FAILURE_WARNING,
+            )
+        return replace(result, provenance=provenance)
+
+    def _build_provenance(
+        self,
+        documents: tuple[AiDocument, ...],
+        *,
+        context_fingerprint: str,
+        provider_response_id: str,
+    ) -> AiAnalysisProvenance:
+        metadata = self.provider.metadata
+        sources = tuple(
+            AiSourceSnapshot(
+                document_id=document.document_id,
+                display_name=document.name,
+                document_type=document.document_type,
+                checksum_sha256=document.checksum_sha256,
+                verification_status=document.verification_status,
+                received_at=document.received_at,
+                truncated=document.truncated,
+                included_character_count=len(document.text),
+                original_character_count=max(
+                    len(document.text),
+                    document.original_character_count,
+                ),
+            )
+            for document in documents
+        )
+        return AiAnalysisProvenance(
+            analysis_id=uuid4().hex,
+            context_fingerprint=context_fingerprint,
+            created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            prompt_version=AI_PROMPT_VERSION,
+            output_schema_version=AI_PROVIDER_OUTPUT_SCHEMA_VERSION,
+            persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
+            analyzer_version=AI_ANALYZER_VERSION,
+            context_version=AI_CONTEXT_VERSION,
+            citation_resolver_version=CITATION_RESOLVER_VERSION,
+            provider_id=metadata.provider_id,
+            provider_model=metadata.model,
+            provider_response_id=provider_response_id,
+            sources=sources,
         )
 
     def _normalize(
@@ -148,7 +210,22 @@ class TenderDocumentAiAnalyzer:
             missing_documents=missing_documents,
             final_ai_conclusion=final_conclusion,
             status=(AiAnalysisStatus.PARTIAL if issues else AiAnalysisStatus.COMPLETE),
-            warnings=(("Часть ответа AI отклонена защитной проверкой.",) if issues else ()),
+            warnings=(
+                tuple(
+                    dict.fromkeys(
+                        (
+                            "Часть ответа AI отклонена защитной проверкой.",
+                            *(
+                                (_RESOLVER_FAILURE_WARNING,)
+                                if "resolver_exception" in issues
+                                else ()
+                            ),
+                        )
+                    )
+                )
+                if issues
+                else ()
+            ),
         )
 
     @staticmethod
@@ -210,19 +287,23 @@ class TenderDocumentAiAnalyzer:
             page, page_valid = _page(item.get("page"))
             if not page_valid:
                 issues.append(f"{category}.page")
-            resolution = (
-                resolve_citation(
-                    document_id=document_id,
-                    quote=quote,
-                    section=section,
-                    page=page,
-                    confidence=confidence,
-                    documents=documents,
-                    context_fingerprint=context_fingerprint,
+            try:
+                resolution = (
+                    resolve_citation(
+                        document_id=document_id,
+                        quote=quote,
+                        section=section,
+                        page=page,
+                        confidence=confidence,
+                        documents=documents,
+                        context_fingerprint=context_fingerprint,
+                    )
+                    if confidence is not None and page_valid
+                    else None
                 )
-                if confidence is not None and page_valid
-                else None
-            )
+            except Exception:
+                issues.append("resolver_exception")
+                resolution = None
             evidence = resolution.evidence if resolution is not None else None
             if evidence is None:
                 issues.append(f"{category}.evidence")
@@ -404,6 +485,32 @@ def _add_warning(
         else analysis.status
     )
     return replace(analysis, warnings=warnings, status=status)
+
+
+def _without_verified_findings(analysis: AiDocumentAnalysis) -> AiDocumentAnalysis:
+    def downgrade(items: tuple[AiFinding, ...]) -> tuple[AiFinding, ...]:
+        return tuple(
+            replace(item, evidence=None, status=AiFindingStatus.UNVERIFIED)
+            if item.status is AiFindingStatus.VERIFIED
+            else item
+            for item in items
+        )
+
+    requirements = replace(
+        analysis.requirements,
+        **{
+            name: downgrade(getattr(analysis.requirements, name))
+            for name in TenderRequirements.__dataclass_fields__
+        },
+    )
+    return replace(
+        analysis,
+        requirements=requirements,
+        risks=downgrade(analysis.risks),
+        suspicious_conditions=downgrade(analysis.suspicious_conditions),
+        contradictions=downgrade(analysis.contradictions),
+        provenance=None,
+    )
 
 
 __all__ = [
