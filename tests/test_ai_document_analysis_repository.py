@@ -64,7 +64,7 @@ def test_rm115_versions_are_current_without_changing_persisted_schema() -> None:
     assert AI_PROMPT_VERSION == "2"
     assert AI_ANALYZER_VERSION == "3"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "1"
-    assert AI_ANALYSIS_SCHEMA_VERSION == 2
+    assert AI_ANALYSIS_SCHEMA_VERSION == 3
 
 
 def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:

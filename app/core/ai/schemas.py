@@ -5,13 +5,25 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
+import hashlib
+import json
 import math
 import re
 from typing import Any, Mapping, cast
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 2
+AI_ANALYSIS_SCHEMA_VERSION = 3
 _MAX_TEXT_LENGTH = 12_000
+_MAX_DOCUMENT_ID_LENGTH = 500
+_MAX_DISPLAY_NAME_LENGTH = 500
+_MAX_DOCUMENT_TYPE_LENGTH = 80
+_MAX_STATUS_LENGTH = 80
+_MAX_VERSION_LENGTH = 80
+_MAX_ANALYSIS_ID_LENGTH = 200
+_MAX_PROVIDER_ID_LENGTH = 80
+_MAX_PROVIDER_MODEL_LENGTH = 200
+_MAX_PROVIDER_RESPONSE_ID_LENGTH = 200
+_MAX_SOURCES = 1_000
 _CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
 _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
@@ -34,6 +46,155 @@ class AiFindingStatus(StrEnum):
 
 class AiEvidenceVerificationMethod(StrEnum):
     EXACT_QUOTE = "exact_quote"
+
+
+@dataclass(frozen=True, slots=True)
+class AiSourceSnapshot:
+    document_id: str
+    display_name: str
+    document_type: str
+    checksum_sha256: str
+    verification_status: str
+    received_at: str
+    truncated: bool
+    included_character_count: int
+    original_character_count: int
+
+    def __post_init__(self) -> None:
+        document_id = _bounded_text(self.document_id, _MAX_DOCUMENT_ID_LENGTH)
+        if not document_id:
+            raise ValueError("document_id must be non-empty")
+        checksum = _bounded_text(self.checksum_sha256, 64)
+        if _SHA256_PATTERN.fullmatch(checksum) is None:
+            raise ValueError("checksum_sha256 must be a SHA-256 value")
+        if (
+            isinstance(self.included_character_count, bool)
+            or not isinstance(self.included_character_count, int)
+            or self.included_character_count < 0
+            or isinstance(self.original_character_count, bool)
+            or not isinstance(self.original_character_count, int)
+            or self.original_character_count < self.included_character_count
+        ):
+            raise ValueError("source character counts must be non-negative and bounded")
+        if not isinstance(self.truncated, bool):
+            raise ValueError("truncated must be a boolean")
+        object.__setattr__(self, "document_id", document_id)
+        object.__setattr__(
+            self,
+            "display_name",
+            _safe_display_name(self.display_name),
+        )
+        object.__setattr__(
+            self,
+            "document_type",
+            _bounded_text(self.document_type, _MAX_DOCUMENT_TYPE_LENGTH, "unknown")
+            .lstrip(".")
+            .lower()
+            or "unknown",
+        )
+        object.__setattr__(self, "checksum_sha256", checksum.lower())
+        object.__setattr__(
+            self,
+            "verification_status",
+            _bounded_text(self.verification_status, _MAX_STATUS_LENGTH, "unknown"),
+        )
+        object.__setattr__(self, "received_at", _known_timezone_aware(self.received_at))
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "document_id": self.document_id,
+            "display_name": self.display_name,
+            "document_type": self.document_type,
+            "checksum_sha256": self.checksum_sha256,
+            "verification_status": self.verification_status,
+            "received_at": self.received_at,
+            "truncated": self.truncated,
+            "included_character_count": self.included_character_count,
+            "original_character_count": self.original_character_count,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiAnalysisProvenance:
+    analysis_id: str
+    context_fingerprint: str
+    created_at: str
+    prompt_version: str
+    output_schema_version: str
+    persisted_schema_version: int
+    analyzer_version: str
+    context_version: str
+    citation_resolver_version: str
+    provider_id: str
+    provider_model: str
+    provider_response_id: str
+    sources: tuple[AiSourceSnapshot, ...]
+
+    def __post_init__(self) -> None:
+        analysis_id = _safe_metadata_text(self.analysis_id, _MAX_ANALYSIS_ID_LENGTH, "unknown")
+        fingerprint = _bounded_text(self.context_fingerprint, 64)
+        if _SHA256_PATTERN.fullmatch(fingerprint) is None:
+            raise ValueError("context_fingerprint must be a SHA-256 value")
+        if (
+            isinstance(self.persisted_schema_version, bool)
+            or not isinstance(self.persisted_schema_version, int)
+            or self.persisted_schema_version < 1
+        ):
+            raise ValueError("persisted_schema_version must be a positive integer")
+        if not isinstance(self.sources, tuple) or len(self.sources) > _MAX_SOURCES:
+            raise ValueError("sources must be a bounded tuple")
+        if not all(isinstance(item, AiSourceSnapshot) for item in self.sources):
+            raise ValueError("sources must contain source snapshots")
+        object.__setattr__(self, "analysis_id", analysis_id)
+        object.__setattr__(self, "context_fingerprint", fingerprint.lower())
+        object.__setattr__(self, "created_at", _required_timezone_aware(self.created_at))
+        for name in (
+            "prompt_version",
+            "output_schema_version",
+            "analyzer_version",
+            "context_version",
+            "citation_resolver_version",
+        ):
+            rendered = _bounded_text(getattr(self, name), _MAX_VERSION_LENGTH)
+            if not rendered:
+                raise ValueError(f"{name} must be non-empty")
+            object.__setattr__(self, name, rendered)
+        object.__setattr__(
+            self,
+            "provider_id",
+            _safe_metadata_text(self.provider_id, _MAX_PROVIDER_ID_LENGTH, "unknown"),
+        )
+        object.__setattr__(
+            self,
+            "provider_model",
+            _safe_metadata_text(self.provider_model, _MAX_PROVIDER_MODEL_LENGTH, "unknown"),
+        )
+        object.__setattr__(
+            self,
+            "provider_response_id",
+            _safe_metadata_text(
+                self.provider_response_id,
+                _MAX_PROVIDER_RESPONSE_ID_LENGTH,
+                "",
+            ),
+        )
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "analysis_id": self.analysis_id,
+            "context_fingerprint": self.context_fingerprint,
+            "created_at": self.created_at,
+            "prompt_version": self.prompt_version,
+            "output_schema_version": self.output_schema_version,
+            "persisted_schema_version": self.persisted_schema_version,
+            "analyzer_version": self.analyzer_version,
+            "context_version": self.context_version,
+            "citation_resolver_version": self.citation_resolver_version,
+            "provider_id": self.provider_id,
+            "provider_model": self.provider_model,
+            "provider_response_id": self.provider_response_id,
+            "sources": [item.to_payload() for item in self.sources],
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +323,7 @@ class AiDocumentAnalysis:
     context_document_count: int = 0
     context_character_count: int = 0
     context_truncated: bool = False
+    provenance: AiAnalysisProvenance | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -197,7 +359,7 @@ class AiDocumentAnalysis:
                 ),
             }
 
-        return {
+        payload: dict[str, object] = {
             "payload_version": self.payload_version,
             "registry_key": self.registry_key,
             "summary": self.summary,
@@ -219,6 +381,19 @@ class AiDocumentAnalysis:
                 "truncated": self.context_truncated,
             },
         }
+        if self.provenance is not None:
+            payload["provenance"] = self.provenance.to_payload()
+            payload["source_registry"] = [item.to_payload() for item in self.provenance.sources]
+        return payload
+
+    def is_current_verified(self, finding: AiFinding) -> bool:
+        return (
+            self.payload_version == AI_ANALYSIS_SCHEMA_VERSION
+            and finding.status is AiFindingStatus.VERIFIED
+            and finding.evidence is not None
+            and self.provenance is not None
+            and _evidence_matches_provenance(finding.evidence, self.provenance)
+        )
 
     @classmethod
     def from_payload(cls, payload: object) -> "AiDocumentAnalysis":
@@ -237,6 +412,15 @@ class AiDocumentAnalysis:
                 warnings=("Сохранённый AI-анализ имеет несовместимую версию.",),
             )
 
+        provenance = _payload_provenance(payload.get("provenance")) if version == 3 else None
+        source_registry = payload.get("source_registry")
+        if (
+            provenance is None
+            or not isinstance(source_registry, list)
+            or source_registry != [item.to_payload() for item in provenance.sources]
+        ):
+            provenance = None
+
         def findings(value: object) -> tuple[AiFinding, ...]:
             result: list[AiFinding] = []
             if not isinstance(value, (list, tuple)):
@@ -252,7 +436,13 @@ class AiDocumentAnalysis:
                 requested_verified = item.get("status") == AiFindingStatus.VERIFIED.value
                 status = (
                     AiFindingStatus.VERIFIED
-                    if requested_verified and evidence is not None
+                    if (
+                        version == AI_ANALYSIS_SCHEMA_VERSION
+                        and requested_verified
+                        and evidence is not None
+                        and provenance is not None
+                        and _evidence_matches_provenance(evidence, provenance)
+                    )
                     else AiFindingStatus.UNVERIFIED
                 )
                 result.append(
@@ -307,7 +497,96 @@ class AiDocumentAnalysis:
             context_document_count=max(0, _safe_int(context.get("document_count"))),
             context_character_count=max(0, _safe_int(context.get("character_count"))),
             context_truncated=bool(context.get("truncated", False)),
+            provenance=provenance,
         )
+
+
+def _payload_provenance(value: object) -> AiAnalysisProvenance | None:
+    if not isinstance(value, Mapping):
+        return None
+    raw_sources = value.get("sources")
+    if not isinstance(raw_sources, list) or len(raw_sources) > _MAX_SOURCES:
+        return None
+    sources: list[AiSourceSnapshot] = []
+    for raw_source in raw_sources:
+        source = _payload_source_snapshot(raw_source)
+        if source is None:
+            return None
+        sources.append(source)
+    try:
+        return AiAnalysisProvenance(
+            analysis_id=cast(str, value.get("analysis_id")),
+            context_fingerprint=cast(str, value.get("context_fingerprint")),
+            created_at=cast(str, value.get("created_at")),
+            prompt_version=cast(str, value.get("prompt_version")),
+            output_schema_version=cast(str, value.get("output_schema_version")),
+            persisted_schema_version=cast(int, value.get("persisted_schema_version")),
+            analyzer_version=cast(str, value.get("analyzer_version")),
+            context_version=cast(str, value.get("context_version")),
+            citation_resolver_version=cast(str, value.get("citation_resolver_version")),
+            provider_id=cast(str, value.get("provider_id")),
+            provider_model=cast(str, value.get("provider_model")),
+            provider_response_id=cast(str, value.get("provider_response_id")),
+            sources=tuple(sources),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _payload_source_snapshot(value: object) -> AiSourceSnapshot | None:
+    if not isinstance(value, Mapping):
+        return None
+    try:
+        return AiSourceSnapshot(
+            document_id=cast(str, value.get("document_id")),
+            display_name=cast(str, value.get("display_name")),
+            document_type=cast(str, value.get("document_type")),
+            checksum_sha256=cast(str, value.get("checksum_sha256")),
+            verification_status=cast(str, value.get("verification_status")),
+            received_at=cast(str, value.get("received_at")),
+            truncated=cast(bool, value.get("truncated")),
+            included_character_count=cast(int, value.get("included_character_count")),
+            original_character_count=cast(int, value.get("original_character_count")),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _evidence_matches_provenance(
+    evidence: AiEvidence,
+    provenance: AiAnalysisProvenance,
+) -> bool:
+    if (
+        provenance.persisted_schema_version != AI_ANALYSIS_SCHEMA_VERSION
+        or evidence.context_fingerprint != provenance.context_fingerprint
+    ):
+        return False
+    matching_sources = tuple(
+        item for item in provenance.sources if item.document_id == evidence.document_id
+    )
+    if len(matching_sources) != 1:
+        return False
+    source = matching_sources[0]
+    if source.checksum_sha256 != evidence.checksum_sha256:
+        return False
+    source_digest = hashlib.sha256(evidence.document_id.encode("utf-8")).hexdigest()[:32]
+    if evidence.source_ref != f"doc_{source_digest}":
+        return False
+    canonical = json.dumps(
+        {
+            "character_end": evidence.character_end,
+            "character_start": evidence.character_start,
+            "checksum_sha256": evidence.checksum_sha256,
+            "context_fingerprint": evidence.context_fingerprint,
+            "document_id": evidence.document_id,
+            "quote": evidence.quote,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    citation_digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:32]
+    return evidence.citation_id == f"cit_{citation_digest}"
 
 
 def _payload_evidence(value: object) -> AiEvidence | None:
@@ -400,6 +679,52 @@ def _text(value: object, limit: int = _MAX_TEXT_LENGTH) -> str:
         return ""
 
 
+def _bounded_text(value: object, limit: int, default: str = "") -> str:
+    if not isinstance(value, str):
+        return default
+    rendered = value.strip()
+    if not rendered or any(ord(char) < 32 or ord(char) == 127 for char in rendered):
+        return default
+    return rendered[:limit]
+
+
+def _safe_metadata_text(value: object, limit: int, default: str) -> str:
+    rendered = _bounded_text(value, limit, default)
+    lowered = rendered.casefold()
+    if (
+        re.search(r"(^|[\\/])[a-z]:[\\/]", rendered, re.IGNORECASE)
+        or rendered.startswith(("\\\\", "//"))
+        or lowered.startswith(("file:", "http:", "https:"))
+    ):
+        return default
+    return rendered
+
+
+def _safe_display_name(value: object) -> str:
+    rendered = _bounded_text(value, _MAX_TEXT_LENGTH, "unknown")
+    basename = re.split(r"[\\/]", rendered)[-1]
+    return _bounded_text(basename, _MAX_DISPLAY_NAME_LENGTH, "unknown")
+
+
+def _known_timezone_aware(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        return "unknown"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return "unknown"
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.isoformat(timespec="seconds")
+
+
+def _required_timezone_aware(value: object) -> str:
+    rendered = _known_timezone_aware(value)
+    if rendered == "unknown":
+        raise ValueError("created_at must be a timezone-aware ISO timestamp")
+    return rendered
+
+
 def _timezone_aware(value: str) -> str:
     try:
         parsed = datetime.fromisoformat(value) if value else datetime.now(timezone.utc)
@@ -413,11 +738,13 @@ def _timezone_aware(value: str) -> str:
 __all__ = [
     "AI_ANALYSIS_SCHEMA_VERSION",
     "AiAnalysisStatus",
+    "AiAnalysisProvenance",
     "AiDocument",
     "AiDocumentAnalysis",
     "AiEvidence",
     "AiEvidenceVerificationMethod",
     "AiFinding",
     "AiFindingStatus",
+    "AiSourceSnapshot",
     "TenderRequirements",
 ]

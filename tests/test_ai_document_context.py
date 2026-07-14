@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -39,6 +40,25 @@ def test_context_uses_only_available_extracted_text() -> None:
     assert documents[0].document_id == "doc-1"
     assert documents[0].document_type == "pdf"
     assert documents[0].text == "Technical specification text"
+
+
+def test_context_sanitizes_private_paths_and_prefers_record_document_format() -> None:
+    service = TextService()
+    service.available.source_path = Path(r"C:\Users\SecretUser\Documents\tender.pdf")
+    service.available.document_format = "PDF"
+
+    document = TenderDocumentContextBuilder(service).build("procurement:test")[0]
+
+    assert document.name == "tender.pdf"
+    assert document.source == "local_document_store"
+    assert document.document_type == "pdf"
+    assert all(
+        r"C:\Users\SecretUser" not in str(getattr(document, item.name)) for item in fields(document)
+    )
+
+    service.available.document_format = r"C:\Users\SecretUser\private"
+    sanitized = TenderDocumentContextBuilder(service).build("procurement:test")[0]
+    assert sanitized.document_type == "pdf"
 
 
 def _record(key: str, checksum: str, *, available: bool = True):

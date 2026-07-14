@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from app.core.ai.schemas import AiDocument
 
@@ -107,12 +108,16 @@ class TenderDocumentContextBuilder:
             document_key = str(getattr(record, "document_key", "") or "")
             name = source_path.name if source_path else document_key
             status = getattr(getattr(record, "status", None), "value", "")
+            document_type = _safe_document_type(
+                getattr(record, "document_format", ""),
+                name,
+            )
             documents.append(
                 AiDocument(
                     document_id=document_key,
                     name=name,
-                    source=str(source_path or "local_document_store"),
-                    document_type=Path(name).suffix.lower().lstrip(".") or "unknown",
+                    source="local_document_store",
+                    document_type=document_type,
                     received_at=str(getattr(record, "extracted_at", "") or ""),
                     verification_status=str(status),
                     text=rendered,
@@ -142,6 +147,14 @@ def _record_sort_key(record: object) -> tuple[str, str, str]:
         str(path or "").casefold(),
         str(getattr(record, "checksum_sha256", "") or ""),
     )
+
+
+def _safe_document_type(value: object, display_name: str) -> str:
+    rendered = str(value or "").strip().lstrip(".").lower()
+    if re.fullmatch(r"[a-z0-9][a-z0-9_.+-]{0,79}", rendered):
+        return rendered
+    suffix = Path(display_name).suffix.lower().lstrip(".")
+    return suffix if re.fullmatch(r"[a-z0-9][a-z0-9_.+-]{0,79}", suffix) else "unknown"
 
 
 __all__ = [

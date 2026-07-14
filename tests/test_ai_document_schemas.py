@@ -4,28 +4,70 @@ import pytest
 
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
+    AiAnalysisProvenance,
+    AiDocument,
     AiDocumentAnalysis,
     AiEvidence,
-    AiEvidenceVerificationMethod,
     AiFinding,
     AiFindingStatus,
+    AiSourceSnapshot,
 )
 
 
 def _canonical_evidence() -> AiEvidence:
-    return AiEvidence(
-        citation_id="cit_" + "a" * 32,
+    from app.core.ai.citations import resolve_citation
+
+    document = AiDocument(
+        document_id="doc",
+        name="tender.pdf",
+        source="local_document_store",
+        document_type="pdf",
+        received_at="2026-07-14T10:00:00+00:00",
+        verification_status="extracted",
+        text="0123456789quote",
+        checksum_sha256="b" * 64,
+        original_character_count=15,
+    )
+    evidence = resolve_citation(
         document_id="doc",
         quote="quote",
-        character_start=10,
-        character_end=15,
         section="Terms",
         page=2,
         confidence=0.8,
-        verification_method=AiEvidenceVerificationMethod.EXACT_QUOTE,
-        checksum_sha256="b" * 64,
-        source_ref="doc_" + "c" * 32,
+        documents=(document,),
         context_fingerprint="d" * 64,
+    )
+    assert evidence.evidence is not None
+    return evidence.evidence
+
+
+def _canonical_provenance() -> AiAnalysisProvenance:
+    return AiAnalysisProvenance(
+        analysis_id="analysis_123",
+        context_fingerprint="d" * 64,
+        created_at="2026-07-14T10:00:00+00:00",
+        prompt_version="3",
+        output_schema_version="1",
+        persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
+        analyzer_version="4",
+        context_version="2",
+        citation_resolver_version="1",
+        provider_id="openai",
+        provider_model="gpt-5",
+        provider_response_id="response-123",
+        sources=(
+            AiSourceSnapshot(
+                document_id="doc",
+                display_name="tender.pdf",
+                document_type="pdf",
+                checksum_sha256="b" * 64,
+                verification_status="extracted",
+                received_at="2026-07-14T10:00:00+00:00",
+                truncated=False,
+                included_character_count=5,
+                original_character_count=5,
+            ),
+        ),
     )
 
 
@@ -53,6 +95,7 @@ def test_canonical_evidence_round_trips_without_partial_verified_shape() -> None
         "Safe",
         risks=(AiFinding("risk", "Claim", evidence, AiFindingStatus.VERIFIED),),
         status="complete",
+        provenance=_canonical_provenance(),
     )
 
     payload = analysis.to_payload()
