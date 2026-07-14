@@ -65,6 +65,7 @@ def test_disabled_returns_existing_provider_without_reading_secret(tmp_path) -> 
     resolution = service.resolve_provider()
 
     assert isinstance(resolution.provider, DisabledProvider)
+    assert resolution.provider.metadata.provider_id == "disabled"
     assert resolution.effective_provider_id is AiProviderId.DISABLED
     assert resolution.available
     assert secret.loads == []
@@ -116,6 +117,7 @@ def test_openai_reuses_compatible_provider_and_official_url(tmp_path) -> None:
     assert resolution.provider.base_url == OPENAI_DEFAULT_BASE_URL
     assert resolution.provider.model == "gpt-test"
     assert resolution.provider.supports_text_format is True
+    assert resolution.provider.metadata.provider_id == "openai"
     assert resolution.effective_provider_id is AiProviderId.OPENAI
 
 
@@ -137,6 +139,27 @@ def test_openai_compatible_reuses_existing_provider(tmp_path) -> None:
     assert resolution.provider.base_url == "https://ai.example.test/v1"
     assert resolution.provider.model == "custom-model"
     assert resolution.provider.supports_text_format is True
+    assert resolution.provider.metadata.provider_id == "openai_compatible"
+
+
+def test_ollama_provider_exposes_stable_metadata_without_reading_secret(tmp_path) -> None:
+    secret = SecretStore(fail_load=True)
+    service = _service(tmp_path, secret=secret)
+    service.config.update(  # type: ignore[attr-defined]
+        {
+            "ai": {
+                "provider": "ollama",
+                "model": "llama3.2",
+                "base_url": "http://localhost:11434/v1",
+            }
+        }
+    )
+
+    resolution = service.resolve_provider()
+
+    assert isinstance(resolution.provider, OpenAICompatibleProvider)
+    assert resolution.provider.metadata.provider_id == "ollama"
+    assert secret.loads == []
 
 
 @pytest.mark.parametrize(

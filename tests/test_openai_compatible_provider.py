@@ -9,6 +9,7 @@ import urllib.error
 import pytest
 
 from app.ai.provider import (
+    AiProviderMetadata,
     MAX_RAW_RESPONSE_ID_LENGTH,
     OpenAICompatibleProvider,
 )
@@ -57,6 +58,24 @@ def _success(**extra: object) -> dict[str, object]:
         "output": [{"content": [{"type": "output_text", "text": "result"}]}],
         **extra,
     }
+
+
+def test_provider_exposes_only_public_safe_metadata() -> None:
+    provider = OpenAICompatibleProvider(
+        "secret", "https://api.openai.com/v1", "gpt-5", provider_id="openai"
+    )
+
+    assert provider.metadata == AiProviderMetadata("openai", "gpt-5")
+    rendered = repr(provider.metadata)
+    assert "secret" not in rendered
+    assert "api.openai.com" not in rendered
+
+
+def test_provider_metadata_bounds_untrusted_values() -> None:
+    metadata = AiProviderMetadata("bad\nprovider", "m" * 500)
+
+    assert metadata.provider_id == "unknown"
+    assert len(metadata.model) == 200
 
 
 def _error_code(result: dict[str, object]) -> str:

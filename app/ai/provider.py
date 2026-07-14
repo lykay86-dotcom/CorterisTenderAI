@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from http.client import HTTPMessage
 import json
 import socket
@@ -16,7 +17,28 @@ MAX_RAW_RESPONSE_ID_LENGTH = 200
 MAX_INPUT_CHARACTERS = 500_000
 
 
+def _safe_metadata_value(value: str, limit: int) -> str:
+    rendered = value.strip()
+    if not rendered or any(ord(char) < 32 or ord(char) == 127 for char in rendered):
+        return "unknown"
+    return rendered[:limit]
+
+
+@dataclass(frozen=True, slots=True)
+class AiProviderMetadata:
+    provider_id: str = "unknown"
+    model: str = "unknown"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "provider_id", _safe_metadata_value(self.provider_id, 80))
+        object.__setattr__(self, "model", _safe_metadata_value(self.model, 200))
+
+
 class AIProvider(ABC):
+    @property
+    def metadata(self) -> AiProviderMetadata:
+        return AiProviderMetadata()
+
     @abstractmethod
     def analyze(
         self,
@@ -28,6 +50,10 @@ class AIProvider(ABC):
 
 
 class DisabledProvider(AIProvider):
+    @property
+    def metadata(self) -> AiProviderMetadata:
+        return AiProviderMetadata(provider_id="disabled")
+
     def analyze(
         self,
         prompt: str,
@@ -75,6 +101,7 @@ class OpenAICompatibleProvider(AIProvider):
         store_response: bool | None = False,
         supports_text_format: bool = True,
         opener: Callable[..., object] | None = None,
+        provider_id: str = "openai_compatible",
     ) -> None:
         if timeout <= 0:
             raise ValueError("timeout must be positive")
@@ -88,6 +115,11 @@ class OpenAICompatibleProvider(AIProvider):
         self.store_response = store_response
         self.supports_text_format = supports_text_format
         self._opener = opener
+        self._metadata = AiProviderMetadata(provider_id, model)
+
+    @property
+    def metadata(self) -> AiProviderMetadata:
+        return self._metadata
 
     def __repr__(self) -> str:
         return "OpenAICompatibleProvider(<configuration redacted>)"
@@ -302,6 +334,7 @@ def _safe_response_id(value: object) -> str:
 
 __all__ = [
     "AIProvider",
+    "AiProviderMetadata",
     "DEFAULT_MAX_RESPONSE_BYTES",
     "DisabledProvider",
     "MAX_INPUT_CHARACTERS",
