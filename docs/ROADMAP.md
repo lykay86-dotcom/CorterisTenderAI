@@ -9,8 +9,9 @@
 - RM-112: `DONE`.
 - RM-113: `DONE`.
 - RM-114: `DONE`.
-- RM-115: `IN PROGRESS`.
-- RM-116–RM-200: `PLANNED`.
+- RM-115: `DONE`.
+- RM-116: `IN PROGRESS`.
+- RM-117–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -136,8 +137,8 @@
 - [x] RM-112 — выбор AI-провайдера.
 - [x] RM-113 — локальный режим.
 - [x] RM-114 — OpenAI-совместимый API.
-- [ ] RM-115 — строгая JSON-схема (активный).
-- [ ] RM-116 — ссылки, цитаты и provenance.
+- [x] RM-115 — строгая JSON-схема.
+- [ ] RM-116 — ссылки, цитаты и provenance (активный).
 - [ ] RM-117 — анализ ТЗ.
 - [ ] RM-118 — анализ проекта договора в тендере.
 - [ ] RM-119 — анализ требований к заявке.
@@ -256,6 +257,29 @@ PR #30 слит в `main` 14 июля 2026 года коммитом `e4caca0`. 
 run `29315630189` успешно прошёл на Python 3.12 (`863 passed`) и Python 3.13
 (`863 passed`). RM-114 соответствует Definition of Done; следующим активным этапом
 назначен RM-115, реализация которого требует отдельного аудита.
+
+## RM-115 — implementation acceptance
+
+Статус реализации: `DONE` (PR #33, merge `f2573c4`).
+
+- введена единая Pydantic v2 provider-output схема с детерминированным JSON Schema и
+  строгим fail-closed decoder без частичного принятия структурно невалидных payload;
+- OpenAI и generic `openai_compatible` используют Responses API `text.format`, Ollama
+  сохраняет подтверждённый compatibility subset без второго запроса или downgrade;
+- существующие provider/analyzer/Orchestrator/repository и production DI переиспользованы;
+- evidence подтверждается только точным локальным совпадением цитаты с документом;
+- RM-107 остаётся единственным владельцем score/recommendation и абсолютного приоритета
+  critical stop-factor;
+- persisted schema остаётся версии 2; новая БД или миграция БД не требуются;
+- локальная приёмка: целевой набор `229 passed`, полный pytest `901 passed`, Ruff
+  check/format, mypy (13 файлов), secret scan, dependency audit и `git diff --check` успешны.
+
+PR #33 слит в `main` 14 июля 2026 года коммитом `f2573c4`. Post-merge Quality Gate
+run `29352442656` после повторного запуска успешно прошёл на Python 3.12
+(`901 passed in 74.68s`) и Python 3.13 (`901 passed in 77.29s`). Первый Python 3.12 job
+завершился нативным Windows access violation внутри pytest; повторный job того же merge SHA
+прошёл полностью. RM-115 соответствует Definition of Done; следующим активным этапом
+назначен RM-116, application-код которого требует отдельного аудита.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.
