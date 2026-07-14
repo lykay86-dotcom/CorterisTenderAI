@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,7 +19,13 @@ class RecordingProvider(AIProvider):
         self.calls = 0
         self.fail = fail
 
-    def analyze(self, prompt: str, documents: list[str]) -> dict:
+    def analyze(
+        self,
+        prompt: str,
+        documents: list[str],
+        *,
+        output_format: Mapping[str, object] | None = None,
+    ) -> dict:
         self.calls += 1
         assert prompt
         assert documents

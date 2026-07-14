@@ -273,6 +273,7 @@ class AiProviderSelectionService:
                 base_url,
                 settings.model.strip(),
                 store_response=None,
+                supports_text_format=False,
             )
             return AiProviderResolution(
                 requested_provider_id=requested_provider_id,
@@ -305,6 +306,7 @@ class AiProviderSelectionService:
             credential,
             base_url,
             settings.model.strip(),
+            supports_text_format=True,
         )
         return AiProviderResolution(
             requested_provider_id=requested_provider_id,

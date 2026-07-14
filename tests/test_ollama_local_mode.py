@@ -61,6 +61,7 @@ def test_ollama_stable_id_resolves_existing_adapter_without_keyring(tmp_path) ->
     assert isinstance(resolution.provider, OpenAICompatibleProvider)
     assert resolution.provider.base_url == OLLAMA_DEFAULT_BASE_URL
     assert resolution.provider.model == "qwen3:8b"
+    assert resolution.provider.supports_text_format is False
     assert secret.loads == []
     assert not service.credential_available(AiProviderId.OLLAMA)
     assert secret.loads == []
@@ -181,7 +182,11 @@ def test_transport_targets_responses_only_when_analyze_is_called(tmp_path, monke
     resolution = service.save_selection(_settings())
 
     assert captured == {}
-    result = resolution.provider.analyze("current prompt", ["current context"])
+    result = resolution.provider.analyze(
+        "current prompt",
+        ["current context"],
+        output_format={"type": "json_schema", "schema": {"private": True}},
+    )
 
     assert captured["url"] == "http://localhost:11434/v1/responses"
     assert captured["body"] == {
@@ -192,5 +197,7 @@ def test_transport_targets_responses_only_when_analyze_is_called(tmp_path, monke
         ],
         "stream": False,
     }
+    assert "text" not in captured["body"]
+    assert "store" not in captured["body"]
     assert result == {"status": "ok", "text": "local result", "raw_id": "local-response"}
     assert OLLAMA_AUTH_PLACEHOLDER not in repr(result)

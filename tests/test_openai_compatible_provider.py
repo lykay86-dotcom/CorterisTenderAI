@@ -65,6 +65,20 @@ def _error_code(result: dict[str, object]) -> str:
     return str(result["error_code"])
 
 
+def _output_format() -> dict[str, object]:
+    return {
+        "type": "json_schema",
+        "name": "corteris_tender_analysis_v1",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+            "additionalProperties": False,
+        },
+    }
+
+
 def test_exact_cloud_request_contract_and_no_network_before_analyze() -> None:
     opener = RecordingOpener(_success())
     provider = _provider(opener)
@@ -103,17 +117,63 @@ def test_exact_cloud_request_contract_and_no_network_before_analyze() -> None:
     }
 
 
+def test_cloud_request_forwards_exact_text_format_once_without_mutation() -> None:
+    opener = RecordingOpener(_success())
+    provider = _provider(opener)
+    output_format = _output_format()
+    original = json.loads(json.dumps(output_format))
+
+    result = provider.analyze("system prompt", ["document"], output_format=output_format)
+
+    assert result["status"] == "ok"
+    assert len(opener.calls) == 1
+    request, _timeout = opener.calls[0]
+    body = json.loads(request.data.decode("utf-8"))  # type: ignore[attr-defined]
+    assert body["text"] == {"format": original}
+    assert "response_format" not in body
+    assert output_format == original
+
+
 def test_ollama_profile_omits_unconfirmed_optional_fields() -> None:
     opener = RecordingOpener(_success())
-    provider = _provider(opener, store_response=None)
+    provider = _provider(opener, store_response=None, supports_text_format=False)
 
-    provider.analyze("prompt", ["context"])
+    provider.analyze("prompt", ["context"], output_format=_output_format())
 
     request, _timeout = opener.calls[0]
     body = json.loads(request.data.decode("utf-8"))  # type: ignore[attr-defined]
     assert body["stream"] is False
     assert "store" not in body
+    assert "text" not in body
+    assert "response_format" not in body
     assert set(body) == {"model", "input", "stream"}
+
+
+def test_provider_failure_never_exposes_output_format() -> None:
+    secret_schema_marker = "private-schema-marker"
+
+    def fail(*_args: object, **_kwargs: object) -> object:
+        raise urllib.error.HTTPError(
+            "https://private.example/path?token=private",
+            400,
+            "private provider message",
+            Message(),
+            io.BytesIO(b"private response"),
+        )
+
+    output_format = _output_format()
+    output_format["schema"] = {"description": secret_schema_marker}
+
+    result = _provider(fail).analyze(
+        "private prompt",
+        ["private document"],
+        output_format=output_format,
+    )
+
+    assert _error_code(result) == "invalid_request"
+    assert secret_schema_marker not in repr(result)
+    assert "private prompt" not in repr(result)
+    assert "private document" not in repr(result)
 
 
 def test_nested_output_text_parts_keep_stable_order_and_ignore_other_types() -> None:
