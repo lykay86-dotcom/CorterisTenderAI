@@ -3,28 +3,36 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timezone
+import hashlib
 import math
+import re
 from typing import Mapping
+from uuid import uuid4
 
-from app.ai.provider import AIProvider
-from app.core.ai.document_context import TenderDocumentContextBuilder
+from app.ai.provider import AIProvider, MAX_RAW_RESPONSE_ID_LENGTH
+from app.core.ai.citations import CITATION_RESOLVER_VERSION, resolve_citation
+from app.core.ai.document_context import AI_CONTEXT_VERSION, TenderDocumentContextBuilder
 from app.core.ai.output_schema import (
+    AI_PROVIDER_OUTPUT_SCHEMA_VERSION,
     build_responses_text_format,
     decode_and_validate_provider_output,
 )
-from app.core.ai.prompts import SYSTEM_PROMPT
+from app.core.ai.prompts import AI_PROMPT_VERSION, SYSTEM_PROMPT
 from app.core.ai.repository import (
     AI_ANALYZER_VERSION,
     AiDocumentAnalysisRepository,
     context_fingerprint,
 )
 from app.core.ai.schemas import (
+    AI_ANALYSIS_SCHEMA_VERSION,
+    AiAnalysisProvenance,
     AiAnalysisStatus,
     AiDocument,
     AiDocumentAnalysis,
-    AiEvidence,
     AiFinding,
     AiFindingStatus,
+    AiSourceSnapshot,
     TenderRequirements,
 )
 
@@ -33,6 +41,25 @@ MAX_SUMMARY_LENGTH = 12_000
 MAX_STATEMENT_LENGTH = 4_000
 MAX_QUOTE_LENGTH = 8_000
 MAX_SECTION_LENGTH = 1_000
+_MAX_PROVIDER_ID_LENGTH = 80
+_MAX_PROVIDER_MODEL_LENGTH = 200
+_RESOLVER_FAILURE_WARNING = "Citation evidence could not be resolved safely."
+_PROVENANCE_FAILURE_WARNING = "Provenance metadata could not be recorded safely."
+_PUBLIC_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_MODEL_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(?:[/:][A-Za-z0-9][A-Za-z0-9._-]*)*")
+_CREDENTIAL_WORDS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "bearer",
+        "credential",
+        "password",
+        "secret",
+        "token",
+    }
+)
+_CREDENTIAL_PREFIXES = tuple(sorted(_CREDENTIAL_WORDS))
 
 
 class TenderDocumentAiAnalyzer:
@@ -43,6 +70,8 @@ class TenderDocumentAiAnalyzer:
         self,
         registry_key: str,
         documents: tuple[AiDocument, ...],
+        *,
+        context_fingerprint: str,
     ) -> AiDocumentAnalysis:
         if not documents:
             return AiDocumentAnalysis(
@@ -61,25 +90,103 @@ class TenderDocumentAiAnalyzer:
             return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
         if not isinstance(response, Mapping):
             return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
-        provider_status = response.get("status")
-        if provider_status == "disabled":
-            return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_DISABLED)
-        if provider_status != "ok":
+        try:
+            provider_status = response.get("status")
+            if provider_status == "disabled":
+                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_DISABLED)
+            if provider_status != "ok":
+                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
+        except Exception:
             return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
 
-        payload = decode_and_validate_provider_output(response.get("text"))
+        try:
+            payload = decode_and_validate_provider_output(response.get("text"))
+        except Exception:
+            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
         if payload is None:
             return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
-        return self._normalize(registry_key, payload.model_dump(), documents)
+        result = self._normalize(
+            registry_key,
+            payload.model_dump(),
+            documents,
+            context_fingerprint,
+        )
+        try:
+            raw_response_id = response.get("raw_id")
+            provenance = self._build_provenance(
+                documents,
+                context_fingerprint=context_fingerprint,
+                provider_response_id=_provider_response_reference(raw_response_id),
+            )
+        except Exception:
+            return _add_warning(
+                _without_verified_findings(result),
+                _PROVENANCE_FAILURE_WARNING,
+            )
+        return replace(result, provenance=provenance)
+
+    def _build_provenance(
+        self,
+        documents: tuple[AiDocument, ...],
+        *,
+        context_fingerprint: str,
+        provider_response_id: str,
+    ) -> AiAnalysisProvenance:
+        metadata = self.provider.metadata
+        sources = tuple(
+            sorted(
+                (
+                    AiSourceSnapshot(
+                        document_id=document.document_id,
+                        display_name=document.name,
+                        document_type=document.document_type,
+                        checksum_sha256=document.checksum_sha256,
+                        verification_status=document.verification_status,
+                        received_at=document.received_at,
+                        truncated=document.truncated,
+                        included_character_count=len(document.text),
+                        original_character_count=max(
+                            len(document.text),
+                            document.original_character_count,
+                        ),
+                    )
+                    for document in documents
+                ),
+                key=_source_sort_key,
+            )
+        )
+        return AiAnalysisProvenance(
+            analysis_id=uuid4().hex,
+            context_fingerprint=context_fingerprint,
+            created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            prompt_version=AI_PROMPT_VERSION,
+            output_schema_version=AI_PROVIDER_OUTPUT_SCHEMA_VERSION,
+            persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
+            analyzer_version=AI_ANALYZER_VERSION,
+            context_version=AI_CONTEXT_VERSION,
+            citation_resolver_version=CITATION_RESOLVER_VERSION,
+            provider_id=_provenance_identifier(
+                metadata.provider_id,
+                limit=_MAX_PROVIDER_ID_LENGTH,
+                pattern=_PUBLIC_ID_PATTERN,
+            ),
+            provider_model=_provenance_identifier(
+                metadata.model,
+                limit=_MAX_PROVIDER_MODEL_LENGTH,
+                pattern=_MODEL_ID_PATTERN,
+            ),
+            provider_response_id=provider_response_id,
+            sources=sources,
+        )
 
     def _normalize(
         self,
         registry_key: str,
         payload: Mapping[str, object],
         documents: tuple[AiDocument, ...],
+        context_fingerprint: str,
     ) -> AiDocumentAnalysis:
         issues: list[str] = []
-        known = {item.document_id: item for item in documents}
         raw_requirements = payload.get("requirements", {})
         if not isinstance(raw_requirements, Mapping):
             issues.append("requirements")
@@ -89,7 +196,8 @@ class TenderDocumentAiAnalyzer:
             **{
                 name: self._findings(
                     raw_requirements.get(name, ()),
-                    known,
+                    documents,
+                    context_fingerprint,
                     name,
                     issues,
                 )
@@ -116,23 +224,46 @@ class TenderDocumentAiAnalyzer:
             registry_key=registry_key,
             summary=summary,
             requirements=requirements,
-            risks=self._findings(payload.get("risks", ()), known, "risk", issues),
+            risks=self._findings(
+                payload.get("risks", ()),
+                documents,
+                context_fingerprint,
+                "risk",
+                issues,
+            ),
             suspicious_conditions=self._findings(
                 payload.get("suspicious_conditions", ()),
-                known,
+                documents,
+                context_fingerprint,
                 "suspicious",
                 issues,
             ),
             contradictions=self._findings(
                 payload.get("contradictions", ()),
-                known,
+                documents,
+                context_fingerprint,
                 "contradiction",
                 issues,
             ),
             missing_documents=missing_documents,
             final_ai_conclusion=final_conclusion,
             status=(AiAnalysisStatus.PARTIAL if issues else AiAnalysisStatus.COMPLETE),
-            warnings=(("Часть ответа AI отклонена защитной проверкой.",) if issues else ()),
+            warnings=(
+                tuple(
+                    dict.fromkeys(
+                        (
+                            "Часть ответа AI отклонена защитной проверкой.",
+                            *(
+                                (_RESOLVER_FAILURE_WARNING,)
+                                if "resolver_exception" in issues
+                                else ()
+                            ),
+                        )
+                    )
+                )
+                if issues
+                else ()
+            ),
         )
 
     @staticmethod
@@ -148,7 +279,8 @@ class TenderDocumentAiAnalyzer:
     @staticmethod
     def _findings(
         raw: object,
-        known: Mapping[str, AiDocument],
+        documents: tuple[AiDocument, ...],
+        context_fingerprint: str,
         category: str,
         issues: list[str],
     ) -> tuple[AiFinding, ...]:
@@ -176,9 +308,8 @@ class TenderDocumentAiAnalyzer:
                 issues,
                 f"{category}.document_id",
             )
-            quote = _bounded_text(
+            quote = _exact_quote(
                 item.get("quote"),
-                MAX_QUOTE_LENGTH,
                 issues,
                 f"{category}.quote",
             )
@@ -194,21 +325,31 @@ class TenderDocumentAiAnalyzer:
             page, page_valid = _page(item.get("page"))
             if not page_valid:
                 issues.append(f"{category}.page")
-            exact_quote = bool(document_id in known and quote and quote in known[document_id].text)
-            verified = exact_quote and confidence is not None
-            if not verified:
-                issues.append(f"{category}.evidence")
-            evidence = (
-                AiEvidence(
-                    document_id=document_id,
-                    quote=quote,
-                    section=section,
-                    page=page,
-                    confidence=confidence,
+            try:
+                resolution = (
+                    resolve_citation(
+                        document_id=document_id,
+                        quote=quote,
+                        section=section,
+                        page=page,
+                        confidence=confidence,
+                        documents=documents,
+                        context_fingerprint=context_fingerprint,
+                    )
+                    if confidence is not None and page_valid
+                    else None
                 )
-                if verified and confidence is not None
-                else None
-            )
+            except Exception:
+                issues.append("resolver_exception")
+                resolution = None
+            evidence = resolution.evidence if resolution is not None else None
+            if evidence is None:
+                issues.append(f"{category}.evidence")
+            elif (section and section != evidence.section) or (
+                page is not None and page != evidence.page
+            ):
+                issues.append(f"{category}.locator")
+            verified = evidence is not None
             result.append(
                 AiFinding(
                     category,
@@ -276,7 +417,11 @@ class TenderDocumentAiAnalysisService:
                 "last_warning",
                 "",
             )
-        result = self.analyzer.analyze(registry_key, documents)
+        result = self.analyzer.analyze(
+            registry_key,
+            documents,
+            context_fingerprint=fingerprint,
+        )
         statistics = getattr(context, "statistics", None)
         if statistics is not None:
             result = replace(
@@ -341,6 +486,17 @@ def _bounded_text(
     return rendered
 
 
+def _exact_quote(
+    value: object,
+    issues: list[str],
+    field_name: str,
+) -> str:
+    if not isinstance(value, str) or not value or len(value) > MAX_QUOTE_LENGTH:
+        issues.append(field_name)
+        return ""
+    return value
+
+
 def _confidence(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -367,6 +523,78 @@ def _add_warning(
         else analysis.status
     )
     return replace(analysis, warnings=warnings, status=status)
+
+
+def _without_verified_findings(analysis: AiDocumentAnalysis) -> AiDocumentAnalysis:
+    def downgrade(items: tuple[AiFinding, ...]) -> tuple[AiFinding, ...]:
+        return tuple(
+            replace(item, evidence=None, status=AiFindingStatus.UNVERIFIED)
+            if item.status is AiFindingStatus.VERIFIED
+            else item
+            for item in items
+        )
+
+    requirements = replace(
+        analysis.requirements,
+        **{
+            name: downgrade(getattr(analysis.requirements, name))
+            for name in TenderRequirements.__dataclass_fields__
+        },
+    )
+    return replace(
+        analysis,
+        requirements=requirements,
+        risks=downgrade(analysis.risks),
+        suspicious_conditions=downgrade(analysis.suspicious_conditions),
+        contradictions=downgrade(analysis.contradictions),
+        provenance=None,
+    )
+
+
+def _provider_response_reference(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    rendered = value.strip()
+    if (
+        not rendered
+        or len(rendered) > MAX_RAW_RESPONSE_ID_LENGTH
+        or any(ord(char) < 32 or ord(char) == 127 for char in rendered)
+    ):
+        return ""
+    return f"resp_{hashlib.sha256(rendered.encode('utf-8')).hexdigest()}"
+
+
+def _provenance_identifier(
+    value: object,
+    *,
+    limit: int,
+    pattern: re.Pattern[str],
+) -> str:
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > limit:
+        return "unknown"
+    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value):
+        return "unknown"
+    if pattern.fullmatch(value) is None:
+        return "unknown"
+    lowered = value.casefold()
+    words = {word for word in re.split(r"[/:._-]+", lowered) if word}
+    if lowered.startswith(_CREDENTIAL_PREFIXES) or words & _CREDENTIAL_WORDS:
+        return "unknown"
+    return value
+
+
+def _source_sort_key(source: AiSourceSnapshot) -> tuple[object, ...]:
+    return (
+        source.document_id,
+        source.checksum_sha256,
+        source.display_name,
+        source.document_type,
+        source.verification_status,
+        source.received_at,
+        source.truncated,
+        source.included_character_count,
+        source.original_character_count,
+    )
 
 
 __all__ = [

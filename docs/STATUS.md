@@ -12,6 +12,23 @@
 merge-коммите. До изменения application-кода RM-116 требуется отдельный аудит текущих
 ссылок, цитат, локальной проверки evidence и provenance boundaries.
 
+Подготовка feature acceptance выполнена в выделенной ветке RM-116:
+
+- добавлены точные локальные citations, immutable provenance/source registry и payload v3;
+- provider page/section остаются только hints, а checksum, offsets, locator, citation ID и
+  eligibility подтверждаются локально;
+- cache, UI, JSON/HTML export и RM-107 принимают только current verified citations;
+- сохранены единые provider/analyzer/Orchestrator/repository/context builder/exporter и один
+  production provider call; вторая схема или AI workflow не созданы;
+- RM-107 score/recommendation и абсолютный приоритет critical stop-factor не изменены;
+- новая БД или миграция БД не требуются;
+- локальная приёмка на Python 3.12.7: RM-116 target `273 passed`, strict/provider/UI
+  regressions `97 passed`, full `1029 passed`; Ruff, mypy (16 файлов), secret scan,
+  dependency audit и diff-check успешны.
+
+RM-116 остаётся `IN PROGRESS`: до `DONE` обязательны merge feature PR, успешный post-merge
+Windows Quality Gate на Python 3.12/3.13 и merged docs-only closeout. RM-117 не активирован.
+
 ## Предыдущий этап
 
 **RM-115 — строгая JSON-схема**
@@ -51,4 +68,5 @@ merge-коммите. До изменения application-кода RM-116 тре
 
 ## Текущее действие
 
-Провести отдельный аудит RM-116 до изменения ссылок, цитат или provenance contract.
+Открыть feature PR RM-116, дождаться обязательных Windows checks и после merge выполнить
+post-merge Quality Gate; затем подготовить отдельный docs-only closeout без смешивания с RM-117.

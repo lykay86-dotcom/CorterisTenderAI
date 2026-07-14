@@ -8,9 +8,27 @@ from app.core.ai.orchestrator import TenderAiOrchestrator
 from app.core.ai.schemas import (
     AiDocumentAnalysis,
     AiEvidence,
+    AiEvidenceVerificationMethod,
     AiFinding,
     AiFindingStatus,
 )
+
+
+def _verified_evidence(quote: str, confidence: float) -> AiEvidence:
+    return AiEvidence(
+        citation_id="cit_" + "a" * 32,
+        document_id="doc",
+        quote=quote,
+        character_start=0,
+        character_end=len(quote),
+        section="",
+        page=None,
+        confidence=confidence,
+        verification_method=AiEvidenceVerificationMethod.EXACT_QUOTE,
+        checksum_sha256="b" * 64,
+        source_ref="doc_" + "c" * 32,
+        context_fingerprint="d" * 64,
+    )
 
 
 class RecordingService:
@@ -142,7 +160,7 @@ def test_orchestrator_does_not_change_findings_or_create_decision_fields() -> No
     finding = AiFinding(
         "risk",
         "Verified statement",
-        AiEvidence("doc", "exact quote", confidence=0.9),
+        _verified_evidence("exact quote", 0.9),
         AiFindingStatus.VERIFIED,
     )
     current = AiDocumentAnalysis(

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from http.client import HTTPMessage
 import json
+import re
 import socket
 import ssl
 from typing import Any
@@ -14,9 +16,66 @@ import urllib.request
 DEFAULT_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 MAX_RAW_RESPONSE_ID_LENGTH = 200
 MAX_INPUT_CHARACTERS = 500_000
+_PUBLIC_PROVIDER_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_PUBLIC_MODEL_ID_PATTERN = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9._-]*(?:[/:][A-Za-z0-9][A-Za-z0-9._-]*)*"
+)
+_CREDENTIAL_WORDS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "bearer",
+        "credential",
+        "password",
+        "secret",
+        "token",
+    }
+)
+_CREDENTIAL_PREFIXES = tuple(sorted(_CREDENTIAL_WORDS))
+
+
+def _safe_public_identifier(
+    value: object,
+    limit: int,
+    pattern: re.Pattern[str],
+) -> str:
+    if not isinstance(value, str) or not value or value != value.strip() or len(value) > limit:
+        return "unknown"
+    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value):
+        return "unknown"
+    if pattern.fullmatch(value) is None:
+        return "unknown"
+    lowered = value.casefold()
+    words = {word for word in re.split(r"[/:._-]+", lowered) if word}
+    if lowered.startswith(_CREDENTIAL_PREFIXES) or words & _CREDENTIAL_WORDS:
+        return "unknown"
+    return value
+
+
+def _safe_provider_id(value: object) -> str:
+    return _safe_public_identifier(value, 80, _PUBLIC_PROVIDER_ID_PATTERN)
+
+
+def _safe_provider_model(value: object) -> str:
+    return _safe_public_identifier(value, 200, _PUBLIC_MODEL_ID_PATTERN)
+
+
+@dataclass(frozen=True, slots=True)
+class AiProviderMetadata:
+    provider_id: str = "unknown"
+    model: str = "unknown"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "provider_id", _safe_provider_id(self.provider_id))
+        object.__setattr__(self, "model", _safe_provider_model(self.model))
 
 
 class AIProvider(ABC):
+    @property
+    def metadata(self) -> AiProviderMetadata:
+        return AiProviderMetadata()
+
     @abstractmethod
     def analyze(
         self,
@@ -28,6 +87,10 @@ class AIProvider(ABC):
 
 
 class DisabledProvider(AIProvider):
+    @property
+    def metadata(self) -> AiProviderMetadata:
+        return AiProviderMetadata(provider_id="disabled")
+
     def analyze(
         self,
         prompt: str,
@@ -75,6 +138,7 @@ class OpenAICompatibleProvider(AIProvider):
         store_response: bool | None = False,
         supports_text_format: bool = True,
         opener: Callable[..., object] | None = None,
+        provider_id: str = "openai_compatible",
     ) -> None:
         if timeout <= 0:
             raise ValueError("timeout must be positive")
@@ -88,6 +152,11 @@ class OpenAICompatibleProvider(AIProvider):
         self.store_response = store_response
         self.supports_text_format = supports_text_format
         self._opener = opener
+        self._metadata = AiProviderMetadata(provider_id, model)
+
+    @property
+    def metadata(self) -> AiProviderMetadata:
+        return self._metadata
 
     def __repr__(self) -> str:
         return "OpenAICompatibleProvider(<configuration redacted>)"
@@ -302,6 +371,7 @@ def _safe_response_id(value: object) -> str:
 
 __all__ = [
     "AIProvider",
+    "AiProviderMetadata",
     "DEFAULT_MAX_RESPONSE_BYTES",
     "DisabledProvider",
     "MAX_INPUT_CHARACTERS",

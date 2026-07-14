@@ -274,6 +274,7 @@ class AiProviderSelectionService:
                 settings.model.strip(),
                 store_response=None,
                 supports_text_format=False,
+                provider_id=settings.provider_id.value,
             )
             return AiProviderResolution(
                 requested_provider_id=requested_provider_id,
@@ -307,6 +308,7 @@ class AiProviderSelectionService:
             base_url,
             settings.model.strip(),
             supports_text_format=True,
+            provider_id=settings.provider_id.value,
         )
         return AiProviderResolution(
             requested_provider_id=requested_provider_id,

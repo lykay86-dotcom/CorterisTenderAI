@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from html import escape
+import re
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QUrl, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -29,7 +30,7 @@ from app.tenders.full_analysis import (
     FullAnalysisStatus,
     TenderFullAnalysisResult,
 )
-from app.core.ai.schemas import AiAnalysisStatus
+from app.core.ai.schemas import AiAnalysisStatus, AiDocumentAnalysis
 from app.ui.theme.colors import ThemeName, get_palette
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
@@ -49,6 +50,7 @@ _STAGE_LABELS = {
 
 class TenderFullAnalysisDialog(QDialog):
     cancel_requested = Signal(str)
+    citation_requested = Signal(str, str)
     documents_requested = Signal(str)
     requirements_requested = Signal(str)
     score_requested = Signal(str)
@@ -64,6 +66,7 @@ class TenderFullAnalysisDialog(QDialog):
         self.registry_key = registry_key.strip()
         self._theme = ThemeName(theme)
         self._result: TenderFullAnalysisResult | None = None
+        self._citation_targets: dict[str, str] = {}
         self.setWindowTitle("Скачать документы и провести полный анализ")
         self.resize(980, 760)
 
@@ -105,6 +108,8 @@ class TenderFullAnalysisDialog(QDialog):
         self.ai_summary.setObjectName("TenderAiSummary")
         self.ai_analysis = QTextBrowser(self)
         self.ai_analysis.setObjectName("TenderAiDocumentAnalysis")
+        self.ai_analysis.setOpenExternalLinks(False)
+        self.ai_analysis.anchorClicked.connect(self._open_citation)
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self.stages, "Analysis stages")
         self.tabs.addTab(self.summary, "Analysis details")
@@ -154,6 +159,7 @@ class TenderFullAnalysisDialog(QDialog):
 
     def begin(self) -> None:
         self._result = None
+        self._citation_targets = {}
         self.progress.setValue(0)
         self.message_label.setText("Запуск полного анализа…")
         self.cancel_button.setEnabled(True)
@@ -201,8 +207,26 @@ class TenderFullAnalysisDialog(QDialog):
         self.score_button.setEnabled(result.score is not None)
         self.summary.setHtml(_render_result(result))
         self.ai_summary.setHtml(_render_ai_summary(result))
+        self._citation_targets = _current_citation_targets(result.ai_document_analysis)
         self.ai_analysis.setHtml(_render_ai_document_analysis(result))
         self.export_ai_button.setEnabled(result.ai_document_analysis is not None)
+
+    def _open_citation(self, url: QUrl) -> None:
+        if (
+            url.scheme() != "corteris-citation"
+            or url.host() != "open"
+            or url.userInfo()
+            or url.port() != -1
+            or url.hasQuery()
+            or url.hasFragment()
+        ):
+            return
+        path = url.path()
+        if not re.fullmatch(r"/cit_[0-9a-f]{32}", path):
+            return
+        document_id = self._citation_targets.get(path[1:])
+        if document_id is not None:
+            self.citation_requested.emit(self.registry_key, document_id)
 
     def _export_ai_analysis(self) -> None:
         analysis = self._result.ai_document_analysis if self._result else None
@@ -340,14 +364,33 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
 
     def render_findings(items) -> str:
         rows = []
+        sources = {
+            source.document_id: source
+            for source in (analysis.provenance.sources if analysis.provenance is not None else ())
+        }
         for item in items:
             evidence = item.evidence
-            proof = (
-                f"<small>{escape(evidence.document_id)} · confidence {evidence.confidence:.0%}<br>"
-                f"Цитата: {escape(evidence.quote)}</small>"
-                if evidence
-                else "<small>Неподтверждённый вывод — не влияет на рекомендацию.</small>"
-            )
+            if analysis.is_current_verified(item) and evidence is not None:
+                source = sources[evidence.document_id]
+                locator = " · ".join(
+                    part
+                    for part in (
+                        f"страница {evidence.page}" if evidence.page is not None else "",
+                        f"раздел {escape(evidence.section)}" if evidence.section else "",
+                    )
+                    if part
+                )
+                locator_html = f" · {locator}" if locator else ""
+                truncation = " · контекст источника сокращён" if source.truncated else ""
+                short_id = f"{evidence.citation_id[:12]}…"
+                proof = (
+                    f'<small><a href="corteris-citation://open/{evidence.citation_id}">'
+                    f"{escape(source.display_name)}</a>{locator_html}{truncation}<br>"
+                    f"Цитата: {escape(evidence.quote)}<br>"
+                    f"уверенность AI {evidence.confidence:.0%} · citation {escape(short_id)}</small>"
+                )
+            else:
+                proof = "<small>Неподтверждённый вывод — не влияет на рекомендацию.</small>"
             rows.append(f"<li><b>{escape(item.statement)}</b><br>{proof}</li>")
         return "".join(rows) or "<li>Не выявлено.</li>"
 
@@ -389,6 +432,26 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"<h3>Технические предупреждения</h3><ul>{warnings}</ul>"
         f"<h3>Итог AI</h3><p>{escape(analysis.final_ai_conclusion)}</p>"
     )
+
+
+def _current_citation_targets(analysis: AiDocumentAnalysis | None) -> dict[str, str]:
+    if analysis is None:
+        return {}
+    requirements = tuple(
+        item
+        for name in analysis.requirements.__dataclass_fields__
+        for item in getattr(analysis.requirements, name)
+    )
+    targets: dict[str, str] = {}
+    for finding in (
+        *requirements,
+        *analysis.risks,
+        *analysis.suspicious_conditions,
+        *analysis.contradictions,
+    ):
+        if analysis.is_current_verified(finding) and finding.evidence is not None:
+            targets[finding.evidence.citation_id] = finding.evidence.document_id
+    return targets
 
 
 __all__ = ["TenderFullAnalysisDialog"]

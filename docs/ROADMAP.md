@@ -281,6 +281,25 @@ run `29352442656` после повторного запуска успешно 
 прошёл полностью. RM-115 соответствует Definition of Done; следующим активным этапом
 назначен RM-116, application-код которого требует отдельного аудита.
 
+## RM-116 — implementation acceptance preparation
+
+Статус реализации: `IN PROGRESS` (feature branch acceptance подготовлен).
+
+- введены локально проверяемые exact citations, source registry и immutable provenance;
+- persisted payload повышен до версии 3, legacy/future/corrupt cache обрабатывается fail-closed
+  без миграции существующей SQLite-таблицы;
+- безопасные citation links используют только внутреннюю схему и существующий documents dialog;
+- JSON/HTML export сохраняет provenance и использует только escaped internal anchors;
+- RM-107 учитывает только current verified citations, не меняя score/recommendation или
+  абсолютный приоритет critical stop-factor;
+- сохранены существующие provider/analyzer/Orchestrator/repository/context builder/exporter,
+  одна provider-output схема и один production provider call;
+- локальная приёмка на Python 3.12.7: target `273 passed`, provider/UI regressions `97 passed`,
+  full `1029 passed`, Ruff, mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
+
+RM-116 не закрыт и RM-117 не активирован. Остались feature merge, post-merge Windows Quality
+Gate на Python 3.12/3.13 и отдельный merged docs-only closeout.
+
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.
 - [ ] RM-127 — Новая структура вкладок.

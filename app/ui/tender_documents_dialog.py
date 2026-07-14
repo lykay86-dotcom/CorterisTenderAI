@@ -324,6 +324,19 @@ class TenderDocumentsDialog(QDialog):
             return None
         return self._documents[row]
 
+    def select_document(self, document_key: str) -> bool:
+        self.refresh_documents()
+        for row, document in enumerate(self._documents):
+            if document.document_key != document_key:
+                continue
+            self.table.selectRow(row)
+            item = self.table.item(row, 0)
+            if item is not None:
+                self.table.scrollToItem(item)
+            self._update_selection_actions()
+            return True
+        return False
+
     def set_download_busy(
         self,
         busy: bool,

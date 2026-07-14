@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -41,11 +42,36 @@ def test_context_uses_only_available_extracted_text() -> None:
     assert documents[0].text == "Technical specification text"
 
 
-def _record(key: str, checksum: str, *, available: bool = True):
+def test_context_sanitizes_private_paths_and_prefers_record_document_format() -> None:
+    service = TextService()
+    service.available.source_path = Path(r"C:\Users\SecretUser\Documents\tender.pdf")
+    service.available.document_format = "PDF"
+
+    document = TenderDocumentContextBuilder(service).build("procurement:test")[0]
+
+    assert document.name == "tender.pdf"
+    assert document.source == "local_document_store"
+    assert document.document_type == "pdf"
+    assert all(
+        r"C:\Users\SecretUser" not in str(getattr(document, item.name)) for item in fields(document)
+    )
+
+    service.available.document_format = r"C:\Users\SecretUser\private"
+    sanitized = TenderDocumentContextBuilder(service).build("procurement:test")[0]
+    assert sanitized.document_type == "pdf"
+
+
+def _record(
+    key: str,
+    checksum: str,
+    *,
+    available: bool = True,
+    extracted_at: str = "2026-07-13T00:00:00+00:00",
+):
     return SimpleNamespace(
         document_key=key,
         source_path=Path(f"C:/files-that-do-not-exist/{key}.pdf"),
-        extracted_at="2026-07-13T00:00:00+00:00",
+        extracted_at=extracted_at,
         status=SimpleNamespace(value="extracted"),
         checksum_sha256=checksum,
         available_locally=available,
@@ -61,7 +87,10 @@ class FlexibleTextService:
         return self.records
 
     def read_text(self, record):
-        return self.texts.get(record.document_key, "")
+        return self.texts.get(
+            (record.document_key, record.checksum_sha256),
+            self.texts.get(record.document_key, ""),
+        )
 
 
 def test_context_is_stably_sorted_and_reproducible() -> None:
@@ -95,6 +124,37 @@ def test_context_excludes_empty_unavailable_and_checksum_duplicates() -> None:
     assert context.statistics.duplicate_document_count == 1
     assert context.statistics.empty_document_count == 1
     assert context.statistics.unavailable_document_count == 1
+
+
+def test_context_keeps_only_latest_revision_for_each_document_key() -> None:
+    older = _record(
+        "doc-1",
+        "old",
+        extracted_at="2026-07-13T00:00:00+00:00",
+    )
+    current = _record(
+        "doc-1",
+        "new",
+        extracted_at="2026-07-14T00:00:00+00:00",
+    )
+    service = FlexibleTextService(
+        (current, older),
+        {
+            ("doc-1", "old"): "stale revision",
+            ("doc-1", "new"): "current revision",
+        },
+    )
+
+    first = TenderDocumentContextBuilder(service).build_context("procurement:test")
+    service.records = tuple(reversed(service.records))
+    second = TenderDocumentContextBuilder(service).build_context("procurement:test")
+
+    assert first == second
+    assert len(first.documents) == 1
+    assert first.documents[0].document_id == "doc-1"
+    assert first.documents[0].checksum_sha256 == "new"
+    assert first.documents[0].text == "current revision"
+    assert first.statistics.duplicate_document_count == 1
 
 
 def test_context_applies_per_document_and_total_unicode_safe_limits() -> None:

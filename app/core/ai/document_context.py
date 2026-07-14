@@ -3,14 +3,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+import re
+from typing import TYPE_CHECKING, Protocol
 
 from app.core.ai.schemas import AiDocument
+
+if TYPE_CHECKING:
+    from app.tenders.document_text_extractor import StoredDocumentText
 
 
 AI_CONTEXT_VERSION = "2"
 DEFAULT_MAX_DOCUMENT_CHARACTERS = 100_000
 DEFAULT_MAX_TOTAL_CHARACTERS = 400_000
+
+
+class _TextService(Protocol):
+    def list_results(self, registry_key: str) -> tuple[StoredDocumentText, ...]: ...
+
+    def read_text(self, result: StoredDocumentText) -> str: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +52,7 @@ class TenderDocumentContextBuilder:
 
     def __init__(
         self,
-        text_service: object,
+        text_service: _TextService,
         *,
         max_document_characters: int = DEFAULT_MAX_DOCUMENT_CHARACTERS,
         max_total_characters: int = DEFAULT_MAX_TOTAL_CHARACTERS,
@@ -65,11 +77,13 @@ class TenderDocumentContextBuilder:
 
     def build_context(self, registry_key: str) -> AiDocumentContext:
         records = tuple(self.text_service.list_results(registry_key))
-        ordered = sorted(records, key=_record_sort_key)
+        current_records = _latest_revision_records(records)
+        ordered = sorted(current_records, key=_record_sort_key)
         documents: list[AiDocument] = []
         seen_checksums: set[str] = set()
         characters = 0
-        truncated = omitted = empty = duplicate = unavailable = 0
+        truncated = omitted = empty = unavailable = 0
+        duplicate = len(records) - len(current_records)
 
         for record in ordered:
             if not bool(getattr(record, "available_locally", False)):
@@ -107,12 +121,16 @@ class TenderDocumentContextBuilder:
             document_key = str(getattr(record, "document_key", "") or "")
             name = source_path.name if source_path else document_key
             status = getattr(getattr(record, "status", None), "value", "")
+            document_type = _safe_document_type(
+                getattr(record, "document_format", ""),
+                name,
+            )
             documents.append(
                 AiDocument(
                     document_id=document_key,
                     name=name,
-                    source=str(source_path or "local_document_store"),
-                    document_type=Path(name).suffix.lower().lstrip(".") or "unknown",
+                    source="local_document_store",
+                    document_type=document_type,
                     received_at=str(getattr(record, "extracted_at", "") or ""),
                     verification_status=str(status),
                     text=rendered,
@@ -135,6 +153,34 @@ class TenderDocumentContextBuilder:
         return AiDocumentContext(tuple(documents), statistics)
 
 
+def _latest_revision_records(
+    records: tuple[StoredDocumentText, ...],
+) -> tuple[StoredDocumentText, ...]:
+    latest: dict[str, StoredDocumentText] = {}
+    for record in records:
+        document_key = str(getattr(record, "document_key", "") or "")
+        previous = latest.get(document_key)
+        if previous is None or _record_revision_key(record) > _record_revision_key(previous):
+            latest[document_key] = record
+    return tuple(latest.values())
+
+
+def _record_revision_key(record: object) -> tuple[float, str, str]:
+    raw_timestamp = str(getattr(record, "extracted_at", "") or "")
+    try:
+        parsed = datetime.fromisoformat(raw_timestamp)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        timestamp = parsed.timestamp()
+    except (OSError, OverflowError, ValueError):
+        timestamp = float("-inf")
+    return (
+        timestamp,
+        str(getattr(record, "checksum_sha256", "") or ""),
+        str(getattr(record, "source_path", "") or "").casefold(),
+    )
+
+
 def _record_sort_key(record: object) -> tuple[str, str, str]:
     path = getattr(record, "source_path", None)
     return (
@@ -142,6 +188,14 @@ def _record_sort_key(record: object) -> tuple[str, str, str]:
         str(path or "").casefold(),
         str(getattr(record, "checksum_sha256", "") or ""),
     )
+
+
+def _safe_document_type(value: object, display_name: str) -> str:
+    rendered = str(value or "").strip().lstrip(".").lower()
+    if re.fullmatch(r"[a-z0-9][a-z0-9_.+-]{0,79}", rendered):
+        return rendered
+    suffix = Path(display_name).suffix.lower().lstrip(".")
+    return suffix if re.fullmatch(r"[a-z0-9][a-z0-9_.+-]{0,79}", suffix) else "unknown"
 
 
 __all__ = [

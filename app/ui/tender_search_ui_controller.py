@@ -1212,6 +1212,32 @@ class TenderSearchUiController(QObject):
             self._set_document_status("Выбрана неподдерживаемая карточка закупки.")
             return
 
+        self._show_tender_documents(tender, start_download=True)
+
+    @Slot(str, str)
+    def open_analysis_citation(self, registry_key: str, document_key: str) -> None:
+        normalized = registry_key.strip()
+        if not normalized or not document_key:
+            return
+        repository = self.runtime.tender_registry
+        tender = repository.get_tender(normalized) if repository is not None else None
+        if tender is None:
+            self._set_document_status("Не удалось восстановить карточку закупки из реестра.")
+            return
+        self._show_tender_documents(
+            tender,
+            document_key=document_key,
+            start_download=False,
+        )
+
+    def _show_tender_documents(
+        self,
+        tender: UnifiedTender,
+        *,
+        document_key: str | None = None,
+        start_download: bool,
+    ) -> None:
+
         store = self.runtime.document_store
         service = self.runtime.document_service
         if store is None or service is None:
@@ -1238,14 +1264,18 @@ class TenderSearchUiController(QObject):
             )
             self._document_dialogs[registry_key] = dialog
 
-        dialog.refresh_documents()
+        if document_key is None:
+            dialog.refresh_documents()
+        else:
+            dialog.select_document(document_key)
         dialog.open()
         dialog.raise_()
         dialog.activateWindow()
 
         # The button in results/registry explicitly means download, so start
         # the background operation immediately after opening the local view.
-        self.download_tender_documents(tender, False)
+        if start_download:
+            self.download_tender_documents(tender, False)
 
     @Slot(object, bool)
     def download_tender_documents(
@@ -1514,7 +1544,8 @@ class TenderSearchUiController(QObject):
                 parent=parent_widget,
             )
             dialog.cancel_requested.connect(self.cancel_full_analysis)
-            dialog.documents_requested.connect(self.open_tender_documents)
+            dialog.documents_requested.connect(self.open_registry_documents)
+            dialog.citation_requested.connect(self.open_analysis_citation)
             dialog.requirements_requested.connect(self.open_requirement_analysis)
             dialog.score_requested.connect(self.open_participation_score)
             dialog.finished.connect(

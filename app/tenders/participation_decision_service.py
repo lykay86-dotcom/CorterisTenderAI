@@ -14,7 +14,7 @@ from app.tenders.participation_decision import (
     ParticipationDecisionRecommendation,
 )
 from app.tenders.participation_decision_policy import ParticipationDecisionPolicy
-from app.core.ai.schemas import AiDocumentAnalysis
+from app.core.ai.schemas import AiDocumentAnalysis, AiFinding
 
 
 _USE_LATEST_AI_ANALYSIS = object()
@@ -71,9 +71,13 @@ class ParticipationDecisionService:
             verification=verification,
             ai_document_analysis=ai_analysis,
         )
-        recommendation, summary, evidence = self._decide(decision_input)
+        verified_ai_findings = _current_verified_ai_findings(ai_analysis)
+        recommendation, summary, evidence = self._decide(
+            decision_input,
+            verified_ai_findings,
+        )
         missing = _missing_data(decision_input)
-        actions = _action_plan(decision_input, missing)
+        actions = _action_plan(decision_input, missing, verified_ai_findings)
         confidence = _decision_confidence(evidence, missing)
         stop_factors = tuple(item.title for item in (stop.factors if stop is not None else ()))
         decision = ParticipationDecision(
@@ -99,6 +103,7 @@ class ParticipationDecisionService:
     def _decide(
         self,
         decision_input: ParticipationDecisionInput,
+        verified_ai_findings: tuple[AiFinding, ...],
     ) -> tuple[
         ParticipationDecisionRecommendation,
         str,
@@ -243,20 +248,6 @@ class ParticipationDecisionService:
                 )
             )
 
-        ai_analysis = decision_input.ai_document_analysis
-        verified_ai_findings = tuple(
-            item
-            for item in (
-                (
-                    *ai_analysis.risks,
-                    *ai_analysis.suspicious_conditions,
-                    *ai_analysis.contradictions,
-                )
-                if ai_analysis is not None
-                else ()
-            )
-            if item.verified and item.evidence is not None
-        )
         for item in verified_ai_findings:
             evidence.append(
                 _evidence(
@@ -332,6 +323,7 @@ def _missing_data(decision_input: ParticipationDecisionInput) -> tuple[str, ...]
 def _action_plan(
     decision_input: ParticipationDecisionInput,
     missing: tuple[str, ...],
+    verified_ai_findings: tuple[AiFinding, ...],
 ) -> tuple[str, ...]:
     actions = [f"Получить или уточнить: {item}" for item in missing]
     stop = decision_input.stop_factor_assessment
@@ -339,19 +331,27 @@ def _action_plan(
         actions.extend(
             item.evidence.remediation for item in stop.factors if item.evidence.remediation.strip()
         )
-    ai_analysis = decision_input.ai_document_analysis
-    if ai_analysis is not None and any(
-        item.verified
+    if verified_ai_findings:
+        actions.append("Провести ручную проверку условий, отмеченных AI-анализом")
+    if not missing and not actions:
+        actions.extend(("Подготовить коммерческое предложение", "Проверить сроки подачи заявки"))
+    return tuple(dict.fromkeys(actions))
+
+
+def _current_verified_ai_findings(
+    ai_analysis: AiDocumentAnalysis | None,
+) -> tuple[AiFinding, ...]:
+    if ai_analysis is None:
+        return ()
+    return tuple(
+        item
         for item in (
             *ai_analysis.risks,
             *ai_analysis.suspicious_conditions,
             *ai_analysis.contradictions,
         )
-    ):
-        actions.append("Провести ручную проверку условий, отмеченных AI-анализом")
-    if not missing and not actions:
-        actions.extend(("Подготовить коммерческое предложение", "Проверить сроки подачи заявки"))
-    return tuple(dict.fromkeys(actions))
+        if ai_analysis.is_current_verified(item)
+    )
 
 
 def _decision_confidence(
