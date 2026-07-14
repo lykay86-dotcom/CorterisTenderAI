@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 from app.tenders.collector.participation_score import ParticipationRecommendation
@@ -8,12 +9,17 @@ from app.tenders.commercial_estimator import CommercialEstimateStatus
 from app.tenders.participation_decision import ParticipationDecisionRecommendation
 from app.tenders.participation_decision_service import ParticipationDecisionService
 from app.core.ai.schemas import (
+    AI_ANALYSIS_SCHEMA_VERSION,
+    AiAnalysisProvenance,
+    AiDocument,
     AiDocumentAnalysis,
     AiEvidence,
     AiEvidenceVerificationMethod,
     AiFinding,
     AiFindingStatus,
+    AiSourceSnapshot,
 )
+from app.core.ai.citations import resolve_citation
 from app.tenders.collector.stop_factor import StopFactorStatus
 
 
@@ -31,6 +37,71 @@ def _verified_evidence(quote: str, confidence: float) -> AiEvidence:
         checksum_sha256="b" * 64,
         source_ref="doc_" + "c" * 32,
         context_fingerprint="d" * 64,
+    )
+
+
+def _current_analysis_with_risk() -> AiDocumentAnalysis:
+    fingerprint = "d" * 64
+    checksum = "b" * 64
+    document = AiDocument(
+        "doc",
+        "tender.pdf",
+        "local_document_store",
+        "pdf",
+        "2026-07-14T10:00:00+00:00",
+        "verified",
+        "10 days",
+        checksum,
+        original_character_count=7,
+    )
+    evidence = resolve_citation(
+        document_id="doc",
+        quote="10 days",
+        section="",
+        page=None,
+        confidence=0.8,
+        documents=(document,),
+        context_fingerprint=fingerprint,
+    ).evidence
+    assert evidence is not None
+    source = AiSourceSnapshot(
+        document_id="doc",
+        display_name="tender.pdf",
+        document_type="pdf",
+        checksum_sha256=checksum,
+        verification_status="verified",
+        received_at="2026-07-14T10:00:00+00:00",
+        truncated=False,
+        included_character_count=7,
+        original_character_count=7,
+    )
+    provenance = AiAnalysisProvenance(
+        analysis_id="analysis_123",
+        context_fingerprint=fingerprint,
+        created_at="2026-07-14T10:01:00+00:00",
+        prompt_version="3",
+        output_schema_version="1",
+        persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
+        analyzer_version="4",
+        context_version="2",
+        citation_resolver_version="1",
+        provider_id="openai",
+        provider_model="gpt-5",
+        provider_response_id="resp_" + "a" * 64,
+        sources=(source,),
+    )
+    finding = AiFinding(
+        "risk",
+        "Short deadline",
+        evidence,
+        AiFindingStatus.VERIFIED,
+    )
+    return AiDocumentAnalysis(
+        "procurement:1",
+        "Summary",
+        risks=(finding,),
+        status="complete",
+        provenance=provenance,
     )
 
 
@@ -135,13 +206,7 @@ def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
     estimate = SimpleNamespace(
         registry_key="procurement:1", status=CommercialEstimateStatus.COMPLETE
     )
-    risk = AiFinding(
-        "risk",
-        "Short deadline",
-        _verified_evidence("10 days", 0.8),
-        AiFindingStatus.VERIFIED,
-    )
-    analysis = AiDocumentAnalysis("procurement:1", "Summary", risks=(risk,), status="complete")
+    analysis = _current_analysis_with_risk()
 
     decision = ParticipationDecisionService(
         _ScoreService(score),
@@ -152,6 +217,51 @@ def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
 
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW
     assert any(item.source == "ai_document_analysis" for item in decision.evidence)
+
+
+def test_only_current_citation_can_add_ai_decision_evidence_or_action() -> None:
+    score = SimpleNamespace(
+        total_score=90,
+        recommendation=ParticipationRecommendation.RECOMMENDED,
+        recommendation_text="Participate",
+    )
+    verification = SimpleNamespace(
+        registry_key="procurement:1",
+        status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=0.9,
+    )
+    estimate = SimpleNamespace(
+        registry_key="procurement:1", status=CommercialEstimateStatus.COMPLETE
+    )
+    current = _current_analysis_with_risk()
+    finding = current.risks[0]
+    assert finding.evidence is not None
+    assert current.provenance is not None
+    damaged_source = replace(current.provenance.sources[0], checksum_sha256="c" * 64)
+    variants = (
+        replace(current, provenance=None),
+        replace(current, provenance=replace(current.provenance, context_fingerprint="e" * 64)),
+        replace(current, provenance=replace(current.provenance, sources=(damaged_source,))),
+        replace(
+            current,
+            risks=(
+                replace(finding, evidence=replace(finding.evidence, citation_id="cit_" + "0" * 32)),
+            ),
+        ),
+        replace(current, risks=(replace(finding, status=AiFindingStatus.UNVERIFIED),)),
+    )
+
+    for analysis in variants:
+        decision = ParticipationDecisionService(
+            _ScoreService(score),
+            _StateRepository(verification),
+            _EstimateRepository(estimate),
+            ai_analysis_repository=_AiRepository(analysis),
+        ).evaluate("procurement:1")
+
+        assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
+        assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
+        assert not any("AI-" in action for action in decision.actions)
 
 
 def test_current_unverified_ai_result_overrides_stale_verified_repository_result() -> None:
@@ -235,6 +345,7 @@ def test_blocked_stop_factor_has_absolute_priority_over_high_score() -> None:
         _ScoreService(score),
         _StateRepository(verification, stop),
         _EstimateRepository(estimate),
+        ai_analysis_repository=_AiRepository(_current_analysis_with_risk()),
     ).evaluate("procurement:1")
 
     assert decision.recommendation == ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE
