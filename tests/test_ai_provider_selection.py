@@ -142,7 +142,10 @@ def test_openai_compatible_reuses_existing_provider(tmp_path) -> None:
     [
         "ftp://ai.example.test/v1",
         "https://user:password@ai.example.test/v1",
+        "https://ai.example.test/v1?token=private",
         "https://ai.example.test/v1#private",
+        "https://ai.example.test:0/v1",
+        "https://ai.example.test/v1\n",
         "https://",
         "not-a-url",
     ],
@@ -274,3 +277,47 @@ def test_saved_secret_uses_existing_keyring_name(tmp_path) -> None:
 
     assert resolution.available
     assert secret.saves == [(OPENAI_API_KEY_SECRET, "new-value")]
+
+
+def test_compatible_url_preserves_path_and_normalizes_trailing_slash(tmp_path) -> None:
+    service = _service(tmp_path, secret=SecretStore("secret-value"))
+
+    resolution = service.save_selection(
+        _settings(
+            AiProviderId.OPENAI_COMPATIBLE,
+            base_url="HTTPS://AI.EXAMPLE.TEST:8443/custom/path///",
+        )
+    )
+
+    assert resolution.available
+    assert isinstance(resolution.provider, OpenAICompatibleProvider)
+    assert resolution.provider.base_url == "https://ai.example.test:8443/custom/path"
+    assert service.config.get("ai.base_url") == "https://ai.example.test:8443/custom/path"
+
+
+@pytest.mark.parametrize("credential", ["secret\n", "secret\rvalue", "secret\x7fvalue"])
+def test_control_character_credential_disables_without_save_or_network(
+    tmp_path, credential: str
+) -> None:
+    secret = SecretStore(credential)
+    service = _service(tmp_path, secret=secret)
+    service.config.set("ai.provider", "openai")  # type: ignore[attr-defined]
+
+    resolution = service.resolve_provider()
+
+    assert isinstance(resolution.provider, DisabledProvider)
+    assert not resolution.available
+    assert credential not in repr(resolution)
+
+
+def test_control_character_new_credential_is_not_saved(tmp_path) -> None:
+    secret = SecretStore()
+    service = _service(tmp_path, secret=secret)
+
+    resolution = service.save_selection(
+        _settings(AiProviderId.OPENAI),
+        credential="secret\n",
+    )
+
+    assert isinstance(resolution.provider, DisabledProvider)
+    assert secret.saves == []
