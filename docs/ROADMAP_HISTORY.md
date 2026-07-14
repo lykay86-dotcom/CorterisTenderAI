@@ -1,5 +1,21 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-14 — prerequisite RM-115: восстановление Git/Codex integration
+
+- В отдельной ветке `codex/git-integration-recovery` удалён случайный gitlink
+  `CorterisTenderAI` (`mode 160000`, commit `38b96ab`), добавленный коммитом `35321dc`
+  без обязательного `.gitmodules`.
+- Причина: повреждённая submodule-запись ломала обнаружение структуры репозитория и
+  `git submodule status`, усложняя Git-операции из Codex; вложенный checkout и пользовательские
+  данные в рабочем дереве отсутствовали.
+- Application-код, детерминированная логика, score/recommendation, critical stop-factor policy,
+  схема БД и активный статус RM-115 не изменены.
+- Локальная приёмка: `863 passed in 52.41s`, Ruff check, Ruff format (`502 files`),
+  mypy (`10 source files`), secret scan, dependency audit, `git diff --check`, строгий `git fsck`
+  и `git submodule status --recursive` успешны.
+- PR: pending; переход к application-коду RM-115 по-прежнему требует отдельного аудита,
+  указанного в `STATUS.md`.
+
 ## 2026-07-14 — RM-114 завершён
 
 - PR #30 (`feat(rm-114): harden OpenAI-compatible Responses API`) слит в `main`
