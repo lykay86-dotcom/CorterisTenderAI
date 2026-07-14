@@ -13,6 +13,11 @@ from typing import Any, Mapping, cast
 
 
 AI_ANALYSIS_SCHEMA_VERSION = 3
+_EXPECTED_PROVENANCE_PROMPT_VERSION = "3"
+_EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "1"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "4"
+_EXPECTED_PROVENANCE_CONTEXT_VERSION = "2"
+_EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
 _MAX_DOCUMENT_ID_LENGTH = 500
 _MAX_DISPLAY_NAME_LENGTH = 500
@@ -61,7 +66,7 @@ class AiSourceSnapshot:
     original_character_count: int
 
     def __post_init__(self) -> None:
-        document_id = _bounded_text(self.document_id, _MAX_DOCUMENT_ID_LENGTH)
+        document_id = _safe_source_value(self.document_id, _MAX_DOCUMENT_ID_LENGTH)
         if not document_id:
             raise ValueError("document_id must be non-empty")
         checksum = _bounded_text(self.checksum_sha256, 64)
@@ -87,16 +92,13 @@ class AiSourceSnapshot:
         object.__setattr__(
             self,
             "document_type",
-            _bounded_text(self.document_type, _MAX_DOCUMENT_TYPE_LENGTH, "unknown")
-            .lstrip(".")
-            .lower()
-            or "unknown",
+            _safe_document_type(self.document_type),
         )
         object.__setattr__(self, "checksum_sha256", checksum.lower())
         object.__setattr__(
             self,
             "verification_status",
-            _bounded_text(self.verification_status, _MAX_STATUS_LENGTH, "unknown"),
+            _safe_source_value(self.verification_status, _MAX_STATUS_LENGTH, "unknown"),
         )
         object.__setattr__(self, "received_at", _known_timezone_aware(self.received_at))
 
@@ -401,8 +403,17 @@ class AiDocumentAnalysis:
         if not isinstance(payload, Mapping):
             return cls("", "", status=AiAnalysisStatus.INVALID_RESPONSE)
 
-        version = _safe_int(payload.get("payload_version"), default=1)
+        raw_version = payload.get("payload_version", 1)
         registry_key = _text(payload.get("registry_key"))
+        if type(raw_version) is not int:
+            return cls(
+                registry_key,
+                "",
+                status=AiAnalysisStatus.CACHE_INCOMPATIBLE,
+                payload_version=0,
+                warnings=("Сохранённый AI-анализ имеет несовместимую версию.",),
+            )
+        version = raw_version
         if version < 1 or version > AI_ANALYSIS_SCHEMA_VERSION:
             return cls(
                 registry_key,
@@ -504,6 +515,8 @@ class AiDocumentAnalysis:
 def _payload_provenance(value: object) -> AiAnalysisProvenance | None:
     if not isinstance(value, Mapping):
         return None
+    if not _payload_has_current_provenance_versions(value):
+        return None
     raw_sources = value.get("sources")
     if not isinstance(raw_sources, list) or len(raw_sources) > _MAX_SOURCES:
         return None
@@ -557,7 +570,7 @@ def _evidence_matches_provenance(
     provenance: AiAnalysisProvenance,
 ) -> bool:
     if (
-        provenance.persisted_schema_version != AI_ANALYSIS_SCHEMA_VERSION
+        not _has_current_provenance_versions(provenance)
         or evidence.context_fingerprint != provenance.context_fingerprint
     ):
         return False
@@ -587,6 +600,29 @@ def _evidence_matches_provenance(
     )
     citation_digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:32]
     return evidence.citation_id == f"cit_{citation_digest}"
+
+
+def _payload_has_current_provenance_versions(value: Mapping[object, object]) -> bool:
+    return (
+        value.get("prompt_version") == _EXPECTED_PROVENANCE_PROMPT_VERSION
+        and value.get("output_schema_version") == _EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION
+        and type(value.get("persisted_schema_version")) is int
+        and value.get("persisted_schema_version") == AI_ANALYSIS_SCHEMA_VERSION
+        and value.get("analyzer_version") == _EXPECTED_PROVENANCE_ANALYZER_VERSION
+        and value.get("context_version") == _EXPECTED_PROVENANCE_CONTEXT_VERSION
+        and value.get("citation_resolver_version") == _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION
+    )
+
+
+def _has_current_provenance_versions(provenance: AiAnalysisProvenance) -> bool:
+    return (
+        provenance.prompt_version == _EXPECTED_PROVENANCE_PROMPT_VERSION
+        and provenance.output_schema_version == _EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION
+        and provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION
+        and provenance.analyzer_version == _EXPECTED_PROVENANCE_ANALYZER_VERSION
+        and provenance.context_version == _EXPECTED_PROVENANCE_CONTEXT_VERSION
+        and provenance.citation_resolver_version == _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION
+    )
 
 
 def _payload_evidence(value: object) -> AiEvidence | None:
@@ -698,6 +734,29 @@ def _safe_metadata_text(value: object, limit: int, default: str) -> str:
     ):
         return default
     return rendered
+
+
+def _safe_source_value(value: object, limit: int, default: str = "") -> str:
+    rendered = _bounded_text(value, limit, default)
+    lowered = rendered.casefold()
+    if (
+        re.match(r"^[A-Za-z]:", rendered) is not None
+        or "/" in rendered
+        or "\\" in rendered
+        or "://" in rendered
+        or lowered.startswith(("file:", "http:", "https:", "data:", "javascript:"))
+    ):
+        return default
+    return rendered
+
+
+def _safe_document_type(value: object) -> str:
+    rendered = _safe_source_value(value, _MAX_DOCUMENT_TYPE_LENGTH, "unknown").lstrip(".")
+    return (
+        rendered.lower()
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]{0,79}", rendered)
+        else "unknown"
+    )
 
 
 def _safe_display_name(value: object) -> str:

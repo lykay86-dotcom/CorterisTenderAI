@@ -117,6 +117,33 @@ def test_source_received_at_is_normalized_or_explicitly_unknown() -> None:
     assert _source(received_at="").received_at == "unknown"
 
 
+@pytest.mark.parametrize(
+    "private_path",
+    [
+        r"C:\Users\SecretUser\Documents\tender.pdf",
+        "C:private.txt",
+        r"\\server\private\tender.pdf",
+        "/home/secret/tender.pdf",
+        "file:///C:/private/tender.pdf",
+    ],
+)
+def test_source_snapshot_rejects_path_like_document_ids(private_path: str) -> None:
+    with pytest.raises(ValueError):
+        _source(document_id=private_path)
+
+
+def test_source_snapshot_never_serializes_unsafe_type_or_status_values() -> None:
+    source = _source(
+        document_type=r"C:\Users\SecretUser\private",
+        verification_status="extracted\nC:\\Users\\SecretUser",
+    )
+
+    assert source.document_type == "unknown"
+    assert source.verification_status == "unknown"
+    serialized = json.dumps(source.to_payload(), ensure_ascii=False)
+    assert r"C:\Users\SecretUser" not in serialized
+
+
 def test_version_3_payload_round_trip_requires_ordered_source_registry_parity() -> None:
     analysis = _analysis()
 
@@ -172,6 +199,63 @@ def test_future_payload_is_incompatible_and_contains_no_findings() -> None:
     assert restored.status == "cache_incompatible"
     assert restored.provenance is None
     assert not restored.risks
+
+
+@pytest.mark.parametrize("payload_version", [3.9, "3", True, None, [], {}])
+def test_non_integer_payload_versions_are_incompatible(payload_version: object) -> None:
+    payload = _analysis().to_payload()
+    payload["payload_version"] = payload_version
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+
+    assert restored.status == "cache_incompatible"
+    assert restored.provenance is None
+    assert not restored.risks
+
+
+@pytest.mark.parametrize(
+    ("version_field", "tampered_value"),
+    [
+        ("prompt_version", "2"),
+        ("output_schema_version", "999"),
+        ("persisted_schema_version", 2),
+        ("analyzer_version", "3"),
+        ("context_version", "999"),
+        ("citation_resolver_version", "999"),
+    ],
+)
+def test_tampered_semantic_versions_cannot_restore_verified_findings(
+    version_field: str,
+    tampered_value: object,
+) -> None:
+    payload = _analysis().to_payload()
+    payload["provenance"][version_field] = tampered_value
+    payload["source_registry"] = payload["provenance"]["sources"]
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+
+    assert restored.provenance is None
+    assert restored.risks[0].status is AiFindingStatus.UNVERIFIED
+    assert restored.risks[0].evidence is None
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"prompt_version": "2"},
+        {"output_schema_version": "999"},
+        {"persisted_schema_version": 2},
+        {"analyzer_version": "3"},
+        {"context_version": "999"},
+        {"citation_resolver_version": "999"},
+    ],
+)
+def test_current_verification_rejects_non_current_semantic_versions(
+    changes: dict[str, object],
+) -> None:
+    analysis = _analysis(provenance=_provenance(**changes))
+
+    assert not analysis.is_current_verified(analysis.risks[0])
 
 
 @pytest.mark.parametrize(
