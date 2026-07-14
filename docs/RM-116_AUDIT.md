@@ -135,9 +135,9 @@ DNS, keyring, saved credential, new database, or migration is required by the lo
 
 Acceptance evidence on Python 3.12.7:
 
-- exact RM-116 target: `268 passed in 6.86s`;
-- strict/provider/UI regressions: `97 passed in 4.16s`;
-- full suite: `1024 passed in 54.00s`;
+- exact RM-116 target: `273 passed in 7.40s`;
+- strict/provider/UI regressions: `97 passed in 4.93s`;
+- full suite: `1029 passed in 54.90s`;
 - Ruff check and format (`507 files`) passed;
 - mypy passed on the expanded fixed contour of 16 production files;
 - repository secret scan passed;
@@ -153,4 +153,6 @@ Final adversarial review additionally verified and corrected two cross-layer bou
 only the latest extraction revision for each `document_key` enters AI context, and cached
 provider metadata must match the closed public grammar plus locally derived
 `resp_<sha256>` response reference before findings can remain verified. Naive source timestamps
-now become explicit `unknown` rather than invented UTC.
+now become explicit `unknown` rather than invented UTC. Cached source display names and
+verification statuses are also restricted to safe public forms; unsafe or non-canonical source
+metadata invalidates provenance and downgrades findings fail-closed.

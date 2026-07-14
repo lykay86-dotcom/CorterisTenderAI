@@ -294,8 +294,8 @@ run `29352442656` после повторного запуска успешно 
   абсолютный приоритет critical stop-factor;
 - сохранены существующие provider/analyzer/Orchestrator/repository/context builder/exporter,
   одна provider-output схема и один production provider call;
-- локальная приёмка на Python 3.12.7: target `268 passed`, provider/UI regressions `97 passed`,
-  full `1024 passed`, Ruff, mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
+- локальная приёмка на Python 3.12.7: target `273 passed`, provider/UI regressions `97 passed`,
+  full `1029 passed`, Ruff, mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
 
 RM-116 не закрыт и RM-117 не активирован. Остались feature merge, post-merge Windows Quality
 Gate на Python 3.12/3.13 и отдельный merged docs-only closeout.

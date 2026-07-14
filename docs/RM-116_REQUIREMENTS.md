@@ -155,9 +155,9 @@ and 3.13, and a merged docs-only closeout package.
 
 The implementation satisfies the contract locally on Python 3.12.7:
 
-- exact RM-116 target: `268 passed in 6.86s`;
-- strict provider/output/UI regressions: `97 passed in 4.16s`;
-- full suite: `1024 passed in 54.00s`;
+- exact RM-116 target: `273 passed in 7.40s`;
+- strict provider/output/UI regressions: `97 passed in 4.93s`;
+- full suite: `1029 passed in 54.90s`;
 - Ruff check/format, mypy on 16 fixed production files, repository secret scan,
   `pip_audit --skip-editable`, and diff hygiene passed;
 - dependency audit reported no known vulnerabilities;

@@ -144,6 +144,46 @@ def test_source_snapshot_never_serializes_unsafe_type_or_status_values() -> None
     assert r"C:\Users\SecretUser" not in serialized
 
 
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    [
+        ("display_name", "Authorization Bearer topsecret.txt"),
+        ("display_name", "<script>topsecret</script>.pdf"),
+        ("verification_status", "Traceback token=topsecret"),
+        ("verification_status", "token=topsecret"),
+    ],
+)
+def test_unsafe_source_metadata_cannot_restore_verified_findings(
+    field: str,
+    unsafe_value: str,
+) -> None:
+    payload = _analysis().to_payload()
+    payload["provenance"]["sources"][0][field] = unsafe_value
+    payload["source_registry"][0][field] = unsafe_value
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+    serialized = json.dumps(restored.to_payload(), ensure_ascii=False).casefold()
+
+    assert restored.provenance is None
+    assert restored.risks[0].status is AiFindingStatus.UNVERIFIED
+    assert restored.risks[0].evidence is None
+    assert "topsecret" not in serialized
+    assert "traceback" not in serialized
+
+
+def test_source_snapshot_sanitizes_unsafe_source_metadata_at_construction() -> None:
+    source = _source(
+        display_name="Authorization Bearer topsecret.txt",
+        verification_status="Traceback token=topsecret",
+    )
+
+    assert source.display_name == "unknown"
+    assert source.verification_status == "unknown"
+    serialized = json.dumps(source.to_payload(), ensure_ascii=False).casefold()
+    assert "topsecret" not in serialized
+    assert "traceback" not in serialized
+
+
 def test_version_3_payload_round_trip_requires_ordered_source_registry_parity() -> None:
     analysis = _analysis()
 

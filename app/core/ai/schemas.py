@@ -35,6 +35,22 @@ _CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
 _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
 _PROVIDER_RESPONSE_REF_PATTERN = re.compile(r"resp_[0-9a-f]{64}")
+_SOURCE_STATUS_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
+_SOURCE_DISPLAY_NAME_PATTERN = re.compile(r"[\w][\w .()\-+,@№]{0,499}")
+_UNSAFE_SOURCE_METADATA_WORDS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "bearer",
+        "credential",
+        "exception",
+        "password",
+        "secret",
+        "token",
+        "traceback",
+    }
+)
 
 
 class AiAnalysisStatus(StrEnum):
@@ -101,7 +117,7 @@ class AiSourceSnapshot:
         object.__setattr__(
             self,
             "verification_status",
-            _safe_source_value(self.verification_status, _MAX_STATUS_LENGTH, "unknown"),
+            _safe_verification_status(self.verification_status),
         )
         object.__setattr__(self, "received_at", _known_timezone_aware(self.received_at))
 
@@ -558,7 +574,7 @@ def _payload_source_snapshot(value: object) -> AiSourceSnapshot | None:
     if not isinstance(value, Mapping):
         return None
     try:
-        return AiSourceSnapshot(
+        source = AiSourceSnapshot(
             document_id=cast(str, value.get("document_id")),
             display_name=cast(str, value.get("display_name")),
             document_type=cast(str, value.get("document_type")),
@@ -571,6 +587,12 @@ def _payload_source_snapshot(value: object) -> AiSourceSnapshot | None:
         )
     except (TypeError, ValueError):
         return None
+    if (
+        value.get("display_name") != source.display_name
+        or value.get("verification_status") != source.verification_status
+    ):
+        return None
+    return source
 
 
 def _evidence_matches_provenance(
@@ -778,7 +800,25 @@ def _safe_document_type(value: object) -> str:
 def _safe_display_name(value: object) -> str:
     rendered = _bounded_text(value, _MAX_TEXT_LENGTH, "unknown")
     basename = re.split(r"[\\/]", rendered)[-1]
-    return _bounded_text(basename, _MAX_DISPLAY_NAME_LENGTH, "unknown")
+    basename = _bounded_text(basename, _MAX_DISPLAY_NAME_LENGTH, "unknown")
+    if _SOURCE_DISPLAY_NAME_PATTERN.fullmatch(basename) is None or _has_unsafe_source_metadata(
+        basename
+    ):
+        return "unknown"
+    return basename
+
+
+def _safe_verification_status(value: object) -> str:
+    rendered = _bounded_text(value, _MAX_STATUS_LENGTH, "unknown")
+    if _SOURCE_STATUS_PATTERN.fullmatch(rendered) is None or _has_unsafe_source_metadata(rendered):
+        return "unknown"
+    return rendered
+
+
+def _has_unsafe_source_metadata(value: str) -> bool:
+    lowered = value.casefold()
+    words = {word for word in re.split(r"[^\w]+", lowered) if word}
+    return bool(words & _UNSAFE_SOURCE_METADATA_WORDS)
 
 
 def _known_timezone_aware(value: object) -> str:
