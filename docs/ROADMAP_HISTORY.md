@@ -1,5 +1,34 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-117 завершён
+
+- PR #37 (`feat(rm-117): add explainable technical specification analysis`) слит в `main`
+  коммитом `c9d5a31` (`c9d5a31e671ca61a6c6f54428aa8b8f9b26a561a`).
+- Post-merge Quality Gate run `29376283665` завершился статусом `SUCCESS`: Python 3.12 —
+  `1043 passed in 100.66s`, Python 3.13 — `1043 passed in 150.13s`.
+- На обеих версиях прошли Ruff check/format (`509 files`), mypy (16 файлов), repository
+  secret scan, offline/migration/composition/build smoke tests и dependency audit.
+- Один public pure classifier назначает `DocumentKind.TECHNICAL_SPECIFICATION`; AI context
+  переиспользует его, приоритизирует ТЗ и включает completeness metadata в fingerprint.
+- Строгая provider-output schema v2 содержит обязательный раздел из 13 групп, но не отдаёт
+  provider контроль над status/category/verified/score/recommendation.
+- Persisted payload v4 безопасно читает legacy, отклоняет future/corrupt cache и включает
+  semantic document kind в current provenance без изменения SQLite schema.
+- TS evidence проходит единый RM-116 citation resolver; non-TS, unknown, altered и incomplete
+  evidence остаётся unverified, а single-source contradiction не повышается до multi-source.
+- Existing UI и JSON/HTML export показывают status, found/included counts, 13 групп,
+  citations/provenance и truncation warnings без бизнес-логики или private paths.
+- RM-107 score/recommendation и абсолютный приоритет critical stop-factor не изменены.
+- Переиспользованы существующие provider/analyzer/service/Orchestrator/repository/context
+  builder/exporter; второй AI workflow, provider call, TS repository/table и миграция БД не
+  добавлены.
+- Локальная приёмка: target `214 passed`, full `1043 passed`, Ruff, mypy (16 файлов), secret
+  scan, dependency audit и diff-check успешны.
+- Неблокирующее предупреждение GitHub Actions о переводе pinned official actions с Node.js 20
+  на Node.js 24 сохранено как отдельная обслуживающая задача и не влияет на успешный gate.
+- RM-117 переведён в `DONE`; RM-118 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации.
+
 ## 2026-07-15 — RM-116 завершён
 
 - PR #35 (`feat/rm-116-citations-provenance`) слит в `main` коммитом `b8ff9b1`
