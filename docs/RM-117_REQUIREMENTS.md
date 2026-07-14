@@ -86,3 +86,29 @@ git diff --check
 
 Feature-branch completion does not mark RM-117 `DONE`; merge, post-merge Windows Quality Gate on
 Python 3.12/3.13 and a separate docs-only closeout remain mandatory.
+
+## Local implementation acceptance
+
+Implementation checkpoint: `82b19ba74a068f9c5bdd8453d64693d087b028b0`
+Baseline: `343cd425e4f3f0eb1b22a1c4b2c41d8c3e2e0f24`
+Python: `3.12.7`
+
+- Exact RM-117 target contour: `214 passed in 12.31s`.
+- Full suite: `1043 passed in 50.92s`.
+- `python -m ruff check .`: passed.
+- `python -m ruff format . --check`: passed (`509 files already formatted`).
+- `python -m mypy`: passed (`16 source files`).
+- `python scripts/check_repository_secrets.py`: passed.
+- `python -m pip_audit --skip-editable`: no known vulnerabilities; the editable project was
+  skipped as expected.
+- `git diff --check`: passed.
+
+Architecture inspection found one production `provider.analyze(...)`, one provider/analyzer/
+analysis service/Orchestrator/repository graph, one `RUNNING_AI` stage, no TS service/repository/
+table/column/migration and no change to `ParticipationDecisionService`. The adversarial review
+also proved that semantic document kind is current provenance, non-TS cached evidence is
+downgraded, and TS omission/truncation statistics participate in the cache fingerprint.
+
+This remains feature-branch acceptance only. RM-117 is still `IN PROGRESS`; feature merge,
+post-merge Windows Quality Gate on Python 3.12 and 3.13, and a separate docs completion PR are
+not yet complete.
