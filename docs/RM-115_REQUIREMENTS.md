@@ -1,7 +1,7 @@
 # RM-115 Requirements — Strict Tender Intelligence JSON Schema
 
 Status: READY FOR FEATURE PR
-Canonical contract date: 2026-07-14  
+Canonical contract date: 2026-07-14
 Depends on: RM-107, RM-110, RM-111, RM-112, RM-113, RM-114
 
 ## Goal

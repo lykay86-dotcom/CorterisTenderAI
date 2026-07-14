@@ -1,8 +1,8 @@
 # RM-115 Audit — Strict Tender Intelligence JSON Contract
 
-Status: completed before application-code changes  
-Audit date: 2026-07-14  
-Baseline branch: `main`  
+Status: completed before application-code changes
+Audit date: 2026-07-14
+Baseline branch: `main`
 Baseline HEAD: `d9713f6e0234e6dbec8314c87b95944c0061a485`
 (`Merge pull request #32 from lykay86-dotcom/codex/git-integration-recovery`)
 Implementation branch: `feat/rm-115-strict-json-schema`
@@ -158,4 +158,3 @@ The correct extension points are the existing provider interface, `OpenAICompati
 `AiProviderSelectionService`, `TenderDocumentAiAnalyzer`, prompt constants, and repository
 fingerprint. One canonical Pydantic v2 provider-output model can generate the JSON Schema and
 validate every provider locally while preserving the accepted architecture and persistence.
-

@@ -242,4 +242,3 @@
   Leave RM-115 `IN PROGRESS`. Only after feature merge and successful post-merge Quality Gate
   on Python 3.12 and 3.13 may a separate docs completion package mark RM-115 DONE and activate
   RM-116.
-
