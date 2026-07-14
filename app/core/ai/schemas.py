@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import math
-from typing import Mapping
+from typing import Any, Mapping, cast
 
 
 AI_ANALYSIS_SCHEMA_VERSION = 2
@@ -142,7 +142,7 @@ class AiDocumentAnalysis:
             "contradictions": [finding(item) for item in self.contradictions],
             "missing_documents": list(self.missing_documents),
             "final_ai_conclusion": self.final_ai_conclusion,
-            "status": self.status.value,
+            "status": AiAnalysisStatus(self.status).value,
             "created_at": self.created_at,
             "warnings": list(self.warnings),
             "context": {
@@ -279,7 +279,7 @@ def _safe_int(value: object, *, default: int = 0) -> int:
     if isinstance(value, bool):
         return default
     try:
-        return int(value)
+        return int(cast(Any, value))
     except (TypeError, ValueError, OverflowError):
         return default
 

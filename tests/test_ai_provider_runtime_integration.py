@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.ai.provider import AIProvider, DisabledProvider, OpenAICompatibleProvider
 from app.bootstrap import _create_ai_runtime
+from app.core.ai.output_schema import build_responses_text_format
 from app.core.ai.provider_selection import AiProviderId, OLLAMA_DEFAULT_BASE_URL
-from app.core.ai.schemas import AiDocument
+from app.core.ai.schemas import AiDocument, TenderRequirements
 from app.core.config_manager import ConfigManager
 from app.tenders.search_runtime import create_tender_search_runtime
 
@@ -16,9 +19,17 @@ class RecordingProvider(AIProvider):
     def __init__(self, *, fail: bool = False) -> None:
         self.calls = 0
         self.fail = fail
+        self.output_format: Mapping[str, object] | None = None
 
-    def analyze(self, prompt: str, documents: list[str]) -> dict:
+    def analyze(
+        self,
+        prompt: str,
+        documents: list[str],
+        *,
+        output_format: Mapping[str, object] | None = None,
+    ) -> dict:
         self.calls += 1
+        self.output_format = output_format
         assert prompt
         assert documents
         if self.fail:
@@ -28,7 +39,7 @@ class RecordingProvider(AIProvider):
             "text": json.dumps(
                 {
                     "summary": "Safe summary",
-                    "requirements": {},
+                    "requirements": {name: [] for name in TenderRequirements.__dataclass_fields__},
                     "risks": [],
                     "suspicious_conditions": [],
                     "contradictions": [],
@@ -98,6 +109,7 @@ def test_injected_provider_runs_once_through_existing_orchestrator(tmp_path) -> 
     result = runtime.ai_orchestrator.run("procurement:test", force=True)
 
     assert provider.calls == 1
+    assert provider.output_format == build_responses_text_format()
     assert result.document_analysis.status == "complete"
     assert runtime.ai_orchestrator.document_analysis_service.analyzer.provider is provider
 

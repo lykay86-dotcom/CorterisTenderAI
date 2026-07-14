@@ -1,7 +1,13 @@
 from datetime import datetime
 import sqlite3
 
-from app.core.ai.repository import AiDocumentAnalysisRepository, context_fingerprint
+from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
+from app.core.ai.prompts import AI_PROMPT_VERSION
+from app.core.ai.repository import (
+    AI_ANALYZER_VERSION,
+    AiDocumentAnalysisRepository,
+    context_fingerprint,
+)
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiDocument,
@@ -43,11 +49,69 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
     assert baseline != context_fingerprint(documents, prompt_version="next")
     assert baseline != context_fingerprint(documents, schema_version=999)
     assert baseline != context_fingerprint(documents, analyzer_version="next")
+    assert baseline != context_fingerprint(
+        documents,
+        provider_output_schema_version="next",
+    )
     assert baseline != context_fingerprint(documents, context_version="next")
     assert baseline != context_fingerprint(
         documents,
         context_parameters={"max_total_characters": 1},
     )
+
+
+def test_rm115_versions_are_current_without_changing_persisted_schema() -> None:
+    assert AI_PROMPT_VERSION == "2"
+    assert AI_ANALYZER_VERSION == "3"
+    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "1"
+    assert AI_ANALYSIS_SCHEMA_VERSION == 2
+
+
+def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+    documents = (AiDocument("doc", "spec.pdf", "eis", "pdf", "now", "verified", "text", "abc"),)
+    old_fingerprint = context_fingerprint(
+        documents,
+        prompt_version="1",
+        analyzer_version="2",
+        provider_output_schema_version="0",
+    )
+    strict_fingerprint = context_fingerprint(documents)
+    repository.save(
+        AiDocumentAnalysis("procurement:test", "Old lenient", status="complete"),
+        old_fingerprint,
+    )
+
+    assert old_fingerprint != strict_fingerprint
+    assert repository.reusable("procurement:test", strict_fingerprint) is None
+    assert repository.latest("procurement:test").summary == "Old lenient"  # type: ignore[union-attr]
+
+
+def test_rm115_adds_no_table_or_column_migration(tmp_path) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+
+    repository.initialize()
+
+    with sqlite3.connect(repository.path) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(tender_ai_document_analyses)")
+        }
+    assert tables == {"tender_ai_document_analyses"}
+    assert columns == {
+        "analysis_id",
+        "registry_key",
+        "context_fingerprint",
+        "status",
+        "payload_json",
+        "created_at",
+        "payload_version",
+    }
 
 
 def test_repository_skips_corrupt_latest_row_and_uses_previous_valid(tmp_path) -> None:

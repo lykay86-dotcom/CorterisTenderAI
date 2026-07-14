@@ -18,11 +18,23 @@ MAX_INPUT_CHARACTERS = 500_000
 
 class AIProvider(ABC):
     @abstractmethod
-    def analyze(self, prompt: str, documents: list[str]) -> dict[str, object]: ...
+    def analyze(
+        self,
+        prompt: str,
+        documents: list[str],
+        *,
+        output_format: Mapping[str, object] | None = None,
+    ) -> dict[str, object]: ...
 
 
 class DisabledProvider(AIProvider):
-    def analyze(self, prompt: str, documents: list[str]) -> dict[str, object]:
+    def analyze(
+        self,
+        prompt: str,
+        documents: list[str],
+        *,
+        output_format: Mapping[str, object] | None = None,
+    ) -> dict[str, object]:
         return {
             "status": "disabled",
             "message": "ИИ-провайдер не настроен. Использован локальный анализ правил.",
@@ -61,6 +73,7 @@ class OpenAICompatibleProvider(AIProvider):
         *,
         max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
         store_response: bool | None = False,
+        supports_text_format: bool = True,
         opener: Callable[..., object] | None = None,
     ) -> None:
         if timeout <= 0:
@@ -73,12 +86,19 @@ class OpenAICompatibleProvider(AIProvider):
         self.timeout = float(timeout)
         self.max_response_bytes = int(max_response_bytes)
         self.store_response = store_response
+        self.supports_text_format = supports_text_format
         self._opener = opener
 
     def __repr__(self) -> str:
         return "OpenAICompatibleProvider(<configuration redacted>)"
 
-    def analyze(self, prompt: str, documents: list[str]) -> dict[str, object]:
+    def analyze(
+        self,
+        prompt: str,
+        documents: list[str],
+        *,
+        output_format: Mapping[str, object] | None = None,
+    ) -> dict[str, object]:
         if not self.api_key.strip() or any(
             ord(char) < 32 or ord(char) == 127 for char in self.api_key
         ):
@@ -97,6 +117,8 @@ class OpenAICompatibleProvider(AIProvider):
         }
         if self.store_response is not None:
             payload["store"] = self.store_response
+        if output_format is not None and self.supports_text_format:
+            payload["text"] = {"format": dict(output_format)}
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/responses",

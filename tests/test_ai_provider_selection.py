@@ -115,6 +115,7 @@ def test_openai_reuses_compatible_provider_and_official_url(tmp_path) -> None:
     assert isinstance(resolution.provider, OpenAICompatibleProvider)
     assert resolution.provider.base_url == OPENAI_DEFAULT_BASE_URL
     assert resolution.provider.model == "gpt-test"
+    assert resolution.provider.supports_text_format is True
     assert resolution.effective_provider_id is AiProviderId.OPENAI
 
 
@@ -135,6 +136,7 @@ def test_openai_compatible_reuses_existing_provider(tmp_path) -> None:
     assert isinstance(resolution.provider, OpenAICompatibleProvider)
     assert resolution.provider.base_url == "https://ai.example.test/v1"
     assert resolution.provider.model == "custom-model"
+    assert resolution.provider.supports_text_format is True
 
 
 @pytest.mark.parametrize(

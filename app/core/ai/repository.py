@@ -11,6 +11,7 @@ from typing import Mapping
 from uuid import uuid4
 
 from app.core.ai.document_context import AI_CONTEXT_VERSION
+from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
@@ -20,7 +21,7 @@ from app.core.ai.schemas import (
 )
 
 
-AI_ANALYZER_VERSION = "2"
+AI_ANALYZER_VERSION = "3"
 
 
 def context_fingerprint(
@@ -29,6 +30,7 @@ def context_fingerprint(
     prompt_version: str | None = None,
     schema_version: int | None = None,
     analyzer_version: str | None = None,
+    provider_output_schema_version: str | None = None,
     context_version: str | None = None,
     context_parameters: Mapping[str, object] | None = None,
 ) -> str:
@@ -56,6 +58,9 @@ def context_fingerprint(
             "prompt": prompt_version or AI_PROMPT_VERSION,
             "schema": (AI_ANALYSIS_SCHEMA_VERSION if schema_version is None else schema_version),
             "analyzer": analyzer_version or AI_ANALYZER_VERSION,
+            "provider_output_schema": (
+                provider_output_schema_version or AI_PROVIDER_OUTPUT_SCHEMA_VERSION
+            ),
             "context": context_version or AI_CONTEXT_VERSION,
         },
         "context_parameters": dict(context_parameters or {}),

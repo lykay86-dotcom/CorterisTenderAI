@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import replace
-import json
 import math
 from typing import Mapping
 
 from app.ai.provider import AIProvider
 from app.core.ai.document_context import TenderDocumentContextBuilder
+from app.core.ai.output_schema import (
+    build_responses_text_format,
+    decode_and_validate_provider_output,
+)
 from app.core.ai.prompts import SYSTEM_PROMPT
 from app.core.ai.repository import (
     AI_ANALYZER_VERSION,
@@ -52,6 +55,7 @@ class TenderDocumentAiAnalyzer:
             response = self.provider.analyze(
                 SYSTEM_PROMPT,
                 [self._render(item) for item in documents],
+                output_format=build_responses_text_format(),
             )
         except Exception:
             return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
@@ -63,20 +67,10 @@ class TenderDocumentAiAnalyzer:
         if provider_status != "ok":
             return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
 
-        payload = self._decode(response.get("text"))
+        payload = decode_and_validate_provider_output(response.get("text"))
         if payload is None:
             return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
-        return self._normalize(registry_key, payload, documents)
-
-    @staticmethod
-    def _decode(value: object) -> Mapping[str, object] | None:
-        if not isinstance(value, (str, bytes, bytearray)):
-            return None
-        try:
-            payload = json.loads(value)
-        except (json.JSONDecodeError, UnicodeDecodeError, TypeError, ValueError):
-            return None
-        return payload if isinstance(payload, Mapping) else None
+        return self._normalize(registry_key, payload.model_dump(), documents)
 
     def _normalize(
         self,
