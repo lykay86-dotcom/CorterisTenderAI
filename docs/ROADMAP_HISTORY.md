@@ -1,5 +1,28 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-116 завершён
+
+- PR #35 (`feat/rm-116-citations-provenance`) слит в `main` коммитом `b8ff9b1`
+  (`b8ff9b13b7f67366f16b24c1eedccf9a63cb4d46`).
+- Post-merge Quality Gate run `29372896780` завершился статусом `SUCCESS`: Python 3.12 —
+  `1030 passed in 123.59s`, Python 3.13 — `1030 passed in 60.47s`.
+- На обеих версиях прошли Ruff check/format (`507 files`), mypy (16 файлов), repository
+  secret scan, offline/migration/composition/build smoke tests и dependency audit.
+- Реализованы exact local citations, immutable provenance/source registry, payload v3,
+  provenance-aware cache, безопасная UI-навигация и JSON/HTML export.
+- Provider сообщает только кандидаты и безопасную public metadata; checksum, offsets,
+  locator, citation ID и eligibility вычисляются и проверяются локально.
+- Legacy/future/corrupt cache и небезопасная provider/source metadata обрабатываются
+  fail-closed без сохранения `VERIFIED` и без утечки чувствительных данных.
+- RM-107 принимает только current verified citations; score/recommendation и абсолютный
+  приоритет critical stop-factor не изменены.
+- Переиспользованы существующие provider/analyzer/Orchestrator/repository/context
+  builder/exporter; второй schema/parser/workflow и миграция БД не добавлены.
+- Локальная приёмка: target `273 passed`, strict/provider/UI `97 passed`, full `1029 passed`,
+  Ruff, mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
+- RM-116 переведён в `DONE`; RM-117 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации.
+
 ## 2026-07-14 — RM-116: подготовлена feature acceptance
 
 - После обязательного аудита реализованы exact local citations, immutable provenance/source
