@@ -46,7 +46,7 @@ _MAX_PROVIDER_MODEL_LENGTH = 200
 _RESOLVER_FAILURE_WARNING = "Citation evidence could not be resolved safely."
 _PROVENANCE_FAILURE_WARNING = "Provenance metadata could not be recorded safely."
 _PUBLIC_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-_MODEL_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(?:[/:][A-Za-z0-9][A-Za-z0-9._-]*){0,3}")
+_MODEL_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(?:[/:][A-Za-z0-9][A-Za-z0-9._-]*)*")
 _CREDENTIAL_WORDS = frozenset(
     {
         "api_key",
@@ -90,13 +90,19 @@ class TenderDocumentAiAnalyzer:
             return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
         if not isinstance(response, Mapping):
             return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
-        provider_status = response.get("status")
-        if provider_status == "disabled":
-            return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_DISABLED)
-        if provider_status != "ok":
+        try:
+            provider_status = response.get("status")
+            if provider_status == "disabled":
+                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_DISABLED)
+            if provider_status != "ok":
+                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
+        except Exception:
             return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
 
-        payload = decode_and_validate_provider_output(response.get("text"))
+        try:
+            payload = decode_and_validate_provider_output(response.get("text"))
+        except Exception:
+            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
         if payload is None:
             return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
         result = self._normalize(

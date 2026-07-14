@@ -194,6 +194,75 @@ def test_hostile_raw_id_mapping_degrades_inside_provenance_boundary() -> None:
 
 
 @pytest.mark.parametrize(
+    ("failing_key", "expected_status"),
+    [
+        ("status", "provider_error"),
+        ("text", "invalid_response"),
+    ],
+)
+def test_hostile_provider_response_access_fails_closed_without_findings(
+    failing_key: str,
+    expected_status: str,
+) -> None:
+    class HostileResponse(dict[str, object]):
+        def get(self, key, default=None):
+            if key == failing_key:
+                raise RuntimeError("Authorization: Bearer RESPONSE-SECRET")
+            return super().get(key, default)
+
+    class HostileResponseProvider(Provider):
+        def analyze(self, *args, **kwargs) -> dict[str, object]:
+            return HostileResponse(super().analyze(*args, **kwargs))
+
+    result = TenderDocumentAiAnalyzer(
+        HostileResponseProvider(_valid_payload(risks=[_finding()]))
+    ).analyze("procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT)
+
+    assert result.status == expected_status
+    assert result.warnings == ()
+    _assert_no_findings(result)
+    assert "RESPONSE-SECRET" not in repr(result)
+
+
+def test_decoder_exception_is_invalid_response_without_findings(monkeypatch) -> None:
+    def fail_decoder(_value):
+        raise RuntimeError("response body SECRET")
+
+    monkeypatch.setattr("app.core.ai.analyzer.decode_and_validate_provider_output", fail_decoder)
+
+    result = TenderDocumentAiAnalyzer(Provider(_valid_payload(risks=[_finding()]))).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    assert result.status == "invalid_response"
+    assert result.warnings == ()
+    _assert_no_findings(result)
+    assert "SECRET" not in repr(result)
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        "a/b/c/d/e",
+        "fine:tuned:model:family:variant:2026:07",
+    ],
+)
+def test_provenance_preserves_bounded_multi_segment_model_ids(model: str) -> None:
+    class NamespacedModelProvider(Provider):
+        @property
+        def metadata(self) -> AiProviderMetadata:
+            return AiProviderMetadata("openai_compatible", model)
+
+    result = TenderDocumentAiAnalyzer(NamespacedModelProvider(_valid_payload())).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    assert result.provenance is not None
+    assert result.provenance.provider_id == "openai_compatible"
+    assert result.provenance.provider_model == model
+
+
+@pytest.mark.parametrize(
     ("provider_id", "model", "raw_id", "forbidden"),
     [
         (
@@ -231,6 +300,18 @@ def test_hostile_raw_id_mapping_degrades_inside_provenance_boundary() -> None:
             "gpt-4.1",
             "safe-response-id",
             ("BearerSECRET", "SECRET"),
+        ),
+        (
+            "openai",
+            "a//empty",
+            "safe-response-id",
+            ("a//empty",),
+        ),
+        (
+            "openai",
+            "a::empty",
+            "safe-response-id",
+            ("a::empty",),
         ),
     ],
 )
