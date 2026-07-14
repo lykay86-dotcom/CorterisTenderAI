@@ -1,6 +1,6 @@
 # RM-115 Requirements — Strict Tender Intelligence JSON Schema
 
-Status: APPROVED FOR IMPLEMENTATION  
+Status: READY FOR FEATURE PR
 Canonical contract date: 2026-07-14  
 Depends on: RM-107, RM-110, RM-111, RM-112, RM-113, RM-114
 
@@ -189,6 +189,45 @@ must include `app/core/ai/output_schema.py`, `app/core/ai/analyzer.py`, and
   `PermissionError` failures creating pytest temp paths, not application failures. Redirecting
   `TEMP/TMP` into the worktree produced the successful results above.
 
+## Local acceptance — 2026-07-14
+
+Fresh acceptance was executed from `feat/rm-115-strict-json-schema` with
+`C:\CorterisTenderAI_1_5_1\.venv\Scripts\python.exe`, Python 3.12.7. Pytest used
+worktree-local `TEMP/TMP`; no test accessed live OpenAI, Ollama, DNS, host keyring, or saved
+user credentials.
+
+- exact RM-115 target contour: `229 passed in 5.80s`; measured wall time `6.90s`;
+- full pytest: `901 passed in 50.29s`; measured wall time `51.67s`;
+- `python -m ruff check .`: passed in `0.20s`;
+- `python -m ruff format . --check`: passed in `0.22s` (`504 files already formatted`);
+- `python -m mypy`: passed in `0.83s` (`13 source files`);
+- `python scripts/check_repository_secrets.py`: passed in `0.69s`;
+- `python -m pip_audit --skip-editable`: passed (`No known vulnerabilities found`),
+  excluding the editable project distribution; the successful read-only metadata query took
+  `9.3s` after managed-sandbox network access was approved. The first sandboxed attempt was
+  blocked before an audit result by socket policy and did not indicate a dependency finding;
+- `git diff --check`: passed.
+
+Architecture/security scans confirmed:
+
+- exactly one `OpenAICompatibleProvider`, `TenderDocumentAiAnalyzer`,
+  `TenderAiOrchestrator`, and `AiDocumentAnalysisRepository` class;
+- exactly one production `provider.analyze()` occurrence, in the existing analyzer;
+- cloud provider selection uses `supports_text_format=True`, while Ollama uses
+  `supports_text_format=False`, `store_response=None`, and no cloud-keyring path;
+- no `response_format`, `/chat/completions`, production `structured_analysis` import, retry,
+  second endpoint, or second AI workflow was added;
+- structural schema errors return `invalid_response` with no findings, while structurally
+  valid evidence mismatch remains local `unverified`/`partial`;
+- `AI_ANALYSIS_SCHEMA_VERSION` remains `2`; provider-output version `1`, prompt version `2`,
+  and analyzer version `3` participate in the context fingerprint;
+- no database/table/column change or migration was added, and existing history remains
+  readable but cannot be reused under the new strict fingerprint;
+- raw provider responses, schema validation errors, prompts, documents, credentials, URLs,
+  private paths, and SQLite payloads are neither persisted nor logged by the RM-115 boundary;
+- RM-107 score/recommendation ownership and critical stop-factor priority are unchanged;
+- RM-116 citations/provenance and RM-117 specialized analysis were not implemented.
+
 ## Completion boundary
 
 Local success makes RM-115 ready for review, not DONE. The feature PR title is
@@ -196,4 +235,3 @@ Local success makes RM-115 ready for review, not DONE. The feature PR title is
 RM-116 activated only after feature merge and successful post-merge Windows Quality Gate on
 Python 3.12 and 3.13. That later completion update must record merge SHA, PR number, run ID,
 matrix results, and the required roadmap history changes.
-
