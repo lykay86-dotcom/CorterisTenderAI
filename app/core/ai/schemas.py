@@ -36,7 +36,7 @@ _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
 _PROVIDER_RESPONSE_REF_PATTERN = re.compile(r"resp_[0-9a-f]{64}")
 _SOURCE_STATUS_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
-_SOURCE_DISPLAY_NAME_PATTERN = re.compile(r"[\w][\w .()\-+,@№]{0,499}")
+_UNSAFE_SOURCE_DISPLAY_NAME_PATTERN = re.compile(r'[<>:"|?*\x00-\x1f]')
 _UNSAFE_SOURCE_METADATA_WORDS = frozenset(
     {
         "api_key",
@@ -801,7 +801,7 @@ def _safe_display_name(value: object) -> str:
     rendered = _bounded_text(value, _MAX_TEXT_LENGTH, "unknown")
     basename = re.split(r"[\\/]", rendered)[-1]
     basename = _bounded_text(basename, _MAX_DISPLAY_NAME_LENGTH, "unknown")
-    if _SOURCE_DISPLAY_NAME_PATTERN.fullmatch(basename) is None or _has_unsafe_source_metadata(
+    if _UNSAFE_SOURCE_DISPLAY_NAME_PATTERN.search(basename) or _has_unsafe_source_metadata(
         basename
     ):
         return "unknown"

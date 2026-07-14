@@ -184,6 +184,14 @@ def test_source_snapshot_sanitizes_unsafe_source_metadata_at_construction() -> N
     assert "traceback" not in serialized
 
 
+def test_source_snapshot_preserves_production_safe_filename_characters() -> None:
+    display_name = "TZ [rev.2] & appendices #1! client's.pdf"
+
+    source = _source(display_name=display_name)
+
+    assert source.display_name == display_name
+
+
 def test_version_3_payload_round_trip_requires_ordered_source_registry_parity() -> None:
     analysis = _analysis()
 
