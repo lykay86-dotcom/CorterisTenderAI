@@ -136,6 +136,26 @@ def test_valid_structure_with_unprovable_evidence_is_partial_and_unverified(find
     assert result.risks[0].evidence is None
 
 
+@pytest.mark.parametrize(
+    "quote",
+    [
+        "  delivery period is 10 days",
+        "delivery period is 10 days ",
+        "delivery period is 10 days\n",
+    ],
+)
+def test_whitespace_changed_quote_remains_unverified(quote: str) -> None:
+    payload = _valid_payload(risks=[_finding(quote=quote)])
+
+    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    assert result.status == "partial"
+    assert result.risks[0].status is AiFindingStatus.UNVERIFIED
+    assert result.risks[0].evidence is None
+
+
 def test_valid_structure_keeps_quote_backed_contradiction_across_documents() -> None:
     second = AiDocument(
         "doc-2",

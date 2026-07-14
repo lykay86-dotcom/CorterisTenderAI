@@ -193,9 +193,8 @@ class TenderDocumentAiAnalyzer:
                 issues,
                 f"{category}.document_id",
             )
-            quote = _bounded_text(
+            quote = _exact_quote(
                 item.get("quote"),
-                MAX_QUOTE_LENGTH,
                 issues,
                 f"{category}.quote",
             )
@@ -366,6 +365,17 @@ def _bounded_text(
         issues.append(field_name)
         return rendered[:limit]
     return rendered
+
+
+def _exact_quote(
+    value: object,
+    issues: list[str],
+    field_name: str,
+) -> str:
+    if not isinstance(value, str) or not value or len(value) > MAX_QUOTE_LENGTH:
+        issues.append(field_name)
+        return ""
+    return value
 
 
 def _confidence(value: object) -> float | None:
