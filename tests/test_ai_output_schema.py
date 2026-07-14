@@ -20,6 +20,7 @@ from app.core.ai.schemas import TenderRequirements
 ROOT_KEYS = {
     "summary",
     "requirements",
+    "technical_specification",
     "risks",
     "suspicious_conditions",
     "contradictions",
@@ -27,6 +28,21 @@ ROOT_KEYS = {
     "final_ai_conclusion",
 }
 REQUIREMENT_KEYS = tuple(TenderRequirements.__dataclass_fields__)
+TECHNICAL_SPECIFICATION_KEYS = (
+    "scope",
+    "deliverables",
+    "quantities_and_volumes",
+    "technical_characteristics",
+    "materials_and_equipment",
+    "standards_and_regulations",
+    "execution_conditions",
+    "stages_and_deadlines",
+    "acceptance_and_quality",
+    "customer_inputs_and_dependencies",
+    "ambiguities",
+    "contradictions",
+    "clarification_points",
+)
 FINDING_KEYS = {"statement", "document_id", "quote", "section", "page", "confidence"}
 
 
@@ -34,6 +50,7 @@ def _valid_payload() -> dict[str, Any]:
     return {
         "summary": "",
         "requirements": {name: [] for name in REQUIREMENT_KEYS},
+        "technical_specification": {name: [] for name in TECHNICAL_SPECIFICATION_KEYS},
         "risks": [],
         "suspicious_conditions": [],
         "contradictions": [],
@@ -70,8 +87,8 @@ def _walk_objects(value: object) -> list[dict[str, object]]:
 def test_schema_name_version_and_responses_format_are_stable() -> None:
     schema = build_provider_output_json_schema()
 
-    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "1"
-    assert AI_RESPONSE_FORMAT_NAME == "corteris_tender_analysis_v1"
+    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "2"
+    assert AI_RESPONSE_FORMAT_NAME == "corteris_tender_analysis_v2"
     assert build_responses_text_format() == {
         "type": "json_schema",
         "name": AI_RESPONSE_FORMAT_NAME,
@@ -94,6 +111,9 @@ def test_schema_is_deterministic_strict_and_matches_domain_buckets() -> None:
     requirement_model = first["$defs"]["ProviderRequirementsPayload"]
     assert tuple(requirement_model["properties"]) == REQUIREMENT_KEYS
     assert set(requirement_model["required"]) == set(REQUIREMENT_KEYS)
+    technical_model = first["$defs"]["ProviderTechnicalSpecificationPayload"]
+    assert tuple(technical_model["properties"]) == TECHNICAL_SPECIFICATION_KEYS
+    assert set(technical_model["required"]) == set(TECHNICAL_SPECIFICATION_KEYS)
 
     for object_schema in _walk_objects(first):
         assert object_schema["additionalProperties"] is False

@@ -190,3 +190,23 @@ def test_context_fingerprint_parameters_include_limits() -> None:
     assert builder.fingerprint_parameters["max_document_characters"] == 10
     assert builder.fingerprint_parameters["max_total_characters"] == 20
     assert builder.fingerprint_parameters["context_version"]
+
+
+def test_context_reuses_classifier_and_prioritizes_technical_specification() -> None:
+    contract = _record("a-contract", "contract")
+    contract.source_path = Path("C:/files-that-do-not-exist/проект договора.pdf")
+    technical = _record("z-technical", "technical")
+    technical.source_path = Path("C:/files-that-do-not-exist/техническое задание.pdf")
+    context = TenderDocumentContextBuilder(
+        FlexibleTextService(
+            (contract, technical),
+            {"a-contract": "Договор", "z-technical": "Обязательный параметр 10 мм"},
+        ),
+        max_total_characters=24,
+    ).build_context("procurement:test")
+
+    assert context.documents[0].document_id == "z-technical"
+    assert context.documents[0].document_kind == "technical_specification"
+    assert context.statistics.technical_specification_document_ids == ("z-technical",)
+    assert context.statistics.included_technical_specification_document_count == 1
+    assert context.statistics.technical_specification_truncated

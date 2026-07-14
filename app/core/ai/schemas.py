@@ -12,13 +12,14 @@ import re
 from typing import Any, Mapping, cast
 
 from app.ai.provider import _safe_provider_id, _safe_provider_model
+from app.core.document_classification import DocumentKind
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 3
-_EXPECTED_PROVENANCE_PROMPT_VERSION = "3"
-_EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "1"
-_EXPECTED_PROVENANCE_ANALYZER_VERSION = "4"
-_EXPECTED_PROVENANCE_CONTEXT_VERSION = "2"
+AI_ANALYSIS_SCHEMA_VERSION = 4
+_EXPECTED_PROVENANCE_PROMPT_VERSION = "4"
+_EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "2"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "5"
+_EXPECTED_PROVENANCE_CONTEXT_VERSION = "3"
 _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
 _MAX_DOCUMENT_ID_LENGTH = 500
@@ -68,6 +69,13 @@ class AiFindingStatus(StrEnum):
     UNVERIFIED = "unverified"
 
 
+class AiTechnicalSpecificationStatus(StrEnum):
+    NOT_FOUND = "not_found"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
 class AiEvidenceVerificationMethod(StrEnum):
     EXACT_QUOTE = "exact_quote"
 
@@ -83,6 +91,7 @@ class AiSourceSnapshot:
     truncated: bool
     included_character_count: int
     original_character_count: int
+    document_kind: str = DocumentKind.OTHER.value
 
     def __post_init__(self) -> None:
         document_id = _safe_source_value(self.document_id, _MAX_DOCUMENT_ID_LENGTH)
@@ -120,6 +129,11 @@ class AiSourceSnapshot:
             _safe_verification_status(self.verification_status),
         )
         object.__setattr__(self, "received_at", _known_timezone_aware(self.received_at))
+        try:
+            document_kind = DocumentKind(self.document_kind).value
+        except (TypeError, ValueError):
+            document_kind = DocumentKind.OTHER.value
+        object.__setattr__(self, "document_kind", document_kind)
 
     def to_payload(self) -> dict[str, object]:
         return {
@@ -132,6 +146,7 @@ class AiSourceSnapshot:
             "truncated": self.truncated,
             "included_character_count": self.included_character_count,
             "original_character_count": self.original_character_count,
+            "document_kind": self.document_kind,
         }
 
 
@@ -226,6 +241,7 @@ class AiDocument:
     checksum_sha256: str = ""
     truncated: bool = False
     original_character_count: int = 0
+    document_kind: str = "other"
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,6 +338,34 @@ class TenderRequirements:
 
 
 @dataclass(frozen=True, slots=True)
+class AiTechnicalSpecificationAnalysis:
+    status: AiTechnicalSpecificationStatus | str = AiTechnicalSpecificationStatus.UNAVAILABLE
+    document_ids: tuple[str, ...] = ()
+    included_document_ids: tuple[str, ...] = ()
+    scope: tuple[AiFinding, ...] = ()
+    deliverables: tuple[AiFinding, ...] = ()
+    quantities_and_volumes: tuple[AiFinding, ...] = ()
+    technical_characteristics: tuple[AiFinding, ...] = ()
+    materials_and_equipment: tuple[AiFinding, ...] = ()
+    standards_and_regulations: tuple[AiFinding, ...] = ()
+    execution_conditions: tuple[AiFinding, ...] = ()
+    stages_and_deadlines: tuple[AiFinding, ...] = ()
+    acceptance_and_quality: tuple[AiFinding, ...] = ()
+    customer_inputs_and_dependencies: tuple[AiFinding, ...] = ()
+    ambiguities: tuple[AiFinding, ...] = ()
+    contradictions: tuple[AiFinding, ...] = ()
+    clarification_points: tuple[AiFinding, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            status = AiTechnicalSpecificationStatus(self.status)
+        except (TypeError, ValueError):
+            status = AiTechnicalSpecificationStatus.UNAVAILABLE
+        object.__setattr__(self, "status", status)
+
+
+@dataclass(frozen=True, slots=True)
 class AiDocumentAnalysis:
     registry_key: str
     summary: str
@@ -341,6 +385,9 @@ class AiDocumentAnalysis:
     context_character_count: int = 0
     context_truncated: bool = False
     provenance: AiAnalysisProvenance | None = None
+    technical_specification: AiTechnicalSpecificationAnalysis = field(
+        default_factory=AiTechnicalSpecificationAnalysis
+    )
 
     def __post_init__(self) -> None:
         try:
@@ -383,6 +430,16 @@ class AiDocumentAnalysis:
             "requirements": {
                 name: [finding(item) for item in getattr(self.requirements, name)]
                 for name in TenderRequirements.__dataclass_fields__
+            },
+            "technical_specification": {
+                "status": AiTechnicalSpecificationStatus(self.technical_specification.status).value,
+                "document_ids": list(self.technical_specification.document_ids),
+                "included_document_ids": list(self.technical_specification.included_document_ids),
+                **{
+                    name: [finding(item) for item in getattr(self.technical_specification, name)]
+                    for name in _TECHNICAL_SPECIFICATION_FINDING_FIELDS
+                },
+                "warnings": list(self.technical_specification.warnings),
             },
             "risks": [finding(item) for item in self.risks],
             "suspicious_conditions": [finding(item) for item in self.suspicious_conditions],
@@ -438,7 +495,11 @@ class AiDocumentAnalysis:
                 warnings=("Сохранённый AI-анализ имеет несовместимую версию.",),
             )
 
-        provenance = _payload_provenance(payload.get("provenance")) if version == 3 else None
+        provenance = (
+            _payload_provenance(payload.get("provenance"))
+            if version == AI_ANALYSIS_SCHEMA_VERSION
+            else None
+        )
         source_registry = payload.get("source_registry")
         if (
             provenance is None
@@ -502,6 +563,38 @@ class AiDocumentAnalysis:
         )
         raw_context = payload.get("context", {})
         context = raw_context if isinstance(raw_context, Mapping) else {}
+        raw_ts = payload.get("technical_specification", {})
+        ts = (
+            raw_ts
+            if version == AI_ANALYSIS_SCHEMA_VERSION and _valid_technical_payload(raw_ts)
+            else {}
+        )
+        raw_ts_ids = ts.get("document_ids", ())
+        ts_ids = (
+            tuple(
+                text
+                for item in raw_ts_ids
+                if (text := _safe_source_value(item, _MAX_DOCUMENT_ID_LENGTH))
+            )
+            if isinstance(raw_ts_ids, (list, tuple))
+            else ()
+        )
+        raw_ts_warnings = ts.get("warnings", ())
+        ts_warnings = (
+            tuple(text for item in raw_ts_warnings if (text := _text(item, 1_000)))
+            if isinstance(raw_ts_warnings, (list, tuple))
+            else ()
+        )
+        raw_included_ts_ids = ts.get("included_document_ids", ())
+        included_ts_ids = (
+            tuple(
+                text
+                for item in raw_included_ts_ids
+                if (text := _safe_source_value(item, _MAX_DOCUMENT_ID_LENGTH))
+            )
+            if isinstance(raw_included_ts_ids, (list, tuple))
+            else ()
+        )
         return cls(
             registry_key=registry_key,
             summary=_text(payload.get("summary"), _MAX_TEXT_LENGTH),
@@ -524,7 +617,54 @@ class AiDocumentAnalysis:
             context_character_count=max(0, _safe_int(context.get("character_count"))),
             context_truncated=bool(context.get("truncated", False)),
             provenance=provenance,
+            technical_specification=AiTechnicalSpecificationAnalysis(
+                status=ts.get("status", AiTechnicalSpecificationStatus.UNAVAILABLE.value),
+                document_ids=ts_ids,
+                included_document_ids=included_ts_ids,
+                **{
+                    name: _technical_payload_findings(findings(ts.get(name)), provenance)
+                    for name in _TECHNICAL_SPECIFICATION_FINDING_FIELDS
+                },
+                warnings=ts_warnings,
+            ),
         )
+
+
+_TECHNICAL_SPECIFICATION_FINDING_FIELDS = tuple(
+    name
+    for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
+    if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+)
+
+
+def _valid_technical_payload(value: object) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    expected = {
+        "status",
+        "document_ids",
+        "included_document_ids",
+        "warnings",
+        *_TECHNICAL_SPECIFICATION_FINDING_FIELDS,
+    }
+    if set(value) != expected:
+        return False
+    raw_status = value.get("status")
+    if not isinstance(raw_status, str):
+        return False
+    try:
+        AiTechnicalSpecificationStatus(raw_status)
+    except (TypeError, ValueError):
+        return False
+    return all(
+        isinstance(value.get(name), list)
+        for name in (
+            *_TECHNICAL_SPECIFICATION_FINDING_FIELDS,
+            "document_ids",
+            "included_document_ids",
+            "warnings",
+        )
+    )
 
 
 def _payload_provenance(value: object) -> AiAnalysisProvenance | None:
@@ -584,6 +724,7 @@ def _payload_source_snapshot(value: object) -> AiSourceSnapshot | None:
             truncated=cast(bool, value.get("truncated")),
             included_character_count=cast(int, value.get("included_character_count")),
             original_character_count=cast(int, value.get("original_character_count")),
+            document_kind=cast(str, value.get("document_kind")),
         )
     except (TypeError, ValueError):
         return None
@@ -593,6 +734,23 @@ def _payload_source_snapshot(value: object) -> AiSourceSnapshot | None:
     ):
         return None
     return source
+
+
+def _technical_payload_findings(
+    findings: tuple[AiFinding, ...],
+    provenance: AiAnalysisProvenance | None,
+) -> tuple[AiFinding, ...]:
+    technical_ids = {
+        source.document_id
+        for source in (provenance.sources if provenance is not None else ())
+        if source.document_kind == DocumentKind.TECHNICAL_SPECIFICATION.value
+    }
+    return tuple(
+        item
+        if item.evidence is not None and item.evidence.document_id in technical_ids
+        else AiFinding(item.category, item.statement, None, AiFindingStatus.UNVERIFIED)
+        for item in findings
+    )
 
 
 def _evidence_matches_provenance(
@@ -860,6 +1018,8 @@ __all__ = [
     "AiEvidenceVerificationMethod",
     "AiFinding",
     "AiFindingStatus",
+    "AiTechnicalSpecificationAnalysis",
+    "AiTechnicalSpecificationStatus",
     "AiSourceSnapshot",
     "TenderRequirements",
 ]

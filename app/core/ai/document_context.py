@@ -9,12 +9,13 @@ import re
 from typing import TYPE_CHECKING, Protocol
 
 from app.core.ai.schemas import AiDocument
+from app.core.document_classification import DocumentKind, classify_document_kind
 
 if TYPE_CHECKING:
     from app.tenders.document_text_extractor import StoredDocumentText
 
 
-AI_CONTEXT_VERSION = "2"
+AI_CONTEXT_VERSION = "3"
 DEFAULT_MAX_DOCUMENT_CHARACTERS = 100_000
 DEFAULT_MAX_TOTAL_CHARACTERS = 400_000
 
@@ -35,6 +36,11 @@ class AiContextStatistics:
     empty_document_count: int = 0
     duplicate_document_count: int = 0
     unavailable_document_count: int = 0
+    technical_specification_document_count: int = 0
+    included_technical_specification_document_count: int = 0
+    technical_specification_truncated: bool = False
+    technical_specification_document_ids: tuple[str, ...] = ()
+    included_technical_specification_document_ids: tuple[str, ...] = ()
 
     @property
     def truncated(self) -> bool:
@@ -78,16 +84,35 @@ class TenderDocumentContextBuilder:
     def build_context(self, registry_key: str) -> AiDocumentContext:
         records = tuple(self.text_service.list_results(registry_key))
         current_records = _latest_revision_records(records)
-        ordered = sorted(current_records, key=_record_sort_key)
+        prepared = tuple(_prepare_record(record, self.text_service) for record in current_records)
+        ordered = sorted(prepared, key=_prepared_sort_key)
         documents: list[AiDocument] = []
         seen_checksums: set[str] = set()
         characters = 0
         truncated = omitted = empty = unavailable = 0
         duplicate = len(records) - len(current_records)
 
-        for record in ordered:
+        ts_found = sum(item.kind is DocumentKind.TECHNICAL_SPECIFICATION for item in prepared)
+        ts_document_ids = tuple(
+            sorted(
+                (
+                    str(getattr(item.record, "document_key", "") or "")
+                    for item in prepared
+                    if item.kind is DocumentKind.TECHNICAL_SPECIFICATION
+                ),
+                key=str.casefold,
+            )
+        )
+        included_ts_document_ids: list[str] = []
+        ts_included = 0
+        ts_incomplete = False
+
+        for prepared_record in ordered:
+            record = prepared_record.record
+            kind = prepared_record.kind
             if not bool(getattr(record, "available_locally", False)):
                 unavailable += 1
+                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
                 continue
             checksum = str(getattr(record, "checksum_sha256", "") or "").strip()
             if checksum and checksum in seen_checksums:
@@ -96,15 +121,22 @@ class TenderDocumentContextBuilder:
             if checksum:
                 seen_checksums.add(checksum)
             try:
-                text = str(self.text_service.read_text(record) or "").strip()
+                text = prepared_record.text
             except Exception:
                 unavailable += 1
+                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
+                continue
+            if prepared_record.read_failed:
+                unavailable += 1
+                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
                 continue
             if not text:
                 empty += 1
+                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
                 continue
             if characters >= self.max_total_characters:
                 omitted += 1
+                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
                 continue
 
             original_count = len(text)
@@ -116,6 +148,7 @@ class TenderDocumentContextBuilder:
             was_truncated = len(rendered) < original_count
             if was_truncated:
                 truncated += 1
+                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
             characters += len(rendered)
             source_path = getattr(record, "source_path", None)
             document_key = str(getattr(record, "document_key", "") or "")
@@ -137,8 +170,12 @@ class TenderDocumentContextBuilder:
                     checksum_sha256=checksum,
                     truncated=was_truncated,
                     original_character_count=original_count,
+                    document_kind=kind.value,
                 )
             )
+            if kind is DocumentKind.TECHNICAL_SPECIFICATION:
+                ts_included += 1
+                included_ts_document_ids.append(document_key)
 
         statistics = AiContextStatistics(
             source_document_count=len(records),
@@ -149,6 +186,11 @@ class TenderDocumentContextBuilder:
             empty_document_count=empty,
             duplicate_document_count=duplicate,
             unavailable_document_count=unavailable,
+            technical_specification_document_count=ts_found,
+            included_technical_specification_document_count=ts_included,
+            technical_specification_truncated=ts_incomplete,
+            technical_specification_document_ids=ts_document_ids,
+            included_technical_specification_document_ids=tuple(included_ts_document_ids),
         )
         return AiDocumentContext(tuple(documents), statistics)
 
@@ -181,9 +223,38 @@ def _record_revision_key(record: object) -> tuple[float, str, str]:
     )
 
 
-def _record_sort_key(record: object) -> tuple[str, str, str]:
+@dataclass(frozen=True, slots=True)
+class _PreparedRecord:
+    record: StoredDocumentText
+    text: str
+    kind: DocumentKind
+    read_failed: bool = False
+
+
+def _prepare_record(record: StoredDocumentText, text_service: _TextService) -> _PreparedRecord:
+    text = ""
+    read_failed = False
+    if bool(getattr(record, "available_locally", False)):
+        try:
+            text = str(text_service.read_text(record) or "").strip()
+        except Exception:
+            text = ""
+            read_failed = True
     path = getattr(record, "source_path", None)
+    name = path.name if path else str(getattr(record, "document_key", "") or "")
+    return _PreparedRecord(record, text, classify_document_kind(name, text), read_failed)
+
+
+def _prepared_sort_key(item: _PreparedRecord) -> tuple[int, str, str, str]:
+    record = item.record
+    path = getattr(record, "source_path", None)
+    priority = {
+        DocumentKind.TECHNICAL_SPECIFICATION: 0,
+        DocumentKind.PROCUREMENT_NOTICE: 1,
+        DocumentKind.ESTIMATE: 1,
+    }.get(item.kind, 2)
     return (
+        priority,
         str(getattr(record, "document_key", "") or "").casefold(),
         str(path or "").casefold(),
         str(getattr(record, "checksum_sha256", "") or ""),
