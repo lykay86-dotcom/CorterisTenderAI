@@ -1,6 +1,6 @@
 # RM-115 Requirements — Strict Tender Intelligence JSON Schema
 
-Status: READY FOR FEATURE PR
+Status: COMPLETED
 Canonical contract date: 2026-07-14
 Depends on: RM-107, RM-110, RM-111, RM-112, RM-113, RM-114
 
@@ -230,8 +230,18 @@ Architecture/security scans confirmed:
 
 ## Completion boundary
 
-Local success makes RM-115 ready for review, not DONE. The feature PR title is
-`feat(rm-115): enforce strict Tender Intelligence JSON schema`. RM-115 may be marked DONE and
-RM-116 activated only after feature merge and successful post-merge Windows Quality Gate on
-Python 3.12 and 3.13. That later completion update must record merge SHA, PR number, run ID,
-matrix results, and the required roadmap history changes.
+Feature PR #33 (`feat(rm-115): enforce strict Tender Intelligence JSON schema`) was merged
+into `main` on 2026-07-14 as `f2573c49cd6ac0dbbe703786414422034ffa53b2`.
+
+Post-merge Windows Quality Gate run `29352442656` completed successfully after rerun on the
+same merge SHA:
+
+- Python 3.12: `901 passed in 74.68s`; Ruff check, Ruff format (`504 files`), mypy
+  (`13 source files`), secret scan, smoke tests, and dependency audit passed;
+- Python 3.13: `901 passed in 77.29s`; Ruff check, Ruff format (`504 files`), mypy
+  (`13 source files`), secret scan, smoke tests, and dependency audit passed.
+
+The first Python 3.12 job ended with a native Windows access violation inside pytest around
+48% of the suite, without an assertion failure or application traceback. The repeated job on
+the exact merge SHA passed all gates. RM-115 is `DONE`; RM-116 is active but requires its own
+audit before application changes.

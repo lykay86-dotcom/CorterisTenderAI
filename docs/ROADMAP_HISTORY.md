@@ -1,5 +1,31 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-14 — RM-115 завершён
+
+- PR #33 (`feat(rm-115): enforce strict Tender Intelligence JSON schema`) слит в `main`
+  коммитом `f2573c4` (`f2573c49cd6ac0dbbe703786414422034ffa53b2`).
+- Post-merge Quality Gate run `29352442656` после повторного запуска завершился статусом
+  `SUCCESS`: Python 3.12 — `901 passed in 74.68s`, Python 3.13 —
+  `901 passed in 77.29s`.
+- Первый Python 3.12 job завершился нативным Windows access violation внутри pytest примерно
+  на 48% suite; повторный job на том же merge SHA прошёл полностью. Python 3.13 прошёл без
+  этого сбоя.
+- Введена одна каноническая строгая Pydantic v2 provider-output схема, детерминированная
+  генерация JSON Schema и fail-closed decoder без частичного принятия payload.
+- OpenAI и generic `openai_compatible` отправляют Responses API `text.format`; Ollama
+  переиспользует тот же provider с подтверждённым compatibility subset без downgrade,
+  capability probe или второго запроса.
+- Структурно невалидный ответ возвращает `invalid_response` без AI findings; после успешной
+  структуры evidence подтверждается только точным локальным совпадением цитаты.
+- Переиспользованы существующие provider, analyzer, Orchestrator, repository и DI; второй AI
+  workflow не создан.
+- RM-107 score/recommendation и абсолютный приоритет critical stop-factor сохранены.
+- Локальная приёмка: target `229 passed`, full `901 passed`, Ruff check/format,
+  mypy (13 файлов), secret scan, dependency audit и `git diff --check` успешны.
+- Persisted schema остаётся версии 2; новая БД или миграция БД не добавлялись.
+- RM-115 переведён в `DONE`; RM-116 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации.
+
 ## 2026-07-14 — prerequisite RM-115: восстановление Git/Codex integration
 
 - В отдельной ветке `codex/git-integration-recovery` удалён случайный gitlink

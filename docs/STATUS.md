@@ -4,30 +4,34 @@
 
 ## Активный этап
 
-**RM-115 — строгая JSON-схема**
+**RM-116 — ссылки, цитаты и provenance**
 
 Статус: `IN PROGRESS`
 
-Этап назначен только после merge реализации RM-114 и успешного Windows Quality Gate на
-merge-коммите. До изменения application-кода RM-115 требуется отдельный аудит текущей
-схемы Tender Intelligence, prompt/output contract и compatibility boundaries.
+Этап назначен только после merge реализации RM-115 и успешного Windows Quality Gate на
+merge-коммите. До изменения application-кода RM-116 требуется отдельный аудит текущих
+ссылок, цитат, локальной проверки evidence и provenance boundaries.
 
 ## Предыдущий этап
 
-**RM-114 — OpenAI-совместимый API**
+**RM-115 — строгая JSON-схема**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- feature PR #30 слит в `main` коммитом `e4caca0`;
-- post-merge Quality Gate run `29315630189` успешен на Python 3.12 и 3.13;
-- полный Windows suite: `863 passed` на каждой версии Python;
-- укреплён единый `OpenAICompatibleProvider`; второй HTTP/AI pipeline не создан;
-- закреплены `/responses`, cloud `store=false`, Ollama profile, no-redirect и 4 MiB limit;
-- HTTP/JSON/network/TLS/refusal/incomplete ошибки безопасно классифицируются без утечек;
+- feature PR #33 слит в `main` коммитом `f2573c4`;
+- post-merge Quality Gate run `29352442656` успешен на Python 3.12 и 3.13;
+- полный Windows suite: Python 3.12 — `901 passed in 74.68s`, Python 3.13 —
+  `901 passed in 77.29s`;
+- первый Python 3.12 job завершился нативным Windows access violation внутри pytest;
+  повторный запуск того же merge SHA прошёл полностью;
+- введена единая строгая provider-output схема и fail-closed локальная валидация;
+- OpenAI-compatible запросы используют Responses `text.format`, Ollama сохраняет
+  подтверждённый compatibility subset без второго запроса или downgrade;
+- структурно невалидный ответ не создаёт AI findings; evidence проверяется только локально;
 - RM-107 score/recommendation и critical stop-factor policy не изменены;
-- локально: target `152 passed`, full `863 passed`, Ruff, mypy, secret scan,
+- локально: target `229 passed`, full `901 passed`, Ruff, mypy, secret scan,
   dependency audit и `git diff --check` успешны;
 - миграция БД не требуется.
 
@@ -47,4 +51,4 @@ merge-коммите. До изменения application-кода RM-115 тре
 
 ## Текущее действие
 
-Провести отдельный аудит RM-115 до изменения prompt, output contract или строгой JSON-схемы.
+Провести отдельный аудит RM-116 до изменения ссылок, цитат или provenance contract.
