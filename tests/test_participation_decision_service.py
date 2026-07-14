@@ -18,6 +18,8 @@ from app.core.ai.schemas import (
     AiFinding,
     AiFindingStatus,
     AiSourceSnapshot,
+    AiTechnicalSpecificationAnalysis,
+    AiTechnicalSpecificationStatus,
 )
 from app.core.ai.citations import resolve_citation
 from app.tenders.collector.stop_factor import StopFactorStatus
@@ -79,11 +81,11 @@ def _current_analysis_with_risk() -> AiDocumentAnalysis:
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:01:00+00:00",
-        prompt_version="3",
-        output_schema_version="1",
+        prompt_version="4",
+        output_schema_version="2",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="4",
-        context_version="2",
+        analyzer_version="5",
+        context_version="3",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -217,6 +219,44 @@ def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
 
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW
     assert any(item.source == "ai_document_analysis" for item in decision.evidence)
+
+
+def test_ts_specific_findings_do_not_change_score_or_recommendation() -> None:
+    score = SimpleNamespace(
+        total_score=90,
+        recommendation=ParticipationRecommendation.RECOMMENDED,
+        recommendation_text="Participate",
+    )
+    verification = SimpleNamespace(
+        registry_key="procurement:1",
+        status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=0.9,
+    )
+    estimate = SimpleNamespace(
+        registry_key="procurement:1", status=CommercialEstimateStatus.COMPLETE
+    )
+    base = _current_analysis_with_risk()
+    analysis = replace(
+        base,
+        risks=(),
+        technical_specification=AiTechnicalSpecificationAnalysis(
+            status=AiTechnicalSpecificationStatus.COMPLETE,
+            document_ids=("doc",),
+            included_document_ids=("doc",),
+            ambiguities=base.risks,
+        ),
+    )
+
+    decision = ParticipationDecisionService(
+        _ScoreService(score),
+        _StateRepository(verification),
+        _EstimateRepository(estimate),
+        ai_analysis_repository=_AiRepository(analysis),
+    ).evaluate("procurement:1")
+
+    assert decision.score == 90
+    assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
+    assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
 
 
 def test_only_current_citation_can_add_ai_decision_evidence_or_action() -> None:

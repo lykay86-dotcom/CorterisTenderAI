@@ -24,6 +24,8 @@ from app.core.ai.schemas import (
     AiDocument,
     AiDocumentAnalysis,
     AiEvidence,
+    AiTechnicalSpecificationAnalysis,
+    AiTechnicalSpecificationStatus,
     TenderRequirements,
 )
 
@@ -35,6 +37,8 @@ __all__ = [
     "AiDocumentAnalysisRepository",
     "AiDocumentContext",
     "AiEvidence",
+    "AiTechnicalSpecificationAnalysis",
+    "AiTechnicalSpecificationStatus",
     "AiKeyringSecretStore",
     "AiProviderId",
     "AiProviderResolution",

@@ -19,21 +19,11 @@ from threading import RLock
 from typing import Iterable, Sequence
 from uuid import uuid4
 
+from app.core.document_classification import DocumentKind, classify_document_kind
 from app.tenders.document_text_extractor import (
     StoredDocumentText,
     TenderDocumentTextService,
 )
-
-
-class DocumentKind(StrEnum):
-    TECHNICAL_SPECIFICATION = "technical_specification"
-    DRAFT_CONTRACT = "draft_contract"
-    PROCUREMENT_NOTICE = "procurement_notice"
-    APPLICATION_REQUIREMENTS = "application_requirements"
-    ESTIMATE = "estimate"
-    APPLICATION_FORM = "application_form"
-    INSTRUCTIONS = "instructions"
-    OTHER = "other"
 
 
 class RequirementCategory(StrEnum):
@@ -432,65 +422,6 @@ _RULES: tuple[_Rule, ...] = (
 )
 
 
-_DOCUMENT_KIND_RULES: tuple[tuple[DocumentKind, tuple[str, ...]]] = (
-    (
-        DocumentKind.TECHNICAL_SPECIFICATION,
-        (
-            "техническое задание",
-            "техническая часть",
-            "описание объекта закупки",
-            "тз",
-        ),
-    ),
-    (
-        DocumentKind.DRAFT_CONTRACT,
-        (
-            "проект контракта",
-            "проект договора",
-            "контракт",
-            "договор",
-        ),
-    ),
-    (
-        DocumentKind.PROCUREMENT_NOTICE,
-        (
-            "извещение",
-            "информационная карта",
-        ),
-    ),
-    (
-        DocumentKind.APPLICATION_REQUIREMENTS,
-        (
-            "требования к составу заявки",
-            "требования к заявке",
-        ),
-    ),
-    (
-        DocumentKind.ESTIMATE,
-        (
-            "смета",
-            "локальный сметный расчет",
-            "расчет нмцк",
-            "обоснование нмцк",
-        ),
-    ),
-    (
-        DocumentKind.APPLICATION_FORM,
-        (
-            "форма заявки",
-            "форма предложения",
-        ),
-    ),
-    (
-        DocumentKind.INSTRUCTIONS,
-        (
-            "инструкция участникам",
-            "инструкция по заполнению",
-        ),
-    ),
-)
-
-
 class TenderRequirementsAnalyzer:
     """Extract structured requirements with evidence and source snippets."""
 
@@ -580,22 +511,7 @@ class TenderRequirementsAnalyzer:
         source_name: str,
         text: str,
     ) -> DocumentKind:
-        name = _normalize_text(Path(source_name).stem)
-        head = _normalize_text(text[:3000])
-        best_kind = DocumentKind.OTHER
-        best_score = 0
-        for kind, terms in _DOCUMENT_KIND_RULES:
-            score = 0
-            for term in terms:
-                normalized_term = _normalize_text(term)
-                if _contains_phrase(name, normalized_term):
-                    score += 4
-                elif _contains_phrase(head, normalized_term):
-                    score += 1
-            if score > best_score:
-                best_kind = kind
-                best_score = score
-        return best_kind
+        return classify_document_kind(source_name, text)
 
     def _analyze_source(
         self,
@@ -1119,6 +1035,7 @@ __all__ = [
     "AnalysisRiskLevel",
     "AnalyzedDocument",
     "DocumentKind",
+    "classify_document_kind",
     "FindingSeverity",
     "RequirementCategory",
     "RequirementFinding",

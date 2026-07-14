@@ -33,6 +33,8 @@ from app.core.ai.schemas import (
     AiFinding,
     AiFindingStatus,
     AiSourceSnapshot,
+    AiTechnicalSpecificationAnalysis,
+    AiTechnicalSpecificationStatus,
     TenderRequirements,
 )
 
@@ -79,6 +81,9 @@ class TenderDocumentAiAnalyzer:
                 "No documents available.",
                 missing_documents=("Tender documentation",),
                 status=AiAnalysisStatus.NO_DOCUMENTS,
+                technical_specification=AiTechnicalSpecificationAnalysis(
+                    status=AiTechnicalSpecificationStatus.NOT_FOUND
+                ),
             )
         try:
             response = self.provider.analyze(
@@ -87,24 +92,24 @@ class TenderDocumentAiAnalyzer:
                 output_format=build_responses_text_format(),
             )
         except Exception:
-            return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
+            return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR, documents)
         if not isinstance(response, Mapping):
-            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
+            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE, documents)
         try:
             provider_status = response.get("status")
             if provider_status == "disabled":
-                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_DISABLED)
+                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_DISABLED, documents)
             if provider_status != "ok":
-                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
+                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR, documents)
         except Exception:
-            return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR)
+            return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR, documents)
 
         try:
             payload = decode_and_validate_provider_output(response.get("text"))
         except Exception:
-            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
+            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE, documents)
         if payload is None:
-            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
+            return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE, documents)
         result = self._normalize(
             registry_key,
             payload.model_dump(),
@@ -149,6 +154,7 @@ class TenderDocumentAiAnalyzer:
                             len(document.text),
                             document.original_character_count,
                         ),
+                        document_kind=document.document_kind,
                     )
                     for document in documents
                 ),
@@ -203,6 +209,48 @@ class TenderDocumentAiAnalyzer:
                 )
                 for name in TenderRequirements.__dataclass_fields__
             }
+        )
+        technical_document_ids = tuple(
+            item.document_id
+            for item in documents
+            if item.document_kind == "technical_specification"
+        )
+        raw_technical = payload.get("technical_specification", {})
+        if not isinstance(raw_technical, Mapping):
+            issues.append("technical_specification")
+            raw_technical = {}
+        technical_issues: list[str] = []
+        technical_values = {
+            name: self._findings(
+                raw_technical.get(name, ()),
+                documents,
+                context_fingerprint,
+                f"technical_specification.{name}",
+                technical_issues,
+                allowed_document_ids=frozenset(technical_document_ids),
+            )
+            for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
+            if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+        }
+        technical_values["contradictions"] = _require_multi_source_contradictions(
+            technical_values["contradictions"], technical_issues
+        )
+        issues.extend(technical_issues)
+        if not technical_document_ids:
+            technical_status = AiTechnicalSpecificationStatus.NOT_FOUND
+            technical_values = {name: () for name in technical_values}
+        elif technical_issues:
+            technical_status = AiTechnicalSpecificationStatus.PARTIAL
+        else:
+            technical_status = AiTechnicalSpecificationStatus.COMPLETE
+        technical = AiTechnicalSpecificationAnalysis(
+            status=technical_status,
+            document_ids=technical_document_ids,
+            included_document_ids=technical_document_ids,
+            **technical_values,
+            warnings=(
+                ("Часть анализа технического задания не подтверждена.",) if technical_issues else ()
+            ),
         )
         missing_documents = self._strings(
             payload.get("missing_documents", ()),
@@ -264,6 +312,7 @@ class TenderDocumentAiAnalyzer:
                 if issues
                 else ()
             ),
+            technical_specification=technical,
         )
 
     @staticmethod
@@ -274,7 +323,10 @@ class TenderDocumentAiAnalyzer:
             if document.truncated
             else ""
         )
-        return f"DOCUMENT {document.document_id} | {document.name}\n{document.text}{marker}"
+        return (
+            f"DOCUMENT {document.document_id} | {document.name} | "
+            f"KIND {document.document_kind}\n{document.text}{marker}"
+        )
 
     @staticmethod
     def _findings(
@@ -283,6 +335,7 @@ class TenderDocumentAiAnalyzer:
         context_fingerprint: str,
         category: str,
         issues: list[str],
+        allowed_document_ids: frozenset[str] | None = None,
     ) -> tuple[AiFinding, ...]:
         if not isinstance(raw, (list, tuple)):
             if raw not in (None, ()):
@@ -343,6 +396,10 @@ class TenderDocumentAiAnalyzer:
                 issues.append("resolver_exception")
                 resolution = None
             evidence = resolution.evidence if resolution is not None else None
+            if evidence is not None and allowed_document_ids is not None:
+                if evidence.document_id not in allowed_document_ids:
+                    evidence = None
+                    issues.append(f"{category}.document_kind")
             if evidence is None:
                 issues.append(f"{category}.evidence")
             elif (section and section != evidence.section) or (
@@ -358,7 +415,7 @@ class TenderDocumentAiAnalyzer:
                     (AiFindingStatus.VERIFIED if verified else AiFindingStatus.UNVERIFIED),
                 )
             )
-        return tuple(result)
+        return _deduplicate_findings(result)
 
     @staticmethod
     def _strings(raw: object, issues: list[str]) -> tuple[str, ...]:
@@ -401,7 +458,13 @@ class TenderDocumentAiAnalysisService:
                 _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE),
                 "Не удалось подготовить локальный контекст AI-анализа.",
             )
-        parameters = getattr(self.context_builder, "fingerprint_parameters", {})
+        parameters = dict(getattr(self.context_builder, "fingerprint_parameters", {}))
+        statistics = getattr(context, "statistics", None)
+        statistic_fields = getattr(statistics, "__dataclass_fields__", {})
+        if statistics is not None and statistic_fields:
+            parameters["context_statistics"] = {
+                name: getattr(statistics, name) for name in statistic_fields
+            }
         fingerprint = context_fingerprint(documents, context_parameters=parameters)
         repository_warning = ""
         if not force:
@@ -422,7 +485,6 @@ class TenderDocumentAiAnalysisService:
             documents,
             context_fingerprint=fingerprint,
         )
-        statistics = getattr(context, "statistics", None)
         if statistics is not None:
             result = replace(
                 result,
@@ -430,6 +492,35 @@ class TenderDocumentAiAnalysisService:
                 context_character_count=statistics.character_count,
                 context_truncated=statistics.truncated,
             )
+            ts_found_ids = tuple(statistics.technical_specification_document_ids)
+            ts_included_ids = tuple(statistics.included_technical_specification_document_ids)
+            technical = result.technical_specification
+            if not ts_found_ids:
+                technical = replace(
+                    technical,
+                    status=AiTechnicalSpecificationStatus.NOT_FOUND,
+                    document_ids=(),
+                    included_document_ids=(),
+                )
+            elif statistics.technical_specification_truncated:
+                technical = replace(
+                    technical,
+                    status=AiTechnicalSpecificationStatus.PARTIAL,
+                    document_ids=ts_found_ids,
+                    included_document_ids=ts_included_ids,
+                    warnings=tuple(
+                        dict.fromkeys(
+                            (*technical.warnings, "Контекст технического задания неполон.")
+                        )
+                    ),
+                )
+            else:
+                technical = replace(
+                    technical,
+                    document_ids=ts_found_ids,
+                    included_document_ids=ts_included_ids,
+                )
+            result = replace(result, technical_specification=technical)
             if statistics.truncated:
                 result = _add_warning(
                     result,
@@ -455,13 +546,64 @@ class TenderDocumentAiAnalysisService:
 def _safe_failure(
     registry_key: str,
     status: AiAnalysisStatus,
+    documents: tuple[AiDocument, ...] = (),
 ) -> AiDocumentAnalysis:
     messages = {
         AiAnalysisStatus.PROVIDER_DISABLED: "AI provider is disabled.",
         AiAnalysisStatus.PROVIDER_ERROR: "AI analysis is temporarily unavailable.",
         AiAnalysisStatus.INVALID_RESPONSE: "AI response is invalid.",
     }
-    return AiDocumentAnalysis(registry_key, messages[status], status=status)
+    ts_ids = tuple(
+        item.document_id for item in documents if item.document_kind == "technical_specification"
+    )
+    return AiDocumentAnalysis(
+        registry_key,
+        messages[status],
+        status=status,
+        technical_specification=AiTechnicalSpecificationAnalysis(
+            status=(
+                AiTechnicalSpecificationStatus.UNAVAILABLE
+                if ts_ids
+                else AiTechnicalSpecificationStatus.NOT_FOUND
+            ),
+            document_ids=ts_ids,
+            included_document_ids=ts_ids,
+        ),
+    )
+
+
+def _deduplicate_findings(items: list[AiFinding]) -> tuple[AiFinding, ...]:
+    result: list[AiFinding] = []
+    seen: set[tuple[str, str, str]] = set()
+    for item in items:
+        key = (
+            item.statement.casefold(),
+            item.evidence.document_id if item.evidence is not None else "",
+            item.evidence.quote if item.evidence is not None else "",
+        )
+        if key not in seen:
+            seen.add(key)
+            result.append(item)
+    return tuple(result)
+
+
+def _require_multi_source_contradictions(
+    items: tuple[AiFinding, ...],
+    issues: list[str],
+) -> tuple[AiFinding, ...]:
+    source_ids: dict[str, set[str]] = {}
+    for item in items:
+        if item.evidence is not None:
+            source_ids.setdefault(item.statement.casefold(), set()).add(item.evidence.document_id)
+    result: list[AiFinding] = []
+    for item in items:
+        if len(source_ids.get(item.statement.casefold(), set())) < 2:
+            if item.verified:
+                issues.append("technical_specification.contradictions.sources")
+            result.append(replace(item, evidence=None, status=AiFindingStatus.UNVERIFIED))
+        else:
+            result.append(item)
+    return tuple(result)
 
 
 def _bounded_text(
@@ -548,6 +690,39 @@ def _without_verified_findings(analysis: AiDocumentAnalysis) -> AiDocumentAnalys
         suspicious_conditions=downgrade(analysis.suspicious_conditions),
         contradictions=downgrade(analysis.contradictions),
         provenance=None,
+        technical_specification=replace(
+            analysis.technical_specification,
+            scope=downgrade(analysis.technical_specification.scope),
+            deliverables=downgrade(analysis.technical_specification.deliverables),
+            quantities_and_volumes=downgrade(
+                analysis.technical_specification.quantities_and_volumes
+            ),
+            technical_characteristics=downgrade(
+                analysis.technical_specification.technical_characteristics
+            ),
+            materials_and_equipment=downgrade(
+                analysis.technical_specification.materials_and_equipment
+            ),
+            standards_and_regulations=downgrade(
+                analysis.technical_specification.standards_and_regulations
+            ),
+            execution_conditions=downgrade(analysis.technical_specification.execution_conditions),
+            stages_and_deadlines=downgrade(analysis.technical_specification.stages_and_deadlines),
+            acceptance_and_quality=downgrade(
+                analysis.technical_specification.acceptance_and_quality
+            ),
+            customer_inputs_and_dependencies=downgrade(
+                analysis.technical_specification.customer_inputs_and_dependencies
+            ),
+            ambiguities=downgrade(analysis.technical_specification.ambiguities),
+            contradictions=downgrade(analysis.technical_specification.contradictions),
+            clarification_points=downgrade(analysis.technical_specification.clarification_points),
+            status=(
+                AiTechnicalSpecificationStatus.PARTIAL
+                if analysis.technical_specification.document_ids
+                else AiTechnicalSpecificationStatus.NOT_FOUND
+            ),
+        ),
     )
 
 
@@ -594,6 +769,7 @@ def _source_sort_key(source: AiSourceSnapshot) -> tuple[object, ...]:
         source.truncated,
         source.included_character_count,
         source.original_character_count,
+        source.document_kind,
     )
 
 

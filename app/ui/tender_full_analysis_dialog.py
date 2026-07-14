@@ -30,7 +30,11 @@ from app.tenders.full_analysis import (
     FullAnalysisStatus,
     TenderFullAnalysisResult,
 )
-from app.core.ai.schemas import AiAnalysisStatus, AiDocumentAnalysis
+from app.core.ai.schemas import (
+    AiAnalysisStatus,
+    AiDocumentAnalysis,
+    AiTechnicalSpecificationStatus,
+)
 from app.ui.theme.colors import ThemeName, get_palette
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
@@ -399,6 +403,35 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         for name in analysis.requirements.__dataclass_fields__
         for item in getattr(analysis.requirements, name)
     )
+    technical = analysis.technical_specification
+    technical_status = {
+        AiTechnicalSpecificationStatus.COMPLETE: "Полный результат",
+        AiTechnicalSpecificationStatus.PARTIAL: "Частичный результат",
+        AiTechnicalSpecificationStatus.NOT_FOUND: "Техническое задание не найдено",
+        AiTechnicalSpecificationStatus.UNAVAILABLE: "Анализ технического задания недоступен",
+    }.get(technical.status, "Анализ технического задания недоступен")
+    technical_groups = {
+        "scope": "Предмет и состав",
+        "deliverables": "Результаты и материалы",
+        "quantities_and_volumes": "Объёмы и количества",
+        "technical_characteristics": "Технические характеристики",
+        "materials_and_equipment": "Материалы и оборудование",
+        "standards_and_regulations": "Стандарты и нормы",
+        "execution_conditions": "Условия выполнения",
+        "stages_and_deadlines": "Этапы и сроки",
+        "acceptance_and_quality": "Приёмка и качество",
+        "customer_inputs_and_dependencies": "Данные и действия заказчика",
+        "ambiguities": "Неоднозначности",
+        "contradictions": "Противоречия",
+        "clarification_points": "Вопросы для уточнения",
+    }
+    technical_html = "".join(
+        f"<h4>{escape(label)}</h4><ul>{render_findings(getattr(technical, name))}</ul>"
+        for name, label in technical_groups.items()
+    )
+    technical_warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in technical.warnings) or "<li>Нет.</li>"
+    )
     missing = (
         "".join(f"<li>{escape(item)}</li>" for item in analysis.missing_documents)
         or "<li>Не выявлено.</li>"
@@ -424,6 +457,10 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"<p><b>Контекст:</b> {analysis.context_document_count} документов, "
         f"{analysis.context_character_count} символов</p>{context_note}"
         f"<h3>Краткое резюме</h3><p>{escape(analysis.summary)}</p>"
+        f"<h3>Техническое задание</h3><p><b>Статус:</b> {escape(technical_status)}</p>"
+        f"<p><b>Документы ТЗ:</b> найдено {len(technical.document_ids)}, "
+        f"включено {len(technical.included_document_ids)}</p>{technical_html}"
+        f"<h4>Предупреждения по ТЗ</h4><ul>{technical_warnings}</ul>"
         f"<h3>Требования</h3><ul>{render_findings(requirements)}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
@@ -442,12 +479,19 @@ def _current_citation_targets(analysis: AiDocumentAnalysis | None) -> dict[str, 
         for name in analysis.requirements.__dataclass_fields__
         for item in getattr(analysis.requirements, name)
     )
+    technical = tuple(
+        item
+        for name in analysis.technical_specification.__dataclass_fields__
+        if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+        for item in getattr(analysis.technical_specification, name)
+    )
     targets: dict[str, str] = {}
     for finding in (
         *requirements,
         *analysis.risks,
         *analysis.suspicious_conditions,
         *analysis.contradictions,
+        *technical,
     ):
         if analysis.is_current_verified(finding) and finding.evidence is not None:
             targets[finding.evidence.citation_id] = finding.evidence.document_id

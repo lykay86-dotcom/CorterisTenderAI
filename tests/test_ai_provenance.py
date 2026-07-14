@@ -42,11 +42,11 @@ def _provenance(**changes: object) -> AiAnalysisProvenance:
         "analysis_id": "analysis_123",
         "context_fingerprint": FINGERPRINT,
         "created_at": "2026-07-14T10:01:00+03:00",
-        "prompt_version": "3",
-        "output_schema_version": "1",
+        "prompt_version": "4",
+        "output_schema_version": "2",
         "persisted_schema_version": AI_ANALYSIS_SCHEMA_VERSION,
-        "analyzer_version": "4",
-        "context_version": "2",
+        "analyzer_version": "5",
+        "context_version": "3",
         "citation_resolver_version": "1",
         "provider_id": "openai",
         "provider_model": "gpt-5",
@@ -192,13 +192,13 @@ def test_source_snapshot_preserves_production_safe_filename_characters() -> None
     assert source.display_name == display_name
 
 
-def test_version_3_payload_round_trip_requires_ordered_source_registry_parity() -> None:
+def test_current_payload_round_trip_requires_ordered_source_registry_parity() -> None:
     analysis = _analysis()
 
     payload = analysis.to_payload()
     restored = AiDocumentAnalysis.from_payload(payload)
 
-    assert payload["payload_version"] == 3
+    assert payload["payload_version"] == AI_ANALYSIS_SCHEMA_VERSION
     assert payload["source_registry"] == payload["provenance"]["sources"]
     assert restored.provenance == analysis.provenance
     assert restored.risks[0].status is AiFindingStatus.VERIFIED
@@ -225,7 +225,7 @@ def test_legacy_payload_findings_are_always_unverified() -> None:
 
 
 @pytest.mark.parametrize("damaged_key", ["provenance", "source_registry"])
-def test_missing_version_3_provenance_or_registry_cannot_restore_verified(
+def test_missing_current_provenance_or_registry_cannot_restore_verified(
     damaged_key: str,
 ) -> None:
     payload = _analysis().to_payload()

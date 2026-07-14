@@ -8,8 +8,8 @@ from typing import Annotated, Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
-AI_PROVIDER_OUTPUT_SCHEMA_VERSION = "1"
-AI_RESPONSE_FORMAT_NAME = "corteris_tender_analysis_v1"
+AI_PROVIDER_OUTPUT_SCHEMA_VERSION = "2"
+AI_RESPONSE_FORMAT_NAME = "corteris_tender_analysis_v2"
 
 MAX_SUMMARY_LENGTH = 12_000
 MAX_STATEMENT_LENGTH = 4_000
@@ -66,9 +66,26 @@ class ProviderRequirementsPayload(_StrictProviderModel):
     bank_guarantee: FindingList
 
 
+class ProviderTechnicalSpecificationPayload(_StrictProviderModel):
+    scope: FindingList
+    deliverables: FindingList
+    quantities_and_volumes: FindingList
+    technical_characteristics: FindingList
+    materials_and_equipment: FindingList
+    standards_and_regulations: FindingList
+    execution_conditions: FindingList
+    stages_and_deadlines: FindingList
+    acceptance_and_quality: FindingList
+    customer_inputs_and_dependencies: FindingList
+    ambiguities: FindingList
+    contradictions: FindingList
+    clarification_points: FindingList
+
+
 class ProviderAnalysisPayload(_StrictProviderModel):
     summary: SummaryText
     requirements: ProviderRequirementsPayload
+    technical_specification: ProviderTechnicalSpecificationPayload
     risks: FindingList
     suspicious_conditions: FindingList
     contradictions: FindingList

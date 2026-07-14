@@ -22,7 +22,7 @@ from app.core.ai.schemas import (
 )
 
 
-AI_ANALYZER_VERSION = "4"
+AI_ANALYZER_VERSION = "5"
 _CACHE_CORRUPT_WARNING = "Повреждённая запись AI-анализа пропущена."
 _CACHE_INCOMPATIBLE_WARNING = "Кеш AI-анализа имеет несовместимую версию."
 _CACHE_SKIPPED_WARNING = "Повреждённая или несовместимая запись AI-анализа пропущена."
@@ -48,6 +48,7 @@ def context_fingerprint(
                 "verification_status": item.verification_status,
                 "truncated": item.truncated,
                 "original_character_count": item.original_character_count,
+                "document_kind": item.document_kind,
             }
             for item in documents
         ),

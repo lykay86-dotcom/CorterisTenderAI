@@ -13,6 +13,8 @@ from app.core.ai.schemas import (
     AiFinding,
     AiFindingStatus,
     AiSourceSnapshot,
+    AiTechnicalSpecificationAnalysis,
+    AiTechnicalSpecificationStatus,
 )
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
@@ -28,6 +30,39 @@ def test_export_creates_json_and_html_sections(tmp_path) -> None:
 
     assert json.loads(json_path.read_text(encoding="utf-8"))["summary"] == "Summary"
     assert "AI-анализ документации" in html_path.read_text(encoding="utf-8")
+
+
+def test_export_round_trips_and_escapes_technical_specification(tmp_path) -> None:
+    unverified = AiFinding(
+        "scope",
+        "<script>unsafe technical statement</script>",
+        None,
+        AiFindingStatus.UNVERIFIED,
+    )
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Summary",
+        status="partial",
+        technical_specification=AiTechnicalSpecificationAnalysis(
+            status=AiTechnicalSpecificationStatus.PARTIAL,
+            document_ids=("ts-1",),
+            scope=(unverified,),
+            warnings=("ТЗ сокращено",),
+        ),
+    )
+
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "ts.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "ts.html")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    assert AiDocumentAnalysis.from_payload(payload).technical_specification.scope[0].statement == (
+        "<script>unsafe technical statement</script>"
+    )
+    assert payload["technical_specification"]["status"] == "partial"
+    assert "<script>" not in html
+    assert "&lt;script&gt;unsafe technical statement&lt;/script&gt;" in html
+    assert "ТЗ сокращено" in html
 
 
 @pytest.mark.parametrize(
@@ -118,11 +153,11 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:01:00+00:00",
-        prompt_version="3",
-        output_schema_version="1",
+        prompt_version="4",
+        output_schema_version="2",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="4",
-        context_version="2",
+        analyzer_version="5",
+        context_version="3",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",

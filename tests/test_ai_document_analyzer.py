@@ -20,6 +20,7 @@ from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiDocument,
     AiFindingStatus,
+    AiTechnicalSpecificationAnalysis,
     TenderRequirements,
 )
 
@@ -87,6 +88,11 @@ def _valid_payload(**overrides: object) -> dict[str, object]:
     return {
         "summary": "Summary",
         "requirements": {name: [] for name in TenderRequirements.__dataclass_fields__},
+        "technical_specification": {
+            name: []
+            for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
+            if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+        },
         "risks": [],
         "suspicious_conditions": [],
         "contradictions": [],
@@ -125,7 +131,7 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
     assert provider.calls == [
         (
             SYSTEM_PROMPT,
-            ["DOCUMENT doc-1 | TZ.pdf\nThe delivery period is 10 days."],
+            ["DOCUMENT doc-1 | TZ.pdf | KIND other\nThe delivery period is 10 days."],
             build_responses_text_format(),
         )
     ]
@@ -143,11 +149,11 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
     assert provenance is not None
     assert provenance.context_fingerprint == CONTEXT_FINGERPRINT
     assert datetime.fromisoformat(provenance.created_at).utcoffset() is not None
-    assert provenance.prompt_version == AI_PROMPT_VERSION == "3"
-    assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "1"
-    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 3
-    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "4"
-    assert provenance.context_version == AI_CONTEXT_VERSION == "2"
+    assert provenance.prompt_version == AI_PROMPT_VERSION == "4"
+    assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "2"
+    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 4
+    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "5"
+    assert provenance.context_version == AI_CONTEXT_VERSION == "3"
     assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
     assert provenance.provider_id == "test-provider"
     assert provenance.provider_model == "test-model"
@@ -165,6 +171,7 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
             "truncated": document.truncated,
             "included_character_count": len(document.text),
             "original_character_count": len(document.text),
+            "document_kind": document.document_kind,
         }
     ]
     assert result.is_current_verified(result.risks[0])

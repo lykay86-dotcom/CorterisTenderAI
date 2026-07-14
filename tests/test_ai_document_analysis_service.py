@@ -1,4 +1,5 @@
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
+from app.core.ai.document_context import AiContextStatistics, AiDocumentContext
 from app.core.ai.repository import AiDocumentAnalysisRepository
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
@@ -13,11 +14,11 @@ def _provenance(fingerprint: str) -> AiAnalysisProvenance:
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:00:00+00:00",
-        prompt_version="3",
-        output_schema_version="1",
+        prompt_version="4",
+        output_schema_version="2",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="4",
-        context_version="2",
+        analyzer_version="5",
+        context_version="3",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -80,6 +81,50 @@ def test_service_passes_cache_lookup_fingerprint_to_analyzer() -> None:
     TenderDocumentAiAnalysisService(Builder(), analyzer, repository).analyze("procurement:test")
 
     assert repository.lookup_fingerprints == analyzer.fingerprints
+
+
+def test_ts_omission_metadata_changes_cache_fingerprint() -> None:
+    class ContextBuilder:
+        omitted = 0
+        fingerprint_parameters = {"context_version": "3"}
+
+        def build_context(self, _key):
+            document = AiDocument(
+                "ts",
+                "Техническое задание.pdf",
+                "local_document_store",
+                "pdf",
+                "2026-07-15T00:00:00+00:00",
+                "verified",
+                "text",
+                "a" * 64,
+                document_kind="technical_specification",
+            )
+            return AiDocumentContext(
+                (document,),
+                AiContextStatistics(
+                    source_document_count=1 + self.omitted,
+                    included_document_count=1,
+                    character_count=4,
+                    omitted_document_count=self.omitted,
+                    technical_specification_document_count=1 + self.omitted,
+                    included_technical_specification_document_count=1,
+                    technical_specification_truncated=bool(self.omitted),
+                    technical_specification_document_ids=("ts",),
+                    included_technical_specification_document_ids=("ts",),
+                ),
+            )
+
+    builder = ContextBuilder()
+    analyzer = Analyzer()
+    repository = WriteFailureRepository()
+    service = TenderDocumentAiAnalysisService(builder, analyzer, repository)
+
+    service.analyze("procurement:test", force=True)
+    builder.omitted = 1
+    service.analyze("procurement:test", force=True)
+
+    assert analyzer.fingerprints[0] != analyzer.fingerprints[1]
 
 
 def test_service_force_always_runs_new_analysis(tmp_path) -> None:

@@ -15,6 +15,8 @@ from app.core.ai.schemas import (
     AiFinding,
     AiFindingStatus,
     AiSourceSnapshot,
+    AiTechnicalSpecificationAnalysis,
+    AiTechnicalSpecificationStatus,
 )
 from app.core.ai.citations import resolve_citation
 from app.tenders.full_analysis import (
@@ -69,11 +71,11 @@ def _current_analysis() -> AiDocumentAnalysis:
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:01:00+00:00",
-        prompt_version="3",
-        output_schema_version="1",
+        prompt_version="4",
+        output_schema_version="2",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="4",
-        context_version="2",
+        analyzer_version="5",
+        context_version="3",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -127,6 +129,30 @@ def test_dialog_shows_dedicated_ai_progress_stage() -> None:
 
     row = dialog._stage_rows[FullAnalysisStage.RUNNING_AI]
     assert dialog.stages.item(row, 0).text() == "AI-анализ документации"
+
+
+def test_dialog_renders_technical_specification_status_groups_and_evidence() -> None:
+    analysis = _current_analysis()
+    verified = analysis.risks[0]
+    unverified = analysis.risks[1]
+    analysis = replace(
+        analysis,
+        technical_specification=AiTechnicalSpecificationAnalysis(
+            status=AiTechnicalSpecificationStatus.PARTIAL,
+            document_ids=("doc",),
+            scope=(verified,),
+            ambiguities=(unverified,),
+            warnings=("Контекст технического задания неполон.",),
+        ),
+    )
+
+    html = _render_ai_document_analysis(_result(analysis))
+
+    assert "Техническое задание" in html
+    assert "Частичный результат" in html
+    assert "Confirmed" in html
+    assert "Неподтверждённый вывод" in html
+    assert "Контекст технического задания неполон" in html
 
 
 def _result(analysis: AiDocumentAnalysis) -> TenderFullAnalysisResult:
