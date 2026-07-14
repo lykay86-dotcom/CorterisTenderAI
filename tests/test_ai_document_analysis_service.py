@@ -1,6 +1,29 @@
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
 from app.core.ai.repository import AiDocumentAnalysisRepository
-from app.core.ai.schemas import AiDocument, AiDocumentAnalysis
+from app.core.ai.schemas import (
+    AI_ANALYSIS_SCHEMA_VERSION,
+    AiAnalysisProvenance,
+    AiDocument,
+    AiDocumentAnalysis,
+)
+
+
+def _provenance(fingerprint: str) -> AiAnalysisProvenance:
+    return AiAnalysisProvenance(
+        analysis_id="analysis_123",
+        context_fingerprint=fingerprint,
+        created_at="2026-07-14T10:00:00+00:00",
+        prompt_version="3",
+        output_schema_version="1",
+        persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
+        analyzer_version="4",
+        context_version="2",
+        citation_resolver_version="1",
+        provider_id="openai",
+        provider_model="gpt-5",
+        provider_response_id="response-123",
+        sources=(),
+    )
 
 
 class Builder:
@@ -16,7 +39,12 @@ class Analyzer:
     def analyze(self, key, _documents, *, context_fingerprint):
         self.calls += 1
         self.fingerprints.append(context_fingerprint)
-        return AiDocumentAnalysis(key, "Summary", status="complete")
+        return AiDocumentAnalysis(
+            key,
+            "Summary",
+            status="complete",
+            provenance=_provenance(context_fingerprint),
+        )
 
 
 def test_service_reuses_analysis_for_unchanged_documents(tmp_path) -> None:
@@ -103,6 +131,42 @@ def test_service_does_not_cache_provider_error(tmp_path) -> None:
     service.analyze("procurement:test")
 
     assert analyzer.calls == 2
+
+
+def test_service_current_provider_failure_is_not_replaced_by_stale_success(tmp_path) -> None:
+    class MutableBuilder:
+        checksum = "a" * 64
+
+        def build(self, _key):
+            return (
+                AiDocument(
+                    "doc",
+                    "spec.pdf",
+                    "eis",
+                    "pdf",
+                    "now",
+                    "verified",
+                    "text",
+                    self.checksum,
+                ),
+            )
+
+    builder = MutableBuilder()
+    repository = AiDocumentAnalysisRepository(tmp_path / "ai.sqlite3")
+    successful = TenderDocumentAiAnalysisService(builder, Analyzer(), repository).analyze(
+        "procurement:test"
+    )
+    builder.checksum = "b" * 64
+
+    current = TenderDocumentAiAnalysisService(
+        builder,
+        ProviderFailureAnalyzer(),
+        repository,
+    ).analyze("procurement:test")
+
+    assert successful.status == "complete"
+    assert current.status == "provider_error"
+    assert current.summary == "Unavailable"
 
 
 class BrokenBuilder:

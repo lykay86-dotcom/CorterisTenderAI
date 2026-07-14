@@ -1,4 +1,6 @@
+from dataclasses import replace
 from datetime import datetime
+import json
 import sqlite3
 
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
@@ -11,16 +13,58 @@ from app.core.ai.repository import (
 )
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
+    AiAnalysisProvenance,
     AiDocument,
     AiDocumentAnalysis,
+    AiSourceSnapshot,
 )
+
+
+def _current_analysis(
+    fingerprint: str,
+    *,
+    summary: str = "Summary",
+    checksum: str = "a" * 64,
+) -> AiDocumentAnalysis:
+    source = AiSourceSnapshot(
+        document_id="doc",
+        display_name="spec.pdf",
+        document_type="pdf",
+        checksum_sha256=checksum,
+        verification_status="verified",
+        received_at="unknown",
+        truncated=False,
+        included_character_count=4,
+        original_character_count=4,
+    )
+    provenance = AiAnalysisProvenance(
+        analysis_id="analysis_123",
+        context_fingerprint=fingerprint,
+        created_at="2026-07-14T10:00:00+00:00",
+        prompt_version="3",
+        output_schema_version="1",
+        persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
+        analyzer_version="4",
+        context_version="2",
+        citation_resolver_version="1",
+        provider_id="openai",
+        provider_model="gpt-5",
+        provider_response_id="response-123",
+        sources=(source,),
+    )
+    return AiDocumentAnalysis(
+        "procurement:test",
+        summary,
+        status="complete",
+        provenance=provenance,
+    )
 
 
 def test_repository_reuses_analysis_for_identical_document_context(tmp_path) -> None:
     repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
     documents = (AiDocument("doc", "spec.pdf", "eis", "pdf", "now", "verified", "text", "abc"),)
     fingerprint = context_fingerprint(documents)
-    analysis = AiDocumentAnalysis("procurement:test", "Summary", status="complete")
+    analysis = _current_analysis(fingerprint)
 
     repository.save(analysis, fingerprint)
     reused = repository.reusable("procurement:test", fingerprint)
@@ -90,7 +134,7 @@ def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:
     assert repository.latest("procurement:test").summary == "Old lenient"  # type: ignore[union-attr]
 
 
-def test_rm115_adds_no_table_or_column_migration(tmp_path) -> None:
+def test_rm116_adds_no_table_or_column_migration(tmp_path) -> None:
     repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
 
     repository.initialize()
@@ -119,8 +163,8 @@ def test_rm115_adds_no_table_or_column_migration(tmp_path) -> None:
 
 def test_repository_skips_corrupt_latest_row_and_uses_previous_valid(tmp_path) -> None:
     repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
-    fingerprint = "fingerprint"
-    expected = AiDocumentAnalysis("procurement:test", "Previous", status="complete")
+    fingerprint = "a" * 64
+    expected = _current_analysis(fingerprint, summary="Previous")
     repository.save(expected, fingerprint)
     with sqlite3.connect(repository.path) as connection:
         connection.execute(
@@ -143,6 +187,92 @@ def test_repository_skips_corrupt_latest_row_and_uses_previous_valid(tmp_path) -
     assert reused is not None
     assert reused.summary == "Previous"
     assert "пропущена" in repository.last_warning
+
+
+def test_repository_reusable_rejects_v2_but_latest_returns_safe_display(tmp_path) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+    fingerprint = "a" * 64
+    legacy = replace(_current_analysis(fingerprint), payload_version=2, provenance=None)
+    payload = legacy.to_payload()
+    payload["risks"] = [
+        {
+            "category": "risk",
+            "statement": "Legacy display statement",
+            "status": "verified",
+            "evidence": {"document_id": "doc", "quote": "legacy"},
+        }
+    ]
+    repository.initialize()
+    with sqlite3.connect(repository.path) as connection:
+        connection.execute(
+            """
+            INSERT INTO tender_ai_document_analyses (
+                analysis_id, registry_key, context_fingerprint, status,
+                payload_json, created_at, payload_version
+            ) VALUES ('legacy', ?, ?, 'complete', ?, ?, 2)
+            """,
+            (
+                "procurement:test",
+                fingerprint,
+                json.dumps(payload),
+                "2026-07-14T10:00:00+00:00",
+            ),
+        )
+
+    assert repository.reusable("procurement:test", fingerprint) is None
+    latest = repository.latest("procurement:test")
+    assert latest is not None
+    assert latest.summary == "Summary"
+    assert latest.payload_version == 2
+    assert latest.provenance is None
+    assert latest.risks[0].statement == "Legacy display statement"
+    assert latest.risks[0].status == "unverified"
+    assert latest.risks[0].evidence is None
+
+
+def test_repository_reusable_requires_payload_provenance_fingerprint_match(tmp_path) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+    query_fingerprint = "a" * 64
+    other_fingerprint = "b" * 64
+    repository.save(_current_analysis(other_fingerprint), query_fingerprint)
+
+    assert repository.reusable("procurement:test", query_fingerprint) is None
+    assert repository.last_warning == "Повреждённая запись AI-анализа пропущена."
+
+
+def test_repository_skips_damaged_current_provenance_and_reuses_previous_valid_v3(
+    tmp_path,
+) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+    fingerprint = "a" * 64
+    previous = _current_analysis(fingerprint, summary="Previous")
+    repository.save(previous, fingerprint)
+    damaged = _current_analysis(fingerprint, summary="SECRET newest payload").to_payload()
+    damaged["provenance"]["context_fingerprint"] = "not-a-fingerprint"
+    damaged["source_registry"] = damaged["provenance"]["sources"]
+    with sqlite3.connect(repository.path) as connection:
+        connection.execute(
+            """
+            INSERT INTO tender_ai_document_analyses (
+                analysis_id, registry_key, context_fingerprint, status,
+                payload_json, created_at, payload_version
+            ) VALUES ('damaged', ?, ?, 'complete', ?, ?, ?)
+            """,
+            (
+                "procurement:test",
+                fingerprint,
+                json.dumps(damaged),
+                "9999-01-01T00:00:00+00:00",
+                AI_ANALYSIS_SCHEMA_VERSION,
+            ),
+        )
+
+    reused = repository.reusable("procurement:test", fingerprint)
+
+    assert reused is not None
+    assert reused.summary == "Previous"
+    assert repository.last_warning == "Повреждённая или несовместимая запись AI-анализа пропущена."
+    assert "SECRET" not in repository.last_warning
 
 
 def test_repository_reports_incompatible_cache_without_success(tmp_path) -> None:
