@@ -11,9 +11,11 @@ class Builder:
 class Analyzer:
     def __init__(self):
         self.calls = 0
+        self.fingerprints = []
 
-    def analyze(self, key, _documents):
+    def analyze(self, key, _documents, *, context_fingerprint):
         self.calls += 1
+        self.fingerprints.append(context_fingerprint)
         return AiDocumentAnalysis(key, "Summary", status="complete")
 
 
@@ -28,6 +30,7 @@ def test_service_reuses_analysis_for_unchanged_documents(tmp_path) -> None:
 
     assert first.to_payload() == second.to_payload()
     assert analyzer.calls == 1
+    assert analyzer.fingerprints and len(analyzer.fingerprints[0]) == 64
 
 
 def test_service_force_always_runs_new_analysis(tmp_path) -> None:
@@ -63,8 +66,9 @@ def test_service_contains_repository_write_error() -> None:
 
 
 class ProviderFailureAnalyzer(Analyzer):
-    def analyze(self, key, _documents):
+    def analyze(self, key, _documents, *, context_fingerprint):
         self.calls += 1
+        self.fingerprints.append(context_fingerprint)
         return AiDocumentAnalysis(key, "Unavailable", status="provider_error")
 
 

@@ -7,8 +7,31 @@ from app.tenders.collector.verification import TenderVerificationStatus
 from app.tenders.commercial_estimator import CommercialEstimateStatus
 from app.tenders.participation_decision import ParticipationDecisionRecommendation
 from app.tenders.participation_decision_service import ParticipationDecisionService
-from app.core.ai.schemas import AiDocumentAnalysis, AiEvidence, AiFinding, AiFindingStatus
+from app.core.ai.schemas import (
+    AiDocumentAnalysis,
+    AiEvidence,
+    AiEvidenceVerificationMethod,
+    AiFinding,
+    AiFindingStatus,
+)
 from app.tenders.collector.stop_factor import StopFactorStatus
+
+
+def _verified_evidence(quote: str, confidence: float) -> AiEvidence:
+    return AiEvidence(
+        citation_id="cit_" + "a" * 32,
+        document_id="doc",
+        quote=quote,
+        character_start=0,
+        character_end=len(quote),
+        section="",
+        page=None,
+        confidence=confidence,
+        verification_method=AiEvidenceVerificationMethod.EXACT_QUOTE,
+        checksum_sha256="b" * 64,
+        source_ref="doc_" + "c" * 32,
+        context_fingerprint="d" * 64,
+    )
 
 
 class _ScoreService:
@@ -115,7 +138,7 @@ def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
     risk = AiFinding(
         "risk",
         "Short deadline",
-        AiEvidence("doc", "10 days", confidence=0.8),
+        _verified_evidence("10 days", 0.8),
         AiFindingStatus.VERIFIED,
     )
     analysis = AiDocumentAnalysis("procurement:1", "Summary", risks=(risk,), status="complete")
@@ -153,7 +176,7 @@ def test_current_unverified_ai_result_overrides_stale_verified_repository_result
     verified = AiFinding(
         "risk",
         "Old risk",
-        AiEvidence("doc", "old quote", confidence=0.9),
+        _verified_evidence("old quote", 0.9),
         AiFindingStatus.VERIFIED,
     )
     stale = AiDocumentAnalysis("procurement:1", "Old", risks=(verified,), status="complete")

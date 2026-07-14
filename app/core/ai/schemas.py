@@ -6,11 +6,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import math
+import re
 from typing import Any, Mapping, cast
 
 
 AI_ANALYSIS_SCHEMA_VERSION = 2
 _MAX_TEXT_LENGTH = 12_000
+_CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
+_SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
 
 
 class AiAnalysisStatus(StrEnum):
@@ -26,6 +30,10 @@ class AiAnalysisStatus(StrEnum):
 class AiFindingStatus(StrEnum):
     VERIFIED = "verified"
     UNVERIFIED = "unverified"
+
+
+class AiEvidenceVerificationMethod(StrEnum):
+    EXACT_QUOTE = "exact_quote"
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,15 +52,68 @@ class AiDocument:
 
 @dataclass(frozen=True, slots=True)
 class AiEvidence:
+    citation_id: str
     document_id: str
     quote: str
-    section: str = ""
-    page: int | None = None
-    confidence: float = 0.0
+    character_start: int
+    character_end: int
+    section: str
+    page: int | None
+    confidence: float
+    verification_method: AiEvidenceVerificationMethod
+    checksum_sha256: str
+    source_ref: str
+    context_fingerprint: str
 
     def __post_init__(self) -> None:
-        if not math.isfinite(self.confidence) or not 0.0 <= self.confidence <= 1.0:
+        if (
+            not isinstance(self.citation_id, str)
+            or _CITATION_ID_PATTERN.fullmatch(self.citation_id) is None
+        ):
+            raise ValueError("citation_id must be a canonical citation reference")
+        if not isinstance(self.document_id, str) or not self.document_id:
+            raise ValueError("document_id must be non-empty")
+        if not isinstance(self.quote, str) or not self.quote:
+            raise ValueError("quote must be non-empty")
+        if (
+            isinstance(self.character_start, bool)
+            or not isinstance(self.character_start, int)
+            or self.character_start < 0
+            or isinstance(self.character_end, bool)
+            or not isinstance(self.character_end, int)
+            or self.character_end != self.character_start + len(self.quote)
+        ):
+            raise ValueError("character offsets must exactly bound quote")
+        if not isinstance(self.section, str):
+            raise ValueError("section must be text")
+        if self.page is not None and (
+            isinstance(self.page, bool) or not isinstance(self.page, int) or self.page < 1
+        ):
+            raise ValueError("page must be a positive integer or None")
+        if (
+            isinstance(self.confidence, bool)
+            or not isinstance(self.confidence, (int, float))
+            or not math.isfinite(self.confidence)
+            or not 0.0 <= self.confidence <= 1.0
+        ):
             raise ValueError("confidence must be a finite number between 0 and 1")
+        if self.verification_method is not AiEvidenceVerificationMethod.EXACT_QUOTE:
+            raise ValueError("verification_method must be exact_quote")
+        if (
+            not isinstance(self.checksum_sha256, str)
+            or _SHA256_PATTERN.fullmatch(self.checksum_sha256) is None
+        ):
+            raise ValueError("checksum_sha256 must be a SHA-256 value")
+        if (
+            not isinstance(self.source_ref, str)
+            or _SOURCE_REF_PATTERN.fullmatch(self.source_ref) is None
+        ):
+            raise ValueError("source_ref must be a canonical document reference")
+        if (
+            not isinstance(self.context_fingerprint, str)
+            or _SHA256_PATTERN.fullmatch(self.context_fingerprint) is None
+        ):
+            raise ValueError("context_fingerprint must be a lowercase SHA-256 value")
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,11 +179,18 @@ class AiDocumentAnalysis:
                 "status": item.status.value,
                 "evidence": (
                     {
+                        "citation_id": item.evidence.citation_id,
                         "document_id": item.evidence.document_id,
                         "quote": item.evidence.quote,
+                        "character_start": item.evidence.character_start,
+                        "character_end": item.evidence.character_end,
                         "section": item.evidence.section,
                         "page": item.evidence.page,
                         "confidence": item.evidence.confidence,
+                        "verification_method": item.evidence.verification_method.value,
+                        "checksum_sha256": item.evidence.checksum_sha256,
+                        "source_ref": item.evidence.source_ref,
+                        "context_fingerprint": item.evidence.context_fingerprint,
                     }
                     if item.evidence
                     else None
@@ -245,19 +313,58 @@ class AiDocumentAnalysis:
 def _payload_evidence(value: object) -> AiEvidence | None:
     if not isinstance(value, Mapping):
         return None
-    document_id = _text(value.get("document_id"), 500)
-    quote = _text(value.get("quote"), 8_000)
+    citation_id = value.get("citation_id")
+    document_id = value.get("document_id")
+    quote = value.get("quote")
+    character_start = value.get("character_start")
+    character_end = value.get("character_end")
+    section = value.get("section")
     confidence = _safe_confidence(value.get("confidence"))
-    page = _safe_page(value.get("page"))
-    if not document_id or not quote or confidence is None:
+    raw_page = value.get("page")
+    page = _safe_page(raw_page)
+    checksum = value.get("checksum_sha256")
+    source_ref = value.get("source_ref")
+    fingerprint = value.get("context_fingerprint")
+    raw_verification_method = value.get("verification_method")
+    if not isinstance(raw_verification_method, str):
         return None
-    return AiEvidence(
-        document_id=document_id,
-        quote=quote,
-        section=_text(value.get("section"), 1_000),
-        page=page,
-        confidence=confidence,
-    )
+    try:
+        verification_method = AiEvidenceVerificationMethod(raw_verification_method)
+    except ValueError:
+        return None
+    if (
+        not isinstance(citation_id, str)
+        or not isinstance(document_id, str)
+        or not isinstance(quote, str)
+        or isinstance(character_start, bool)
+        or not isinstance(character_start, int)
+        or isinstance(character_end, bool)
+        or not isinstance(character_end, int)
+        or not isinstance(section, str)
+        or (raw_page is not None and page is None)
+        or confidence is None
+        or not isinstance(checksum, str)
+        or not isinstance(source_ref, str)
+        or not isinstance(fingerprint, str)
+    ):
+        return None
+    try:
+        return AiEvidence(
+            citation_id=citation_id,
+            document_id=document_id,
+            quote=quote,
+            character_start=character_start,
+            character_end=character_end,
+            section=section,
+            page=page,
+            confidence=confidence,
+            verification_method=verification_method,
+            checksum_sha256=checksum,
+            source_ref=source_ref,
+            context_fingerprint=fingerprint,
+        )
+    except (TypeError, ValueError):
+        return None
 
 
 def _safe_confidence(value: object) -> float | None:
@@ -309,6 +416,7 @@ __all__ = [
     "AiDocument",
     "AiDocumentAnalysis",
     "AiEvidence",
+    "AiEvidenceVerificationMethod",
     "AiFinding",
     "AiFindingStatus",
     "TenderRequirements",

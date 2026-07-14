@@ -8,6 +8,7 @@ import pytest
 from app.core.ai.schemas import (
     AiDocumentAnalysis,
     AiEvidence,
+    AiEvidenceVerificationMethod,
     AiFinding,
     AiFindingStatus,
 )
@@ -21,6 +22,23 @@ from app.ui.tender_full_analysis_dialog import (
     TenderFullAnalysisDialog,
     _render_ai_document_analysis,
 )
+
+
+def _verified_evidence(quote: str, confidence: float) -> AiEvidence:
+    return AiEvidence(
+        citation_id="cit_" + "a" * 32,
+        document_id="doc",
+        quote=quote,
+        character_start=0,
+        character_end=len(quote),
+        section="",
+        page=None,
+        confidence=confidence,
+        verification_method=AiEvidenceVerificationMethod.EXACT_QUOTE,
+        checksum_sha256="b" * 64,
+        source_ref="doc_" + "c" * 32,
+        context_fingerprint="d" * 64,
+    )
 
 
 def _app():
@@ -102,7 +120,7 @@ def test_ai_tab_distinguishes_verified_and_unverified_findings() -> None:
     verified = AiFinding(
         "risk",
         "Confirmed",
-        AiEvidence("doc", "exact quote", confidence=0.8),
+        _verified_evidence("exact quote", 0.8),
         AiFindingStatus.VERIFIED,
     )
     unverified = AiFinding("risk", "Unconfirmed", None, AiFindingStatus.UNVERIFIED)

@@ -12,6 +12,9 @@ from app.core.ai.prompts import SYSTEM_PROMPT
 from app.core.ai.schemas import AiDocument, AiFindingStatus, TenderRequirements
 
 
+CONTEXT_FINGERPRINT = "f" * 64
+
+
 class Provider(AIProvider):
     def __init__(
         self,
@@ -48,6 +51,7 @@ def _document() -> AiDocument:
         "2026-07-13T00:00:00+00:00",
         "verified",
         "The delivery period is 10 days.",
+        "a" * 64,
     )
 
 
@@ -91,12 +95,17 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
     payload["requirements"]["deadlines"] = [_finding()]
     provider = Provider(payload)
 
-    result = TenderDocumentAiAnalyzer(provider).analyze("procurement:test", (_document(),))
+    result = TenderDocumentAiAnalyzer(provider).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
 
     assert result.status == "complete"
     finding = result.requirements.deadlines[0]
     assert finding.status == AiFindingStatus.VERIFIED
     assert finding.evidence is not None
+    assert finding.evidence.context_fingerprint == CONTEXT_FINGERPRINT
+    assert finding.evidence.checksum_sha256 == "a" * 64
+    assert finding.evidence.character_start == _document().text.index(finding.evidence.quote)
     assert provider.calls == [
         (
             SYSTEM_PROMPT,
@@ -117,7 +126,9 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
 def test_valid_structure_with_unprovable_evidence_is_partial_and_unverified(finding) -> None:
     payload = _valid_payload(risks=[finding])
 
-    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze("procurement:test", (_document(),))
+    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
 
     assert result.status == "partial"
     assert len(result.risks) == 1
@@ -133,7 +144,8 @@ def test_valid_structure_keeps_quote_backed_contradiction_across_documents() -> 
         "contract",
         "2026-07-13T00:00:00+00:00",
         "verified",
-        "Delivery takes 30 days.",
+        "===== Страница 3 =====\nDelivery takes 30 days.",
+        "b" * 64,
     )
     payload = _valid_payload(
         contradictions=[
@@ -148,7 +160,9 @@ def test_valid_structure_keeps_quote_backed_contradiction_across_documents() -> 
     )
 
     result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
-        "procurement:test", (_document(), second)
+        "procurement:test",
+        (_document(), second),
+        context_fingerprint=CONTEXT_FINGERPRINT,
     )
 
     assert result.status == "complete"
@@ -158,10 +172,37 @@ def test_valid_structure_keeps_quote_backed_contradiction_across_documents() -> 
     assert result.contradictions[0].evidence.page == 3
 
 
+def test_unique_quote_ignores_provider_locator_conflict_with_safe_warning() -> None:
+    document = AiDocument(
+        "doc-1",
+        "TZ.pdf",
+        "eis",
+        "technical_specification",
+        "2026-07-13T00:00:00+00:00",
+        "verified",
+        "===== Страница 2 =====\nThe delivery period is 10 days.",
+        "a" * 64,
+    )
+    payload = _valid_payload(risks=[_finding(page=99, section="Provider section")])
+
+    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
+        "procurement:test", (document,), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    assert result.status == "partial"
+    assert result.risks[0].verified
+    assert result.risks[0].evidence is not None
+    assert result.risks[0].evidence.page == 2
+    assert result.risks[0].evidence.section == "Страница 2"
+    assert result.warnings == ("Часть ответа AI отклонена защитной проверкой.",)
+
+
 def test_no_documents_preserves_deterministic_fallback_without_provider_call() -> None:
     provider = Provider(_valid_payload())
 
-    result = TenderDocumentAiAnalyzer(provider).analyze("procurement:test", ())
+    result = TenderDocumentAiAnalyzer(provider).analyze(
+        "procurement:test", (), context_fingerprint=CONTEXT_FINGERPRINT
+    )
 
     assert result.status == "no_documents"
     assert provider.calls == []
@@ -182,7 +223,7 @@ def test_no_documents_preserves_deterministic_fallback_without_provider_call() -
 )
 def test_malformed_or_wrapped_json_is_rejected_without_findings(payload: str) -> None:
     result = TenderDocumentAiAnalyzer(Provider(payload, raw=True)).analyze(
-        "procurement:test", (_document(),)
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
     )
 
     assert result.status == "invalid_response"
@@ -235,7 +276,9 @@ def test_structural_schema_error_rejects_entire_payload(mutate) -> None:
     payload = _valid_payload(risks=[_finding(statement="Otherwise valid")])
     mutate(payload)
 
-    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze("procurement:test", (_document(),))
+    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+    )
 
     assert result.status == "invalid_response"
     _assert_no_findings(result)
@@ -247,14 +290,14 @@ def test_provider_exception_disabled_and_error_behaviour_remain_safe() -> None:
             raise TimeoutError("Authorization: Bearer SECRET")
 
     failed = TenderDocumentAiAnalyzer(FailingProvider(_valid_payload())).analyze(
-        "procurement:test", (_document(),)
+        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
     )
     disabled = TenderDocumentAiAnalyzer(
         Provider(_valid_payload(), provider_status="disabled")
-    ).analyze("procurement:test", (_document(),))
+    ).analyze("procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT)
     provider_error = TenderDocumentAiAnalyzer(
         Provider(_valid_payload(), provider_status="error")
-    ).analyze("procurement:test", (_document(),))
+    ).analyze("procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT)
 
     assert failed.status == "provider_error"
     assert disabled.status == "provider_disabled"

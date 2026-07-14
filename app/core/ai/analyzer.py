@@ -7,6 +7,7 @@ import math
 from typing import Mapping
 
 from app.ai.provider import AIProvider
+from app.core.ai.citations import resolve_citation
 from app.core.ai.document_context import TenderDocumentContextBuilder
 from app.core.ai.output_schema import (
     build_responses_text_format,
@@ -22,7 +23,6 @@ from app.core.ai.schemas import (
     AiAnalysisStatus,
     AiDocument,
     AiDocumentAnalysis,
-    AiEvidence,
     AiFinding,
     AiFindingStatus,
     TenderRequirements,
@@ -43,6 +43,8 @@ class TenderDocumentAiAnalyzer:
         self,
         registry_key: str,
         documents: tuple[AiDocument, ...],
+        *,
+        context_fingerprint: str,
     ) -> AiDocumentAnalysis:
         if not documents:
             return AiDocumentAnalysis(
@@ -70,16 +72,21 @@ class TenderDocumentAiAnalyzer:
         payload = decode_and_validate_provider_output(response.get("text"))
         if payload is None:
             return _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE)
-        return self._normalize(registry_key, payload.model_dump(), documents)
+        return self._normalize(
+            registry_key,
+            payload.model_dump(),
+            documents,
+            context_fingerprint,
+        )
 
     def _normalize(
         self,
         registry_key: str,
         payload: Mapping[str, object],
         documents: tuple[AiDocument, ...],
+        context_fingerprint: str,
     ) -> AiDocumentAnalysis:
         issues: list[str] = []
-        known = {item.document_id: item for item in documents}
         raw_requirements = payload.get("requirements", {})
         if not isinstance(raw_requirements, Mapping):
             issues.append("requirements")
@@ -89,7 +96,8 @@ class TenderDocumentAiAnalyzer:
             **{
                 name: self._findings(
                     raw_requirements.get(name, ()),
-                    known,
+                    documents,
+                    context_fingerprint,
                     name,
                     issues,
                 )
@@ -116,16 +124,24 @@ class TenderDocumentAiAnalyzer:
             registry_key=registry_key,
             summary=summary,
             requirements=requirements,
-            risks=self._findings(payload.get("risks", ()), known, "risk", issues),
+            risks=self._findings(
+                payload.get("risks", ()),
+                documents,
+                context_fingerprint,
+                "risk",
+                issues,
+            ),
             suspicious_conditions=self._findings(
                 payload.get("suspicious_conditions", ()),
-                known,
+                documents,
+                context_fingerprint,
                 "suspicious",
                 issues,
             ),
             contradictions=self._findings(
                 payload.get("contradictions", ()),
-                known,
+                documents,
+                context_fingerprint,
                 "contradiction",
                 issues,
             ),
@@ -148,7 +164,8 @@ class TenderDocumentAiAnalyzer:
     @staticmethod
     def _findings(
         raw: object,
-        known: Mapping[str, AiDocument],
+        documents: tuple[AiDocument, ...],
+        context_fingerprint: str,
         category: str,
         issues: list[str],
     ) -> tuple[AiFinding, ...]:
@@ -194,21 +211,27 @@ class TenderDocumentAiAnalyzer:
             page, page_valid = _page(item.get("page"))
             if not page_valid:
                 issues.append(f"{category}.page")
-            exact_quote = bool(document_id in known and quote and quote in known[document_id].text)
-            verified = exact_quote and confidence is not None
-            if not verified:
-                issues.append(f"{category}.evidence")
-            evidence = (
-                AiEvidence(
+            resolution = (
+                resolve_citation(
                     document_id=document_id,
                     quote=quote,
                     section=section,
                     page=page,
                     confidence=confidence,
+                    documents=documents,
+                    context_fingerprint=context_fingerprint,
                 )
-                if verified and confidence is not None
+                if confidence is not None and page_valid
                 else None
             )
+            evidence = resolution.evidence if resolution is not None else None
+            if evidence is None:
+                issues.append(f"{category}.evidence")
+            elif (section and section != evidence.section) or (
+                page is not None and page != evidence.page
+            ):
+                issues.append(f"{category}.locator")
+            verified = evidence is not None
             result.append(
                 AiFinding(
                     category,
@@ -276,7 +299,11 @@ class TenderDocumentAiAnalysisService:
                 "last_warning",
                 "",
             )
-        result = self.analyzer.analyze(registry_key, documents)
+        result = self.analyzer.analyze(
+            registry_key,
+            documents,
+            context_fingerprint=fingerprint,
+        )
         statistics = getattr(context, "statistics", None)
         if statistics is not None:
             result = replace(
