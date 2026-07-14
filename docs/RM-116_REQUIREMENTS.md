@@ -1,6 +1,6 @@
 # RM-116 Requirements — Verified Citations and Provenance
 
-Status: DESIGN APPROVED; READY FOR IMPLEMENTATION PLAN
+Status: IMPLEMENTED; FEATURE ACCEPTANCE PREPARED; STAGE IN PROGRESS
 Canonical contract date: 2026-07-14
 Depends on: RM-107, RM-110, RM-111, RM-112, RM-113, RM-114, RM-115
 
@@ -28,7 +28,8 @@ Add an immutable public `AiProviderMetadata` contract with `provider_id` and `mo
 `AIProvider.metadata` returns that contract. Values are bounded, free of control characters,
 and supplied explicitly by provider selection. The metadata contract must never contain an
 API key, Authorization header, base URL, query/fragment, prompt, document text, response body,
-or private path. The existing sanitized `raw_id` may be recorded as `provider_response_id`.
+or private path. The existing sanitized `raw_id` may be represented only by a locally derived
+`resp_<sha256>` reference in `provider_response_id`; the raw provider value is not persisted.
 
 ## Citation contract
 
@@ -154,9 +155,9 @@ and 3.13, and a merged docs-only closeout package.
 
 The implementation satisfies the contract locally on Python 3.12.7:
 
-- exact RM-116 target: `262 passed in 6.37s`;
-- strict provider/output/UI regressions: `93 passed in 3.74s`;
-- full suite: `1014 passed in 50.92s`;
+- exact RM-116 target: `268 passed in 6.86s`;
+- strict provider/output/UI regressions: `97 passed in 4.16s`;
+- full suite: `1024 passed in 54.00s`;
 - Ruff check/format, mypy on 16 fixed production files, repository secret scan,
   `pip_audit --skip-editable`, and diff hygiene passed;
 - dependency audit reported no known vulnerabilities;

@@ -11,6 +11,8 @@ import math
 import re
 from typing import Any, Mapping, cast
 
+from app.ai.provider import _safe_provider_id, _safe_provider_model
+
 
 AI_ANALYSIS_SCHEMA_VERSION = 3
 _EXPECTED_PROVENANCE_PROMPT_VERSION = "3"
@@ -32,6 +34,7 @@ _MAX_SOURCES = 1_000
 _CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
 _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
+_PROVIDER_RESPONSE_REF_PATTERN = re.compile(r"resp_[0-9a-f]{64}")
 
 
 class AiAnalysisStatus(StrEnum):
@@ -164,21 +167,17 @@ class AiAnalysisProvenance:
         object.__setattr__(
             self,
             "provider_id",
-            _safe_metadata_text(self.provider_id, _MAX_PROVIDER_ID_LENGTH, "unknown"),
+            _safe_provider_id(self.provider_id),
         )
         object.__setattr__(
             self,
             "provider_model",
-            _safe_metadata_text(self.provider_model, _MAX_PROVIDER_MODEL_LENGTH, "unknown"),
+            _safe_provider_model(self.provider_model),
         )
         object.__setattr__(
             self,
             "provider_response_id",
-            _safe_metadata_text(
-                self.provider_response_id,
-                _MAX_PROVIDER_RESPONSE_ID_LENGTH,
-                "",
-            ),
+            _safe_provider_response_reference(self.provider_response_id),
         )
 
     def to_payload(self) -> dict[str, object]:
@@ -517,6 +516,15 @@ def _payload_provenance(value: object) -> AiAnalysisProvenance | None:
         return None
     if not _payload_has_current_provenance_versions(value):
         return None
+    raw_provider_id = value.get("provider_id")
+    raw_provider_model = value.get("provider_model")
+    raw_provider_response_id = value.get("provider_response_id")
+    if (
+        raw_provider_id != _safe_provider_id(raw_provider_id)
+        or raw_provider_model != _safe_provider_model(raw_provider_model)
+        or raw_provider_response_id != _safe_provider_response_reference(raw_provider_response_id)
+    ):
+        return None
     raw_sources = value.get("sources")
     if not isinstance(raw_sources, list) or len(raw_sources) > _MAX_SOURCES:
         return None
@@ -736,6 +744,14 @@ def _safe_metadata_text(value: object, limit: int, default: str) -> str:
     return rendered
 
 
+def _safe_provider_response_reference(value: object) -> str:
+    if value == "":
+        return ""
+    if not isinstance(value, str) or len(value) > _MAX_PROVIDER_RESPONSE_ID_LENGTH:
+        return ""
+    return value if _PROVIDER_RESPONSE_REF_PATTERN.fullmatch(value) is not None else ""
+
+
 def _safe_source_value(value: object, limit: int, default: str = "") -> str:
     rendered = _bounded_text(value, limit, default)
     lowered = rendered.casefold()
@@ -773,7 +789,7 @@ def _known_timezone_aware(value: object) -> str:
     except ValueError:
         return "unknown"
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        return "unknown"
     return parsed.isoformat(timespec="seconds")
 
 

@@ -50,7 +50,7 @@ def _provenance(**changes: object) -> AiAnalysisProvenance:
         "citation_resolver_version": "1",
         "provider_id": "openai",
         "provider_model": "gpt-5",
-        "provider_response_id": "response-123",
+        "provider_response_id": "resp_" + "a" * 64,
         "sources": (_source(),),
     }
     values.update(changes)
@@ -103,7 +103,7 @@ def test_provenance_is_immutable_timezone_aware_and_contains_only_safe_sources()
 
     assert datetime.fromisoformat(provenance.created_at).utcoffset() is not None
     assert provenance.sources[0].display_name == "tender.pdf"
-    assert len(provenance.provider_response_id) == 200
+    assert provenance.provider_response_id == ""
     serialized = json.dumps(provenance.to_payload(), ensure_ascii=False)
     assert r"C:\Users\SecretUser" not in serialized
     assert "document body" not in serialized
@@ -112,7 +112,7 @@ def test_provenance_is_immutable_timezone_aware_and_contains_only_safe_sources()
 
 
 def test_source_received_at_is_normalized_or_explicitly_unknown() -> None:
-    assert _source(received_at="2026-07-14T10:00:00").received_at.endswith("+00:00")
+    assert _source(received_at="2026-07-14T10:00:00").received_at == "unknown"
     assert _source(received_at="not-a-date").received_at == "unknown"
     assert _source(received_at="").received_at == "unknown"
 
@@ -237,6 +237,33 @@ def test_tampered_semantic_versions_cannot_restore_verified_findings(
     assert restored.provenance is None
     assert restored.risks[0].status is AiFindingStatus.UNVERIFIED
     assert restored.risks[0].evidence is None
+
+
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    [
+        ("provider_id", "Authorization: Bearer topsecret"),
+        ("provider_id", r"C:\Users\SecretUser\provider"),
+        ("provider_model", "model?token=topsecret"),
+        ("provider_model", "https://provider.example/model"),
+        ("provider_response_id", "Traceback token=topsecret"),
+    ],
+)
+def test_unsafe_provider_provenance_cannot_restore_verified_findings(
+    field: str,
+    unsafe_value: str,
+) -> None:
+    payload = _analysis().to_payload()
+    payload["provenance"][field] = unsafe_value
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+    serialized = json.dumps(restored.to_payload(), ensure_ascii=False)
+
+    assert restored.provenance is None
+    assert restored.risks[0].status is AiFindingStatus.UNVERIFIED
+    assert restored.risks[0].evidence is None
+    assert "topsecret" not in serialized
+    assert "SecretUser" not in serialized
 
 
 @pytest.mark.parametrize(

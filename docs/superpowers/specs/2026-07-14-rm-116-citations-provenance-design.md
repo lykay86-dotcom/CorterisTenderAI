@@ -1,7 +1,7 @@
 # RM-116 Verified Citations and Provenance — Design
 
 Date: 2026-07-14
-Status: approved in conversation; pending written-spec review
+Status: approved; implemented; feature acceptance prepared; stage remains in progress
 Canonical requirements: `docs/RM-116_REQUIREMENTS.md`
 Audit: `docs/RM-116_AUDIT.md`
 

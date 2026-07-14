@@ -54,7 +54,7 @@ def _canonical_provenance() -> AiAnalysisProvenance:
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
-        provider_response_id="response-123",
+        provider_response_id="resp_" + "a" * 64,
         sources=(
             AiSourceSnapshot(
                 document_id="doc",

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from app.ai.provider import DisabledProvider, OpenAICompatibleProvider
+from app.ai.provider import AiProviderMetadata, DisabledProvider, OpenAICompatibleProvider
 from app.core.ai.provider_selection import (
     AiProviderId,
     AiProviderSelectionService,
@@ -80,6 +80,29 @@ def test_unknown_id_degrades_without_echoing_raw_configuration(tmp_path) -> None
     assert isinstance(resolution.provider, DisabledProvider)
     assert not resolution.available
     assert "do-not-leak" not in repr(resolution)
+
+
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    [
+        ("provider_id", "Authorization: Bearer topsecret"),
+        ("provider_id", r"C:\Users\SecretUser\provider"),
+        ("model", "model?token=topsecret"),
+        ("model", "https://provider.example/model"),
+    ],
+)
+def test_public_provider_metadata_rejects_unsafe_identifiers(
+    field: str,
+    unsafe_value: str,
+) -> None:
+    values = {"provider_id": "openai", "model": "gpt-5"}
+    values[field] = unsafe_value
+
+    metadata = AiProviderMetadata(**values)
+
+    assert "topsecret" not in repr(metadata)
+    assert "SecretUser" not in repr(metadata)
+    assert getattr(metadata, field) == "unknown"
 
 
 def test_missing_secret_degrades_to_disabled(tmp_path) -> None:

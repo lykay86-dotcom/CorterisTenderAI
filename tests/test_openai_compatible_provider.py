@@ -75,7 +75,7 @@ def test_provider_metadata_bounds_untrusted_values() -> None:
     metadata = AiProviderMetadata("bad\nprovider", "m" * 500)
 
     assert metadata.provider_id == "unknown"
-    assert len(metadata.model) == 200
+    assert metadata.model == "unknown"
 
 
 def _error_code(result: dict[str, object]) -> str:

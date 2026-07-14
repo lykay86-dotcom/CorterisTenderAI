@@ -22,8 +22,8 @@ merge-коммите. До изменения application-кода RM-116 тре
   production provider call; вторая схема или AI workflow не созданы;
 - RM-107 score/recommendation и абсолютный приоритет critical stop-factor не изменены;
 - новая БД или миграция БД не требуются;
-- локальная приёмка на Python 3.12.7: RM-116 target `262 passed`, strict/provider/UI
-  regressions `93 passed`, full `1014 passed`; Ruff, mypy (16 файлов), secret scan,
+- локальная приёмка на Python 3.12.7: RM-116 target `268 passed`, strict/provider/UI
+  regressions `97 passed`, full `1024 passed`; Ruff, mypy (16 файлов), secret scan,
   dependency audit и diff-check успешны.
 
 RM-116 остаётся `IN PROGRESS`: до `DONE` обязательны merge feature PR, успешный post-merge

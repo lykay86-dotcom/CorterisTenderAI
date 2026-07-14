@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Protocol
@@ -76,11 +77,13 @@ class TenderDocumentContextBuilder:
 
     def build_context(self, registry_key: str) -> AiDocumentContext:
         records = tuple(self.text_service.list_results(registry_key))
-        ordered = sorted(records, key=_record_sort_key)
+        current_records = _latest_revision_records(records)
+        ordered = sorted(current_records, key=_record_sort_key)
         documents: list[AiDocument] = []
         seen_checksums: set[str] = set()
         characters = 0
-        truncated = omitted = empty = duplicate = unavailable = 0
+        truncated = omitted = empty = unavailable = 0
+        duplicate = len(records) - len(current_records)
 
         for record in ordered:
             if not bool(getattr(record, "available_locally", False)):
@@ -148,6 +151,34 @@ class TenderDocumentContextBuilder:
             unavailable_document_count=unavailable,
         )
         return AiDocumentContext(tuple(documents), statistics)
+
+
+def _latest_revision_records(
+    records: tuple[StoredDocumentText, ...],
+) -> tuple[StoredDocumentText, ...]:
+    latest: dict[str, StoredDocumentText] = {}
+    for record in records:
+        document_key = str(getattr(record, "document_key", "") or "")
+        previous = latest.get(document_key)
+        if previous is None or _record_revision_key(record) > _record_revision_key(previous):
+            latest[document_key] = record
+    return tuple(latest.values())
+
+
+def _record_revision_key(record: object) -> tuple[float, str, str]:
+    raw_timestamp = str(getattr(record, "extracted_at", "") or "")
+    try:
+        parsed = datetime.fromisoformat(raw_timestamp)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        timestamp = parsed.timestamp()
+    except (OSError, OverflowError, ValueError):
+        timestamp = float("-inf")
+    return (
+        timestamp,
+        str(getattr(record, "checksum_sha256", "") or ""),
+        str(getattr(record, "source_path", "") or "").casefold(),
+    )
 
 
 def _record_sort_key(record: object) -> tuple[str, str, str]:

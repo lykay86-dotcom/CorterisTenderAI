@@ -10,12 +10,14 @@
   приоритет critical stop-factor не изменены.
 - Переиспользованы существующие provider/analyzer/Orchestrator/repository/context
   builder/exporter; второй schema/parser/workflow и миграция БД не добавлены.
-- Локально на Python 3.12.7: target `262 passed in 6.37s`, strict/provider/UI `93 passed in
-  3.74s`, full `1014 passed in 50.92s`; Ruff, mypy (16 файлов), secret scan, dependency audit и
+- Локально на Python 3.12.7: target `268 passed in 6.86s`, strict/provider/UI `97 passed in
+  4.16s`, full `1024 passed in 54.00s`; Ruff, mypy (16 файлов), secret scan, dependency audit и
   diff-check успешны.
 - Запись является подготовкой feature PR, а не closeout: RM-116 остаётся `IN PROGRESS`, RM-117
   остаётся `PLANNED`; обязательны feature merge, post-merge Windows gate 3.12/3.13 и отдельный
   merged docs-only closeout.
+- Финальный adversarial review устранил duplicate extraction revisions и fail-open cached
+  provider metadata; naive source timestamp теперь сохраняется как explicit `unknown`.
 
 ## 2026-07-14 — RM-115 завершён
 

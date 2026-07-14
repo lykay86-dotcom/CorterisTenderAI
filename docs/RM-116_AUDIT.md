@@ -135,9 +135,9 @@ DNS, keyring, saved credential, new database, or migration is required by the lo
 
 Acceptance evidence on Python 3.12.7:
 
-- exact RM-116 target: `262 passed in 6.37s`;
-- strict/provider/UI regressions: `93 passed in 3.74s`;
-- full suite: `1014 passed in 50.92s`;
+- exact RM-116 target: `268 passed in 6.86s`;
+- strict/provider/UI regressions: `97 passed in 4.16s`;
+- full suite: `1024 passed in 54.00s`;
 - Ruff check and format (`507 files`) passed;
 - mypy passed on the expanded fixed contour of 16 production files;
 - repository secret scan passed;
@@ -148,3 +148,9 @@ Acceptance evidence on Python 3.12.7:
 This is feature-branch preparation only. RM-116 remains `IN PROGRESS`; feature merge,
 post-merge Windows Quality Gate on Python 3.12/3.13, and merged docs-only closeout remain
 mandatory before RM-116 becomes `DONE` or RM-117 becomes active.
+
+Final adversarial review additionally verified and corrected two cross-layer boundaries:
+only the latest extraction revision for each `document_key` enters AI context, and cached
+provider metadata must match the closed public grammar plus locally derived
+`resp_<sha256>` response reference before findings can remain verified. Naive source timestamps
+now become explicit `unknown` rather than invented UTC.
