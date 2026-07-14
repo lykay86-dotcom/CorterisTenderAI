@@ -52,6 +52,9 @@ python_version = "3.12"
 files = [
   "app/ai/provider.py",
   "app/core/json_serialization.py",
+  "app/core/ai/output_schema.py",
+  "app/core/ai/analyzer.py",
+  "app/core/ai/schemas.py",
   "app/core/ai/orchestrator.py",
   "app/core/ai/provider_selection.py",
   "app/tenders/provider_base.py",
