@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -101,3 +102,33 @@ def test_document_dialog_busy_state_disables_actions(tmp_path) -> None:
     assert not dialog.force_download_button.isEnabled()
     assert "фоне" in dialog.status_label.text()
     app.processEvents()
+
+
+def test_document_dialog_selects_known_document_by_exact_key(tmp_path) -> None:
+    first = _tender().documents[0]
+    second = TenderDocument(
+        id="doc-2",
+        name="Проект договора.pdf",
+        url="https://files.example.org/contract.pdf",
+        mime_type="application/pdf",
+    )
+    tender = replace(_tender(), documents=(first, second))
+    store = TenderDocumentStore(tmp_path / "documents")
+    for document in tender.documents:
+        store.save_response(
+            tender,
+            document,
+            HttpResponse(
+                url=document.url,
+                status_code=200,
+                headers={"content-type": "application/pdf"},
+                body=b"%PDF-1.4 test document",
+            ),
+        )
+    dialog = TenderDocumentsDialog(tender, store)
+    target = dialog.documents[1].document_key
+
+    assert dialog.select_document(target) is True
+    assert dialog.selected_document() is not None
+    assert dialog.selected_document().document_key == target
+    assert dialog.select_document("missing") is False

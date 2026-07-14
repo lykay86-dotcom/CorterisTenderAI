@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 from pathlib import Path
 
@@ -13,6 +14,16 @@ from app.tenders.search_profile_repository import (
     TenderSearchProfileRepository,
 )
 from app.tenders.search_runtime import TenderSearchRuntime
+from app.tenders.document_storage import TenderDocumentStore
+from app.tenders.http_client import HttpResponse
+from app.tenders.models import (
+    TenderCustomer,
+    TenderDocument,
+    TenderSource,
+    TenderStatus,
+    UnifiedTender,
+)
+from app.tenders.tender_registry import tender_registry_key
 from app.ui.tender_search_ui_controller import (
     TenderSearchUiController,
 )
@@ -38,6 +49,15 @@ class FakeRunner:
         if self.error is not None:
             raise self.error
         return make_profile_run()
+
+
+class FakeTenderRegistry:
+    def __init__(self, tender: UnifiedTender, path: Path) -> None:
+        self.tender = tender
+        self.path = path
+
+    def get_tender(self, registry_key: str) -> UnifiedTender | None:
+        return self.tender if registry_key == tender_registry_key(self.tender) else None
 
 
 def _runtime(tmp_path, runner) -> TenderSearchRuntime:
@@ -125,3 +145,66 @@ def test_controller_reports_search_error_in_profiles_dialog(
     assert controller.profiles_dialog is not None
     assert "ЕИС недоступна" in (controller.profiles_dialog.panel.status_label.text())
     assert controller.profiles_dialog.panel.run_button.isEnabled()
+
+
+def test_controller_opens_existing_document_dialog_for_analysis_citation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    app = _app()
+    document = TenderDocument(
+        id="doc-1",
+        name="Техническое задание.pdf",
+        url="https://files.example.org/tz.pdf",
+        mime_type="application/pdf",
+    )
+    tender = UnifiedTender(
+        source=TenderSource.EIS,
+        external_id="eis-1",
+        procurement_number="0373100000126000001",
+        title="Монтаж систем видеонаблюдения",
+        customer=TenderCustomer(name="Заказчик"),
+        source_url="https://zakupki.example.org/1",
+        status=TenderStatus.ACCEPTING_APPLICATIONS,
+        documents=(document,),
+    )
+    store = TenderDocumentStore(tmp_path / "documents")
+    store.save_response(
+        tender,
+        document,
+        HttpResponse(
+            url=document.url,
+            status_code=200,
+            headers={"content-type": "application/pdf"},
+            body=b"%PDF-1.4 test document",
+        ),
+    )
+    stored = store.list_documents(tender_registry_key(tender))[0]
+    runtime = replace(
+        _runtime(tmp_path, FakeRunner()),
+        tender_registry=FakeTenderRegistry(tender, tmp_path / "tender_registry.sqlite3"),
+        document_store=store,
+        document_service=object(),
+    )
+    window = QMainWindow()
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=runtime,
+        thread_pool=ImmediateThreadPool(),
+        parent=window,
+    )
+    opened_urls: list[object] = []
+    monkeypatch.setattr(
+        "app.ui.tender_documents_dialog.QDesktopServices.openUrl",
+        lambda url: opened_urls.append(url),
+    )
+
+    controller.open_analysis_citation(tender_registry_key(tender), stored.document_key)
+    app.processEvents()
+
+    assert len(controller.document_dialogs) == 1
+    dialog = controller.document_dialogs[0]
+    assert dialog.selected_document() is not None
+    assert dialog.selected_document().document_key == stored.document_key
+    assert dialog.isVisible()
+    assert opened_urls == []
