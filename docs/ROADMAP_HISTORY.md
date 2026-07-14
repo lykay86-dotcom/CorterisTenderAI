@@ -13,7 +13,7 @@
 - Локальная приёмка: `863 passed in 52.41s`, Ruff check, Ruff format (`502 files`),
   mypy (`10 source files`), secret scan, dependency audit, `git diff --check`, строгий `git fsck`
   и `git submodule status --recursive` успешны.
-- Draft PR #32; переход к application-коду RM-115 по-прежнему требует отдельного аудита,
+- PR #32; переход к application-коду RM-115 по-прежнему требует отдельного аудита,
   указанного в `STATUS.md`.
 
 ## 2026-07-14 — RM-114 завершён
