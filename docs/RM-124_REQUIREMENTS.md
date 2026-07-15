@@ -176,3 +176,55 @@ RED tests обязаны доказать отсутствие нового modu
 Статический acceptance подтверждает один production `provider.analyze(...)`, один analyzer/
 service/orchestrator/repository, одну `RUNNING_AI` stage, unchanged versions/SQLite/provider schema
 и отсутствие изменений в двух production-файлах RM-107.
+
+## Feature acceptance
+
+Окружение: Python `3.12.7`, project `.venv`, `QT_QPA_PLATFORM=offscreen`, worktree-local
+`TEMP/TMP` и pytest `--basetemp`.
+
+- Baseline SHA: `52c1f5ce72c13f945817225ba2e1e35e9bf400f0`.
+- Feature SHA: `788d1e43c79545c1540623f2685012c1039f0fc5`.
+- Обязательный eight-file target contour: `150 passed in 5.70s`.
+- Расширенный target с UI-controller regression: `154 passed in 5.70s`.
+- Полный suite: `1466 passed in 56.89s`.
+- `python -m ruff check .`: passed.
+- `python -m ruff format . --check`: passed (`521 files already formatted`).
+- `python -m mypy`: passed (`20 source files`).
+- `python scripts/check_repository_secrets.py`: passed.
+- `python -m pip_audit --skip-editable`: no known vulnerabilities; editable project skipped as
+  expected.
+- `git diff --check`: passed.
+
+RED target до production implementation завершился шестью collection errors с единственной
+причиной `ModuleNotFoundError: app.core.ai.recheck`. После добавления pure module, отдельного
+service/orchestrator API, UI worker и optional exporter тот же target прошёл полностью.
+
+Статический acceptance подтвердил один production `provider.analyze(...)`, один
+`TenderAiOrchestrator`, один `AiDocumentAnalysisRepository`, одну enum/stage пару `RUNNING_AI` и
+одно production-использование stage. Pure comparator импортирует только standard-library
+dataclass/enum/hash/JSON и immutable AI schema; I/O, network, repository, provider, UI,
+participation score, company profile и document text не используются.
+
+Фактические версии не изменены: provider output schema `4`, response format
+`corteris_tender_analysis_v4`, prompt `6`, persisted payload `10`, analyzer `11`, context `6`,
+citation resolver `1`; recheck policy имеет версию `1`. Provider schema, `AiDocumentAnalysis`
+payload, physical SQLite schema и migrations не менялись.
+
+Recheck захватывает exact reusable baseline до append-only current save, строит context/fingerprint
+один раз и вызывает existing analyzer ровно один раз. Repository read failure не блокирует current
+request; current provider failure даёт `current_unavailable`, не заменяется baseline и не
+сохраняется. Normal `analyze(force=False)` cache semantics подтверждена полным regression suite.
+
+Existing AI tab получил одну кнопку/confirmation/background worker и result block без новой
+вкладки или `RUNNING_AI` stage. JSON/HTML без recheck сохраняет прежний payload path; optional
+`ai_recheck` содержит только safe assessment metadata/deltas/warnings/disclaimer с HTML escaping,
+без full baseline/current payload, raw provider response, URL/path, credentials или document text.
+
+Production-файлы `app/tenders/participation_decision_policy.py` и
+`app/tenders/collector/participation_score.py` не изменены. Tests подтвердили отсутствие recheck в
+deterministic score/stop policy; score, recommendation, actions, evidence, confidence, commercial
+estimate и абсолютный приоритет critical stop factor не меняются.
+
+Глобальный Python не содержал dev dependency `mypy`, поэтому canonical команды выполнены через
+project `.venv`. Первый sandbox-запуск dependency audit ожидаемо не имел сетевого доступа к PyPI;
+повтор с разрешённой сетью и worktree-local cache прошёл без изменения кода.
