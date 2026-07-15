@@ -1,19 +1,44 @@
 # Текущее состояние CorterisTenderAI
 
-Обновлено: 15 июля 2026 года.
+Обновлено: 16 июля 2026 года.
 
 ## Активный этап
 
-**RM-126 — аудит раздела Тендеры**
+**RM-127 — новая структура вкладок**
 
 Статус: `IN PROGRESS`
 
-Этап назначается только после merge реализации RM-125, успешного post-merge Windows Quality
-Gate на merge-коммите и merged docs-only closeout. До изменения application-кода RM-126
-требуется отдельный аудит существующих Tender UI, search/runtime, adapters, repositories,
-collectors и deterministic decision boundaries.
+Этап следует принятому в RM-126 решению D-01: modern shell владеет единственной tender page,
+а существующие legacy widgets/actions извлекаются поэтапно без второго main window, нового search
+runtime, provider catalog, persistence root или analysis workflow. Application-код RM-127 можно
+начинать только после merge этого docs-only closeout и успешного финального Windows Quality Gate.
 
 ## Предыдущий этап
+
+**RM-126 — аудит раздела Тендеры**
+
+Статус: `DONE`
+
+Подтверждение:
+
+- audit PR #55 (`docs(rm-126): audit tenders section`) слит в `main` коммитом `f09d07e`
+  (`f09d07ebb1a15acb42279d3b8f7e0393c8d84afc`);
+- post-merge Quality Gate run `29453928900` успешен: Python 3.12 —
+  `1496 passed in 76.46s`, Python 3.13 — `1496 passed in 157.55s`;
+- на обеих версиях прошли Ruff check/format (`523 files`), mypy (20 файлов), repository secret
+  scan, offline/migration/import/composition/build smoke tests и dependency audit;
+- созданы проверяемые `RM-126_AUDIT.md`, `RM-126_REQUIREMENTS.md` и execution plan; production-код,
+  зависимости, схема БД и migrations не изменены;
+- приняты D-01–D-10: modern tender page, async Collector как целевой search boundary с временным
+  sync facade, единый provider/settings/keyring/profile/normalization/persistence contract и strict
+  Decimal/aware-time policy;
+- C1–C20 распределены по RM-127–RM-140 без параллельной Collector roadmap;
+- HIGH handoff: embedded legacy UI, два search orchestration path, отсутствие общего tender
+  shutdown и неоднородная timezone policy;
+- локальная приёмка audit branch: target `395 passed in 33.99s`, full
+  `1496 passed in 61.27s`; Ruff, mypy, secret scan, smoke tests, dependency audit и diff-check успешны.
+
+## Ранее завершённый этап
 
 **RM-125 — стабилизация AI-платформы**
 
@@ -25,42 +50,9 @@ collectors и deterministic decision boundaries.
 - post-merge Quality Gate run `29450245855` успешен на Python 3.12 и 3.13;
 - полный Windows suite: Python 3.12 — `1496 passed in 95.46s`, Python 3.13 —
   `1496 passed in 61.69s`;
-- единый immutable execution contract v1 exact-связывает provider, model и все версии анализа;
-- typed cache lookup пропускает corrupt/future/mismatched rows и может найти более старую exact
-  current-compatible запись без mutable repository warning state;
-- empty-source, provider-error и cacheability paths имеют bounded deterministic semantics без
-  retry, raw provider errors или stale fallback;
-- per-key coordinator сериализует одинаковые run/recheck и не блокирует разные ключи;
-- participation decision получает AI-анализ только явно, без implicit latest fallback;
-- сохранены один provider call site, analyzer/service/Orchestrator/repository, одна
-  `RUNNING_AI` stage и существующий runtime graph;
-- provider schema/format v4, prompt v6, payload v10, context v6, citation resolver v1 и recheck
-  policy v1 не изменены; analyzer повышен до v12;
-- RM-107 score/recommendation/actions/evidence/confidence, commercial estimate и абсолютный
-  приоритет critical stop-factor не изменены;
-- новая AI-stage, provider call, repository, БД, таблица или migration не добавлены;
-- локально: target `315 passed in 7.15s`, full `1496 passed in 58.68s`, Ruff (`523 files`),
-  mypy (20 файлов), secret scan, dependency audit и diff-check успешны;
-- post-merge gate подтвердил Ruff (`523 files`), mypy (20 файлов), secret scan, offline,
-  migration, composition и build smoke tests, а также dependency audit на обеих версиях Python.
-
-## Ранее завершённый этап
-
-**RM-124 — повторная проверка AI**
-
-Статус: `DONE`
-
-Подтверждение:
-
-- feature PR #51 слит в `main` коммитом `cfd044e`;
-- post-merge Quality Gate run `29437124384` успешен на Python 3.12 и 3.13;
-- полный Windows suite: Python 3.12 — `1466 passed in 108.68s`, Python 3.13 —
-  `1466 passed in 80.07s`;
-- pure comparator использует exact provenance/fingerprint/version contract и только locally
-  verified findings;
-- RM-107 score/recommendation и critical stop-factor policy не изменены.
+- immutable AI execution contract, deterministic decision и critical stop-factor priority сохранены.
 
 ## Текущее действие
 
-Провести отдельный аудит RM-126 до изменения раздела Тендеры, search/runtime, adapters,
-repositories, collectors или deterministic decision boundary.
+После merge closeout и зелёного финального Quality Gate начать RM-127 только с изоляции tender page
+по D-01 и handoff-контракту `docs/RM-126_REQUIREMENTS.md`.
