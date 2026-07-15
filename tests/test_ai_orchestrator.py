@@ -5,6 +5,7 @@ from datetime import datetime
 import pytest
 
 from app.core.ai.orchestrator import TenderAiOrchestrator
+from app.core.ai.recheck import AiRecheckStatus, TenderAiRecheckResult, compare_ai_analyses
 from app.core.ai.schemas import (
     AiDocumentAnalysis,
     AiEvidence,
@@ -44,6 +45,13 @@ class RecordingService:
 class ExplodingService:
     def analyze(self, _registry_key: str, *, force: bool = False) -> AiDocumentAnalysis:
         del force
+        raise TimeoutError(
+            "Authorization: Bearer SECRET\n"
+            "Traceback (most recent call last)\n"
+            r"C:\Users\private\tender.txt"
+        )
+
+    def recheck(self, _registry_key: str) -> TenderAiRecheckResult:
         raise TimeoutError(
             "Authorization: Bearer SECRET\n"
             "Traceback (most recent call last)\n"
@@ -176,3 +184,49 @@ def test_orchestrator_does_not_change_findings_or_create_decision_fields() -> No
     assert result.document_analysis.risks[0] is finding
     assert not hasattr(result, "score")
     assert not hasattr(result, "recommendation")
+
+
+def test_recheck_is_delegated_once_without_repository_access() -> None:
+    current = _analysis("provider_error")
+    expected = TenderAiRecheckResult(
+        registry_key="procurement:test",
+        current_analysis=current,
+        assessment=compare_ai_analyses(None, current),
+        started_at="2026-07-15T10:00:00+00:00",
+        completed_at="2026-07-15T10:00:01+00:00",
+        warnings=(),
+    )
+
+    class Service(RecordingService):
+        repository = object()
+        recheck_calls: list[str] = []
+
+        def recheck(self, registry_key: str) -> TenderAiRecheckResult:
+            self.recheck_calls.append(registry_key)
+            return expected
+
+    service = Service(current)
+
+    result = TenderAiOrchestrator(service).recheck("  procurement:test  ")
+
+    assert result is expected
+    assert service.recheck_calls == ["procurement:test"]
+    assert service.calls == []
+
+
+def test_recheck_unexpected_exception_is_safe_current_unavailable() -> None:
+    result = TenderAiOrchestrator(ExplodingService()).recheck("procurement:test")
+    rendered = " ".join(
+        (
+            result.current_analysis.summary,
+            *result.current_analysis.warnings,
+            *result.assessment.warnings,
+            *result.warnings,
+        )
+    )
+
+    assert result.assessment.status is AiRecheckStatus.CURRENT_UNAVAILABLE
+    assert result.current_analysis.status == "provider_error"
+    assert "SECRET" not in rendered
+    assert "Traceback" not in rendered
+    assert r"C:\Users\private" not in rendered

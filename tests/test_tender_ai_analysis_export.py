@@ -8,6 +8,7 @@ from app.core.ai.citations import resolve_citation
 from app.core.ai.documentation_completeness import (
     AI_DOCUMENTATION_COMPLETENESS_DISCLAIMER,
 )
+from app.core.ai.recheck import AI_RECHECK_DISCLAIMER, compare_ai_analyses
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
@@ -571,3 +572,66 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
     assert evidence.citation_id in html
     assert "страница 3" in html
     assert html.count(f'href="#source-{evidence.citation_id}"') == 1
+
+
+def test_export_optionally_adds_safe_recheck_section_without_full_baseline_payload(
+    tmp_path,
+) -> None:
+    fingerprint = "d" * 64
+
+    def provenance(analysis_id: str, created_at: str) -> AiAnalysisProvenance:
+        return AiAnalysisProvenance(
+            analysis_id=analysis_id,
+            context_fingerprint=fingerprint,
+            created_at=created_at,
+            prompt_version="6",
+            output_schema_version="4",
+            persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
+            analyzer_version="11",
+            context_version="6",
+            citation_resolver_version="1",
+            provider_id="openai",
+            provider_model="gpt-5",
+            provider_response_id="resp_" + "a" * 64,
+            sources=(),
+        )
+
+    baseline = AiDocumentAnalysis(
+        "procurement:test",
+        "Baseline",
+        final_ai_conclusion="Review",
+        status="complete",
+        provenance=provenance("analysis_baseline", "2026-07-15T10:00:00+00:00"),
+    )
+    current = replace(
+        baseline,
+        summary="Current",
+        provenance=provenance("analysis_current", "2026-07-15T11:00:00+00:00"),
+    )
+    assessment = compare_ai_analyses(baseline, current)
+
+    plain_path = TenderAiAnalysisExporter().export(current, tmp_path / "plain.json")
+    json_path = TenderAiAnalysisExporter().export(
+        current,
+        tmp_path / "recheck.json",
+        recheck=assessment,
+    )
+    html_path = TenderAiAnalysisExporter().export(
+        current,
+        tmp_path / "recheck.html",
+        recheck=assessment,
+    )
+    plain = json.loads(plain_path.read_text(encoding="utf-8"))
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    assert plain == current.to_payload()
+    assert "ai_recheck" not in plain
+    assert payload["ai_recheck"]["status"] == "changed"
+    assert payload["ai_recheck"]["summary_changed"] is True
+    assert "baseline_analysis" not in payload["ai_recheck"]
+    assert "current_analysis" not in payload["ai_recheck"]
+    assert "provider_response_id" not in payload["ai_recheck"]
+    assert "sources" not in payload["ai_recheck"]
+    assert "Повторная проверка AI" in html
+    assert AI_RECHECK_DISCLAIMER in html

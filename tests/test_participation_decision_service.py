@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.tenders.collector.participation_score import ParticipationRecommendation
@@ -728,3 +729,15 @@ def test_blocked_stop_factor_has_absolute_priority_over_high_score() -> None:
     assert decision.stop_factors == ("Missing license",)
     assert "Obtain required license" in decision.actions
     assert decision.evidence[0].impact == -100
+
+
+def test_rm124_recheck_is_absent_from_deterministic_score_and_stop_policy() -> None:
+    decision_source = Path("app/tenders/participation_decision_policy.py").read_text(
+        encoding="utf-8"
+    )
+    score_source = Path("app/tenders/collector/participation_score.py").read_text(encoding="utf-8")
+
+    for source in (decision_source, score_source):
+        assert "AiRecheck" not in source
+        assert "ai_recheck" not in source
+        assert ".recheck(" not in source

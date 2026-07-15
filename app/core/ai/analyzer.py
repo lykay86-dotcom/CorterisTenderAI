@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 import hashlib
 import math
@@ -13,7 +13,11 @@ from uuid import uuid4
 from app.ai.provider import AIProvider, MAX_RAW_RESPONSE_ID_LENGTH
 from app.core.ai.citations import CITATION_RESOLVER_VERSION, resolve_citation
 from app.core.ai.competition_review import assess_competition_conditions
-from app.core.ai.document_context import AI_CONTEXT_VERSION, TenderDocumentContextBuilder
+from app.core.ai.document_context import (
+    AI_CONTEXT_VERSION,
+    AiContextStatistics,
+    TenderDocumentContextBuilder,
+)
 from app.core.ai.documentation_completeness import assess_documentation_completeness
 from app.core.ai.financial_risk import assess_financial_risks
 from app.core.ai.legal_risk import assess_legal_risks
@@ -28,6 +32,7 @@ from app.core.ai.repository import (
     AiDocumentAnalysisRepository,
     context_fingerprint,
 )
+from app.core.ai.recheck import TenderAiRecheckResult, compare_ai_analyses
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
@@ -35,6 +40,7 @@ from app.core.ai.schemas import (
     AiAnalysisStatus,
     AiDocument,
     AiDocumentAnalysis,
+    AiDocumentationDocumentSnapshot,
     AiDraftContractAnalysis,
     AiDraftContractStatus,
     AiFinding,
@@ -542,6 +548,14 @@ class TenderDocumentAiAnalyzer:
         return tuple(dict.fromkeys(result))
 
 
+@dataclass(frozen=True, slots=True)
+class _PreparedAiAnalysis:
+    documents: tuple[AiDocument, ...]
+    statistics: AiContextStatistics | None
+    documentation_inventory: tuple[AiDocumentationDocumentSnapshot, ...]
+    fingerprint: str
+
+
 class TenderDocumentAiAnalysisService:
     """Build context, reuse identical results, analyze and persist safely."""
 
@@ -557,18 +571,87 @@ class TenderDocumentAiAnalysisService:
 
     def analyze(self, registry_key: str, *, force: bool = False) -> AiDocumentAnalysis:
         try:
-            build_context = getattr(self.context_builder, "build_context", None)
-            context = build_context(registry_key) if callable(build_context) else None
-            documents = (
-                context.documents
-                if context is not None
-                else self.context_builder.build(registry_key)
-            )
+            prepared = self._prepare(registry_key)
         except Exception:
             return _add_warning(
                 _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE),
                 "Не удалось подготовить локальный контекст AI-анализа.",
             )
+        repository_warning = ""
+        if not force:
+            try:
+                reused = self.repository.reusable(registry_key, prepared.fingerprint)
+            except Exception:
+                reused = None
+                repository_warning = "Кеш AI-анализа временно недоступен."
+            if reused is not None:
+                return reused
+            repository_warning = repository_warning or getattr(
+                self.repository,
+                "last_warning",
+                "",
+            )
+        return self._analyze_prepared(
+            registry_key,
+            prepared,
+            repository_warning=repository_warning,
+        )
+
+    def recheck(self, registry_key: str) -> TenderAiRecheckResult:
+        key = registry_key.strip()
+        if not key:
+            raise ValueError("registry_key must not be empty")
+        started_at = _now()
+        try:
+            prepared = self._prepare(key)
+        except Exception:
+            current = _add_warning(
+                _safe_failure(key, AiAnalysisStatus.INVALID_RESPONSE),
+                "Не удалось подготовить локальный контекст AI-анализа.",
+            )
+            assessment = compare_ai_analyses(None, current)
+            return TenderAiRecheckResult(
+                registry_key=key,
+                current_analysis=current,
+                assessment=assessment,
+                started_at=started_at,
+                completed_at=_now(),
+                warnings=current.warnings,
+            )
+
+        baseline = None
+        recheck_warnings: tuple[str, ...] = ()
+        try:
+            baseline = self.repository.reusable(key, prepared.fingerprint)
+        except Exception:
+            recheck_warnings = ("История AI-анализа временно недоступна для сравнения.",)
+        else:
+            repository_warning = getattr(self.repository, "last_warning", "")
+            if repository_warning:
+                recheck_warnings = (repository_warning,)
+
+        current = self._analyze_prepared(key, prepared, repository_warning="")
+        assessment = compare_ai_analyses(baseline, current)
+        if recheck_warnings:
+            assessment = replace(
+                assessment,
+                warnings=_ordered_unique((*assessment.warnings, *recheck_warnings)),
+            )
+        return TenderAiRecheckResult(
+            registry_key=key,
+            current_analysis=current,
+            assessment=assessment,
+            started_at=started_at,
+            completed_at=_now(),
+            warnings=_ordered_unique((*recheck_warnings, *current.warnings)),
+        )
+
+    def _prepare(self, registry_key: str) -> _PreparedAiAnalysis:
+        build_context = getattr(self.context_builder, "build_context", None)
+        context = build_context(registry_key) if callable(build_context) else None
+        documents = (
+            context.documents if context is not None else self.context_builder.build(registry_key)
+        )
         parameters = dict(getattr(self.context_builder, "fingerprint_parameters", {}))
         statistics = getattr(context, "statistics", None)
         documentation_inventory = tuple(getattr(context, "documentation_inventory", ()))
@@ -580,27 +663,30 @@ class TenderDocumentAiAnalysisService:
             parameters["context_statistics"] = {
                 name: getattr(statistics, name) for name in statistic_fields
             }
-        fingerprint = context_fingerprint(documents, context_parameters=parameters)
-        repository_warning = ""
-        if not force:
-            try:
-                reused = self.repository.reusable(registry_key, fingerprint)
-            except Exception:
-                reused = None
-                repository_warning = "Кеш AI-анализа временно недоступен."
-            if reused is not None:
-                return reused
-            repository_warning = repository_warning or getattr(
-                self.repository,
-                "last_warning",
-                "",
-            )
+        return _PreparedAiAnalysis(
+            documents=documents,
+            statistics=statistics,
+            documentation_inventory=documentation_inventory,
+            fingerprint=context_fingerprint(documents, context_parameters=parameters),
+        )
+
+    def _analyze_prepared(
+        self,
+        registry_key: str,
+        prepared: _PreparedAiAnalysis,
+        *,
+        repository_warning: str,
+    ) -> AiDocumentAnalysis:
         result = self.analyzer.analyze(
             registry_key,
-            documents,
-            context_fingerprint=fingerprint,
+            prepared.documents,
+            context_fingerprint=prepared.fingerprint,
         )
-        result = replace(result, documentation_inventory=documentation_inventory)
+        result = replace(
+            result,
+            documentation_inventory=prepared.documentation_inventory,
+        )
+        statistics = prepared.statistics
         if statistics is not None:
             result = replace(
                 result,
@@ -667,13 +753,30 @@ class TenderDocumentAiAnalysisService:
             AiAnalysisStatus.NO_DOCUMENTS,
         }:
             try:
-                self.repository.save(result, fingerprint)
+                self.repository.save(result, prepared.fingerprint)
             except Exception:
                 result = _add_warning(
                     result,
                     "Не удалось сохранить историю AI-анализа.",
                 )
         return result
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _ordered_unique(values: tuple[str, ...]) -> tuple[str, ...]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        rendered = str(value).strip()
+        key = rendered.casefold()
+        if not rendered or key in seen:
+            continue
+        seen.add(key)
+        result.append(rendered)
+    return tuple(result)
 
 
 def _safe_failure(

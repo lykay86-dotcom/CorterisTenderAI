@@ -17,6 +17,7 @@ from app.core.ai.repository import (
     AiDocumentAnalysisRepository,
     context_fingerprint,
 )
+from app.core.ai.recheck import AI_RECHECK_POLICY_VERSION
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiAnalysisProvenance,
@@ -157,12 +158,40 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
     )
 
 
-def test_rm121_versions_are_current_with_local_policy_bumps_only() -> None:
+def test_rm124_keeps_provider_persistence_and_analyzer_versions_unchanged() -> None:
     assert AI_PROMPT_VERSION == "6"
     assert AI_ANALYZER_VERSION == "11"
     assert CITATION_RESOLVER_VERSION == "1"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
     assert AI_ANALYSIS_SCHEMA_VERSION == 10
+    assert AI_RECHECK_POLICY_VERSION == "1"
+
+
+def test_append_only_history_keeps_captured_baseline_after_current_save(tmp_path) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+    fingerprint = "d" * 64
+    baseline = replace(
+        _current_analysis(fingerprint, summary="Baseline"),
+        created_at="2026-07-15T10:00:00+00:00",
+    )
+    current = replace(
+        _current_analysis(fingerprint, summary="Current"),
+        created_at="2026-07-15T11:00:00+00:00",
+    )
+    repository.save(baseline, fingerprint)
+
+    captured = repository.reusable("procurement:test", fingerprint)
+    repository.save(current, fingerprint)
+    reusable_after_save = repository.reusable("procurement:test", fingerprint)
+
+    assert captured is not None and captured.summary == "Baseline"
+    assert reusable_after_save is not None and reusable_after_save.summary == "Current"
+    with sqlite3.connect(repository.path) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM tender_ai_document_analyses WHERE registry_key=?",
+            ("procurement:test",),
+        ).fetchone()[0]
+    assert count == 2
 
 
 def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:

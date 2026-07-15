@@ -33,6 +33,7 @@ def test_runtime_builds_repository_registry_and_runner(tmp_path) -> None:
     assert runtime.runner.repository is runtime.repository
     assert runtime.runner.search_service is runtime.search_service
     assert runtime.ai_orchestrator is not None
+    assert callable(runtime.ai_orchestrator.recheck)
     assert (
         runtime.ai_orchestrator.document_analysis_service.context_builder.document_store
         is runtime.document_store

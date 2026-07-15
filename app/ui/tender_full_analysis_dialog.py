@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from html import escape
 import re
 
@@ -45,6 +46,12 @@ from app.core.ai.schemas import (
     AiTechnicalSpecificationStatus,
     _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
+from app.core.ai.recheck import (
+    AI_RECHECK_DISCLAIMER,
+    AiRecheckAssessment,
+    AiRecheckStatus,
+    TenderAiRecheckResult,
+)
 from app.core.ai.competition_review import competition_source_findings
 from app.core.ai.documentation_completeness import (
     AI_DOCUMENTATION_COMPLETENESS_DISCLAIMER,
@@ -75,6 +82,7 @@ class TenderFullAnalysisDialog(QDialog):
     documents_requested = Signal(str)
     requirements_requested = Signal(str)
     score_requested = Signal(str)
+    ai_recheck_requested = Signal(str)
 
     def __init__(
         self,
@@ -87,6 +95,8 @@ class TenderFullAnalysisDialog(QDialog):
         self.registry_key = registry_key.strip()
         self._theme = ThemeName(theme)
         self._result: TenderFullAnalysisResult | None = None
+        self._ai_recheck_result: TenderAiRecheckResult | None = None
+        self._ai_recheck_running = False
         self._citation_targets: dict[str, str] = {}
         self.setWindowTitle("Скачать документы и провести полный анализ")
         self.resize(980, 760)
@@ -158,12 +168,16 @@ class TenderFullAnalysisDialog(QDialog):
         self.export_ai_button = QPushButton("Экспорт AI-анализа", self)
         self.export_ai_button.clicked.connect(self._export_ai_analysis)
         self.export_ai_button.setEnabled(False)
+        self.ai_recheck_button = QPushButton("Повторно проверить AI", self)
+        self.ai_recheck_button.clicked.connect(self._request_ai_recheck)
+        self.ai_recheck_button.setEnabled(False)
         for button in (self.documents_button, self.requirements_button, self.score_button):
             button.setEnabled(False)
         actions.addWidget(self.cancel_button)
         actions.addWidget(self.documents_button)
         actions.addWidget(self.requirements_button)
         actions.addWidget(self.score_button)
+        actions.addWidget(self.ai_recheck_button)
         actions.addWidget(self.export_ai_button)
         actions.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
@@ -180,9 +194,12 @@ class TenderFullAnalysisDialog(QDialog):
 
     def begin(self) -> None:
         self._result = None
+        self._ai_recheck_result = None
+        self._ai_recheck_running = False
         self._citation_targets = {}
         self.progress.setValue(0)
         self.message_label.setText("Запуск полного анализа…")
+        self.ai_recheck_button.setEnabled(False)
         self.cancel_button.setEnabled(True)
         for row in self._stage_rows.values():
             self.stages.item(row, 1).setText("Ожидание")
@@ -205,6 +222,8 @@ class TenderFullAnalysisDialog(QDialog):
 
     def set_result(self, result: TenderFullAnalysisResult) -> None:
         self._result = result
+        self._ai_recheck_result = None
+        self._ai_recheck_running = False
         self.cancel_button.setEnabled(False)
         self.progress.setValue(
             100 if result.status != FullAnalysisStatus.CANCELLED else self.progress.value()
@@ -231,6 +250,56 @@ class TenderFullAnalysisDialog(QDialog):
         self._citation_targets = _current_citation_targets(result.ai_document_analysis)
         self.ai_analysis.setHtml(_render_ai_document_analysis(result))
         self.export_ai_button.setEnabled(result.ai_document_analysis is not None)
+        self.ai_recheck_button.setEnabled(_can_recheck_analysis(result.ai_document_analysis))
+
+    def begin_ai_recheck(self) -> None:
+        if self._ai_recheck_running or not _can_recheck_analysis(
+            self._result.ai_document_analysis if self._result is not None else None
+        ):
+            return
+        self._ai_recheck_running = True
+        self.ai_recheck_button.setEnabled(False)
+        self.message_label.setText("Повторная проверка AI…")
+
+    def set_ai_recheck_result(self, result: TenderAiRecheckResult) -> None:
+        if result.registry_key != self.registry_key:
+            return
+        self._ai_recheck_running = False
+        self._ai_recheck_result = result
+        if self._result is not None:
+            self._result = replace(
+                self._result,
+                ai_document_analysis=result.current_analysis,
+            )
+            self._citation_targets = _current_citation_targets(result.current_analysis)
+            self.ai_analysis.setHtml(
+                _render_ai_document_analysis(self._result) + _render_ai_recheck(result.assessment)
+            )
+        self.message_label.setText("Повторная проверка AI завершена.")
+        self.ai_recheck_button.setEnabled(_can_recheck_analysis(result.current_analysis))
+
+    def set_ai_recheck_error(self) -> None:
+        self._ai_recheck_running = False
+        self.message_label.setText("Повторная проверка AI временно недоступна.")
+        self.ai_recheck_button.setEnabled(
+            _can_recheck_analysis(
+                self._result.ai_document_analysis if self._result is not None else None
+            )
+        )
+
+    def _request_ai_recheck(self) -> None:
+        if self._ai_recheck_running or not self.ai_recheck_button.isEnabled():
+            return
+        answer = QMessageBox.question(
+            self,
+            "Повторная проверка AI",
+            "Будет выполнен один новый запрос к выбранному AI-провайдеру. "
+            "Кеш текущего анализа использоваться не будет.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.ai_recheck_requested.emit(self.registry_key)
 
     def _open_citation(self, url: QUrl) -> None:
         if (
@@ -262,7 +331,15 @@ class TenderFullAnalysisDialog(QDialog):
         if not path:
             return
         try:
-            TenderAiAnalysisExporter().export(analysis, path)
+            TenderAiAnalysisExporter().export(
+                analysis,
+                path,
+                recheck=(
+                    self._ai_recheck_result.assessment
+                    if self._ai_recheck_result is not None
+                    else None
+                ),
+            )
         except (OSError, ValueError) as exc:
             QMessageBox.warning(self, "Ошибка экспорта", str(exc))
 
@@ -281,6 +358,55 @@ class TenderFullAnalysisDialog(QDialog):
             QTableWidget, QTextBrowser#FullAnalysisSummary, QTextBrowser#TenderAiSummary, QTextBrowser#TenderAiDocumentAnalysis {{ color: {palette.text_primary}; background: {palette.input_background}; border: 1px solid {palette.border_default}; }}
             QPushButton {{ min-height: 32px; color: {palette.text_primary}; background: {palette.elevated_background}; border: 1px solid {palette.border_default}; border-radius: 7px; padding: 4px 10px; font-weight: 600; }}
         """)
+
+
+def _can_recheck_analysis(analysis: AiDocumentAnalysis | None) -> bool:
+    return bool(
+        analysis is not None
+        and analysis.status in {AiAnalysisStatus.COMPLETE, AiAnalysisStatus.PARTIAL}
+        and analysis.provenance is not None
+        and analysis.provenance.context_fingerprint
+    )
+
+
+def _render_ai_recheck(assessment: AiRecheckAssessment) -> str:
+    status = {
+        AiRecheckStatus.CONSISTENT: "Совпадает",
+        AiRecheckStatus.CHANGED: "Изменён",
+        AiRecheckStatus.BASELINE_MISSING: "Предыдущий результат не найден",
+        AiRecheckStatus.CURRENT_UNAVAILABLE: "Текущий результат недоступен",
+        AiRecheckStatus.NOT_COMPARABLE: "Результаты несопоставимы",
+    }.get(assessment.status, "Результаты несопоставимы")
+    deltas = (
+        "".join(
+            "<li>"
+            f"{escape(item.change_type.value)} · {escape(item.scope)} · "
+            f"{escape(item.category)} · {escape(item.citation_id)}"
+            + (f"<br>Было: {escape(item.previous_statement)}" if item.previous_statement else "")
+            + (f"<br>Стало: {escape(item.current_statement)}" if item.current_statement else "")
+            + "</li>"
+            for item in assessment.deltas
+        )
+        or "<li>Изменения подтверждённых выводов не выявлены.</li>"
+    )
+    warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in assessment.warnings) or "<li>Нет.</li>"
+    )
+    return (
+        "<hr><h2>Повторная проверка AI</h2>"
+        f"<p><b>Статус:</b> {escape(status)} · policy version: "
+        f"{escape(assessment.policy_version)}</p>"
+        f"<p>{escape(AI_RECHECK_DISCLAIMER)}</p>"
+        f"<p><b>Baseline:</b> {escape(assessment.baseline_created_at or '—')} · "
+        f"<b>current:</b> {escape(assessment.current_created_at or '—')} · "
+        f"provider/model: {escape(assessment.provider_id or '—')}/"
+        f"{escape(assessment.provider_model or '—')}</p>"
+        f"<p>Без изменений: {assessment.unchanged_count}; добавлено: "
+        f"{assessment.added_count}; удалено: {assessment.removed_count}; изменено: "
+        f"{assessment.modified_count}.</p>"
+        f"<h3>Изменения</h3><ul>{deltas}</ul>"
+        f"<h3>Предупреждения повторной проверки</h3><ul>{warnings}</ul>"
+    )
 
 
 def _render_result(result: TenderFullAnalysisResult) -> str:

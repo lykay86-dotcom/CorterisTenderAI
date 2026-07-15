@@ -53,6 +53,8 @@ from app.tenders.full_analysis import (
     TenderFullAnalysisResult,
     TenderFullAnalysisService,
 )
+from app.core.ai.orchestrator import TenderAiOrchestrator
+from app.core.ai.recheck import TenderAiRecheckResult
 from app.tenders.document_storage import (
     TenderDocumentDownloadResult,
     TenderDocumentDownloadService,
@@ -187,6 +189,33 @@ class _TenderFullAnalysisWorker(QRunnable):
                 self.registry_key,
                 type(exc).__name__,
                 str(exc),
+            )
+            return
+        self.signals.succeeded.emit(self.registry_key, result)
+
+
+class _AiRecheckWorkerSignals(QObject):
+    succeeded = Signal(str, object)
+    failed = Signal(str, str, str)
+
+
+class _TenderAiRecheckWorker(QRunnable):
+    def __init__(self, orchestrator: TenderAiOrchestrator, registry_key: str) -> None:
+        super().__init__()
+        self.orchestrator = orchestrator
+        self.registry_key = registry_key.strip()
+        self.signals = _AiRecheckWorkerSignals()
+        self.setAutoDelete(True)
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            result = self.orchestrator.recheck(self.registry_key)
+        except Exception as exc:
+            self.signals.failed.emit(
+                self.registry_key,
+                type(exc).__name__,
+                "",
             )
             return
         self.signals.succeeded.emit(self.registry_key, result)
@@ -405,6 +434,9 @@ class TenderSearchUiController(QObject):
     full_analysis_started = Signal(str)
     full_analysis_finished = Signal(str, object)
     full_analysis_failed = Signal(str, str)
+    ai_recheck_started = Signal(str)
+    ai_recheck_finished = Signal(str, object)
+    ai_recheck_failed = Signal(str, str)
 
     def __init__(
         self,
@@ -482,6 +514,7 @@ class TenderSearchUiController(QObject):
             str,
             _TenderFullAnalysisWorker,
         ] = {}
+        self._ai_recheck_workers: dict[str, _TenderAiRecheckWorker] = {}
         self._verification_dialogs: dict[str, TenderVerificationDialog] = {}
         # PySide6 can release a QMenu wrapper created by QMenuBar.addMenu()
         # when no Python-side strong reference is retained, especially with
@@ -1548,6 +1581,7 @@ class TenderSearchUiController(QObject):
             dialog.citation_requested.connect(self.open_analysis_citation)
             dialog.requirements_requested.connect(self.open_requirement_analysis)
             dialog.score_requested.connect(self.open_participation_score)
+            dialog.ai_recheck_requested.connect(self.run_ai_recheck)
             dialog.finished.connect(
                 lambda _result, key=normalized, current=dialog: self._forget_full_analysis_dialog(
                     key, current
@@ -1579,6 +1613,57 @@ class TenderSearchUiController(QObject):
             dialog.begin()
         self.full_analysis_started.emit(normalized)
         self._thread_pool.start(worker)
+
+    @Slot(str)
+    def run_ai_recheck(self, registry_key: str) -> None:
+        normalized = registry_key.strip()
+        orchestrator = self.runtime.ai_orchestrator
+        if not normalized or orchestrator is None:
+            return
+        dialog = self._full_analysis_dialogs.get(normalized)
+        if normalized in self._ai_recheck_workers:
+            if dialog is not None:
+                dialog.message_label.setText("Повторная проверка AI уже выполняется.")
+            return
+        worker = _TenderAiRecheckWorker(orchestrator, normalized)
+        worker.signals.succeeded.connect(self._on_ai_recheck_succeeded)
+        worker.signals.failed.connect(self._on_ai_recheck_failed)
+        self._ai_recheck_workers[normalized] = worker
+        if dialog is not None:
+            dialog.begin_ai_recheck()
+        self.ai_recheck_started.emit(normalized)
+        self._thread_pool.start(worker)
+
+    @Slot(str, object)
+    def _on_ai_recheck_succeeded(self, registry_key: str, result: object) -> None:
+        self._ai_recheck_workers.pop(registry_key, None)
+        dialog = self._full_analysis_dialogs.get(registry_key)
+        if isinstance(result, TenderAiRecheckResult):
+            if dialog is not None:
+                dialog.set_ai_recheck_result(result)
+            self.ai_recheck_finished.emit(registry_key, result)
+            return
+        if dialog is not None:
+            dialog.set_ai_recheck_error()
+        self.ai_recheck_failed.emit(
+            registry_key,
+            "Сервис вернул неподдерживаемый результат повторной проверки AI.",
+        )
+
+    @Slot(str, str, str)
+    def _on_ai_recheck_failed(
+        self,
+        registry_key: str,
+        _error_type: str,
+        _message: str,
+    ) -> None:
+        self._ai_recheck_workers.pop(registry_key, None)
+        if dialog := self._full_analysis_dialogs.get(registry_key):
+            dialog.set_ai_recheck_error()
+        self.ai_recheck_failed.emit(
+            registry_key,
+            "Повторная проверка AI временно недоступна.",
+        )
 
     @Slot(str)
     def cancel_full_analysis(self, registry_key: str) -> None:
