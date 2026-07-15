@@ -9,6 +9,12 @@ from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
     AiAnalysisProvenance,
+    AiCompetitionAssessment,
+    AiCompetitionCategory,
+    AiCompetitionItem,
+    AiCompetitionReviewPriority,
+    AiCompetitionSourceRef,
+    AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
     AiDraftContractAnalysis,
@@ -316,6 +322,69 @@ def test_export_adds_escaped_financial_registry_to_existing_json_and_html(tmp_pa
     assert "file://" not in html
 
 
+def test_export_adds_escaped_competition_registry_to_existing_json_and_html(tmp_path) -> None:
+    citation_id = "cit_" + "a" * 32
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Safe",
+        status="partial",
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.PARTIAL,
+            bid_security=(
+                AiFinding(
+                    "requirements.bid_security",
+                    "<script>provider statement</script>",
+                    None,
+                    AiFindingStatus.UNVERIFIED,
+                ),
+            ),
+        ),
+        competition_assessment=AiCompetitionAssessment(
+            status=AiCompetitionStatus.PARTIAL,
+            policy_version="1",
+            items=(
+                AiCompetitionItem(
+                    condition_id="competition_" + "b" * 32,
+                    category=AiCompetitionCategory.SECURITY_AND_FINANCIAL_ACCESS,
+                    review_priority=AiCompetitionReviewPriority.ELEVATED,
+                    title="<b>Обеспечение участия</b>",
+                    source_refs=(
+                        AiCompetitionSourceRef("requirements", "bid_security", citation_id),
+                    ),
+                    recommended_action="Проверить <img src=x onerror=alert(1)>",
+                ),
+            ),
+            warnings=("Контекст неполон",),
+        ),
+    )
+
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "competition.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "competition.html")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    assert payload == analysis.to_payload()
+    assert set(payload["competition_assessment"]) == {
+        "status",
+        "policy_version",
+        "items",
+        "warnings",
+    }
+    assert "Анализ конкуренции" in html
+    assert (
+        "Информационная оценка документально подтверждённых условий участия. Не является "
+        "оценкой числа конкурентов, вероятности победы, законности условий закупки или "
+        "рекомендацией об участии."
+    ) in html
+    assert "policy version: 1" in html
+    assert "повышенный: 1" in html
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;b&gt;Обеспечение участия&lt;/b&gt;" in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+    assert "file://" not in html
+
+
 def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path) -> None:
     fingerprint = "d" * 64
     checksum = "b" * 64
@@ -360,7 +429,7 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="9",
+        analyzer_version="10",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",

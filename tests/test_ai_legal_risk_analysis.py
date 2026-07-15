@@ -8,6 +8,7 @@ import re
 import pytest
 
 from app.core.ai.citations import resolve_citation
+from app.core.ai.competition_review import assess_competition_conditions
 from app.core.ai.financial_risk import assess_financial_risks
 from app.core.ai.legal_risk import (
     AI_LEGAL_RISK_POLICY_VERSION,
@@ -260,7 +261,7 @@ def _analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="9",
+        analyzer_version="10",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -282,7 +283,8 @@ def _analysis(
 
 def _with_assessment(analysis: AiDocumentAnalysis) -> AiDocumentAnalysis:
     analysis = replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
-    return replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
+    analysis = replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
+    return replace(analysis, competition_assessment=assess_competition_conditions(analysis))
 
 
 def test_policy_contract_is_exact_and_versioned() -> None:
@@ -506,7 +508,7 @@ def test_v7_payload_has_exact_legal_keys_and_round_trips() -> None:
 
     restored = AiDocumentAnalysis.from_payload(json.loads(json.dumps(payload)))
 
-    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 8
+    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 9
     assert restored.legal_risk_assessment == analysis.legal_risk_assessment
 
 

@@ -11,6 +11,12 @@ from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
     AiAnalysisProvenance,
+    AiCompetitionAssessment,
+    AiCompetitionCategory,
+    AiCompetitionItem,
+    AiCompetitionReviewPriority,
+    AiCompetitionSourceRef,
+    AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
     AiDraftContractAnalysis,
@@ -93,7 +99,7 @@ def _current_analysis() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="9",
+        analyzer_version="10",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -465,6 +471,58 @@ def test_ai_tab_renders_financial_registry_disclaimer_action_and_citation() -> N
     assert "Обеспечение и стоимость гарантий" in html
     assert "Повышенный" in html
     assert "Проверить размер и стоимость обеспечения." in html
+    assert "Confirmed" in html
+    assert f"corteris-citation://open/{finding.evidence.citation_id}" in html
+
+
+def test_ai_tab_renders_competition_registry_disclaimer_action_and_citation() -> None:
+    base = _current_analysis()
+    finding = base.risks[0]
+    assert finding.evidence is not None
+    competition = AiCompetitionAssessment(
+        status=AiCompetitionStatus.COMPLETE,
+        policy_version="1",
+        items=(
+            AiCompetitionItem(
+                condition_id="competition_" + "a" * 32,
+                category=AiCompetitionCategory.SECURITY_AND_FINANCIAL_ACCESS,
+                review_priority=AiCompetitionReviewPriority.ELEVATED,
+                title="Обеспечение и финансовый порог участия",
+                source_refs=(
+                    AiCompetitionSourceRef(
+                        "requirements",
+                        "bid_security",
+                        finding.evidence.citation_id,
+                    ),
+                ),
+                recommended_action="Проверить условия обеспечения вручную.",
+            ),
+        ),
+        warnings=(),
+    )
+    analysis = replace(
+        base,
+        risks=(),
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.COMPLETE,
+            document_ids=("doc",),
+            included_document_ids=("doc",),
+            bid_security=(finding,),
+        ),
+        competition_assessment=competition,
+    )
+
+    html = _render_ai_document_analysis(_result(analysis))
+
+    assert "Анализ конкуренции" in html
+    assert (
+        "Информационная оценка документально подтверждённых условий участия. Не является "
+        "оценкой числа конкурентов, вероятности победы, законности условий закупки или "
+        "рекомендацией об участии."
+    ) in html
+    assert "Обеспечение и финансовый порог участия" in html
+    assert "Повышенный" in html
+    assert "Проверить условия обеспечения вручную." in html
     assert "Confirmed" in html
     assert f"corteris-citation://open/{finding.evidence.citation_id}" in html
 

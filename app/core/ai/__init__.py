@@ -6,6 +6,11 @@ from app.core.ai.document_context import (
     AiDocumentContext,
     TenderDocumentContextBuilder,
 )
+from app.core.ai.competition_review import (
+    AI_COMPETITION_POLICY_VERSION,
+    assess_competition_conditions,
+    competition_source_findings,
+)
 from app.core.ai.orchestrator import TenderAiOrchestrationResult, TenderAiOrchestrator
 from app.core.ai.financial_risk import (
     AI_FINANCIAL_RISK_POLICY_VERSION,
@@ -32,6 +37,12 @@ from app.core.ai.repository import AiDocumentAnalysisRepository
 from app.core.ai.schemas import (
     AiAnalysisStatus,
     AiApplicationRequirementsStatus,
+    AiCompetitionAssessment,
+    AiCompetitionCategory,
+    AiCompetitionItem,
+    AiCompetitionReviewPriority,
+    AiCompetitionSourceRef,
+    AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
     AiEvidence,
@@ -55,6 +66,12 @@ from app.core.ai.schemas import (
 __all__ = [
     "AiAnalysisStatus",
     "AiApplicationRequirementsStatus",
+    "AiCompetitionAssessment",
+    "AiCompetitionCategory",
+    "AiCompetitionItem",
+    "AiCompetitionReviewPriority",
+    "AiCompetitionSourceRef",
+    "AiCompetitionStatus",
     "AiContextStatistics",
     "AiDocument",
     "AiDocumentAnalysis",
@@ -90,10 +107,13 @@ __all__ = [
     "TenderAiOrchestrationResult",
     "TenderAiOrchestrator",
     "TenderRequirements",
+    "AI_COMPETITION_POLICY_VERSION",
     "AI_FINANCIAL_RISK_POLICY_VERSION",
     "AI_LEGAL_RISK_POLICY_VERSION",
     "assess_financial_risks",
+    "assess_competition_conditions",
     "assess_legal_risks",
     "financial_risk_source_findings",
+    "competition_source_findings",
     "legal_risk_source_findings",
 ]

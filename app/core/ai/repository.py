@@ -22,7 +22,7 @@ from app.core.ai.schemas import (
 )
 
 
-AI_ANALYZER_VERSION = "9"
+AI_ANALYZER_VERSION = "10"
 _CACHE_CORRUPT_WARNING = "Повреждённая запись AI-анализа пропущена."
 _CACHE_INCOMPATIBLE_WARNING = "Кеш AI-анализа имеет несовместимую версию."
 _CACHE_SKIPPED_WARNING = "Повреждённая или несовместимая запись AI-анализа пропущена."
@@ -220,8 +220,8 @@ class AiDocumentAnalysisRepository:
                 )
                 continue
             try:
-                payload = json.loads(payload_json)
-            except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+                payload = json.loads(payload_json, object_pairs_hook=_unique_json_object)
+            except (TypeError, UnicodeDecodeError, ValueError):
                 saw_corruption = True
                 continue
             analysis = AiDocumentAnalysis.from_payload(payload)
@@ -252,6 +252,15 @@ class AiDocumentAnalysisRepository:
         elif incompatible is not None:
             self.last_warning = _CACHE_INCOMPATIBLE_WARNING
         return incompatible if return_incompatible else None
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
 
 
 def _timezone_aware(value: str) -> str:

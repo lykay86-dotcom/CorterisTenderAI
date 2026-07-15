@@ -8,6 +8,7 @@ import pytest
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
 from app.core.ai.citations import CITATION_RESOLVER_VERSION
+from app.core.ai.competition_review import assess_competition_conditions
 from app.core.ai.financial_risk import assess_financial_risks
 from app.core.ai.legal_risk import assess_legal_risks
 from app.core.ai.repository import (
@@ -48,7 +49,7 @@ def _current_analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="9",
+        analyzer_version="10",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -63,7 +64,8 @@ def _current_analysis(
         provenance=provenance,
     )
     analysis = replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
-    return replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
+    analysis = replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
+    return replace(analysis, competition_assessment=assess_competition_conditions(analysis))
 
 
 def _insert_newest_raw_row(
@@ -152,10 +154,10 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
 
 def test_rm121_versions_are_current_with_local_policy_bumps_only() -> None:
     assert AI_PROMPT_VERSION == "6"
-    assert AI_ANALYZER_VERSION == "9"
+    assert AI_ANALYZER_VERSION == "10"
     assert CITATION_RESOLVER_VERSION == "1"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
-    assert AI_ANALYSIS_SCHEMA_VERSION == 8
+    assert AI_ANALYSIS_SCHEMA_VERSION == 9
 
 
 def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:
@@ -384,6 +386,24 @@ def test_repository_skips_non_mapping_or_malformed_json_and_reuses_previous_v3(
         repository,
         fingerprint,
         payload_json=payload_json,
+        stored_version=AI_ANALYSIS_SCHEMA_VERSION,
+    )
+
+    _assert_previous_is_reused_without_secret_leak(repository, fingerprint)
+
+
+def test_repository_rejects_duplicate_competition_json_key_and_reuses_previous(tmp_path) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+    fingerprint = "a" * 64
+    repository.save(_current_analysis(fingerprint, summary="Previous"), fingerprint)
+    payload = json.dumps(
+        _current_analysis(fingerprint, summary="SECRET newest payload").to_payload()
+    )
+    duplicate_key_payload = payload[:-1] + ', "competition_assessment": {}}'
+    _insert_newest_raw_row(
+        repository,
+        fingerprint,
+        payload_json=duplicate_key_payload,
         stored_version=AI_ANALYSIS_SCHEMA_VERSION,
     )
 

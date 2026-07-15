@@ -6,10 +6,13 @@ from html import escape
 import json
 from pathlib import Path
 
+from app.core.ai.competition_review import competition_source_findings
 from app.core.ai.financial_risk import financial_risk_source_findings
 from app.core.ai.legal_risk import legal_risk_source_findings
 from app.core.ai.schemas import (
     AiApplicationRequirementsStatus,
+    AiCompetitionReviewPriority,
+    AiCompetitionStatus,
     AiDocumentAnalysis,
     AiFinancialReviewPriority,
     AiFinancialRiskStatus,
@@ -250,6 +253,41 @@ class TenderAiAnalysisExporter:
         financial_warnings = (
             "".join(f"<li>{escape(item)}</li>" for item in financial.warnings) or "<li>Нет.</li>"
         )
+        competition = analysis.competition_assessment
+        competition_status = {
+            AiCompetitionStatus.COMPLETE: "Полный реестр подтверждённых условий",
+            AiCompetitionStatus.PARTIAL: "Частичный реестр; требуется проверка полноты",
+            AiCompetitionStatus.NO_VERIFIED_CONDITIONS: (
+                "Документально подтверждённые условия, включённые в текущую политику "
+                "конкурентной проверки, не выявлены."
+            ),
+            AiCompetitionStatus.UNAVAILABLE: "Оценка условий конкуренции недоступна",
+        }.get(competition.status, "Оценка условий конкуренции недоступна")
+        competition_priority_labels = {
+            AiCompetitionReviewPriority.URGENT: "Срочно",
+            AiCompetitionReviewPriority.ELEVATED: "Повышенный",
+            AiCompetitionReviewPriority.ROUTINE: "Плановый",
+        }
+        competition_counts = {
+            priority: sum(item.review_priority is priority for item in competition.items)
+            for priority in AiCompetitionReviewPriority
+        }
+        competition_rows = (
+            "".join(
+                "<tr>"
+                f"<td>{escape(item.category.value)}</td>"
+                f"<td>{escape(item.title)}</td>"
+                f"<td>{escape(competition_priority_labels[item.review_priority])}</td>"
+                f"<td><table>{findings(competition_source_findings(analysis, item))}</table></td>"
+                f"<td>{escape(item.recommended_action)}</td>"
+                "</tr>"
+                for item in competition.items
+            )
+            or "<tr><td colspan='5'>Нет подтверждённых элементов.</td></tr>"
+        )
+        competition_warnings = (
+            "".join(f"<li>{escape(item)}</li>" for item in competition.warnings) or "<li>Нет.</li>"
+        )
         context_note = (
             "<p><strong>Контекст сокращён по безопасному лимиту.</strong></p>"
             if analysis.context_truncated
@@ -299,6 +337,19 @@ class TenderAiAnalysisExporter:
             f"<th>Исходные условия и источники</th><th>Действие</th></tr>"
             f"{financial_rows}</table>"
             f"<h3>Предупреждения финансовой оценки</h3><ul>{financial_warnings}</ul>"
+            f"<h2>Анализ конкуренции</h2><p><strong>Информационная оценка документально "
+            f"подтверждённых условий участия. Не является оценкой числа конкурентов, "
+            f"вероятности победы, законности условий закупки или рекомендацией об "
+            f"участии.</strong></p>"
+            f"<p>Статус: {escape(competition_status)}; policy version: "
+            f"{escape(competition.policy_version)}; срочно: "
+            f"{competition_counts[AiCompetitionReviewPriority.URGENT]}; повышенный: "
+            f"{competition_counts[AiCompetitionReviewPriority.ELEVATED]}; плановый: "
+            f"{competition_counts[AiCompetitionReviewPriority.ROUTINE]}.</p>"
+            f"<table><tr><th>Группа</th><th>Условие проверки</th><th>Приоритет</th>"
+            f"<th>Исходные условия и источники</th><th>Действие</th></tr>"
+            f"{competition_rows}</table>"
+            f"<h3>Предупреждения конкурентной оценки</h3><ul>{competition_warnings}</ul>"
             f"<h2>Риски</h2><table>{findings(analysis.risks)}</table>"
             f"<h2>Подозрительные условия</h2><table>{findings(analysis.suspicious_conditions)}</table>"
             f"<h2>Противоречия</h2><table>{findings(analysis.contradictions)}</table>"

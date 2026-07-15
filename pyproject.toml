@@ -55,6 +55,7 @@ files = [
   "app/core/ai/output_schema.py",
   "app/core/ai/citations.py",
   "app/core/ai/document_context.py",
+  "app/core/ai/competition_review.py",
   "app/core/ai/financial_risk.py",
   "app/core/ai/legal_risk.py",
   "app/core/ai/analyzer.py",
