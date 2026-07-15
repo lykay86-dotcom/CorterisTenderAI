@@ -232,5 +232,35 @@ RM-107 regression и architecture tests из ТЗ. Target contour содержи
 schema/analyzer/service/repository/provenance/provider/legal/financial/decision/export/dialog tests.
 
 Baseline: target `368 passed in 12.85s`; full `1289 passed in 56.34s`; Ruff check/format, mypy,
-secret scan, dependency audit и diff check passed. Финальные точные counts и времена будут
-записаны после feature implementation acceptance.
+secret scan, dependency audit и diff check passed.
+
+### Feature acceptance
+
+Окружение: Python `3.12.7`, `QT_QPA_PLATFORM=offscreen`, worktree-local `TEMP/TMP` и pytest
+`--basetemp`. Системный `%TEMP%` был недоступен текущему процессу, поэтому acceptance повторён с
+локальным temp root без изменения application-кода.
+
+- Target contour из ТЗ плюс strict duplicate-key cache test:
+  `468 passed in 14.72s`.
+- Полный suite: `1389 passed in 67.60s`.
+- `python -m ruff check .`: passed.
+- `python -m ruff format . --check`: passed (`517 files already formatted`).
+- `python -m mypy`: passed (`19 source files`).
+- `python scripts/check_repository_secrets.py`: passed.
+- `python -m pip_audit --skip-editable`: no known vulnerabilities; editable project skipped as
+  expected.
+- `git diff --check`: passed.
+
+Фактические версии: provider schema `4`, response format `corteris_tender_analysis_v4`, prompt
+`6`, context `5`, citation resolver `1`, legal policy `1`, financial policy `1` — без изменений;
+payload `8 -> 9`, analyzer `9 -> 10`, competition policy `1`.
+
+Статический acceptance подтвердил один production `provider.analyze(...)`, один
+`TenderAiOrchestrator`, один `AiDocumentAnalysisRepository`, одну enum/stage пару `RUNNING_AI` и
+одно production-использование stage. В provider output schema нет competition fields. В
+`competition_review.py` нет I/O/network/DB/regex, legacy engine/`COMP_RULES`, `raw_metadata`,
+company profile, money или `float` calls.
+
+Физическая SQLite schema и migrations не изменялись. Production-файлы RM-107, score,
+recommendation, actions, decision evidence и stop-factor policy не изменялись; regression tests
+подтвердили абсолютный critical stop factor при score 100.
