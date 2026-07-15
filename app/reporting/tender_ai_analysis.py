@@ -12,6 +12,11 @@ from app.core.ai.documentation_completeness import (
 )
 from app.core.ai.financial_risk import financial_risk_source_findings
 from app.core.ai.legal_risk import legal_risk_source_findings
+from app.core.ai.recheck import (
+    AI_RECHECK_DISCLAIMER,
+    AiRecheckAssessment,
+    AiRecheckStatus,
+)
 from app.core.ai.schemas import (
     AiApplicationRequirementsStatus,
     AiCompetitionReviewPriority,
@@ -119,13 +124,67 @@ def _documentation_completeness_html(analysis: AiDocumentAnalysis) -> str:
     )
 
 
+def _ai_recheck_html(assessment: AiRecheckAssessment | None) -> str:
+    if assessment is None:
+        return ""
+    status = {
+        AiRecheckStatus.CONSISTENT: "Совпадает",
+        AiRecheckStatus.CHANGED: "Изменён",
+        AiRecheckStatus.BASELINE_MISSING: "Предыдущий результат не найден",
+        AiRecheckStatus.CURRENT_UNAVAILABLE: "Текущий результат недоступен",
+        AiRecheckStatus.NOT_COMPARABLE: "Результаты несопоставимы",
+    }.get(assessment.status, "Результаты несопоставимы")
+    deltas = (
+        "".join(
+            "<tr>"
+            f"<td>{escape(item.change_type.value)}</td>"
+            f"<td>{escape(item.scope)}</td>"
+            f"<td>{escape(item.category)}</td>"
+            f"<td>{escape(item.citation_id)}</td>"
+            f"<td>{escape(item.previous_statement)}</td>"
+            f"<td>{escape(item.current_statement)}</td>"
+            "</tr>"
+            for item in assessment.deltas
+        )
+        or "<tr><td colspan='6'>Изменения подтверждённых выводов не выявлены.</td></tr>"
+    )
+    warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in assessment.warnings) or "<li>Нет.</li>"
+    )
+    return (
+        "<section id='ai-recheck'><h2>Повторная проверка AI</h2>"
+        f"<p><strong>Статус:</strong> {escape(status)} · policy version: "
+        f"{escape(assessment.policy_version)}</p>"
+        f"<p>{escape(AI_RECHECK_DISCLAIMER)}</p>"
+        f"<p><strong>Baseline:</strong> {escape(assessment.baseline_created_at or '—')} · "
+        f"<strong>current:</strong> {escape(assessment.current_created_at or '—')} · "
+        f"provider/model: {escape(assessment.provider_id or '—')}/"
+        f"{escape(assessment.provider_model or '—')}</p>"
+        f"<p>Без изменений: {assessment.unchanged_count}; добавлено: "
+        f"{assessment.added_count}; удалено: {assessment.removed_count}; изменено: "
+        f"{assessment.modified_count}.</p>"
+        "<table><tr><th>Тип</th><th>Область</th><th>Категория</th><th>Citation</th>"
+        f"<th>Было</th><th>Стало</th></tr>{deltas}</table>"
+        f"<h3>Предупреждения повторной проверки</h3><ul>{warnings}</ul></section>"
+    )
+
+
 class TenderAiAnalysisExporter:
-    def export(self, analysis: AiDocumentAnalysis, destination: str | Path) -> Path:
+    def export(
+        self,
+        analysis: AiDocumentAnalysis,
+        destination: str | Path,
+        *,
+        recheck: AiRecheckAssessment | None = None,
+    ) -> Path:
         path = Path(destination)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.suffix.lower() == ".json":
+            payload = analysis.to_payload()
+            if recheck is not None:
+                payload["ai_recheck"] = recheck.to_payload()
             serialized = (
-                json.dumps(analysis.to_payload(), ensure_ascii=False, indent=2)
+                json.dumps(payload, ensure_ascii=False, indent=2)
                 .replace("&", "\\u0026")
                 .replace("<", "\\u003c")
                 .replace(">", "\\u003e")
@@ -135,13 +194,17 @@ class TenderAiAnalysisExporter:
                 encoding="utf-8",
             )
         elif path.suffix.lower() in {".html", ".htm"}:
-            path.write_text(self._html(analysis), encoding="utf-8")
+            path.write_text(self._html(analysis, recheck=recheck), encoding="utf-8")
         else:
             raise ValueError("AI analysis export supports only JSON and HTML")
         return path
 
     @staticmethod
-    def _html(analysis: AiDocumentAnalysis) -> str:
+    def _html(
+        analysis: AiDocumentAnalysis,
+        *,
+        recheck: AiRecheckAssessment | None = None,
+    ) -> str:
         requirements = analysis.requirements
         requirement_groups = tuple(
             (name, _APPLICATION_REQUIREMENT_LABELS[name], getattr(requirements, name))
@@ -368,6 +431,7 @@ class TenderAiAnalysisExporter:
         return (
             "<!doctype html><meta charset='utf-8'><title>AI analysis</title>"
             f"<h1>AI-анализ документации</h1>"
+            f"{_ai_recheck_html(recheck)}"
             f"<p>Статус: {escape(analysis.status.value)}</p>"
             f"<p>Контекст: {analysis.context_document_count} документов, "
             f"{analysis.context_character_count} символов.</p>{context_note}"

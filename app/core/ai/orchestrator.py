@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
+from app.core.ai.recheck import TenderAiRecheckResult, compare_ai_analyses
 from app.core.ai.schemas import AiAnalysisStatus, AiDocumentAnalysis
 
 
@@ -66,6 +67,30 @@ class TenderAiOrchestrator:
             completed_at=_now(),
             warnings=warnings,
         )
+
+    def recheck(self, registry_key: str) -> TenderAiRecheckResult:
+        key = registry_key.strip()
+        if not key:
+            raise ValueError("registry_key must not be empty")
+
+        started_at = _now()
+        try:
+            return self.document_analysis_service.recheck(key)
+        except Exception:
+            current = AiDocumentAnalysis(
+                key,
+                "AI analysis is temporarily unavailable.",
+                status=AiAnalysisStatus.PROVIDER_ERROR,
+            )
+            assessment = compare_ai_analyses(None, current)
+            return TenderAiRecheckResult(
+                registry_key=key,
+                current_analysis=current,
+                assessment=assessment,
+                started_at=started_at,
+                completed_at=_now(),
+                warnings=("Повторная проверка AI временно недоступна.",),
+            )
 
 
 def _now() -> str:
