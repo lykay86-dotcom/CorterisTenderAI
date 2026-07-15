@@ -18,11 +18,11 @@ from app.core.document_classification import (
 )
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 9
+AI_ANALYSIS_SCHEMA_VERSION = 10
 _EXPECTED_PROVENANCE_PROMPT_VERSION = "6"
 _EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "4"
-_EXPECTED_PROVENANCE_ANALYZER_VERSION = "10"
-_EXPECTED_PROVENANCE_CONTEXT_VERSION = "5"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "11"
+_EXPECTED_PROVENANCE_CONTEXT_VERSION = "6"
 _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
 _MAX_DOCUMENT_ID_LENGTH = 500
@@ -39,6 +39,7 @@ _CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
 _LEGAL_RISK_ID_PATTERN = re.compile(r"legal_[0-9a-f]{32}")
 _FINANCIAL_RISK_ID_PATTERN = re.compile(r"financial_[0-9a-f]{32}")
 _COMPETITION_ID_PATTERN = re.compile(r"competition_[0-9a-f]{32}")
+_DOCUMENTATION_ID_PATTERN = re.compile(r"documentation_[0-9a-f]{32}")
 _LEGAL_FIELD_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,79}")
 _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
@@ -190,6 +191,39 @@ class AiCompetitionCategory(StrEnum):
     GROUNDS_FOR_REJECTION = "grounds_for_rejection"
     AMBIGUITIES_AND_CLARIFICATIONS = "ambiguities_and_clarifications"
     CONTRADICTIONS = "contradictions"
+
+
+class AiDocumentationCompletenessStatus(StrEnum):
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    NO_DOCUMENTS = "no_documents"
+    UNAVAILABLE = "unavailable"
+
+
+class AiDocumentationIssueCode(StrEnum):
+    DOWNLOAD_FAILED = "download_failed"
+    EXTRACTION_FAILED = "extraction_failed"
+    EXTRACTION_PARTIAL = "extraction_partial"
+    UNSUPPORTED_FORMAT = "unsupported_format"
+    EMPTY_TEXT = "empty_text"
+    CONTEXT_TRUNCATED = "context_truncated"
+    CONTEXT_OMITTED = "context_omitted"
+    REQUIRED_ANALYSIS_SCOPE_NOT_FOUND = "required_analysis_scope_not_found"
+    INVENTORY_MISMATCH = "inventory_mismatch"
+    DUPLICATE_CONTENT = "duplicate_content"
+    UNCLASSIFIED_DOCUMENT = "unclassified_document"
+
+
+class AiDocumentationScope(StrEnum):
+    PACKAGE = "package"
+    TECHNICAL_SPECIFICATION = "technical_specification"
+    APPLICATION_REQUIREMENTS = "application_requirements"
+    DRAFT_CONTRACT = "draft_contract"
+    PROCUREMENT_NOTICE = "procurement_notice"
+    ESTIMATE = "estimate"
+    APPLICATION_FORM = "application_form"
+    INSTRUCTIONS = "instructions"
+    OTHER = "other"
 
 
 class AiEvidenceVerificationMethod(StrEnum):
@@ -836,6 +870,217 @@ class AiCompetitionAssessment:
         }
 
 
+_DOCUMENTATION_ORIGINS = frozenset({"catalog", "archive_member", "local_extraction"})
+_DOCUMENTATION_DOWNLOAD_STATUSES = frozenset(
+    {"downloaded", "reused", "deduplicated", "failed", "not_recorded"}
+)
+_DOCUMENTATION_EXTRACTION_STATUSES = frozenset(
+    {"extracted", "reused", "partial", "unsupported", "failed", "not_recorded"}
+)
+_DOCUMENTATION_KIND_PRIORITY = {
+    DocumentKind.TECHNICAL_SPECIFICATION: 0,
+    DocumentKind.DRAFT_CONTRACT: 1,
+    DocumentKind.APPLICATION_REQUIREMENTS: 2,
+    DocumentKind.APPLICATION_FORM: 3,
+    DocumentKind.INSTRUCTIONS: 4,
+    DocumentKind.PROCUREMENT_NOTICE: 5,
+    DocumentKind.ESTIMATE: 6,
+    DocumentKind.OTHER: 7,
+}
+
+
+def _documentation_snapshot_sort_key(
+    item: AiDocumentationDocumentSnapshot,
+) -> tuple[int, str, str, str]:
+    return (
+        _DOCUMENTATION_KIND_PRIORITY[DocumentKind(item.document_kind)],
+        item.document_id.casefold(),
+        item.origin,
+        item.checksum_sha256,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class AiDocumentationDocumentSnapshot:
+    document_id: str
+    display_name: str
+    document_kind: DocumentKind | str
+    origin: str
+    download_status: str
+    extraction_status: str
+    checksum_sha256: str
+    available_locally: bool
+    text_available: bool
+    included_in_context: bool
+    context_truncated: bool
+
+    def __post_init__(self) -> None:
+        document_id = _safe_source_value(self.document_id, _MAX_DOCUMENT_ID_LENGTH)
+        if not document_id:
+            raise ValueError("documentation document_id must be non-empty and safe")
+        try:
+            document_kind = DocumentKind(self.document_kind)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("unsupported documentation document kind") from exc
+        origin = _bounded_text(self.origin, _MAX_STATUS_LENGTH)
+        download_status = _bounded_text(self.download_status, _MAX_STATUS_LENGTH)
+        extraction_status = _bounded_text(self.extraction_status, _MAX_STATUS_LENGTH)
+        if origin not in _DOCUMENTATION_ORIGINS:
+            raise ValueError("unsupported documentation origin")
+        if download_status not in _DOCUMENTATION_DOWNLOAD_STATUSES:
+            raise ValueError("unsupported documentation download status")
+        if extraction_status not in _DOCUMENTATION_EXTRACTION_STATUSES:
+            raise ValueError("unsupported documentation extraction status")
+        checksum = _bounded_text(self.checksum_sha256, 64).casefold()
+        if checksum and _SHA256_PATTERN.fullmatch(checksum) is None:
+            raise ValueError("documentation checksum must be empty or SHA-256")
+        flags = (
+            self.available_locally,
+            self.text_available,
+            self.included_in_context,
+            self.context_truncated,
+        )
+        if any(type(value) is not bool for value in flags):
+            raise ValueError("documentation snapshot flags must be booleans")
+        display_name = _safe_display_name(self.display_name)
+        object.__setattr__(self, "document_id", document_id)
+        object.__setattr__(self, "display_name", display_name)
+        object.__setattr__(self, "document_kind", document_kind)
+        object.__setattr__(self, "origin", origin)
+        object.__setattr__(self, "download_status", download_status)
+        object.__setattr__(self, "extraction_status", extraction_status)
+        object.__setattr__(self, "checksum_sha256", checksum)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "document_id": self.document_id,
+            "display_name": self.display_name,
+            "document_kind": DocumentKind(self.document_kind).value,
+            "origin": self.origin,
+            "download_status": self.download_status,
+            "extraction_status": self.extraction_status,
+            "checksum_sha256": self.checksum_sha256,
+            "available_locally": self.available_locally,
+            "text_available": self.text_available,
+            "included_in_context": self.included_in_context,
+            "context_truncated": self.context_truncated,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiDocumentationIssue:
+    issue_id: str
+    code: AiDocumentationIssueCode | str
+    scope: AiDocumentationScope | str
+    document_ids: tuple[str, ...]
+    title: str
+    recommended_action: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.issue_id, str)
+            or _DOCUMENTATION_ID_PATTERN.fullmatch(self.issue_id) is None
+        ):
+            raise ValueError("issue_id must be a canonical documentation ID")
+        try:
+            code = AiDocumentationIssueCode(self.code)
+            scope = AiDocumentationScope(self.scope)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("unsupported documentation issue code or scope") from exc
+        if not isinstance(self.document_ids, tuple) or len(self.document_ids) > 200:
+            raise ValueError("document_ids must be a bounded tuple")
+        document_ids = tuple(
+            sorted(
+                {
+                    rendered
+                    for item in self.document_ids
+                    if (rendered := _safe_source_value(item, _MAX_DOCUMENT_ID_LENGTH))
+                },
+                key=str.casefold,
+            )
+        )
+        title = _bounded_text(self.title, 500)
+        action = _bounded_text(self.recommended_action, 1_000)
+        if not title or not action:
+            raise ValueError("documentation issue title and action must be non-empty")
+        object.__setattr__(self, "code", code)
+        object.__setattr__(self, "scope", scope)
+        object.__setattr__(self, "document_ids", document_ids)
+        object.__setattr__(self, "title", title)
+        object.__setattr__(self, "recommended_action", action)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "issue_id": self.issue_id,
+            "code": AiDocumentationIssueCode(self.code).value,
+            "scope": AiDocumentationScope(self.scope).value,
+            "document_ids": list(self.document_ids),
+            "title": self.title,
+            "recommended_action": self.recommended_action,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiDocumentationCompletenessAssessment:
+    status: AiDocumentationCompletenessStatus | str = AiDocumentationCompletenessStatus.UNAVAILABLE
+    policy_version: str = "1"
+    known_document_count: int = 0
+    locally_available_count: int = 0
+    text_available_count: int = 0
+    included_document_count: int = 0
+    issues: tuple[AiDocumentationIssue, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            status = AiDocumentationCompletenessStatus(self.status)
+        except (TypeError, ValueError):
+            status = AiDocumentationCompletenessStatus.UNAVAILABLE
+        version = _bounded_text(self.policy_version, _MAX_VERSION_LENGTH)
+        counts = (
+            self.known_document_count,
+            self.locally_available_count,
+            self.text_available_count,
+            self.included_document_count,
+        )
+        if not version or any(type(value) is not int or value < 0 for value in counts):
+            raise ValueError("documentation assessment version and counts must be valid")
+        if not isinstance(self.issues, tuple) or not all(
+            isinstance(item, AiDocumentationIssue) for item in self.issues
+        ):
+            raise ValueError("issues must contain documentation issues")
+        issues = tuple(
+            sorted(
+                dict.fromkeys(self.issues),
+                key=lambda item: (
+                    AiDocumentationIssueCode(item.code).value,
+                    AiDocumentationScope(item.scope).value,
+                    item.document_ids,
+                    item.issue_id,
+                ),
+            )
+        )
+        warnings = tuple(
+            dict.fromkeys(text for item in self.warnings[:100] if (text := _text(item, 1_000)))
+        )
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "policy_version", version)
+        object.__setattr__(self, "issues", issues)
+        object.__setattr__(self, "warnings", warnings)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "status": AiDocumentationCompletenessStatus(self.status).value,
+            "policy_version": self.policy_version,
+            "known_document_count": self.known_document_count,
+            "locally_available_count": self.locally_available_count,
+            "text_available_count": self.text_available_count,
+            "included_document_count": self.included_document_count,
+            "issues": [item.to_payload() for item in self.issues],
+            "warnings": list(self.warnings),
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class TenderRequirements:
     status: AiApplicationRequirementsStatus | str = AiApplicationRequirementsStatus.UNAVAILABLE
@@ -999,14 +1244,34 @@ class AiDocumentAnalysis:
         default_factory=AiFinancialRiskAssessment
     )
     competition_assessment: AiCompetitionAssessment = field(default_factory=AiCompetitionAssessment)
+    documentation_inventory: tuple[AiDocumentationDocumentSnapshot, ...] = ()
+    documentation_completeness_assessment: AiDocumentationCompletenessAssessment = field(
+        default_factory=AiDocumentationCompletenessAssessment
+    )
 
     def __post_init__(self) -> None:
         try:
             status = AiAnalysisStatus(self.status)
         except (TypeError, ValueError):
             status = AiAnalysisStatus.INVALID_RESPONSE
+        if not isinstance(self.documentation_inventory, tuple) or not all(
+            isinstance(item, AiDocumentationDocumentSnapshot)
+            for item in self.documentation_inventory
+        ):
+            raise ValueError("documentation_inventory must contain documentation snapshots")
+        if len({item.document_id for item in self.documentation_inventory}) != len(
+            self.documentation_inventory
+        ):
+            raise ValueError("documentation inventory document IDs must be unique")
+        inventory = tuple(
+            sorted(
+                self.documentation_inventory,
+                key=_documentation_snapshot_sort_key,
+            )
+        )
         object.__setattr__(self, "status", status)
         object.__setattr__(self, "created_at", _timezone_aware(self.created_at))
+        object.__setattr__(self, "documentation_inventory", inventory)
 
     def to_payload(self) -> dict[str, object]:
         def finding(item: AiFinding) -> dict[str, object]:
@@ -1071,6 +1336,10 @@ class AiDocumentAnalysis:
             "legal_risk_assessment": self.legal_risk_assessment.to_payload(),
             "financial_risk_assessment": self.financial_risk_assessment.to_payload(),
             "competition_assessment": self.competition_assessment.to_payload(),
+            "documentation_inventory": [item.to_payload() for item in self.documentation_inventory],
+            "documentation_completeness_assessment": (
+                self.documentation_completeness_assessment.to_payload()
+            ),
             "risks": [finding(item) for item in self.risks],
             "suspicious_conditions": [finding(item) for item in self.suspicious_conditions],
             "contradictions": [finding(item) for item in self.contradictions],
@@ -1137,6 +1406,15 @@ class AiDocumentAnalysis:
             or source_registry != [item.to_payload() for item in provenance.sources]
         ):
             provenance = None
+
+        raw_documentation_inventory = payload.get("documentation_inventory")
+        parsed_documentation_inventory = (
+            _payload_documentation_inventory(raw_documentation_inventory)
+            if version == AI_ANALYSIS_SCHEMA_VERSION
+            else None
+        )
+        documentation_inventory_valid = parsed_documentation_inventory is not None
+        documentation_inventory = parsed_documentation_inventory or ()
 
         def findings(value: object) -> tuple[AiFinding, ...]:
             result: list[AiFinding] = []
@@ -1348,6 +1626,7 @@ class AiDocumentAnalysis:
                 },
                 warnings=contract_warnings,
             ),
+            documentation_inventory=documentation_inventory,
         )
         if version < AI_ANALYSIS_SCHEMA_VERSION:
             return analysis
@@ -1402,7 +1681,42 @@ class AiDocumentAnalysis:
                 ),
                 warnings=tuple(dict.fromkeys((*computed_competition.warnings, warning))),
             )
-        return replace(analysis, competition_assessment=competition)
+        analysis = replace(analysis, competition_assessment=competition)
+
+        from app.core.ai.documentation_completeness import (
+            assess_documentation_completeness,
+        )
+
+        if not documentation_inventory_valid:
+            documentation = AiDocumentationCompletenessAssessment(
+                status=AiDocumentationCompletenessStatus.UNAVAILABLE,
+                warnings=("Сохранённый состав документации повреждён; оценка полноты недоступна.",),
+            )
+        else:
+            computed_documentation = assess_documentation_completeness(analysis)
+            if (
+                payload.get("documentation_completeness_assessment")
+                == computed_documentation.to_payload()
+            ):
+                documentation = computed_documentation
+            else:
+                warning = (
+                    "Сохранённая оценка полноты документации повреждена и пересчитана локально."
+                )
+                documentation = replace(
+                    computed_documentation,
+                    status=(
+                        AiDocumentationCompletenessStatus.UNAVAILABLE
+                        if computed_documentation.status
+                        is AiDocumentationCompletenessStatus.UNAVAILABLE
+                        else AiDocumentationCompletenessStatus.PARTIAL
+                    ),
+                    warnings=tuple(dict.fromkeys((*computed_documentation.warnings, warning))),
+                )
+        return replace(
+            analysis,
+            documentation_completeness_assessment=documentation,
+        )
 
 
 _TECHNICAL_SPECIFICATION_FINDING_FIELDS = tuple(
@@ -1466,6 +1780,58 @@ def _payload_document_ids(value: object) -> tuple[str, ...]:
     return tuple(
         text for item in value if (text := _safe_source_value(item, _MAX_DOCUMENT_ID_LENGTH))
     )
+
+
+def _payload_documentation_inventory(
+    value: object,
+) -> tuple[AiDocumentationDocumentSnapshot, ...] | None:
+    if not isinstance(value, list) or len(value) > _MAX_SOURCES:
+        return None
+    expected = {
+        "document_id",
+        "display_name",
+        "document_kind",
+        "origin",
+        "download_status",
+        "extraction_status",
+        "checksum_sha256",
+        "available_locally",
+        "text_available",
+        "included_in_context",
+        "context_truncated",
+    }
+    inventory: list[AiDocumentationDocumentSnapshot] = []
+    for raw_item in value:
+        if not isinstance(raw_item, Mapping) or set(raw_item) != expected:
+            return None
+        try:
+            item = AiDocumentationDocumentSnapshot(
+                document_id=cast(str, raw_item.get("document_id")),
+                display_name=cast(str, raw_item.get("display_name")),
+                document_kind=cast(str, raw_item.get("document_kind")),
+                origin=cast(str, raw_item.get("origin")),
+                download_status=cast(str, raw_item.get("download_status")),
+                extraction_status=cast(str, raw_item.get("extraction_status")),
+                checksum_sha256=cast(str, raw_item.get("checksum_sha256")),
+                available_locally=cast(bool, raw_item.get("available_locally")),
+                text_available=cast(bool, raw_item.get("text_available")),
+                included_in_context=cast(bool, raw_item.get("included_in_context")),
+                context_truncated=cast(bool, raw_item.get("context_truncated")),
+            )
+        except (TypeError, ValueError):
+            return None
+        if dict(raw_item) != item.to_payload():
+            return None
+        inventory.append(item)
+    if len({item.document_id for item in inventory}) != len(inventory):
+        return None
+    canonical = tuple(
+        sorted(
+            inventory,
+            key=_documentation_snapshot_sort_key,
+        )
+    )
+    return canonical if tuple(inventory) == canonical else None
 
 
 def _payload_strings(value: object, limit: int) -> tuple[str, ...]:
@@ -1843,6 +2209,12 @@ __all__ = [
     "AiAnalysisProvenance",
     "AiDocument",
     "AiDocumentAnalysis",
+    "AiDocumentationCompletenessAssessment",
+    "AiDocumentationCompletenessStatus",
+    "AiDocumentationDocumentSnapshot",
+    "AiDocumentationIssue",
+    "AiDocumentationIssueCode",
+    "AiDocumentationScope",
     "AiDraftContractAnalysis",
     "AiDraftContractStatus",
     "AiEvidence",

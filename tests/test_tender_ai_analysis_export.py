@@ -5,6 +5,9 @@ import re
 import pytest
 
 from app.core.ai.citations import resolve_citation
+from app.core.ai.documentation_completeness import (
+    AI_DOCUMENTATION_COMPLETENESS_DISCLAIMER,
+)
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
@@ -17,6 +20,12 @@ from app.core.ai.schemas import (
     AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
+    AiDocumentationCompletenessAssessment,
+    AiDocumentationCompletenessStatus,
+    AiDocumentationDocumentSnapshot,
+    AiDocumentationIssue,
+    AiDocumentationIssueCode,
+    AiDocumentationScope,
     AiDraftContractAnalysis,
     AiDraftContractStatus,
     AiFinding,
@@ -38,6 +47,7 @@ from app.core.ai.schemas import (
     AiTechnicalSpecificationStatus,
     TenderRequirements,
 )
+from app.core.document_classification import DocumentKind
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
 
@@ -52,6 +62,85 @@ def test_export_creates_json_and_html_sections(tmp_path) -> None:
 
     assert json.loads(json_path.read_text(encoding="utf-8"))["summary"] == "Summary"
     assert "AI-анализ документации" in html_path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("status", "label"),
+    [
+        ("complete", "Локально известный комплект готов для текущего анализа"),
+        ("partial", "Комплект обработан частично; требуется устранить проблемы"),
+        ("no_documents", "Документы для проверки не найдены"),
+        ("unavailable", "Оценка полноты документации недоступна"),
+    ],
+)
+def test_export_renders_all_documentation_statuses(status: str, label: str, tmp_path) -> None:
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Safe",
+        documentation_completeness_assessment=AiDocumentationCompletenessAssessment(
+            status=AiDocumentationCompletenessStatus(status),
+        ),
+    )
+
+    html = (
+        TenderAiAnalysisExporter()
+        .export(analysis, tmp_path / f"documentation-{status}.html")
+        .read_text(encoding="utf-8")
+    )
+
+    assert "Полнота документации" in html
+    assert label in html
+    assert AI_DOCUMENTATION_COMPLETENESS_DISCLAIMER in html
+
+
+def test_export_separates_local_issues_and_escapes_documentation_metadata(tmp_path) -> None:
+    snapshot = AiDocumentationDocumentSnapshot(
+        "ts",
+        r"C:\Users\SecretUser\<script>specification</script>.pdf",
+        DocumentKind.TECHNICAL_SPECIFICATION,
+        "catalog",
+        "failed",
+        "not_recorded",
+        "",
+        False,
+        False,
+        False,
+        False,
+    )
+    issue = AiDocumentationIssue(
+        "documentation_" + "a" * 32,
+        AiDocumentationIssueCode.DOWNLOAD_FAILED,
+        AiDocumentationScope.TECHNICAL_SPECIFICATION,
+        ("ts",),
+        "<script>local issue</script>",
+        "<img src=x onerror=alert(1)>",
+    )
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Safe",
+        missing_documents=("<script>provider claim</script>",),
+        documentation_inventory=(snapshot,),
+        documentation_completeness_assessment=AiDocumentationCompletenessAssessment(
+            status=AiDocumentationCompletenessStatus.PARTIAL,
+            known_document_count=1,
+            issues=(issue,),
+        ),
+    )
+
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "documentation.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "documentation.html")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    assert payload["documentation_inventory"][0]["display_name"] == "unknown"
+    assert "<script>specification</script>.pdf" not in html
+    assert "&lt;script&gt;local issue&lt;/script&gt;" in html
+    assert "&lt;script&gt;provider claim&lt;/script&gt;" in html
+    assert "Возможные отсутствующие документы по ответу AI — не подтверждено" in html
+    assert "C:\\Users\\SecretUser" not in html
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
 
 
 def test_export_round_trips_and_escapes_technical_specification(tmp_path) -> None:
@@ -429,8 +518,8 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="10",
-        context_version="5",
+        analyzer_version="11",
+        context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",

@@ -94,6 +94,33 @@ class FlexibleTextService:
         )
 
 
+class FlexibleDocumentStore:
+    def __init__(self, records) -> None:
+        self.records = tuple(records)
+
+    def list_documents(self, _key):
+        return self.records
+
+
+def _catalog_record(
+    key: str,
+    name: str,
+    *,
+    status: str = "downloaded",
+    available: bool = True,
+):
+    return SimpleNamespace(
+        document_key=key,
+        name=name,
+        status=SimpleNamespace(value=status),
+        checksum_sha256="",
+        available_locally=available,
+        source_url="https://user:password@example.invalid/private?token=secret",
+        local_path=Path(rf"C:\Users\SecretUser\Documents\{name}"),
+        error_message="Traceback: token=secret",
+    )
+
+
 def test_context_is_stably_sorted_and_reproducible() -> None:
     records = (_record("z", "z1"), _record("a", "a1"))
     service = FlexibleTextService(records, {"z": "Zulu", "a": "Alpha"})
@@ -312,3 +339,43 @@ def test_context_orders_and_fingerprints_application_requirement_scope() -> None
         incomplete.documents,
         context_parameters={"context_statistics": asdict(incomplete.statistics)},
     )
+
+
+def test_inventory_joins_catalog_latest_text_and_keeps_failures_and_archive_members() -> None:
+    old = _record("ts", "a" * 64, extracted_at="2026-07-13T00:00:00+00:00")
+    current = _record("ts", "b" * 64, extracted_at="2026-07-14T00:00:00+00:00")
+    old.source_path = current.source_path = Path(r"C:\private\Техническое задание.pdf")
+    archive = _record("archive-member:bundle:форма-заявки.docx", "c" * 64)
+    archive.source_path = Path(r"C:\private\Форма заявки.docx")
+    texts = FlexibleTextService(
+        (old, archive, current),
+        {
+            ("ts", "a" * 64): "устаревшая редакция",
+            ("ts", "b" * 64): "Техническое задание, актуальная редакция",
+            "archive-member:bundle:форма-заявки.docx": "Форма заявки",
+        },
+    )
+    catalog = FlexibleDocumentStore(
+        (
+            _catalog_record("failed", "Приложение.pdf", status="failed", available=False),
+            _catalog_record("ts", r"C:\Users\SecretUser\Техническое задание.pdf"),
+        )
+    )
+    builder = TenderDocumentContextBuilder(texts, document_store=catalog)
+
+    first = builder.build_context("procurement:test")
+    texts.records = tuple(reversed(texts.records))
+    catalog.records = tuple(reversed(catalog.records))
+    second = builder.build_context("procurement:test")
+
+    assert first == second
+    by_id = {item.document_id: item for item in first.documentation_inventory}
+    assert set(by_id) == {"ts", "failed", "archive-member:bundle:форма-заявки.docx"}
+    assert by_id["ts"].checksum_sha256 == "b" * 64
+    assert by_id["failed"].download_status == "failed"
+    assert not by_id["failed"].available_locally
+    assert by_id["archive-member:bundle:форма-заявки.docx"].origin == "archive_member"
+    assert by_id["ts"].display_name == "Техническое задание.pdf"
+    rendered = str([item.to_payload() for item in first.documentation_inventory])
+    for secret in ("SecretUser", "example.invalid", "password", "token=", "Traceback"):
+        assert secret not in rendered

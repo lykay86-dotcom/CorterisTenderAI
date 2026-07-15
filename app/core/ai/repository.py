@@ -22,7 +22,7 @@ from app.core.ai.schemas import (
 )
 
 
-AI_ANALYZER_VERSION = "10"
+AI_ANALYZER_VERSION = "11"
 _CACHE_CORRUPT_WARNING = "Повреждённая запись AI-анализа пропущена."
 _CACHE_INCOMPATIBLE_WARNING = "Кеш AI-анализа имеет несовместимую версию."
 _CACHE_SKIPPED_WARNING = "Повреждённая или несовместимая запись AI-анализа пропущена."
@@ -70,7 +70,7 @@ def context_fingerprint(
             "context": context_version or AI_CONTEXT_VERSION,
             "citation_resolver": citation_resolver_version or CITATION_RESOLVER_VERSION,
         },
-        "context_parameters": dict(context_parameters or {}),
+        "context_parameters": _canonical_context_parameters(context_parameters),
     }
     serialized = json.dumps(
         payload,
@@ -79,6 +79,24 @@ def context_fingerprint(
         separators=(",", ":"),
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _canonical_context_parameters(
+    context_parameters: Mapping[str, object] | None,
+) -> dict[str, object]:
+    parameters = dict(context_parameters or {})
+    inventory = parameters.get("documentation_inventory")
+    if isinstance(inventory, (list, tuple)):
+        parameters["documentation_inventory"] = sorted(
+            inventory,
+            key=lambda item: json.dumps(
+                item,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+    return parameters
 
 
 class AiDocumentAnalysisRepository:

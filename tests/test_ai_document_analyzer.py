@@ -236,9 +236,9 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
     assert datetime.fromisoformat(provenance.created_at).utcoffset() is not None
     assert provenance.prompt_version == AI_PROMPT_VERSION == "6"
     assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
-    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 9
-    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "10"
-    assert provenance.context_version == AI_CONTEXT_VERSION == "5"
+    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 10
+    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "11"
+    assert provenance.context_version == AI_CONTEXT_VERSION == "6"
     assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
     assert provenance.provider_id == "test-provider"
     assert provenance.provider_model == "test-model"

@@ -20,6 +20,8 @@ from app.core.ai.schemas import (
     AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
+    AiDocumentationCompletenessAssessment,
+    AiDocumentationCompletenessStatus,
     AiDraftContractAnalysis,
     AiDraftContractStatus,
     AiEvidence,
@@ -106,8 +108,8 @@ def _current_analysis_with_risk() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="10",
-        context_version="5",
+        analyzer_version="11",
+        context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -545,6 +547,51 @@ def test_competition_registry_does_not_change_rm107_decision_or_stop_factors() -
     assert decision.stop_factors == ()
     assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
     assert not any("AI-" in action for action in decision.actions)
+
+
+def test_documentation_completeness_cannot_change_rm107_decision() -> None:
+    score = SimpleNamespace(
+        total_score=100,
+        recommendation=ParticipationRecommendation.RECOMMENDED,
+        recommendation_text="Participate",
+    )
+    verification = SimpleNamespace(
+        registry_key="procurement:1",
+        status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=0.9,
+    )
+    estimate = SimpleNamespace(
+        registry_key="procurement:1", status=CommercialEstimateStatus.COMPLETE
+    )
+
+    decisions = []
+    for status in (
+        AiDocumentationCompletenessStatus.COMPLETE,
+        AiDocumentationCompletenessStatus.PARTIAL,
+    ):
+        analysis = AiDocumentAnalysis(
+            "procurement:1",
+            "Safe",
+            status="complete",
+            documentation_completeness_assessment=AiDocumentationCompletenessAssessment(
+                status=status
+            ),
+        )
+        decisions.append(
+            ParticipationDecisionService(
+                _ScoreService(score),
+                _StateRepository(verification),
+                _EstimateRepository(estimate),
+                ai_analysis_repository=_AiRepository(analysis),
+            ).evaluate("procurement:1")
+        )
+
+    first, second = decisions
+    assert first.score == second.score == 100
+    assert first.recommendation == second.recommendation
+    assert first.actions == second.actions
+    assert first.evidence == second.evidence
+    assert first.stop_factors == second.stop_factors == ()
 
 
 def test_only_current_citation_can_add_ai_decision_evidence_or_action() -> None:

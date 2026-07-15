@@ -34,6 +34,7 @@ from app.core.ai.schemas import (
     AiAnalysisStatus,
     AiApplicationRequirementsStatus,
     AiDocumentAnalysis,
+    AiDocumentationCompletenessStatus,
     AiDraftContractStatus,
     AiCompetitionReviewPriority,
     AiCompetitionStatus,
@@ -45,6 +46,10 @@ from app.core.ai.schemas import (
     _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
 from app.core.ai.competition_review import competition_source_findings
+from app.core.ai.documentation_completeness import (
+    AI_DOCUMENTATION_COMPLETENESS_DISCLAIMER,
+)
+from app.core.document_classification import DocumentKind
 from app.core.ai.financial_risk import financial_risk_source_findings
 from app.core.ai.legal_risk import legal_risk_source_findings
 from app.ui.theme.colors import ThemeName, get_palette
@@ -373,6 +378,66 @@ def _render_ai_summary(result: TenderFullAnalysisResult) -> str:
     )
 
 
+def _render_documentation_completeness(analysis: AiDocumentAnalysis) -> str:
+    assessment = analysis.documentation_completeness_assessment
+    status = {
+        AiDocumentationCompletenessStatus.COMPLETE: (
+            "Локально известный комплект готов для текущего анализа"
+        ),
+        AiDocumentationCompletenessStatus.PARTIAL: (
+            "Комплект обработан частично; требуется устранить проблемы"
+        ),
+        AiDocumentationCompletenessStatus.NO_DOCUMENTS: "Документы для проверки не найдены",
+        AiDocumentationCompletenessStatus.UNAVAILABLE: ("Оценка полноты документации недоступна"),
+    }.get(assessment.status, "Оценка полноты документации недоступна")
+    coverage = "".join(
+        f"<li>{escape(kind.value)}: "
+        f"{sum(item.document_kind is kind for item in analysis.documentation_inventory)}</li>"
+        for kind in DocumentKind
+    )
+    inventory = (
+        "".join(
+            "<li>"
+            f"<b>{escape(item.display_name or item.document_id)}</b> · "
+            f"{escape(item.document_kind.value)} · загрузка {escape(item.download_status)} · "
+            f"извлечение {escape(item.extraction_status)} · "
+            f"в контексте {'да' if item.included_in_context else 'нет'} · "
+            f"усечён {'да' if item.context_truncated else 'нет'}"
+            "</li>"
+            for item in analysis.documentation_inventory
+        )
+        or "<li>Локальные документы не найдены.</li>"
+    )
+    issues = (
+        "".join(
+            "<li>"
+            f"<b>{escape(item.title)}</b> · {escape(item.scope.value)}"
+            f" · документы: {escape(', '.join(item.document_ids) or '—')}<br>"
+            f"Действие: {escape(item.recommended_action)}"
+            "</li>"
+            for item in assessment.issues
+        )
+        or "<li>Локальные проблемы не выявлены.</li>"
+    )
+    warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in assessment.warnings) or "<li>Нет.</li>"
+    )
+    return (
+        "<h3>Полнота документации</h3>"
+        f"<p><b>{escape(AI_DOCUMENTATION_COMPLETENESS_DISCLAIMER)}</b></p>"
+        f"<p><b>Статус:</b> {escape(status)} · policy version: "
+        f"{escape(assessment.policy_version)}</p>"
+        f"<p>Известно: {assessment.known_document_count} · доступно локально: "
+        f"{assessment.locally_available_count} · доступен текст: "
+        f"{assessment.text_available_count} · включено в контекст: "
+        f"{assessment.included_document_count}</p>"
+        f"<h4>Покрытие областей</h4><ul>{coverage}</ul>"
+        f"<h4>Локальный состав</h4><ul>{inventory}</ul>"
+        f"<h4>Проблемы и действия</h4><ul>{issues}</ul>"
+        f"<h4>Предупреждения оценки полноты</h4><ul>{warnings}</ul>"
+    )
+
+
 def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
     analysis = result.ai_document_analysis
     if analysis is None:
@@ -647,6 +712,7 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"<p><b>Контекст:</b> {analysis.context_document_count} документов, "
         f"{analysis.context_character_count} символов</p>{context_note}"
         f"<h3>Краткое резюме</h3><p>{escape(analysis.summary)}</p>"
+        f"{_render_documentation_completeness(analysis)}"
         f"<h3>Техническое задание</h3><p><b>Статус:</b> {escape(technical_status)}</p>"
         f"<p><b>Документы ТЗ:</b> найдено {len(technical.document_ids)}, "
         f"включено {len(technical.included_document_ids)}</p>{technical_html}"
@@ -694,7 +760,8 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
         f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"
-        f"<h3>Недостающие документы</h3><ul>{missing}</ul>"
+        f"<h3>Возможные отсутствующие документы по ответу AI — не подтверждено "
+        f"локальной проверкой</h3><ul>{missing}</ul>"
         f"<h3>Технические предупреждения</h3><ul>{warnings}</ul>"
         f"<h3>Итог AI</h3><p>{escape(analysis.final_ai_conclusion)}</p>"
     )

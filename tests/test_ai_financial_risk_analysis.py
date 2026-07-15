@@ -262,8 +262,8 @@ def _analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="10",
-        context_version="5",
+        analyzer_version="11",
+        context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -583,7 +583,7 @@ def test_v8_payload_has_exact_financial_keys_and_round_trips() -> None:
 
     restored = AiDocumentAnalysis.from_payload(json.loads(json.dumps(payload)))
 
-    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 9
+    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 10
     assert restored.financial_risk_assessment == analysis.financial_risk_assessment
     assert restored.legal_risk_assessment == analysis.legal_risk_assessment
 
