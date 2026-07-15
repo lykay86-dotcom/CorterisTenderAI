@@ -18,8 +18,9 @@
 - RM-121: `DONE`.
 - RM-122: `DONE`.
 - RM-123: `DONE`.
-- RM-124: `IN PROGRESS`.
-- RM-125–RM-200: `PLANNED`.
+- RM-124: `DONE`.
+- RM-125: `IN PROGRESS`.
+- RM-126–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -154,8 +155,8 @@
 - [x] RM-121 — финансовые риски.
 - [x] RM-122 — анализ конкуренции.
 - [x] RM-123 — полнота документации.
-- [ ] RM-124 — повторная проверка AI (активный).
-- [ ] RM-125 — стабилизация AI-платформы.
+- [x] RM-124 — повторная проверка AI.
+- [ ] RM-125 — стабилизация AI-платформы (активный).
 
 ## Обязательный prerequisite RM-111 — воспроизводимый quality gate
 
@@ -520,6 +521,42 @@ migration, composition и build smoke tests, а также dependency audit ус
 repository, БД или миграция не добавлены. RM-123 соответствует Definition of Done; следующим
 активным этапом назначен RM-124, application-код которого требует отдельного аудита повторной
 проверки AI.
+
+## RM-124 — implementation acceptance
+
+Статус реализации: `DONE` (PR #51, merge `cfd044e`).
+
+- pure recheck policy v1 exact-сравнивает два current-compatible анализа одного registry key,
+  fingerprint, provider/model и version contract; technical IDs/timestamps/response IDs и
+  repository warnings не создают semantic delta;
+- учитываются summary, final conclusion, missing documents, scoped statuses и только locally
+  verified findings; exact key `scope + category + citation_id` формирует deterministic
+  added/removed/modified deltas без heuristic matching или повышения unverified findings;
+- отдельные service/orchestrator `recheck` один раз строят context/fingerprint, захватывают exact
+  append-only baseline до current save и вызывают existing analyzer ровно один раз без cache
+  return, automatic retry, critic pipeline или stale fallback;
+- repository read failure не блокирует current request; provider failure даёт
+  `current_unavailable`, не заменяется baseline и не сохраняется;
+- existing AI dialog использует confirmation, background worker, per-registry guard и result
+  block в той же вкладке; новая `RUNNING_AI` stage или UI tab не добавлены;
+- existing JSON/HTML exporter принимает optional safe `ai_recheck`; обычный export path не
+  изменён, full analysis payload/raw response/URL/path/credentials/document text не экспортируются;
+- provider schema/format v4, prompt v6, payload v10, analyzer v11, context v6, citation resolver
+  v1 и physical SQLite schema не изменены; recheck policy имеет версию 1;
+- сохранены один provider call site, analyzer/service/Orchestrator/repository, одна
+  `RUNNING_AI` stage и existing runtime graph;
+- RM-107 score/recommendation/actions/evidence/confidence/commercial estimate и абсолютный
+  приоритет critical stop-factor не изменены;
+- локальная приёмка на Python 3.12.7: target `150 passed in 5.70s`, full
+  `1466 passed in 56.89s`, Ruff (`521 files`), mypy (20 файлов), secret scan, dependency audit
+  и diff-check успешны.
+
+PR #51 слит в `main` 15 июля 2026 года коммитом `cfd044e`. Post-merge Quality Gate run
+`29437124384` успешно прошёл на Python 3.12 (`1466 passed in 108.68s`) и Python 3.13
+(`1466 passed in 80.07s`); Ruff (`521 files`), mypy (20 файлов), secret scan, offline,
+migration, composition и build smoke tests, а также dependency audit успешны на обеих версиях.
+RM-124 соответствует Definition of Done; следующим активным этапом назначен RM-125, application-
+код которого требует отдельного аудита стабилизации AI-платформы.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.

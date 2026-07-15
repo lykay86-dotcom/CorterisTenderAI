@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-124 завершён
+
+- PR #51 (`feat(rm-124): add explainable AI recheck`) слит в `main` коммитом `cfd044e`
+  (`cfd044e2ff437819aabe16864c4426d9b4ad8fd8`).
+- Post-merge Quality Gate run `29437124384` завершился статусом `SUCCESS`: Python 3.12 —
+  `1466 passed in 108.68s`, Python 3.13 — `1466 passed in 80.07s`.
+- На обеих версиях прошли Ruff check/format (`521 files`), mypy (20 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Pure recheck policy v1 exact-сравнивает analyses одного registry/fingerprint/provider/model/
+  version contract, игнорирует меняющиеся technical provenance fields и использует только
+  locally verified findings.
+- Finding identity основан на `scope + category + citation_id`; added/removed/modified delta и
+  ordering deterministic, heuristic matching и promotion unverified findings отсутствуют.
+- Existing service/orchestrator строит context/fingerprint один раз, захватывает exact baseline до
+  append-only current save и вызывает analyzer ровно один раз. Automatic retry, critic pipeline и
+  stale baseline fallback не добавлены.
+- Repository read failure не блокирует current request; current provider failure получает
+  `current_unavailable`, не заменяется baseline и не сохраняется.
+- Existing AI dialog использует confirmation/background worker/per-registry guard, а existing
+  JSON/HTML exporter — optional safe `ai_recheck`; новая UI tab или `RUNNING_AI` stage не создана.
+- Provider schema/format v4, prompt v6, payload v10, analyzer v11, context v6, citation resolver v1
+  и physical SQLite schema не изменены. Сохранены один provider call site, analyzer/service/
+  Orchestrator/repository и runtime graph.
+- RM-107 score/recommendation/actions/evidence/confidence/commercial estimate и абсолютный
+  приоритет critical stop-factor не изменены.
+- Локальная приёмка: target `150 passed in 5.70s`, full `1466 passed in 56.89s`, Ruff
+  (`521 files`), mypy (20 файлов), secret scan, dependency audit и diff-check успешны.
+- RM-124 переведён в `DONE`; RM-125 назначен следующим активным этапом только для отдельного
+  будущего аудита и стабилизации AI-платформы.
+
 ## 2026-07-15 — RM-123 завершён
 
 - PR #49 (`feat(rm-123): add deterministic documentation completeness`) слит в `main` коммитом
