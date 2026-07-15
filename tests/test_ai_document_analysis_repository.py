@@ -46,7 +46,7 @@ def _current_analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="7",
+        analyzer_version="8",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -146,12 +146,12 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
     )
 
 
-def test_rm119_versions_are_current_with_one_coordinated_bump() -> None:
+def test_rm120_versions_are_current_with_local_policy_bumps_only() -> None:
     assert AI_PROMPT_VERSION == "6"
-    assert AI_ANALYZER_VERSION == "7"
+    assert AI_ANALYZER_VERSION == "8"
     assert CITATION_RESOLVER_VERSION == "1"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
-    assert AI_ANALYSIS_SCHEMA_VERSION == 6
+    assert AI_ANALYSIS_SCHEMA_VERSION == 7
 
 
 def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:

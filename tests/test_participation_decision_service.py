@@ -20,6 +20,12 @@ from app.core.ai.schemas import (
     AiEvidenceVerificationMethod,
     AiFinding,
     AiFindingStatus,
+    AiLegalReviewPriority,
+    AiLegalRiskAssessment,
+    AiLegalRiskCategory,
+    AiLegalRiskItem,
+    AiLegalRiskSourceRef,
+    AiLegalRiskStatus,
     AiSourceSnapshot,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
@@ -88,7 +94,7 @@ def _current_analysis_with_risk() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="7",
+        analyzer_version="8",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -336,6 +342,68 @@ def test_application_requirement_findings_do_not_change_score_recommendation_or_
     ).evaluate("procurement:1")
 
     assert decision.score == 90
+    assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
+    assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
+    assert not any("AI-" in action for action in decision.actions)
+
+
+def test_legal_registry_does_not_change_rm107_score_recommendation_actions_or_evidence() -> None:
+    score = SimpleNamespace(
+        total_score=100,
+        recommendation=ParticipationRecommendation.RECOMMENDED,
+        recommendation_text="Participate",
+    )
+    verification = SimpleNamespace(
+        registry_key="procurement:1",
+        status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=0.9,
+    )
+    estimate = SimpleNamespace(
+        registry_key="procurement:1", status=CommercialEstimateStatus.COMPLETE
+    )
+    base = _current_analysis_with_risk()
+    finding = base.risks[0]
+    assert finding.evidence is not None
+    analysis = replace(
+        base,
+        risks=(),
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.COMPLETE,
+            document_ids=("doc",),
+            included_document_ids=("doc",),
+            grounds_for_rejection=(finding,),
+        ),
+        legal_risk_assessment=AiLegalRiskAssessment(
+            status=AiLegalRiskStatus.COMPLETE,
+            policy_version="1",
+            items=(
+                AiLegalRiskItem(
+                    risk_id="legal_" + "a" * 32,
+                    category=AiLegalRiskCategory.GROUNDS_FOR_REJECTION,
+                    review_priority=AiLegalReviewPriority.URGENT,
+                    title="Проверка оснований отклонения",
+                    source_refs=(
+                        AiLegalRiskSourceRef(
+                            "requirements",
+                            "grounds_for_rejection",
+                            finding.evidence.citation_id,
+                        ),
+                    ),
+                    recommended_action="Проверить условие до подачи заявки.",
+                ),
+            ),
+            warnings=(),
+        ),
+    )
+
+    decision = ParticipationDecisionService(
+        _ScoreService(score),
+        _StateRepository(verification),
+        _EstimateRepository(estimate),
+        ai_analysis_repository=_AiRepository(analysis),
+    ).evaluate("procurement:1")
+
+    assert decision.score == 100
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
     assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
     assert not any("AI-" in action for action in decision.actions)

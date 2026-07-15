@@ -17,6 +17,12 @@ from app.core.ai.schemas import (
     AiDraftContractStatus,
     AiFinding,
     AiFindingStatus,
+    AiLegalReviewPriority,
+    AiLegalRiskAssessment,
+    AiLegalRiskCategory,
+    AiLegalRiskItem,
+    AiLegalRiskSourceRef,
+    AiLegalRiskStatus,
     AiSourceSnapshot,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
@@ -81,7 +87,7 @@ def _current_analysis() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="7",
+        analyzer_version="8",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -356,6 +362,54 @@ def test_ai_tab_renders_safe_current_citation_details() -> None:
     assert f"{evidence.citation_id[:12]}…" in html
     assert "контекст источника сокращён" in html
     assert f"corteris-citation://open/{evidence.citation_id}" in html
+
+
+def test_ai_tab_renders_legal_registry_disclaimer_priority_action_and_citation() -> None:
+    base = _current_analysis()
+    finding = base.risks[0]
+    assert finding.evidence is not None
+    legal = AiLegalRiskAssessment(
+        status=AiLegalRiskStatus.COMPLETE,
+        policy_version="1",
+        items=(
+            AiLegalRiskItem(
+                risk_id="legal_" + "a" * 32,
+                category=AiLegalRiskCategory.ELIGIBILITY_AND_AUTHORIZATIONS,
+                review_priority=AiLegalReviewPriority.ELEVATED,
+                title="Проверка разрешений и допуска",
+                source_refs=(
+                    AiLegalRiskSourceRef(
+                        "requirements",
+                        "licenses",
+                        finding.evidence.citation_id,
+                    ),
+                ),
+                recommended_action="Проверить применимость требования к участнику.",
+            ),
+        ),
+        warnings=(),
+    )
+    analysis = replace(
+        base,
+        risks=(),
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.COMPLETE,
+            document_ids=("doc",),
+            included_document_ids=("doc",),
+            licenses=(finding,),
+        ),
+        legal_risk_assessment=legal,
+    )
+
+    html = _render_ai_document_analysis(_result(analysis))
+
+    assert "Юридические риски" in html
+    assert "Информационная оценка; не является юридическим заключением" in html
+    assert "Проверка разрешений и допуска" in html
+    assert "Повышенный" in html
+    assert "Проверить применимость требования к участнику." in html
+    assert "Confirmed" in html
+    assert f"corteris-citation://open/{finding.evidence.citation_id}" in html
 
 
 def test_dialog_emits_only_known_strict_citation_links() -> None:
