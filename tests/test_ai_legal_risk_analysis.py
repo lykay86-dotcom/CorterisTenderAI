@@ -8,6 +8,7 @@ import re
 import pytest
 
 from app.core.ai.citations import resolve_citation
+from app.core.ai.financial_risk import assess_financial_risks
 from app.core.ai.legal_risk import (
     AI_LEGAL_RISK_POLICY_VERSION,
     LEGAL_RISK_CATEGORY_PRIORITIES,
@@ -259,7 +260,7 @@ def _analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="8",
+        analyzer_version="9",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -280,7 +281,8 @@ def _analysis(
 
 
 def _with_assessment(analysis: AiDocumentAnalysis) -> AiDocumentAnalysis:
-    return replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
+    analysis = replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
+    return replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
 
 
 def test_policy_contract_is_exact_and_versioned() -> None:
@@ -504,11 +506,11 @@ def test_v7_payload_has_exact_legal_keys_and_round_trips() -> None:
 
     restored = AiDocumentAnalysis.from_payload(json.loads(json.dumps(payload)))
 
-    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 7
+    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 8
     assert restored.legal_risk_assessment == analysis.legal_risk_assessment
 
 
-@pytest.mark.parametrize("legacy_version", range(1, 7))
+@pytest.mark.parametrize("legacy_version", range(1, 8))
 def test_legacy_payload_never_promotes_legal_assessment(legacy_version: int) -> None:
     payload = _with_assessment(_analysis("requirements", "licenses")).to_payload()
     payload["payload_version"] = legacy_version

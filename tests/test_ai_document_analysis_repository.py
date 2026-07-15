@@ -8,6 +8,7 @@ import pytest
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
 from app.core.ai.citations import CITATION_RESOLVER_VERSION
+from app.core.ai.financial_risk import assess_financial_risks
 from app.core.ai.legal_risk import assess_legal_risks
 from app.core.ai.repository import (
     AI_ANALYZER_VERSION,
@@ -47,7 +48,7 @@ def _current_analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="8",
+        analyzer_version="9",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -61,7 +62,8 @@ def _current_analysis(
         status="complete",
         provenance=provenance,
     )
-    return replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
+    analysis = replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
+    return replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
 
 
 def _insert_newest_raw_row(
@@ -153,7 +155,7 @@ def test_rm120_versions_are_current_with_local_policy_bumps_only() -> None:
     assert AI_ANALYZER_VERSION == "8"
     assert CITATION_RESOLVER_VERSION == "1"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
-    assert AI_ANALYSIS_SCHEMA_VERSION == 7
+    assert AI_ANALYSIS_SCHEMA_VERSION == 8
 
 
 def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:

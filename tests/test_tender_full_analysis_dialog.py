@@ -17,6 +17,12 @@ from app.core.ai.schemas import (
     AiDraftContractStatus,
     AiFinding,
     AiFindingStatus,
+    AiFinancialReviewPriority,
+    AiFinancialRiskAssessment,
+    AiFinancialRiskCategory,
+    AiFinancialRiskItem,
+    AiFinancialRiskSourceRef,
+    AiFinancialRiskStatus,
     AiLegalReviewPriority,
     AiLegalRiskAssessment,
     AiLegalRiskCategory,
@@ -87,7 +93,7 @@ def _current_analysis() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="8",
+        analyzer_version="9",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -408,6 +414,57 @@ def test_ai_tab_renders_legal_registry_disclaimer_priority_action_and_citation()
     assert "Проверка разрешений и допуска" in html
     assert "Повышенный" in html
     assert "Проверить применимость требования к участнику." in html
+    assert "Confirmed" in html
+    assert f"corteris-citation://open/{finding.evidence.citation_id}" in html
+
+
+def test_ai_tab_renders_financial_registry_disclaimer_action_and_citation() -> None:
+    base = _current_analysis()
+    finding = base.risks[0]
+    assert finding.evidence is not None
+    financial = AiFinancialRiskAssessment(
+        status=AiFinancialRiskStatus.COMPLETE,
+        policy_version="1",
+        items=(
+            AiFinancialRiskItem(
+                risk_id="financial_" + "a" * 32,
+                category=AiFinancialRiskCategory.SECURITY_AND_GUARANTEE_COSTS,
+                review_priority=AiFinancialReviewPriority.ELEVATED,
+                title="Обеспечение и стоимость гарантий",
+                source_refs=(
+                    AiFinancialRiskSourceRef(
+                        "requirements",
+                        "bid_security",
+                        finding.evidence.citation_id,
+                    ),
+                ),
+                recommended_action="Проверить размер и стоимость обеспечения.",
+            ),
+        ),
+        warnings=(),
+    )
+    analysis = replace(
+        base,
+        risks=(),
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.COMPLETE,
+            document_ids=("doc",),
+            included_document_ids=("doc",),
+            bid_security=(finding,),
+        ),
+        financial_risk_assessment=financial,
+    )
+
+    html = _render_ai_document_analysis(_result(analysis))
+
+    assert "Финансовые условия" in html
+    assert (
+        "Информационная оценка условий документации; не является финансовым прогнозом, "
+        "расчётом убытка или рекомендацией об участии."
+    ) in html
+    assert "Обеспечение и стоимость гарантий" in html
+    assert "Повышенный" in html
+    assert "Проверить размер и стоимость обеспечения." in html
     assert "Confirmed" in html
     assert f"corteris-citation://open/{finding.evidence.citation_id}" in html
 

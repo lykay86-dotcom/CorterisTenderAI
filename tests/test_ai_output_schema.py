@@ -175,6 +175,7 @@ def test_schema_finding_contract_is_bounded_nullable_and_has_no_internal_fields(
         "legal_risk",
         "legal_risk_assessment",
         "financial_risk",
+        "financial_risk_assessment",
         "citation_id",
         "provenance",
         "source_registry",
