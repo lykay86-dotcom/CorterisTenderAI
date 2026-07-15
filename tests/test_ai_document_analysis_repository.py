@@ -8,6 +8,7 @@ import pytest
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
 from app.core.ai.citations import CITATION_RESOLVER_VERSION
+from app.core.ai.legal_risk import assess_legal_risks
 from app.core.ai.repository import (
     AI_ANALYZER_VERSION,
     AiDocumentAnalysisRepository,
@@ -54,12 +55,13 @@ def _current_analysis(
         provider_response_id="resp_" + "a" * 64,
         sources=(source,),
     )
-    return AiDocumentAnalysis(
+    analysis = AiDocumentAnalysis(
         "procurement:test",
         summary,
         status="complete",
         provenance=provenance,
     )
+    return replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
 
 
 def _insert_newest_raw_row(

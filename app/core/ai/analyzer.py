@@ -13,6 +13,7 @@ from uuid import uuid4
 from app.ai.provider import AIProvider, MAX_RAW_RESPONSE_ID_LENGTH
 from app.core.ai.citations import CITATION_RESOLVER_VERSION, resolve_citation
 from app.core.ai.document_context import AI_CONTEXT_VERSION, TenderDocumentContextBuilder
+from app.core.ai.legal_risk import assess_legal_risks
 from app.core.ai.output_schema import (
     AI_PROVIDER_OUTPUT_SCHEMA_VERSION,
     build_responses_text_format,
@@ -138,7 +139,8 @@ class TenderDocumentAiAnalyzer:
                 _without_verified_findings(result),
                 _PROVENANCE_FAILURE_WARNING,
             )
-        return replace(result, provenance=provenance)
+        result = replace(result, provenance=provenance)
+        return replace(result, legal_risk_assessment=assess_legal_risks(result))
 
     def _build_provenance(
         self,
@@ -634,6 +636,7 @@ class TenderDocumentAiAnalysisService:
                     result,
                     "Контекст AI-анализа был сокращён по безопасному лимиту.",
                 )
+        result = replace(result, legal_risk_assessment=assess_legal_risks(result))
         if repository_warning:
             result = _add_warning(result, repository_warning)
         if result.status in {

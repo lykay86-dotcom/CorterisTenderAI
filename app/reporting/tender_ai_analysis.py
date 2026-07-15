@@ -6,9 +6,12 @@ from html import escape
 import json
 from pathlib import Path
 
+from app.core.ai.legal_risk import legal_risk_source_findings
 from app.core.ai.schemas import (
     AiApplicationRequirementsStatus,
     AiDocumentAnalysis,
+    AiLegalReviewPriority,
+    AiLegalRiskStatus,
     _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
 
@@ -176,6 +179,40 @@ class TenderAiAnalysisExporter:
             )
             else ""
         )
+        legal = analysis.legal_risk_assessment
+        legal_status = {
+            AiLegalRiskStatus.COMPLETE: "Полный реестр подтверждённых условий",
+            AiLegalRiskStatus.PARTIAL: "Частичный реестр; требуется проверка полноты",
+            AiLegalRiskStatus.NO_VERIFIED_RISKS: (
+                "Подтверждённые условия, требующие отдельной юридической проверки, не выявлены"
+            ),
+            AiLegalRiskStatus.UNAVAILABLE: "Оценка юридических рисков недоступна",
+        }.get(legal.status, "Оценка юридических рисков недоступна")
+        priority_labels = {
+            AiLegalReviewPriority.URGENT: "Срочно",
+            AiLegalReviewPriority.ELEVATED: "Повышенный",
+            AiLegalReviewPriority.ROUTINE: "Плановый",
+        }
+        legal_counts = {
+            priority: sum(item.review_priority is priority for item in legal.items)
+            for priority in AiLegalReviewPriority
+        }
+        legal_rows = (
+            "".join(
+                "<tr>"
+                f"<td>{escape(item.category.value)}</td>"
+                f"<td>{escape(item.title)}</td>"
+                f"<td>{escape(priority_labels[item.review_priority])}</td>"
+                f"<td><table>{findings(legal_risk_source_findings(analysis, item))}</table></td>"
+                f"<td>{escape(item.recommended_action)}</td>"
+                "</tr>"
+                for item in legal.items
+            )
+            or "<tr><td colspan='5'>Нет подтверждённых элементов.</td></tr>"
+        )
+        legal_warnings = (
+            "".join(f"<li>{escape(item)}</li>" for item in legal.warnings) or "<li>Нет.</li>"
+        )
         context_note = (
             "<p><strong>Контекст сокращён по безопасному лимиту.</strong></p>"
             if analysis.context_truncated
@@ -203,6 +240,16 @@ class TenderAiAnalysisExporter:
             f"{len(requirements.included_document_ids)}</p>{requirement_context_note}"
             f"{requirement_tables}<h3>Предупреждения по требованиям к заявке</h3>"
             f"<ul>{requirement_warnings}</ul>"
+            f"<h2>Юридические риски</h2><p><strong>Информационная оценка; "
+            f"не является юридическим заключением.</strong></p>"
+            f"<p>Статус: {escape(legal_status)}; policy version: "
+            f"{escape(legal.policy_version)}; срочно: "
+            f"{legal_counts[AiLegalReviewPriority.URGENT]}; повышенный: "
+            f"{legal_counts[AiLegalReviewPriority.ELEVATED]}; плановый: "
+            f"{legal_counts[AiLegalReviewPriority.ROUTINE]}.</p>"
+            f"<table><tr><th>Группа</th><th>Условие проверки</th><th>Приоритет</th>"
+            f"<th>Исходные условия и источники</th><th>Действие</th></tr>{legal_rows}</table>"
+            f"<h3>Предупреждения юридической оценки</h3><ul>{legal_warnings}</ul>"
             f"<h2>Риски</h2><table>{findings(analysis.risks)}</table>"
             f"<h2>Подозрительные условия</h2><table>{findings(analysis.suspicious_conditions)}</table>"
             f"<h2>Противоречия</h2><table>{findings(analysis.contradictions)}</table>"

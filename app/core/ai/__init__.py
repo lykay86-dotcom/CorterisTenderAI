@@ -7,6 +7,11 @@ from app.core.ai.document_context import (
     TenderDocumentContextBuilder,
 )
 from app.core.ai.orchestrator import TenderAiOrchestrationResult, TenderAiOrchestrator
+from app.core.ai.legal_risk import (
+    AI_LEGAL_RISK_POLICY_VERSION,
+    assess_legal_risks,
+    legal_risk_source_findings,
+)
 from app.core.ai.provider_selection import (
     AiKeyringSecretStore,
     AiProviderId,
@@ -25,6 +30,12 @@ from app.core.ai.schemas import (
     AiDocument,
     AiDocumentAnalysis,
     AiEvidence,
+    AiLegalReviewPriority,
+    AiLegalRiskAssessment,
+    AiLegalRiskCategory,
+    AiLegalRiskItem,
+    AiLegalRiskSourceRef,
+    AiLegalRiskStatus,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
     TenderRequirements,
@@ -39,6 +50,12 @@ __all__ = [
     "AiDocumentAnalysisRepository",
     "AiDocumentContext",
     "AiEvidence",
+    "AiLegalReviewPriority",
+    "AiLegalRiskAssessment",
+    "AiLegalRiskCategory",
+    "AiLegalRiskItem",
+    "AiLegalRiskSourceRef",
+    "AiLegalRiskStatus",
     "AiTechnicalSpecificationAnalysis",
     "AiTechnicalSpecificationStatus",
     "AiKeyringSecretStore",
@@ -56,4 +73,7 @@ __all__ = [
     "TenderAiOrchestrationResult",
     "TenderAiOrchestrator",
     "TenderRequirements",
+    "AI_LEGAL_RISK_POLICY_VERSION",
+    "assess_legal_risks",
+    "legal_risk_source_findings",
 ]
