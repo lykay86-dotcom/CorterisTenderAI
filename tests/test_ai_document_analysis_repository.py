@@ -5,6 +5,8 @@ import sqlite3
 
 import pytest
 
+from app.ai.provider import AiProviderMetadata
+from app.core.ai.execution_contract import current_execution_contract
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
 from app.core.ai.citations import CITATION_RESOLVER_VERSION
@@ -25,6 +27,19 @@ from app.core.ai.schemas import (
     AiDocumentAnalysis,
     AiSourceSnapshot,
 )
+
+
+_CURRENT_EXECUTION_CONTRACT = current_execution_contract(
+    AiProviderMetadata(provider_id="openai", model="gpt-5")
+)
+
+
+def _reusable(repository: AiDocumentAnalysisRepository, fingerprint: str):
+    return repository.reusable(
+        "procurement:test",
+        fingerprint,
+        _CURRENT_EXECUTION_CONTRACT,
+    )
 
 
 def _current_analysis(
@@ -51,7 +66,7 @@ def _current_analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="11",
+        analyzer_version="12",
         context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
@@ -104,12 +119,13 @@ def _assert_previous_is_reused_without_secret_leak(
     repository: AiDocumentAnalysisRepository,
     fingerprint: str,
 ) -> None:
-    reused = repository.reusable("procurement:test", fingerprint)
+    lookup = _reusable(repository, fingerprint)
+    reused = lookup.analysis
 
     assert reused is not None
     assert reused.summary == "Previous"
-    assert repository.last_warning == "Повреждённая или несовместимая запись AI-анализа пропущена."
-    assert "SECRET" not in repository.last_warning
+    assert lookup.warnings == ("Повреждённая или несовместимая запись AI-анализа пропущена.",)
+    assert "SECRET" not in " ".join(lookup.warnings)
 
 
 def test_repository_reuses_analysis_for_identical_document_context(tmp_path) -> None:
@@ -119,7 +135,7 @@ def test_repository_reuses_analysis_for_identical_document_context(tmp_path) -> 
     analysis = _current_analysis(fingerprint)
 
     repository.save(analysis, fingerprint)
-    reused = repository.reusable("procurement:test", fingerprint)
+    reused = _reusable(repository, fingerprint).analysis
 
     assert reused is not None
     assert reused.to_payload() == analysis.to_payload()
@@ -160,7 +176,7 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
 
 def test_rm124_keeps_provider_persistence_and_analyzer_versions_unchanged() -> None:
     assert AI_PROMPT_VERSION == "6"
-    assert AI_ANALYZER_VERSION == "11"
+    assert AI_ANALYZER_VERSION == "12"
     assert CITATION_RESOLVER_VERSION == "1"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
     assert AI_ANALYSIS_SCHEMA_VERSION == 10
@@ -180,9 +196,9 @@ def test_append_only_history_keeps_captured_baseline_after_current_save(tmp_path
     )
     repository.save(baseline, fingerprint)
 
-    captured = repository.reusable("procurement:test", fingerprint)
+    captured = _reusable(repository, fingerprint).analysis
     repository.save(current, fingerprint)
-    reusable_after_save = repository.reusable("procurement:test", fingerprint)
+    reusable_after_save = _reusable(repository, fingerprint).analysis
 
     assert captured is not None and captured.summary == "Baseline"
     assert reusable_after_save is not None and reusable_after_save.summary == "Current"
@@ -210,7 +226,7 @@ def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:
     )
 
     assert old_fingerprint != strict_fingerprint
-    assert repository.reusable("procurement:test", strict_fingerprint) is None
+    assert _reusable(repository, strict_fingerprint).analysis is None
     assert repository.latest("procurement:test").summary == "Old lenient"  # type: ignore[union-attr]
 
 
@@ -262,11 +278,12 @@ def test_repository_skips_corrupt_latest_row_and_uses_previous_valid(tmp_path) -
             ),
         )
 
-    reused = repository.reusable("procurement:test", fingerprint)
+    lookup = _reusable(repository, fingerprint)
+    reused = lookup.analysis
 
     assert reused is not None
     assert reused.summary == "Previous"
-    assert "пропущена" in repository.last_warning
+    assert "пропущена" in " ".join(lookup.warnings)
 
 
 def test_repository_reusable_rejects_v2_but_latest_returns_safe_display(tmp_path) -> None:
@@ -299,7 +316,7 @@ def test_repository_reusable_rejects_v2_but_latest_returns_safe_display(tmp_path
             ),
         )
 
-    assert repository.reusable("procurement:test", fingerprint) is None
+    assert _reusable(repository, fingerprint).analysis is None
     latest = repository.latest("procurement:test")
     assert latest is not None
     assert latest.summary == "Summary"
@@ -316,8 +333,9 @@ def test_repository_reusable_requires_payload_provenance_fingerprint_match(tmp_p
     other_fingerprint = "b" * 64
     repository.save(_current_analysis(other_fingerprint), query_fingerprint)
 
-    assert repository.reusable("procurement:test", query_fingerprint) is None
-    assert repository.last_warning == "Повреждённая запись AI-анализа пропущена."
+    lookup = _reusable(repository, query_fingerprint)
+    assert lookup.analysis is None
+    assert lookup.warnings == ("Повреждённая запись AI-анализа пропущена.",)
 
 
 def test_repository_skips_damaged_current_provenance_and_reuses_previous_valid_v3(
@@ -347,12 +365,13 @@ def test_repository_skips_damaged_current_provenance_and_reuses_previous_valid_v
             ),
         )
 
-    reused = repository.reusable("procurement:test", fingerprint)
+    lookup = _reusable(repository, fingerprint)
+    reused = lookup.analysis
 
     assert reused is not None
     assert reused.summary == "Previous"
-    assert repository.last_warning == "Повреждённая или несовместимая запись AI-анализа пропущена."
-    assert "SECRET" not in repository.last_warning
+    assert lookup.warnings == ("Повреждённая или несовместимая запись AI-анализа пропущена.",)
+    assert "SECRET" not in " ".join(lookup.warnings)
 
 
 @pytest.mark.parametrize(
@@ -396,12 +415,13 @@ def test_repository_skips_injected_non_exact_integer_stored_version(
         expected_registry_key="procurement:test",
         return_incompatible=False,
         reusable_fingerprint=fingerprint,
+        expected_execution_contract=_CURRENT_EXECUTION_CONTRACT,
     )
 
-    assert result is not None
-    assert result.summary == "Previous"
-    assert repository.last_warning == "Повреждённая или несовместимая запись AI-анализа пропущена."
-    assert "SECRET" not in repository.last_warning
+    assert result.analysis is not None
+    assert result.analysis.summary == "Previous"
+    assert result.warnings == ("Повреждённая или несовместимая запись AI-анализа пропущена.",)
+    assert "SECRET" not in " ".join(result.warnings)
 
 
 @pytest.mark.parametrize(
@@ -545,7 +565,7 @@ def test_repository_reports_incompatible_cache_without_success(tmp_path) -> None
             ),
         )
 
-    assert repository.reusable("procurement:test", "fp") is None
+    assert _reusable(repository, "fp").analysis is None
     latest = repository.latest("procurement:test")
     assert latest is not None
     assert latest.registry_key == "procurement:test"

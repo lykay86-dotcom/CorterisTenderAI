@@ -109,7 +109,7 @@ def _current_analysis_with_risk() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="11",
+        analyzer_version="12",
         context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
@@ -162,14 +162,6 @@ class _EstimateRepository:
 
     def latest(self, _key):
         return (None, self.estimate) if self.estimate is not None else None
-
-
-class _AiRepository:
-    def __init__(self, analysis):
-        self.analysis = analysis
-
-    def latest(self, _key):
-        return self.analysis
 
 
 def test_service_returns_data_insufficient_without_required_evidence() -> None:
@@ -239,8 +231,7 @@ def test_verified_ai_risk_requires_review_but_unverified_does_not() -> None:
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(analysis),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=analysis)
 
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE_AFTER_REVIEW
     assert any(item.source == "ai_document_analysis" for item in decision.evidence)
@@ -276,8 +267,7 @@ def test_ts_specific_findings_do_not_change_score_or_recommendation() -> None:
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(analysis),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=analysis)
 
     assert decision.score == 90
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
@@ -314,8 +304,7 @@ def test_draft_contract_findings_do_not_change_score_recommendation_or_actions()
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(analysis),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=analysis)
 
     assert decision.score == 90
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
@@ -353,8 +342,7 @@ def test_application_requirement_findings_do_not_change_score_recommendation_or_
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(analysis),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=analysis)
 
     assert decision.score == 90
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
@@ -415,8 +403,7 @@ def test_legal_registry_does_not_change_rm107_score_recommendation_actions_or_ev
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(analysis),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=analysis)
 
     assert decision.score == 100
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
@@ -477,8 +464,7 @@ def test_financial_registry_does_not_change_rm107_decision_or_stop_factors() -> 
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(analysis),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=analysis)
 
     assert decision.score == 100
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
@@ -540,8 +526,7 @@ def test_competition_registry_does_not_change_rm107_decision_or_stop_factors() -
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(analysis),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=analysis)
 
     assert decision.score == 100
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
@@ -583,8 +568,7 @@ def test_documentation_completeness_cannot_change_rm107_decision() -> None:
                 _ScoreService(score),
                 _StateRepository(verification),
                 _EstimateRepository(estimate),
-                ai_analysis_repository=_AiRepository(analysis),
-            ).evaluate("procurement:1")
+            ).evaluate("procurement:1", ai_document_analysis=analysis)
         )
 
     first, second = decisions
@@ -632,8 +616,7 @@ def test_only_current_citation_can_add_ai_decision_evidence_or_action() -> None:
             _ScoreService(score),
             _StateRepository(verification),
             _EstimateRepository(estimate),
-            ai_analysis_repository=_AiRepository(analysis),
-        ).evaluate("procurement:1")
+        ).evaluate("procurement:1", ai_document_analysis=analysis)
 
         assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
         assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
@@ -659,13 +642,6 @@ def test_current_unverified_ai_result_overrides_stale_verified_repository_result
         status=CommercialEstimateStatus.COMPLETE,
         margin_percent=20,
     )
-    verified = AiFinding(
-        "risk",
-        "Old risk",
-        _verified_evidence("old quote", 0.9),
-        AiFindingStatus.VERIFIED,
-    )
-    stale = AiDocumentAnalysis("procurement:1", "Old", risks=(verified,), status="complete")
     current = AiDocumentAnalysis(
         "procurement:1",
         "Provider unavailable",
@@ -675,7 +651,6 @@ def test_current_unverified_ai_result_overrides_stale_verified_repository_result
         _ScoreService(score),
         _StateRepository(verification),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(stale),
     )
 
     decision = service.evaluate(
@@ -717,12 +692,12 @@ def test_blocked_stop_factor_has_absolute_priority_over_high_score() -> None:
         margin_percent=20,
     )
 
+    current = _current_analysis_with_risk()
     decision = ParticipationDecisionService(
         _ScoreService(score),
         _StateRepository(verification, stop),
         _EstimateRepository(estimate),
-        ai_analysis_repository=_AiRepository(_current_analysis_with_risk()),
-    ).evaluate("procurement:1")
+    ).evaluate("procurement:1", ai_document_analysis=current)
 
     assert decision.recommendation == ParticipationDecisionRecommendation.DO_NOT_PARTICIPATE
     assert decision.score == 100

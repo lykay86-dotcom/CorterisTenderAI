@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from threading import Lock
+from typing import Iterator
 
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
 from app.core.ai.recheck import TenderAiRecheckResult, compare_ai_analyses
@@ -25,6 +28,43 @@ class TenderAiOrchestrationResult:
         return self.document_analysis.status != AiAnalysisStatus.COMPLETE
 
 
+@dataclass(slots=True)
+class _ExecutionLockEntry:
+    lock: Lock
+    users: int = 0
+
+
+class _PerRegistryExecutionCoordinator:
+    """Serialize one registry key while retaining cross-key parallelism."""
+
+    def __init__(self) -> None:
+        self._registry_lock = Lock()
+        self._entries: dict[str, _ExecutionLockEntry] = {}
+
+    @contextmanager
+    def acquire(self, registry_key: str) -> Iterator[None]:
+        with self._registry_lock:
+            entry = self._entries.get(registry_key)
+            if entry is None:
+                entry = _ExecutionLockEntry(Lock())
+                self._entries[registry_key] = entry
+            entry.users += 1
+        entry.lock.acquire()
+        try:
+            yield
+        finally:
+            entry.lock.release()
+            with self._registry_lock:
+                entry.users -= 1
+                if entry.users == 0 and self._entries.get(registry_key) is entry:
+                    del self._entries[registry_key]
+
+    @property
+    def active_key_count(self) -> int:
+        with self._registry_lock:
+            return len(self._entries)
+
+
 class TenderAiOrchestrator:
     """Run the existing task-service and isolate unexpected boundary failures."""
 
@@ -33,6 +73,7 @@ class TenderAiOrchestrator:
         document_analysis_service: TenderDocumentAiAnalysisService,
     ) -> None:
         self.document_analysis_service = document_analysis_service
+        self._execution_coordinator = _PerRegistryExecutionCoordinator()
 
     def run(
         self,
@@ -45,14 +86,15 @@ class TenderAiOrchestrator:
             raise ValueError("registry_key must not be empty")
 
         started_at = _now()
-        try:
-            analysis = self.document_analysis_service.analyze(key, force=force)
-        except Exception:
-            analysis = AiDocumentAnalysis(
-                key,
-                "AI analysis is temporarily unavailable.",
-                status=AiAnalysisStatus.PROVIDER_ERROR,
-            )
+        with self._execution_coordinator.acquire(key):
+            try:
+                analysis = self.document_analysis_service.analyze(key, force=force)
+            except Exception:
+                analysis = AiDocumentAnalysis(
+                    key,
+                    "AI analysis is temporarily unavailable.",
+                    status=AiAnalysisStatus.PROVIDER_ERROR,
+                )
 
         warnings = _ordered_unique(
             (
@@ -74,23 +116,24 @@ class TenderAiOrchestrator:
             raise ValueError("registry_key must not be empty")
 
         started_at = _now()
-        try:
-            return self.document_analysis_service.recheck(key)
-        except Exception:
-            current = AiDocumentAnalysis(
-                key,
-                "AI analysis is temporarily unavailable.",
-                status=AiAnalysisStatus.PROVIDER_ERROR,
-            )
-            assessment = compare_ai_analyses(None, current)
-            return TenderAiRecheckResult(
-                registry_key=key,
-                current_analysis=current,
-                assessment=assessment,
-                started_at=started_at,
-                completed_at=_now(),
-                warnings=("Повторная проверка AI временно недоступна.",),
-            )
+        with self._execution_coordinator.acquire(key):
+            try:
+                return self.document_analysis_service.recheck(key)
+            except Exception:
+                current = AiDocumentAnalysis(
+                    key,
+                    "AI analysis is temporarily unavailable.",
+                    status=AiAnalysisStatus.PROVIDER_ERROR,
+                )
+                assessment = compare_ai_analyses(None, current)
+                return TenderAiRecheckResult(
+                    registry_key=key,
+                    current_analysis=current,
+                    assessment=assessment,
+                    started_at=started_at,
+                    completed_at=_now(),
+                    warnings=("Повторная проверка AI временно недоступна.",),
+                )
 
 
 def _now() -> str:

@@ -237,7 +237,7 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
     assert provenance.prompt_version == AI_PROMPT_VERSION == "6"
     assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
     assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 10
-    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "11"
+    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "12"
     assert provenance.context_version == AI_CONTEXT_VERSION == "6"
     assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
     assert provenance.provider_id == "test-provider"
@@ -502,13 +502,11 @@ def test_provenance_exception_degrades_safely_without_exception_text() -> None:
         BrokenMetadataProvider(_valid_payload(risks=[_finding()]))
     ).analyze("procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT)
 
-    assert result.status == "partial"
+    assert result.status == "invalid_response"
     assert result.provenance is None
-    assert result.risks[0].status is AiFindingStatus.UNVERIFIED
-    assert result.risks[0].evidence is None
-    assert not result.is_current_verified(result.risks[0])
+    assert result.risks == ()
     rendered = " ".join(result.warnings)
-    assert rendered == "Provenance metadata could not be recorded safely."
+    assert rendered == "Не удалось определить безопасный контракт AI-анализа."
     assert "SECRET" not in rendered
 
 

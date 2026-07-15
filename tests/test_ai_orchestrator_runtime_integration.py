@@ -17,7 +17,7 @@ def test_runtime_builds_one_shared_orchestrator_and_repository(tmp_path) -> None
     service = orchestrator.document_analysis_service
     assert isinstance(service.analyzer.provider, DisabledProvider)
     assert runtime.participation_decision_service is not None
-    assert service.repository is runtime.participation_decision_service.ai_analysis_repository
+    assert not hasattr(runtime.participation_decision_service, "ai_analysis_repository")
 
 
 def test_production_runtime_contains_one_orchestrator_construction() -> None:

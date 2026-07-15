@@ -2,9 +2,10 @@ from dataclasses import replace
 
 import pytest
 
+from app.ai.provider import AiProviderMetadata
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
 from app.core.ai.document_context import AiContextStatistics, AiDocumentContext
-from app.core.ai.repository import AiDocumentAnalysisRepository
+from app.core.ai.repository import AiCacheLookupResult, AiDocumentAnalysisRepository
 from app.core.ai.recheck import AiRecheckStatus
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
@@ -30,7 +31,7 @@ def _provenance(fingerprint: str) -> AiAnalysisProvenance:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="11",
+        analyzer_version="12",
         context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
@@ -47,12 +48,18 @@ class Builder:
 
 class Analyzer:
     def __init__(self):
+        self.provider = type(
+            "Provider",
+            (),
+            {"metadata": AiProviderMetadata(provider_id="openai", model="gpt-5")},
+        )()
         self.calls = 0
         self.fingerprints = []
 
-    def analyze(self, key, _documents, *, context_fingerprint):
+    def analyze(self, key, _documents, *, context_fingerprint, execution_contract):
         self.calls += 1
         self.fingerprints.append(context_fingerprint)
+        assert execution_contract.provider_id == "openai"
         return AiDocumentAnalysis(
             key,
             "Summary",
@@ -77,14 +84,12 @@ def test_service_reuses_analysis_for_unchanged_documents(tmp_path) -> None:
 
 def test_service_passes_cache_lookup_fingerprint_to_analyzer() -> None:
     class RecordingRepository:
-        last_warning = ""
-
         def __init__(self):
             self.lookup_fingerprints = []
 
-        def reusable(self, _key, fingerprint):
+        def reusable(self, _key, fingerprint, _execution_contract):
             self.lookup_fingerprints.append(fingerprint)
-            return None
+            return AiCacheLookupResult(None)
 
         def save(self, _analysis, _fingerprint):
             return None
@@ -142,11 +147,12 @@ def test_ts_omission_metadata_changes_cache_fingerprint() -> None:
 
 def test_contract_omission_metadata_changes_fingerprint_and_marks_section_partial() -> None:
     class ContractAnalyzer(Analyzer):
-        def analyze(self, key, documents, *, context_fingerprint):
+        def analyze(self, key, documents, *, context_fingerprint, execution_contract):
             result = super().analyze(
                 key,
                 documents,
                 context_fingerprint=context_fingerprint,
+                execution_contract=execution_contract,
             )
             return replace(
                 result,
@@ -248,8 +254,13 @@ def test_contract_provider_failure_stays_unavailable_with_incomplete_context() -
 
 def test_application_requirement_completeness_changes_fingerprint_and_status() -> None:
     class RequirementAnalyzer(Analyzer):
-        def analyze(self, key, documents, *, context_fingerprint):
-            result = super().analyze(key, documents, context_fingerprint=context_fingerprint)
+        def analyze(self, key, documents, *, context_fingerprint, execution_contract):
+            result = super().analyze(
+                key,
+                documents,
+                context_fingerprint=context_fingerprint,
+                execution_contract=execution_contract,
+            )
             return replace(
                 result,
                 requirements=TenderRequirements(
@@ -332,9 +343,14 @@ def test_service_recheck_captures_baseline_then_calls_analyzer_once_and_appends_
             return super().build(key)
 
     class RecheckAnalyzer(Analyzer):
-        def analyze(self, key, documents, *, context_fingerprint):
+        def analyze(self, key, documents, *, context_fingerprint, execution_contract):
             events.append("analyze")
-            result = super().analyze(key, documents, context_fingerprint=context_fingerprint)
+            result = super().analyze(
+                key,
+                documents,
+                context_fingerprint=context_fingerprint,
+                execution_contract=execution_contract,
+            )
             return replace(
                 result,
                 summary="Current summary",
@@ -342,15 +358,15 @@ def test_service_recheck_captures_baseline_then_calls_analyzer_once_and_appends_
             )
 
     class RecordingRepository:
-        last_warning = ""
-
-        def reusable(self, key, fingerprint):
+        def reusable(self, key, fingerprint, _execution_contract):
             events.append("baseline")
-            return AiDocumentAnalysis(
-                key,
-                "Baseline summary",
-                status="complete",
-                provenance=_provenance(fingerprint),
+            return AiCacheLookupResult(
+                AiDocumentAnalysis(
+                    key,
+                    "Baseline summary",
+                    status="complete",
+                    provenance=_provenance(fingerprint),
+                )
             )
 
         def save(self, analysis, fingerprint):
@@ -372,9 +388,7 @@ def test_service_recheck_captures_baseline_then_calls_analyzer_once_and_appends_
 
 def test_service_recheck_repository_read_failure_still_calls_provider_once() -> None:
     class ReadFailureRepository:
-        last_warning = ""
-
-        def reusable(self, _key, _fingerprint):
+        def reusable(self, _key, _fingerprint, _execution_contract):
             raise OSError("database path contains SECRET")
 
         def save(self, _analysis, _fingerprint):
@@ -394,15 +408,16 @@ def test_service_recheck_repository_read_failure_still_calls_provider_once() -> 
 
 def test_service_recheck_current_provider_failure_is_not_saved_or_replaced_by_baseline() -> None:
     class Repository:
-        last_warning = ""
         saves = 0
 
-        def reusable(self, key, fingerprint):
-            return AiDocumentAnalysis(
-                key,
-                "Stale baseline",
-                status="complete",
-                provenance=_provenance(fingerprint),
+        def reusable(self, key, fingerprint, _execution_contract):
+            return AiCacheLookupResult(
+                AiDocumentAnalysis(
+                    key,
+                    "Stale baseline",
+                    status="complete",
+                    provenance=_provenance(fingerprint),
+                )
             )
 
         def save(self, _analysis, _fingerprint):
@@ -423,10 +438,8 @@ def test_service_recheck_current_provider_failure_is_not_saved_or_replaced_by_ba
 
 
 class WriteFailureRepository:
-    last_warning = ""
-
-    def reusable(self, _key, _fingerprint):
-        return None
+    def reusable(self, _key, _fingerprint, _execution_contract):
+        return AiCacheLookupResult(None)
 
     def save(self, _analysis, _fingerprint):
         raise OSError("database contains SECRET")
@@ -443,7 +456,8 @@ def test_service_contains_repository_write_error() -> None:
 
 
 class ProviderFailureAnalyzer(Analyzer):
-    def analyze(self, key, _documents, *, context_fingerprint):
+    def analyze(self, key, _documents, *, context_fingerprint, execution_contract):
+        del execution_contract
         self.calls += 1
         self.fingerprints.append(context_fingerprint)
         return AiDocumentAnalysis(key, "Unavailable", status="provider_error")
@@ -515,7 +529,8 @@ class LocalInventoryBuilder:
 @pytest.mark.parametrize("status", ["provider_disabled", "provider_error"])
 def test_provider_failure_keeps_local_documentation_assessment(status: str) -> None:
     class OfflineAnalyzer(Analyzer):
-        def analyze(self, key, _documents, *, context_fingerprint):
+        def analyze(self, key, _documents, *, context_fingerprint, execution_contract):
+            del context_fingerprint, execution_contract
             self.calls += 1
             return AiDocumentAnalysis(key, "Offline", status=status)
 

@@ -274,7 +274,8 @@ def test_runtime_keeps_one_ai_graph_and_shared_repository(tmp_path) -> None:
 
     service = runtime.ai_orchestrator.document_analysis_service
     assert runtime.full_analysis_service.ai_orchestrator is runtime.ai_orchestrator
-    assert service.repository is runtime.participation_decision_service.ai_analysis_repository
+    assert not hasattr(runtime.participation_decision_service, "ai_analysis_repository")
+    assert service.repository is runtime.ai_orchestrator.document_analysis_service.repository
 
 
 def test_only_analyzer_calls_provider_directly() -> None:

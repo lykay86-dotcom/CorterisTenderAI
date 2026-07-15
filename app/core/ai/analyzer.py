@@ -2,31 +2,30 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from datetime import datetime, timezone
 import hashlib
 import math
-import re
 from typing import Any, Mapping, TypeVar, cast
 from uuid import uuid4
 
 from app.ai.provider import AIProvider, MAX_RAW_RESPONSE_ID_LENGTH
-from app.core.ai.citations import CITATION_RESOLVER_VERSION, resolve_citation
+from app.core.ai.citations import resolve_citation
 from app.core.ai.competition_review import assess_competition_conditions
-from app.core.ai.document_context import (
-    AI_CONTEXT_VERSION,
-    AiContextStatistics,
-    TenderDocumentContextBuilder,
-)
+from app.core.ai.document_context import AiContextStatistics, TenderDocumentContextBuilder
 from app.core.ai.documentation_completeness import assess_documentation_completeness
+from app.core.ai.execution_contract import (
+    AiExecutionContract,
+    current_execution_contract,
+    execution_contract_matches,
+)
 from app.core.ai.financial_risk import assess_financial_risks
 from app.core.ai.legal_risk import assess_legal_risks
 from app.core.ai.output_schema import (
-    AI_PROVIDER_OUTPUT_SCHEMA_VERSION,
     build_responses_text_format,
     decode_and_validate_provider_output,
 )
-from app.core.ai.prompts import AI_PROMPT_VERSION, SYSTEM_PROMPT
+from app.core.ai.prompts import SYSTEM_PROMPT
 from app.core.ai.repository import (
     AI_ANALYZER_VERSION,
     AiDocumentAnalysisRepository,
@@ -61,25 +60,30 @@ MAX_SUMMARY_LENGTH = 12_000
 MAX_STATEMENT_LENGTH = 4_000
 MAX_QUOTE_LENGTH = 8_000
 MAX_SECTION_LENGTH = 1_000
-_MAX_PROVIDER_ID_LENGTH = 80
-_MAX_PROVIDER_MODEL_LENGTH = 200
 _RESOLVER_FAILURE_WARNING = "Citation evidence could not be resolved safely."
 _PROVENANCE_FAILURE_WARNING = "Provenance metadata could not be recorded safely."
-_PUBLIC_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-_MODEL_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(?:[/:][A-Za-z0-9][A-Za-z0-9._-]*)*")
-_CREDENTIAL_WORDS = frozenset(
-    {
-        "api_key",
-        "apikey",
-        "authorization",
-        "bearer",
-        "credential",
-        "password",
-        "secret",
-        "token",
-    }
+_GENERIC_PROVIDER_FAILURE_WARNING = (
+    "AI-провайдер не завершил анализ; локальный детерминированный анализ продолжен."
 )
-_CREDENTIAL_PREFIXES = tuple(sorted(_CREDENTIAL_WORDS))
+_PROVIDER_FAILURE_WARNINGS = {
+    "authentication_error": "AI-провайдер отклонил данные авторизации.",
+    "permission_error": "AI-провайдер не разрешил выполнение операции.",
+    "invalid_request": "AI-провайдер отклонил параметры запроса.",
+    "endpoint_not_supported": "Выбранный AI endpoint не поддерживает требуемый формат.",
+    "request_too_large": "Контекст превышает допустимый размер запроса AI-провайдера.",
+    "rate_limited": "AI-провайдер временно ограничил частоту запросов.",
+    "provider_unavailable": "AI-провайдер временно недоступен.",
+    "timeout": "AI-провайдер не ответил за установленное время.",
+    "network_error": "Сетевое соединение с AI-провайдером недоступно.",
+    "tls_error": "Защищённое соединение с AI-провайдером не установлено.",
+    "redirect_rejected": "AI-провайдер попытался перенаправить защищённый запрос.",
+    "response_too_large": "Ответ AI-провайдера превышает безопасный размер.",
+    "invalid_json": "AI-провайдер вернул некорректный JSON.",
+    "invalid_response": "Ответ AI-провайдера не соответствует обязательному контракту.",
+    "incomplete_response": "AI-провайдер вернул незавершённый ответ.",
+    "refused": "AI-провайдер отказался выполнить анализ.",
+    "empty_output": "AI-провайдер вернул пустой результат.",
+}
 
 
 class TenderDocumentAiAnalyzer:
@@ -92,8 +96,28 @@ class TenderDocumentAiAnalyzer:
         documents: tuple[AiDocument, ...],
         *,
         context_fingerprint: str,
+        execution_contract: AiExecutionContract | None = None,
     ) -> AiDocumentAnalysis:
+        try:
+            contract = execution_contract or current_execution_contract(self.provider.metadata)
+        except Exception:
+            return _add_warning(
+                _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE, documents),
+                "Не удалось определить безопасный контракт AI-анализа.",
+            )
         if not documents:
+            try:
+                provenance = self._build_provenance(
+                    (),
+                    context_fingerprint=context_fingerprint,
+                    provider_response_id="",
+                    execution_contract=contract,
+                )
+            except Exception:
+                return _add_warning(
+                    _safe_failure(registry_key, AiAnalysisStatus.NO_DOCUMENTS),
+                    _PROVENANCE_FAILURE_WARNING,
+                )
             return AiDocumentAnalysis(
                 registry_key,
                 "No documents available.",
@@ -104,6 +128,7 @@ class TenderDocumentAiAnalyzer:
                     status=AiTechnicalSpecificationStatus.NOT_FOUND
                 ),
                 draft_contract=AiDraftContractAnalysis(status=AiDraftContractStatus.NOT_FOUND),
+                provenance=provenance,
             )
         try:
             response = self.provider.analyze(
@@ -120,7 +145,10 @@ class TenderDocumentAiAnalyzer:
             if provider_status == "disabled":
                 return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_DISABLED, documents)
             if provider_status != "ok":
-                return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR, documents)
+                return _add_warning(
+                    _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR, documents),
+                    _provider_failure_warning(response),
+                )
         except Exception:
             return _safe_failure(registry_key, AiAnalysisStatus.PROVIDER_ERROR, documents)
 
@@ -142,6 +170,7 @@ class TenderDocumentAiAnalyzer:
                 documents,
                 context_fingerprint=context_fingerprint,
                 provider_response_id=_provider_response_reference(raw_response_id),
+                execution_contract=contract,
             )
         except Exception:
             return _add_warning(
@@ -162,8 +191,8 @@ class TenderDocumentAiAnalyzer:
         *,
         context_fingerprint: str,
         provider_response_id: str,
+        execution_contract: AiExecutionContract,
     ) -> AiAnalysisProvenance:
-        metadata = self.provider.metadata
         sources = tuple(
             sorted(
                 (
@@ -191,22 +220,14 @@ class TenderDocumentAiAnalyzer:
             analysis_id=uuid4().hex,
             context_fingerprint=context_fingerprint,
             created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            prompt_version=AI_PROMPT_VERSION,
-            output_schema_version=AI_PROVIDER_OUTPUT_SCHEMA_VERSION,
-            persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-            analyzer_version=AI_ANALYZER_VERSION,
-            context_version=AI_CONTEXT_VERSION,
-            citation_resolver_version=CITATION_RESOLVER_VERSION,
-            provider_id=_provenance_identifier(
-                metadata.provider_id,
-                limit=_MAX_PROVIDER_ID_LENGTH,
-                pattern=_PUBLIC_ID_PATTERN,
-            ),
-            provider_model=_provenance_identifier(
-                metadata.model,
-                limit=_MAX_PROVIDER_MODEL_LENGTH,
-                pattern=_MODEL_ID_PATTERN,
-            ),
+            prompt_version=execution_contract.prompt_version,
+            output_schema_version=execution_contract.provider_output_schema_version,
+            persisted_schema_version=execution_contract.persisted_schema_version,
+            analyzer_version=execution_contract.analyzer_version,
+            context_version=execution_contract.context_version,
+            citation_resolver_version=execution_contract.citation_resolver_version,
+            provider_id=execution_contract.provider_id,
+            provider_model=execution_contract.provider_model,
             provider_response_id=provider_response_id,
             sources=sources,
         )
@@ -554,6 +575,7 @@ class _PreparedAiAnalysis:
     statistics: AiContextStatistics | None
     documentation_inventory: tuple[AiDocumentationDocumentSnapshot, ...]
     fingerprint: str
+    execution_contract: AiExecutionContract
 
 
 class TenderDocumentAiAnalysisService:
@@ -570,31 +592,38 @@ class TenderDocumentAiAnalysisService:
         self.repository = repository
 
     def analyze(self, registry_key: str, *, force: bool = False) -> AiDocumentAnalysis:
+        key = registry_key.strip()
+        if not key:
+            raise ValueError("registry_key must not be empty")
         try:
-            prepared = self._prepare(registry_key)
+            prepared = self._prepare(key)
         except Exception:
             return _add_warning(
-                _safe_failure(registry_key, AiAnalysisStatus.INVALID_RESPONSE),
+                _safe_failure(key, AiAnalysisStatus.INVALID_RESPONSE),
                 "Не удалось подготовить локальный контекст AI-анализа.",
             )
-        repository_warning = ""
+        repository_warnings: tuple[str, ...] = ()
         if not force:
             try:
-                reused = self.repository.reusable(registry_key, prepared.fingerprint)
+                lookup = self.repository.reusable(
+                    key,
+                    prepared.fingerprint,
+                    prepared.execution_contract,
+                )
             except Exception:
-                reused = None
-                repository_warning = "Кеш AI-анализа временно недоступен."
-            if reused is not None:
-                return reused
-            repository_warning = repository_warning or getattr(
-                self.repository,
-                "last_warning",
-                "",
-            )
+                lookup = None
+                repository_warnings = ("Кеш AI-анализа временно недоступен.",)
+            if lookup is not None:
+                if lookup.analysis is not None:
+                    result = lookup.analysis
+                    for warning in lookup.warnings:
+                        result = _add_warning(result, warning)
+                    return result
+                repository_warnings = lookup.warnings
         return self._analyze_prepared(
-            registry_key,
+            key,
             prepared,
-            repository_warning=repository_warning,
+            repository_warnings=repository_warnings,
         )
 
     def recheck(self, registry_key: str) -> TenderAiRecheckResult:
@@ -622,15 +651,17 @@ class TenderDocumentAiAnalysisService:
         baseline = None
         recheck_warnings: tuple[str, ...] = ()
         try:
-            baseline = self.repository.reusable(key, prepared.fingerprint)
+            lookup = self.repository.reusable(
+                key,
+                prepared.fingerprint,
+                prepared.execution_contract,
+            )
+            baseline = lookup.analysis
+            recheck_warnings = lookup.warnings
         except Exception:
             recheck_warnings = ("История AI-анализа временно недоступна для сравнения.",)
-        else:
-            repository_warning = getattr(self.repository, "last_warning", "")
-            if repository_warning:
-                recheck_warnings = (repository_warning,)
 
-        current = self._analyze_prepared(key, prepared, repository_warning="")
+        current = self._analyze_prepared(key, prepared, repository_warnings=())
         assessment = compare_ai_analyses(baseline, current)
         if recheck_warnings:
             assessment = replace(
@@ -668,6 +699,7 @@ class TenderDocumentAiAnalysisService:
             statistics=statistics,
             documentation_inventory=documentation_inventory,
             fingerprint=context_fingerprint(documents, context_parameters=parameters),
+            execution_contract=current_execution_contract(self.analyzer.provider.metadata),
         )
 
     def _analyze_prepared(
@@ -675,12 +707,13 @@ class TenderDocumentAiAnalysisService:
         registry_key: str,
         prepared: _PreparedAiAnalysis,
         *,
-        repository_warning: str,
+        repository_warnings: tuple[str, ...],
     ) -> AiDocumentAnalysis:
         result = self.analyzer.analyze(
             registry_key,
             prepared.documents,
             context_fingerprint=prepared.fingerprint,
+            execution_contract=prepared.execution_contract,
         )
         result = replace(
             result,
@@ -745,13 +778,12 @@ class TenderDocumentAiAnalysisService:
             result,
             competition_assessment=assess_competition_conditions(result),
         )
-        if repository_warning:
-            result = _add_warning(result, repository_warning)
-        if result.status in {
-            AiAnalysisStatus.COMPLETE,
-            AiAnalysisStatus.PARTIAL,
-            AiAnalysisStatus.NO_DOCUMENTS,
-        }:
+        if is_cacheable_current_analysis(
+            result,
+            registry_key=registry_key,
+            context_fingerprint=prepared.fingerprint,
+            execution_contract=prepared.execution_contract,
+        ):
             try:
                 self.repository.save(result, prepared.fingerprint)
             except Exception:
@@ -759,7 +791,55 @@ class TenderDocumentAiAnalysisService:
                     result,
                     "Не удалось сохранить историю AI-анализа.",
                 )
+        for warning in repository_warnings:
+            result = _add_warning(result, warning)
         return result
+
+
+def is_cacheable_current_analysis(
+    analysis: AiDocumentAnalysis,
+    *,
+    registry_key: str,
+    context_fingerprint: str,
+    execution_contract: AiExecutionContract,
+) -> bool:
+    """Allow persistence only for an exact current and locally verified result."""
+    if (
+        analysis.status
+        not in {
+            AiAnalysisStatus.COMPLETE,
+            AiAnalysisStatus.PARTIAL,
+            AiAnalysisStatus.NO_DOCUMENTS,
+        }
+        or analysis.registry_key != registry_key
+        or analysis.payload_version != AI_ANALYSIS_SCHEMA_VERSION
+        or analysis.provenance is None
+        or analysis.provenance.context_fingerprint != context_fingerprint
+        or not execution_contract_matches(analysis.provenance, execution_contract)
+    ):
+        return False
+    return all(
+        not finding.verified or analysis.is_current_verified(finding)
+        for finding in _analysis_findings(analysis)
+    )
+
+
+def _analysis_findings(analysis: AiDocumentAnalysis) -> tuple[AiFinding, ...]:
+    result = [
+        *analysis.risks,
+        *analysis.suspicious_conditions,
+        *analysis.contradictions,
+    ]
+    for section in (
+        analysis.requirements,
+        analysis.technical_specification,
+        analysis.draft_contract,
+    ):
+        for field in fields(section):
+            value = getattr(section, field.name)
+            if isinstance(value, tuple):
+                result.extend(item for item in value if isinstance(item, AiFinding))
+    return tuple(result)
 
 
 def _now() -> str:
@@ -785,6 +865,7 @@ def _safe_failure(
     documents: tuple[AiDocument, ...] = (),
 ) -> AiDocumentAnalysis:
     messages = {
+        AiAnalysisStatus.NO_DOCUMENTS: "No documents available.",
         AiAnalysisStatus.PROVIDER_DISABLED: "AI provider is disabled.",
         AiAnalysisStatus.PROVIDER_ERROR: "AI analysis is temporarily unavailable.",
         AiAnalysisStatus.INVALID_RESPONSE: "AI response is invalid.",
@@ -832,6 +913,13 @@ def _safe_failure(
             included_document_ids=contract_ids,
         ),
     )
+
+
+def _provider_failure_warning(response: Mapping[str, object]) -> str:
+    code = response.get("error_code")
+    if not isinstance(code, str):
+        return _GENERIC_PROVIDER_FAILURE_WARNING
+    return _PROVIDER_FAILURE_WARNINGS.get(code, _GENERIC_PROVIDER_FAILURE_WARNING)
 
 
 def _require_multi_source_contradictions(
@@ -1068,25 +1156,6 @@ def _provider_response_reference(value: object) -> str:
     ):
         return ""
     return f"resp_{hashlib.sha256(rendered.encode('utf-8')).hexdigest()}"
-
-
-def _provenance_identifier(
-    value: object,
-    *,
-    limit: int,
-    pattern: re.Pattern[str],
-) -> str:
-    if not isinstance(value, str) or not value or value != value.strip() or len(value) > limit:
-        return "unknown"
-    if any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in value):
-        return "unknown"
-    if pattern.fullmatch(value) is None:
-        return "unknown"
-    lowered = value.casefold()
-    words = {word for word in re.split(r"[/:._-]+", lowered) if word}
-    if lowered.startswith(_CREDENTIAL_PREFIXES) or words & _CREDENTIAL_WORDS:
-        return "unknown"
-    return value
 
 
 def _source_sort_key(source: AiSourceSnapshot) -> tuple[object, ...]:

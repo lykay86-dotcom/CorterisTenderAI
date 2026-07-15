@@ -190,7 +190,6 @@ def create_tender_search_runtime(
         participation_score_service,
         collector_state_repository,
         commercial_estimate_repository,
-        ai_analysis_repository=ai_analysis_repository,
     )
     full_analysis_service = TenderFullAnalysisService(
         tender_registry,
