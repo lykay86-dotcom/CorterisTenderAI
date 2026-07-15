@@ -290,6 +290,9 @@ def test_only_analyzer_calls_provider_directly() -> None:
     assert "provider.analyze" not in Path("app/core/ai/financial_risk.py").read_text(
         encoding="utf-8"
     )
+    assert "provider.analyze" not in Path("app/core/ai/competition_review.py").read_text(
+        encoding="utf-8"
+    )
     assert "provider.analyze" not in Path("app/tenders/full_analysis.py").read_text(
         encoding="utf-8"
     )

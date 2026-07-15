@@ -49,7 +49,7 @@ def _canonical_provenance() -> AiAnalysisProvenance:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="9",
+        analyzer_version="10",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",

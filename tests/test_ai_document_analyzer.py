@@ -19,6 +19,9 @@ from app.core.ai.repository import AI_ANALYZER_VERSION
 from app.core.ai.repository import context_fingerprint as build_context_fingerprint
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
+    AiCompetitionCategory,
+    AiCompetitionReviewPriority,
+    AiCompetitionStatus,
     AiDocument,
     AiDraftContractAnalysis,
     AiFinancialReviewPriority,
@@ -195,6 +198,30 @@ def test_verified_specialized_finding_builds_local_financial_assessment() -> Non
     ]
 
 
+def test_verified_specialized_finding_builds_local_competition_assessment() -> None:
+    payload = _valid_payload()
+    payload["requirements"]["bid_security"] = [_finding(statement="Bid security")]
+    provider = Provider(payload)
+    document = replace(
+        _document(),
+        name="Requirements.pdf",
+        document_kind="application_requirements",
+    )
+
+    result = TenderDocumentAiAnalyzer(provider).analyze(
+        "procurement:test", (document,), context_fingerprint=CONTEXT_FINGERPRINT
+    )
+
+    competition = result.competition_assessment
+    assert competition.status is AiCompetitionStatus.PARTIAL
+    assert len(competition.items) == 1
+    assert competition.items[0].category is AiCompetitionCategory.SECURITY_AND_FINANCIAL_ACCESS
+    assert competition.items[0].review_priority is AiCompetitionReviewPriority.ELEVATED
+    assert result.legal_risk_assessment.items
+    assert result.financial_risk_assessment.items
+    assert len(provider.calls) == 1
+
+
 def test_successful_response_builds_current_provenance_from_exact_documents() -> None:
     document = _document()
     payload = _valid_payload(risks=[_finding()])
@@ -209,8 +236,8 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
     assert datetime.fromisoformat(provenance.created_at).utcoffset() is not None
     assert provenance.prompt_version == AI_PROMPT_VERSION == "6"
     assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
-    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 8
-    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "9"
+    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 9
+    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "10"
     assert provenance.context_version == AI_CONTEXT_VERSION == "5"
     assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
     assert provenance.provider_id == "test-provider"

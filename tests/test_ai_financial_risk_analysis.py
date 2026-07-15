@@ -11,6 +11,7 @@ import re
 import pytest
 
 from app.core.ai.citations import resolve_citation
+from app.core.ai.competition_review import assess_competition_conditions
 from app.core.ai.financial_risk import (
     AI_FINANCIAL_RISK_POLICY_VERSION,
     FINANCIAL_RISK_CATEGORY_PRIORITIES,
@@ -261,7 +262,7 @@ def _analysis(
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="9",
+        analyzer_version="10",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -283,7 +284,8 @@ def _analysis(
 
 def _with_assessments(analysis: AiDocumentAnalysis) -> AiDocumentAnalysis:
     analysis = replace(analysis, legal_risk_assessment=assess_legal_risks(analysis))
-    return replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
+    analysis = replace(analysis, financial_risk_assessment=assess_financial_risks(analysis))
+    return replace(analysis, competition_assessment=assess_competition_conditions(analysis))
 
 
 def test_policy_contract_is_exact_and_versioned() -> None:
@@ -581,7 +583,7 @@ def test_v8_payload_has_exact_financial_keys_and_round_trips() -> None:
 
     restored = AiDocumentAnalysis.from_payload(json.loads(json.dumps(payload)))
 
-    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 8
+    assert restored.payload_version == AI_ANALYSIS_SCHEMA_VERSION == 9
     assert restored.financial_risk_assessment == analysis.financial_risk_assessment
     assert restored.legal_risk_assessment == analysis.legal_risk_assessment
 

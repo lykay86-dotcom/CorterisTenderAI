@@ -7,6 +7,7 @@ from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
     AiAnalysisProvenance,
+    AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
     AiDraftContractAnalysis,
@@ -23,7 +24,7 @@ def _provenance(fingerprint: str) -> AiAnalysisProvenance:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="9",
+        analyzer_version="10",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -298,6 +299,8 @@ def test_application_requirement_completeness_changes_fingerprint_and_status() -
     assert partial.requirements.status is AiApplicationRequirementsStatus.PARTIAL
     assert partial.requirements.document_ids == ("requirements", "omitted")
     assert partial.requirements.included_document_ids == ("requirements",)
+    assert complete.competition_assessment.status is AiCompetitionStatus.PARTIAL
+    assert partial.competition_assessment.status is AiCompetitionStatus.PARTIAL
 
 
 def test_service_force_always_runs_new_analysis(tmp_path) -> None:
