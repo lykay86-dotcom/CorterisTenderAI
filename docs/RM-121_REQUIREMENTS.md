@@ -222,3 +222,46 @@ RM-107 и CommercialEstimator regressions; target/full pytest; Ruff check/format
 dependency audit; `git diff --check`; static proof одного AI graph/stage, отсутствия DB migration,
 legacy import, float money и I/O в financial policy. Feature merge не переводит RM-121 в `DONE`:
 после post-merge Windows gate 3.12/3.13 нужен отдельный docs-only closeout.
+
+## Local implementation acceptance
+
+Implementation checkpoint: `999c2ec929cd6f0ccd024442a0708ba47ee75609`
+Baseline: `32510874291da502d6a588e32e633c01e736c274`
+Python: `3.12.7`
+
+- Exact RM-121 target contour: `337 passed in 13.12s`.
+- Full suite: `1289 passed in 55.25s`.
+- `python -m ruff check .`: passed.
+- `python -m ruff format . --check`: passed (`515 files already formatted`).
+- `python -m mypy`: passed (`18 source files`).
+- `python scripts/check_repository_secrets.py`: passed.
+- `python -m pip_audit --skip-editable`: no known vulnerabilities; the editable project was
+  skipped as expected. The sandbox-blocked first network attempt was repeated with explicitly
+  allowed network access and a worktree-local cache.
+- `git diff --check`: passed.
+
+The adversarial review found exactly one production `provider.analyze(...)`, one
+`TenderAiOrchestrator`, one `AiDocumentAnalysisRepository` class and one `RUNNING_AI` enum stage
+with its existing execution path. The only new policy component is the pure local
+`app/core/ai/financial_risk.py`; it performs no I/O, provider calls, regex/money parsing,
+commercial calculation or legacy `AnalysisEngine` import. No provider output root, response
+format, prompt, context builder, citation resolver, repository, database table or migration was
+added or changed beyond the required persisted payload/analyzer version bumps.
+
+The financial-condition registry is derived only from current verified specialized requirements,
+technical specification and draft-contract findings. Category and review priority come from fixed
+mappings; stable IDs and ordering use canonical citation IDs. Generic root findings and
+deterministic stop-factors are not copied. Missing, unverified, foreign-kind, stale or damaged
+evidence fails closed, while current v8 cache content is locally recomputed and compared before
+use. Legacy v1-v7 remains unavailable and future/corrupt data stays incompatible.
+
+The existing AI tab and JSON/HTML exporter display the four statuses, policy version, priority
+counts, escaped titles/actions, current internal citations, warnings and the required informational
+financial disclaimer. Provider output remains financial-conclusion neutral. RM-107 production
+policy files are unchanged; the registry does not alter score, recommendation, actions, decision
+evidence or the absolute priority of a deterministic critical stop-factor. `CommercialEstimator`
+remains the canonical `Decimal` calculation boundary, and an empty draft remains
+`DATA_INSUFFICIENT` without invented total cost, profit or margin.
+
+This is feature-branch acceptance only. RM-121 remains `IN PROGRESS` until feature merge,
+post-merge Windows Quality Gate on Python 3.12 and 3.13, and a separate docs-only closeout PR.
