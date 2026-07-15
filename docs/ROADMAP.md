@@ -16,8 +16,9 @@
 - RM-119: `DONE`.
 - RM-120: `DONE`.
 - RM-121: `DONE`.
-- RM-122: `IN PROGRESS`.
-- RM-123–RM-200: `PLANNED`.
+- RM-122: `DONE`.
+- RM-123: `IN PROGRESS`.
+- RM-124–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -150,8 +151,8 @@
 - [x] RM-119 — анализ требований к заявке.
 - [x] RM-120 — юридические риски.
 - [x] RM-121 — финансовые риски.
-- [ ] RM-122 — анализ конкуренции (активный).
-- [ ] RM-123 — полнота документации.
+- [x] RM-122 — анализ конкуренции.
+- [ ] RM-123 — полнота документации (активный).
 - [ ] RM-124 — повторная проверка AI.
 - [ ] RM-125 — стабилизация AI-платформы.
 
@@ -448,6 +449,37 @@ migration, composition и build smoke tests, а также dependency audit ус
 Новая AI-stage, provider call, repository, calculator, БД или миграция не добавлены. RM-121
 соответствует Definition of Done; следующим активным этапом назначен RM-122, application-код
 которого требует отдельного аудита анализа конкуренции.
+
+## RM-122 — implementation acceptance
+
+Статус реализации: `DONE` (PR #47, merge `4ebbf6c`).
+
+- pure local competition-condition registry строится только из current verified specialized
+  requirements, technical specification и draft-contract findings;
+- category, review priority, stable condition ID, title и recommended action задаются
+  фиксированной policy без второго AI-вызова, statement matching, regex или market prediction;
+- generic root findings, deterministic stop-factors, legacy `COMP_RULES`, `raw_metadata`,
+  commercial estimate и company profile не копируются в competition registry;
+- persisted payload повышен до версии 9, analyzer — до версии 10; provider schema/format v4,
+  prompt v6, context v5, citation resolver v1, legal policy v1 и financial policy v1 не изменены;
+- current v9 cache локально пересчитывается и exact-сверяется, legacy v1–v8 остаётся unavailable,
+  future/corrupt/tampered data и duplicate JSON keys обрабатываются fail-closed без новой таблицы
+  или миграции SQLite;
+- existing AI tab и JSON/HTML exporter показывают четыре статуса, priorities, actions, current
+  citations, warnings и competition disclaimer с HTML escaping;
+- RM-107 score/recommendation/actions/evidence/confidence и абсолютный приоритет critical
+  stop-factor не изменены; competition assessment не входит в decision evidence;
+- локальная приёмка на Python 3.12.7: target `468 passed in 14.72s`, full
+  `1389 passed in 67.60s`, Ruff (`517 files`), mypy (19 файлов), secret scan, dependency audit
+  и diff-check успешны.
+
+PR #47 слит в `main` 15 июля 2026 года коммитом `4ebbf6c`. Post-merge Quality Gate run
+`29422296807` успешно прошёл на Python 3.12 (`1389 passed in 100.83s`) и Python 3.13
+(`1389 passed in 70.65s`); Ruff (`517 files`), mypy (19 файлов), secret scan, offline,
+migration, composition и build smoke tests, а также dependency audit успешны на обеих версиях.
+Новая AI-stage, provider call, repository, БД или миграция не добавлены. RM-122 соответствует
+Definition of Done; следующим активным этапом назначен RM-123, application-код которого требует
+отдельного аудита полноты документации.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.

@@ -1,5 +1,37 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-122 завершён
+
+- PR #47 (`feat(rm-122): add explainable competition assessment`) слит в `main` коммитом
+  `4ebbf6c` (`4ebbf6c4dc4cf004e234310a7bc0fdf959ee17c6`).
+- Post-merge Quality Gate run `29422296807` завершился статусом `SUCCESS`: Python 3.12 —
+  `1389 passed in 100.83s`, Python 3.13 — `1389 passed in 70.65s`.
+- На обеих версиях прошли Ruff check/format (`517 files`), mypy (19 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Pure local competition policy строит versioned registry только из current verified specialized
+  requirements, technical specification и draft-contract findings без второго provider call,
+  statement keyword/regex matching, market prediction или внешних данных о компаниях.
+- Category и review priority заданы фиксированными mappings; stable condition IDs и ordering
+  основаны на canonical citation IDs. Generic root findings и deterministic stop-factors не
+  копируются.
+- Persisted payload v9 локально пересчитывается при чтении; legacy v1–v8 остаётся unavailable,
+  а future/corrupt/tampered cache и duplicate JSON keys обрабатываются fail-closed без изменения
+  SQLite schema.
+- Provider schema/response format v4, prompt v6, context v5, citation resolver v1, legal policy
+  v1 и financial policy v1 не изменены; сохранены один analyzer/service/Orchestrator/repository/
+  provider call и одна `RUNNING_AI` stage.
+- Legacy `COMP_RULES`/`competition_risk`, `raw_metadata`, неподтверждённые результаты торгов,
+  company profile, деньги и `float` не используются; прогноз числа конкурентов, вероятности
+  победы, снижения цены или законности условий не создаётся.
+- Existing AI tab и JSON/HTML exporter показывают status, policy version, priority counts,
+  escaped titles/actions, current internal citations, warnings и informational disclaimer.
+- RM-107 score/recommendation/action plan/evidence/confidence и абсолютный приоритет critical
+  stop-factor не изменены; competition registry не входит в decision evidence.
+- Локальная приёмка: target `468 passed in 14.72s`, full `1389 passed in 67.60s`, Ruff
+  (`517 files`), mypy (19 файлов), secret scan, dependency audit и diff-check успешны.
+- RM-122 переведён в `DONE`; RM-123 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации полноты документации.
+
 ## 2026-07-15 — RM-121 завершён
 
 - PR #45 (`feat(rm-121): add explainable financial risk assessment`) слит в `main` коммитом
