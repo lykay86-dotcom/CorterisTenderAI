@@ -6,7 +6,36 @@ from html import escape
 import json
 from pathlib import Path
 
-from app.core.ai.schemas import AiDocumentAnalysis
+from app.core.ai.schemas import (
+    AiApplicationRequirementsStatus,
+    AiDocumentAnalysis,
+    _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
+)
+
+
+_APPLICATION_REQUIREMENT_LABELS = {
+    "application_composition": "Состав заявки",
+    "participant_eligibility": "Требования к участнику",
+    "declarations_and_consents": "Декларации и согласия",
+    "equipment": "Оборудование и ресурсы",
+    "certificates": "Сертификаты и качество",
+    "licenses": "Лицензии, допуски и СРО",
+    "specialists": "Специалисты и квалификация",
+    "documents": "Подтверждающие документы",
+    "experience": "Опыт исполнения",
+    "deadlines": "Сроки подачи и действия заявки",
+    "warranty": "Гарантийные обязательства",
+    "bid_security": "Обеспечение заявки",
+    "contract_security": "Обеспечение исполнения контракта",
+    "bank_guarantee": "Банковская или независимая гарантия",
+    "submission_format_and_signature": "Формат и подписание",
+    "national_regime_and_origin": "Национальный режим и происхождение",
+    "price_proposal_and_estimate": "Ценовое предложение и смета",
+    "grounds_for_rejection": "Основания отклонения",
+    "ambiguities": "Неоднозначности",
+    "contradictions": "Противоречия",
+    "clarification_points": "Вопросы для уточнения",
+}
 
 
 class TenderAiAnalysisExporter:
@@ -32,11 +61,12 @@ class TenderAiAnalysisExporter:
 
     @staticmethod
     def _html(analysis: AiDocumentAnalysis) -> str:
-        all_requirements = tuple(
-            item
-            for name in analysis.requirements.__dataclass_fields__
-            for item in getattr(analysis.requirements, name)
+        requirements = analysis.requirements
+        requirement_groups = tuple(
+            (name, _APPLICATION_REQUIREMENT_LABELS[name], getattr(requirements, name))
+            for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS
         )
+        all_requirements = tuple(item for _, _, items in requirement_groups for item in items)
         all_findings = (
             *all_requirements,
             *analysis.risks,
@@ -129,6 +159,23 @@ class TenderAiAnalysisExporter:
         contract_warnings = (
             "".join(f"<li>{escape(item)}</li>" for item in contract.warnings) or "<li>Нет.</li>"
         )
+        requirement_tables = "".join(
+            f"<h3>{escape(label)}</h3><table><tr><th>Категория</th><th>Вывод</th>"
+            f"<th>Источник</th></tr>{findings(items)}</table>"
+            for _, label, items in requirement_groups
+        )
+        requirement_warnings = (
+            "".join(f"<li>{escape(item)}</li>" for item in requirements.warnings) or "<li>Нет.</li>"
+        )
+        requirement_context_note = (
+            "<p><strong>Контекст требований к заявке неполон.</strong></p>"
+            if requirements.status is AiApplicationRequirementsStatus.PARTIAL
+            and (
+                len(requirements.document_ids) != len(requirements.included_document_ids)
+                or requirements.warnings
+            )
+            else ""
+        )
         context_note = (
             "<p><strong>Контекст сокращён по безопасному лимиту.</strong></p>"
             if analysis.context_truncated
@@ -151,7 +198,11 @@ class TenderAiAnalysisExporter:
             f"{len(contract.document_ids)}; включено: {len(contract.included_document_ids)}</p>"
             f"{contract_tables}<h3>Предупреждения по проекту договора</h3>"
             f"<ul>{contract_warnings}</ul>"
-            f"<h2>Требования</h2><table><tr><th>Категория</th><th>Вывод</th><th>Источник</th></tr>{findings(all_requirements)}</table>"
+            f"<h2>Требования к заявке</h2><p>Статус: {escape(requirements.status.value)}; "
+            f"найдено документов: {len(requirements.document_ids)}; включено: "
+            f"{len(requirements.included_document_ids)}</p>{requirement_context_note}"
+            f"{requirement_tables}<h3>Предупреждения по требованиям к заявке</h3>"
+            f"<ul>{requirement_warnings}</ul>"
             f"<h2>Риски</h2><table>{findings(analysis.risks)}</table>"
             f"<h2>Подозрительные условия</h2><table>{findings(analysis.suspicious_conditions)}</table>"
             f"<h2>Противоречия</h2><table>{findings(analysis.contradictions)}</table>"

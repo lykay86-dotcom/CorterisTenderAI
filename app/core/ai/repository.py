@@ -22,7 +22,7 @@ from app.core.ai.schemas import (
 )
 
 
-AI_ANALYZER_VERSION = "6"
+AI_ANALYZER_VERSION = "7"
 _CACHE_CORRUPT_WARNING = "Повреждённая запись AI-анализа пропущена."
 _CACHE_INCOMPATIBLE_WARNING = "Кеш AI-анализа имеет несовместимую версию."
 _CACHE_SKIPPED_WARNING = "Повреждённая или несовместимая запись AI-анализа пропущена."

@@ -9,13 +9,17 @@ import re
 from typing import TYPE_CHECKING, Protocol
 
 from app.core.ai.schemas import AiDocument
-from app.core.document_classification import DocumentKind, classify_document_kind
+from app.core.document_classification import (
+    APPLICATION_REQUIREMENTS_SOURCE_KINDS,
+    DocumentKind,
+    classify_document_kind,
+)
 
 if TYPE_CHECKING:
     from app.tenders.document_text_extractor import StoredDocumentText
 
 
-AI_CONTEXT_VERSION = "4"
+AI_CONTEXT_VERSION = "5"
 DEFAULT_MAX_DOCUMENT_CHARACTERS = 100_000
 DEFAULT_MAX_TOTAL_CHARACTERS = 400_000
 
@@ -46,6 +50,11 @@ class AiContextStatistics:
     draft_contract_truncated: bool = False
     draft_contract_document_ids: tuple[str, ...] = ()
     included_draft_contract_document_ids: tuple[str, ...] = ()
+    application_requirements_document_count: int = 0
+    included_application_requirements_document_count: int = 0
+    application_requirements_truncated: bool = False
+    application_requirements_document_ids: tuple[str, ...] = ()
+    included_application_requirements_document_ids: tuple[str, ...] = ()
 
     @property
     def truncated(self) -> bool:
@@ -60,7 +69,7 @@ class AiDocumentContext:
 
 @dataclass(slots=True)
 class _ScopedContextStatistics:
-    kind: DocumentKind
+    kinds: frozenset[DocumentKind]
     document_ids: tuple[str, ...]
     included_document_ids: list[str]
     incomplete: bool = False
@@ -68,17 +77,17 @@ class _ScopedContextStatistics:
     @classmethod
     def from_prepared(
         cls,
-        kind: DocumentKind,
+        kinds: frozenset[DocumentKind],
         prepared: tuple[_PreparedRecord, ...],
     ) -> _ScopedContextStatistics:
         return cls(
-            kind=kind,
+            kinds=kinds,
             document_ids=tuple(
                 sorted(
                     (
                         str(getattr(item.record, "document_key", "") or "")
                         for item in prepared
-                        if item.kind is kind
+                        if item.kind in kinds
                     ),
                     key=str.casefold,
                 )
@@ -87,11 +96,11 @@ class _ScopedContextStatistics:
         )
 
     def mark_incomplete(self, kind: DocumentKind) -> None:
-        if kind is self.kind:
+        if kind in self.kinds:
             self.incomplete = True
 
     def include(self, kind: DocumentKind, document_id: str) -> None:
-        if kind is self.kind:
+        if kind in self.kinds:
             self.included_document_ids.append(document_id)
 
 
@@ -135,10 +144,15 @@ class TenderDocumentContextBuilder:
         duplicate = len(records) - len(current_records)
 
         technical = _ScopedContextStatistics.from_prepared(
-            DocumentKind.TECHNICAL_SPECIFICATION, prepared
+            frozenset({DocumentKind.TECHNICAL_SPECIFICATION}), prepared
         )
-        contract = _ScopedContextStatistics.from_prepared(DocumentKind.DRAFT_CONTRACT, prepared)
-        scoped = (technical, contract)
+        contract = _ScopedContextStatistics.from_prepared(
+            frozenset({DocumentKind.DRAFT_CONTRACT}), prepared
+        )
+        requirements = _ScopedContextStatistics.from_prepared(
+            APPLICATION_REQUIREMENTS_SOURCE_KINDS, prepared
+        )
+        scoped = (technical, contract, requirements)
 
         for prepared_record in ordered:
             record = prepared_record.record
@@ -151,6 +165,8 @@ class TenderDocumentContextBuilder:
             checksum = str(getattr(record, "checksum_sha256", "") or "").strip()
             if checksum and checksum in seen_checksums:
                 duplicate += 1
+                for item in scoped:
+                    item.mark_incomplete(kind)
                 continue
             if checksum:
                 seen_checksums.add(checksum)
@@ -234,6 +250,15 @@ class TenderDocumentContextBuilder:
             draft_contract_truncated=contract.incomplete,
             draft_contract_document_ids=contract.document_ids,
             included_draft_contract_document_ids=tuple(contract.included_document_ids),
+            application_requirements_document_count=len(requirements.document_ids),
+            included_application_requirements_document_count=len(
+                requirements.included_document_ids
+            ),
+            application_requirements_truncated=requirements.incomplete,
+            application_requirements_document_ids=requirements.document_ids,
+            included_application_requirements_document_ids=tuple(
+                requirements.included_document_ids
+            ),
         )
         return AiDocumentContext(tuple(documents), statistics)
 
@@ -294,9 +319,12 @@ def _prepared_sort_key(item: _PreparedRecord) -> tuple[int, str, str, str]:
     priority = {
         DocumentKind.TECHNICAL_SPECIFICATION: 0,
         DocumentKind.DRAFT_CONTRACT: 1,
-        DocumentKind.PROCUREMENT_NOTICE: 2,
-        DocumentKind.ESTIMATE: 2,
-    }.get(item.kind, 3)
+        DocumentKind.APPLICATION_REQUIREMENTS: 2,
+        DocumentKind.APPLICATION_FORM: 3,
+        DocumentKind.INSTRUCTIONS: 4,
+        DocumentKind.PROCUREMENT_NOTICE: 5,
+        DocumentKind.ESTIMATE: 6,
+    }.get(item.kind, 7)
     return (
         priority,
         str(getattr(record, "document_key", "") or "").casefold(),

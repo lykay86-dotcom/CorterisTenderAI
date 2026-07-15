@@ -194,7 +194,7 @@ def test_prompt_keeps_provider_output_candidate_only_and_locators_as_hints() -> 
     assert "local application code" in prompt
     assert "kind is draft_contract" in prompt
     assert "application_requirements, application_form, instructions, procurement_notice" in prompt
-    assert "does ООО «КОРТЕРИС» satisfy" in prompt
+    assert "does ооо «кортерис» satisfy" in prompt
     assert "do not predict application rejection" in prompt
     assert "grounds_for_rejection" in prompt
     assert "do not make legal or financial conclusions" in prompt

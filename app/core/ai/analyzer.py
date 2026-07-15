@@ -26,6 +26,7 @@ from app.core.ai.repository import (
 )
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
+    AiApplicationRequirementsStatus,
     AiAnalysisProvenance,
     AiAnalysisStatus,
     AiDocument,
@@ -38,8 +39,12 @@ from app.core.ai.schemas import (
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
     TenderRequirements,
+    _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
-from app.core.document_classification import DocumentKind
+from app.core.document_classification import (
+    APPLICATION_REQUIREMENTS_SOURCE_KINDS,
+    DocumentKind,
+)
 
 
 MAX_SUMMARY_LENGTH = 12_000
@@ -84,6 +89,7 @@ class TenderDocumentAiAnalyzer:
                 "No documents available.",
                 missing_documents=("Tender documentation",),
                 status=AiAnalysisStatus.NO_DOCUMENTS,
+                requirements=TenderRequirements(status=AiApplicationRequirementsStatus.NOT_FOUND),
                 technical_specification=AiTechnicalSpecificationAnalysis(
                     status=AiTechnicalSpecificationStatus.NOT_FOUND
                 ),
@@ -202,17 +208,37 @@ class TenderDocumentAiAnalyzer:
             issues.append("requirements")
             raw_requirements = {}
 
+        requirement_values, requirement_document_ids, requirement_issues = self._scoped_findings(
+            raw_requirements,
+            documents,
+            context_fingerprint,
+            category_prefix="requirements",
+            document_kinds=APPLICATION_REQUIREMENTS_SOURCE_KINDS,
+            finding_fields=_APPLICATION_REQUIREMENTS_FINDING_FIELDS,
+        )
+        requirement_values["contradictions"] = _require_independent_citations(
+            requirement_values["contradictions"],
+            requirement_issues,
+            "requirements.contradictions.citations",
+        )
+        issues.extend(requirement_issues)
+        if not requirement_document_ids:
+            requirement_status = AiApplicationRequirementsStatus.NOT_FOUND
+            requirement_values = {name: () for name in requirement_values}
+        elif requirement_issues:
+            requirement_status = AiApplicationRequirementsStatus.PARTIAL
+        else:
+            requirement_status = AiApplicationRequirementsStatus.COMPLETE
         requirements = TenderRequirements(
-            **{
-                name: self._findings(
-                    raw_requirements.get(name, ()),
-                    documents,
-                    context_fingerprint,
-                    name,
-                    issues,
-                )
-                for name in TenderRequirements.__dataclass_fields__
-            }
+            status=requirement_status,
+            document_ids=requirement_document_ids,
+            included_document_ids=requirement_document_ids,
+            **requirement_values,
+            warnings=(
+                ("Часть анализа требований к заявке не подтверждена.",)
+                if requirement_issues
+                else ()
+            ),
         )
         raw_technical = payload.get("technical_specification", {})
         if not isinstance(raw_technical, Mapping):
@@ -223,7 +249,7 @@ class TenderDocumentAiAnalyzer:
             documents,
             context_fingerprint,
             category_prefix="technical_specification",
-            document_kind=DocumentKind.TECHNICAL_SPECIFICATION,
+            document_kinds=frozenset({DocumentKind.TECHNICAL_SPECIFICATION}),
             finding_fields=tuple(
                 name
                 for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
@@ -259,15 +285,17 @@ class TenderDocumentAiAnalyzer:
             documents,
             context_fingerprint,
             category_prefix="draft_contract",
-            document_kind=DocumentKind.DRAFT_CONTRACT,
+            document_kinds=frozenset({DocumentKind.DRAFT_CONTRACT}),
             finding_fields=tuple(
                 name
                 for name in AiDraftContractAnalysis.__dataclass_fields__
                 if name not in {"status", "document_ids", "included_document_ids", "warnings"}
             ),
         )
-        contract_values["contradictions"] = _require_independent_contract_contradictions(
-            contract_values["contradictions"], contract_issues
+        contract_values["contradictions"] = _require_independent_citations(
+            contract_values["contradictions"],
+            contract_issues,
+            "draft_contract.contradictions.citations",
         )
         issues.extend(contract_issues)
         if not contract_document_ids:
@@ -359,12 +387,14 @@ class TenderDocumentAiAnalyzer:
         context_fingerprint: str,
         *,
         category_prefix: str,
-        document_kind: DocumentKind,
+        document_kinds: frozenset[DocumentKind],
         finding_fields: tuple[str, ...],
     ) -> tuple[dict[str, tuple[AiFinding, ...]], tuple[str, ...], list[str]]:
         issues: list[str] = []
         document_ids = tuple(
-            item.document_id for item in documents if item.document_kind == document_kind.value
+            item.document_id
+            for item in documents
+            if item.document_kind in {kind.value for kind in document_kinds}
         )
         allowed_document_ids = frozenset(document_ids)
         values = {
@@ -584,8 +614,18 @@ class TenderDocumentAiAnalysisService:
                 partial_status=AiDraftContractStatus.PARTIAL,
                 warning="Контекст проекта договора/контракта неполон.",
             )
+            requirements = _apply_scoped_context(
+                result.requirements,
+                found_ids=tuple(statistics.application_requirements_document_ids),
+                included_ids=tuple(statistics.included_application_requirements_document_ids),
+                incomplete=statistics.application_requirements_truncated,
+                not_found_status=AiApplicationRequirementsStatus.NOT_FOUND,
+                partial_status=AiApplicationRequirementsStatus.PARTIAL,
+                warning="Контекст требований к заявке неполон.",
+            )
             result = replace(
                 result,
+                requirements=requirements,
                 technical_specification=technical,
                 draft_contract=contract,
             )
@@ -627,10 +667,24 @@ def _safe_failure(
     contract_ids = tuple(
         item.document_id for item in documents if item.document_kind == "draft_contract"
     )
+    requirement_ids = tuple(
+        item.document_id
+        for item in documents
+        if item.document_kind in {kind.value for kind in APPLICATION_REQUIREMENTS_SOURCE_KINDS}
+    )
     return AiDocumentAnalysis(
         registry_key,
         messages[status],
         status=status,
+        requirements=TenderRequirements(
+            status=(
+                AiApplicationRequirementsStatus.UNAVAILABLE
+                if requirement_ids
+                else AiApplicationRequirementsStatus.NOT_FOUND
+            ),
+            document_ids=requirement_ids,
+            included_document_ids=requirement_ids,
+        ),
         technical_specification=AiTechnicalSpecificationAnalysis(
             status=(
                 AiTechnicalSpecificationStatus.UNAVAILABLE
@@ -671,9 +725,10 @@ def _require_multi_source_contradictions(
     return tuple(result)
 
 
-def _require_independent_contract_contradictions(
+def _require_independent_citations(
     items: tuple[AiFinding, ...],
     issues: list[str],
+    issue_key: str,
 ) -> tuple[AiFinding, ...]:
     citation_ids: dict[str, set[str]] = {}
     for item in items:
@@ -683,7 +738,7 @@ def _require_independent_contract_contradictions(
     for item in items:
         if len(citation_ids.get(item.statement.casefold(), set())) < 2:
             if item.verified:
-                issues.append("draft_contract.contradictions.citations")
+                issues.append(issue_key)
             result.append(replace(item, evidence=None, status=AiFindingStatus.UNVERIFIED))
         else:
             result.append(item)
@@ -692,6 +747,7 @@ def _require_independent_contract_contradictions(
 
 _ScopedAnalysis = TypeVar(
     "_ScopedAnalysis",
+    TenderRequirements,
     AiTechnicalSpecificationAnalysis,
     AiDraftContractAnalysis,
 )
@@ -703,8 +759,12 @@ def _apply_scoped_context(
     found_ids: tuple[str, ...],
     included_ids: tuple[str, ...],
     incomplete: bool,
-    not_found_status: AiTechnicalSpecificationStatus | AiDraftContractStatus,
-    partial_status: AiTechnicalSpecificationStatus | AiDraftContractStatus,
+    not_found_status: (
+        AiApplicationRequirementsStatus | AiTechnicalSpecificationStatus | AiDraftContractStatus
+    ),
+    partial_status: (
+        AiApplicationRequirementsStatus | AiTechnicalSpecificationStatus | AiDraftContractStatus
+    ),
     warning: str,
 ) -> _ScopedAnalysis:
     if not found_ids:
@@ -802,10 +862,13 @@ def _without_verified_findings(analysis: AiDocumentAnalysis) -> AiDocumentAnalys
 
     requirements = replace(
         analysis.requirements,
-        **{
-            name: downgrade(getattr(analysis.requirements, name))
-            for name in TenderRequirements.__dataclass_fields__
-        },
+        **cast(
+            Any,
+            {
+                name: downgrade(getattr(analysis.requirements, name))
+                for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS
+            },
+        ),
     )
     return replace(
         analysis,

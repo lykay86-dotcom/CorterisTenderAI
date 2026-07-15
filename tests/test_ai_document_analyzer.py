@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime
 import hashlib
 import json
@@ -123,8 +124,13 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
     payload["requirements"]["deadlines"] = [_finding()]
     provider = Provider(payload)
 
+    document = replace(
+        _document(),
+        name="Requirements.pdf",
+        document_kind="application_requirements",
+    )
     result = TenderDocumentAiAnalyzer(provider).analyze(
-        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+        "procurement:test", (document,), context_fingerprint=CONTEXT_FINGERPRINT
     )
 
     assert result.status == "complete"
@@ -133,11 +139,14 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
     assert finding.evidence is not None
     assert finding.evidence.context_fingerprint == CONTEXT_FINGERPRINT
     assert finding.evidence.checksum_sha256 == "a" * 64
-    assert finding.evidence.character_start == _document().text.index(finding.evidence.quote)
+    assert finding.evidence.character_start == document.text.index(finding.evidence.quote)
     assert provider.calls == [
         (
             SYSTEM_PROMPT,
-            ["DOCUMENT doc-1 | TZ.pdf | KIND other\nThe delivery period is 10 days."],
+            [
+                "DOCUMENT doc-1 | Requirements.pdf | KIND application_requirements\n"
+                "The delivery period is 10 days."
+            ],
             build_responses_text_format(),
         )
     ]

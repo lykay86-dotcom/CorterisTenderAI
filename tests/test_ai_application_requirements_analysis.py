@@ -335,13 +335,15 @@ def test_current_corrupt_shape_and_foreign_cached_evidence_fail_closed() -> None
     assert restored_corrupt.requirements.status is AiApplicationRequirementsStatus.UNAVAILABLE
     assert not restored_corrupt.requirements.documents
 
-    ts_result = TenderDocumentAiAnalyzer(Provider(_payload())).analyze(
+    ts_payload = _payload()
+    ts_payload["technical_specification"]["scope"] = [_finding(document_id="ts")]
+    ts_result = TenderDocumentAiAnalyzer(Provider(ts_payload)).analyze(
         "procurement:test",
         (_document(), _document("ts", kind=DocumentKind.TECHNICAL_SPECIFICATION)),
         context_fingerprint=FINGERPRINT,
     )
     foreign = ts_result.to_payload()
-    foreign["requirements"]["documents"] = result.to_payload()["requirements"]["documents"]
+    foreign["requirements"]["documents"] = foreign["technical_specification"]["scope"]
     foreign["requirements"]["document_ids"] = ["ts"]
     foreign["requirements"]["included_document_ids"] = ["ts"]
     restored_foreign = AiDocumentAnalysis.from_payload(foreign)

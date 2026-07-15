@@ -18,6 +18,16 @@ class DocumentKind(StrEnum):
     OTHER = "other"
 
 
+APPLICATION_REQUIREMENTS_SOURCE_KINDS = frozenset(
+    {
+        DocumentKind.APPLICATION_REQUIREMENTS,
+        DocumentKind.APPLICATION_FORM,
+        DocumentKind.INSTRUCTIONS,
+        DocumentKind.PROCUREMENT_NOTICE,
+    }
+)
+
+
 _DOCUMENT_KIND_RULES: tuple[tuple[DocumentKind, tuple[str, ...]], ...] = (
     (
         DocumentKind.TECHNICAL_SPECIFICATION,
@@ -32,7 +42,16 @@ _DOCUMENT_KIND_RULES: tuple[tuple[DocumentKind, tuple[str, ...]], ...] = (
         ),
     ),
     (DocumentKind.PROCUREMENT_NOTICE, ("извещение", "информационная карта")),
-    (DocumentKind.APPLICATION_REQUIREMENTS, ("требования к составу заявки", "требования к заявке")),
+    (
+        DocumentKind.APPLICATION_REQUIREMENTS,
+        (
+            "требования к содержанию и составу заявки",
+            "требования к составу заявки",
+            "требования к заявке",
+            "перечень документов в составе заявки",
+            "требования к участникам и составу заявки",
+        ),
+    ),
     (
         DocumentKind.ESTIMATE,
         ("смета", "локальный сметный расчет", "расчет нмцк", "обоснование нмцк"),
@@ -104,4 +123,8 @@ def _contains_phrase(text: str, phrase: str) -> bool:
     )
 
 
-__all__ = ["DocumentKind", "classify_document_kind"]
+__all__ = [
+    "APPLICATION_REQUIREMENTS_SOURCE_KINDS",
+    "DocumentKind",
+    "classify_document_kind",
+]
