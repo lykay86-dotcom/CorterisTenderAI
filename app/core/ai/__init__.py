@@ -21,6 +21,7 @@ from app.core.ai.provider_selection import (
 from app.core.ai.repository import AiDocumentAnalysisRepository
 from app.core.ai.schemas import (
     AiAnalysisStatus,
+    AiApplicationRequirementsStatus,
     AiDocument,
     AiDocumentAnalysis,
     AiEvidence,
@@ -31,6 +32,7 @@ from app.core.ai.schemas import (
 
 __all__ = [
     "AiAnalysisStatus",
+    "AiApplicationRequirementsStatus",
     "AiContextStatistics",
     "AiDocument",
     "AiDocumentAnalysis",

@@ -43,11 +43,11 @@ def _current_analysis(
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:00:00+00:00",
-        prompt_version="5",
-        output_schema_version="3",
+        prompt_version="6",
+        output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="6",
-        context_version="4",
+        analyzer_version="7",
+        context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -146,12 +146,12 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
     )
 
 
-def test_rm118_versions_are_current_with_one_coordinated_bump() -> None:
-    assert AI_PROMPT_VERSION == "5"
-    assert AI_ANALYZER_VERSION == "6"
+def test_rm119_versions_are_current_with_one_coordinated_bump() -> None:
+    assert AI_PROMPT_VERSION == "6"
+    assert AI_ANALYZER_VERSION == "7"
     assert CITATION_RESOLVER_VERSION == "1"
-    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "3"
-    assert AI_ANALYSIS_SCHEMA_VERSION == 5
+    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
+    assert AI_ANALYSIS_SCHEMA_VERSION == 6
 
 
 def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:

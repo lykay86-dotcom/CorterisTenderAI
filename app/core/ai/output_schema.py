@@ -8,8 +8,8 @@ from typing import Annotated, Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
-AI_PROVIDER_OUTPUT_SCHEMA_VERSION = "3"
-AI_RESPONSE_FORMAT_NAME = "corteris_tender_analysis_v3"
+AI_PROVIDER_OUTPUT_SCHEMA_VERSION = "4"
+AI_RESPONSE_FORMAT_NAME = "corteris_tender_analysis_v4"
 
 MAX_SUMMARY_LENGTH = 12_000
 MAX_STATEMENT_LENGTH = 4_000
@@ -53,6 +53,9 @@ FindingList = Annotated[list[ProviderFindingPayload], Field(max_length=MAX_FINDI
 
 
 class ProviderRequirementsPayload(_StrictProviderModel):
+    application_composition: FindingList
+    participant_eligibility: FindingList
+    declarations_and_consents: FindingList
     equipment: FindingList
     certificates: FindingList
     licenses: FindingList
@@ -64,6 +67,13 @@ class ProviderRequirementsPayload(_StrictProviderModel):
     bid_security: FindingList
     contract_security: FindingList
     bank_guarantee: FindingList
+    submission_format_and_signature: FindingList
+    national_regime_and_origin: FindingList
+    price_proposal_and_estimate: FindingList
+    grounds_for_rejection: FindingList
+    ambiguities: FindingList
+    contradictions: FindingList
+    clarification_points: FindingList
 
 
 class ProviderTechnicalSpecificationPayload(_StrictProviderModel):

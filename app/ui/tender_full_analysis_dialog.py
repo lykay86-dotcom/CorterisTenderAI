@@ -32,9 +32,11 @@ from app.tenders.full_analysis import (
 )
 from app.core.ai.schemas import (
     AiAnalysisStatus,
+    AiApplicationRequirementsStatus,
     AiDocumentAnalysis,
     AiDraftContractStatus,
     AiTechnicalSpecificationStatus,
+    _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
 from app.ui.theme.colors import ThemeName, get_palette
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
@@ -399,10 +401,52 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
             rows.append(f"<li><b>{escape(item.statement)}</b><br>{proof}</li>")
         return "".join(rows) or "<li>Не выявлено.</li>"
 
-    requirements = tuple(
-        item
-        for name in analysis.requirements.__dataclass_fields__
-        for item in getattr(analysis.requirements, name)
+    requirements = analysis.requirements
+    requirement_status = {
+        AiApplicationRequirementsStatus.COMPLETE: "Полный результат",
+        AiApplicationRequirementsStatus.PARTIAL: "Частичный результат",
+        AiApplicationRequirementsStatus.NOT_FOUND: "Требования к заявке не найдены",
+        AiApplicationRequirementsStatus.UNAVAILABLE: "Анализ требований к заявке недоступен",
+    }.get(requirements.status, "Анализ требований к заявке недоступен")
+    requirement_groups = {
+        "application_composition": "Состав заявки",
+        "participant_eligibility": "Требования к участнику",
+        "declarations_and_consents": "Декларации и согласия",
+        "equipment": "Оборудование и ресурсы",
+        "certificates": "Сертификаты и качество",
+        "licenses": "Лицензии, допуски и СРО",
+        "specialists": "Специалисты и квалификация",
+        "documents": "Подтверждающие документы",
+        "experience": "Опыт исполнения",
+        "deadlines": "Сроки подачи и действия заявки",
+        "warranty": "Гарантийные обязательства",
+        "bid_security": "Обеспечение заявки",
+        "contract_security": "Обеспечение исполнения контракта",
+        "bank_guarantee": "Банковская или независимая гарантия",
+        "submission_format_and_signature": "Формат и подписание",
+        "national_regime_and_origin": "Национальный режим и происхождение",
+        "price_proposal_and_estimate": "Ценовое предложение и смета",
+        "grounds_for_rejection": "Основания отклонения",
+        "ambiguities": "Неоднозначности",
+        "contradictions": "Противоречия",
+        "clarification_points": "Вопросы для уточнения",
+    }
+    requirement_html = "".join(
+        f"<h4>{escape(requirement_groups[name])}</h4>"
+        f"<ul>{render_findings(getattr(requirements, name))}</ul>"
+        for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS
+    )
+    requirement_warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in requirements.warnings) or "<li>Нет.</li>"
+    )
+    requirement_context_note = (
+        "<p><b>Внимание:</b> контекст требований к заявке неполон.</p>"
+        if requirements.status is AiApplicationRequirementsStatus.PARTIAL
+        and (
+            len(requirements.document_ids) != len(requirements.included_document_ids)
+            or requirements.warnings
+        )
+        else ""
     )
     technical = analysis.technical_specification
     technical_status = {
@@ -498,7 +542,11 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"<p><b>Документы проекта договора:</b> найдено {len(contract.document_ids)}, "
         f"включено {len(contract.included_document_ids)}</p>{contract_html}"
         f"<h4>Предупреждения по проекту договора</h4><ul>{contract_warnings}</ul>"
-        f"<h3>Требования</h3><ul>{render_findings(requirements)}</ul>"
+        f"<h3>Требования к заявке</h3><p><b>Статус:</b> {escape(requirement_status)}</p>"
+        f"<p><b>Документы требований:</b> найдено {len(requirements.document_ids)}, "
+        f"включено {len(requirements.included_document_ids)}</p>{requirement_context_note}"
+        f"{requirement_html}<h4>Предупреждения по требованиям к заявке</h4>"
+        f"<ul>{requirement_warnings}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
         f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"
@@ -513,7 +561,7 @@ def _current_citation_targets(analysis: AiDocumentAnalysis | None) -> dict[str, 
         return {}
     requirements = tuple(
         item
-        for name in analysis.requirements.__dataclass_fields__
+        for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS
         for item in getattr(analysis.requirements, name)
     )
     technical = tuple(

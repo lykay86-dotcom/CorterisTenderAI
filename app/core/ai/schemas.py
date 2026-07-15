@@ -12,14 +12,17 @@ import re
 from typing import Any, Mapping, cast
 
 from app.ai.provider import _safe_provider_id, _safe_provider_model
-from app.core.document_classification import DocumentKind
+from app.core.document_classification import (
+    APPLICATION_REQUIREMENTS_SOURCE_KINDS,
+    DocumentKind,
+)
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 5
-_EXPECTED_PROVENANCE_PROMPT_VERSION = "5"
-_EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "3"
-_EXPECTED_PROVENANCE_ANALYZER_VERSION = "6"
-_EXPECTED_PROVENANCE_CONTEXT_VERSION = "4"
+AI_ANALYSIS_SCHEMA_VERSION = 6
+_EXPECTED_PROVENANCE_PROMPT_VERSION = "6"
+_EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "4"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "7"
+_EXPECTED_PROVENANCE_CONTEXT_VERSION = "5"
 _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
 _MAX_DOCUMENT_ID_LENGTH = 500
@@ -77,6 +80,13 @@ class AiTechnicalSpecificationStatus(StrEnum):
 
 
 class AiDraftContractStatus(StrEnum):
+    NOT_FOUND = "not_found"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
+class AiApplicationRequirementsStatus(StrEnum):
     NOT_FOUND = "not_found"
     COMPLETE = "complete"
     PARTIAL = "partial"
@@ -331,6 +341,12 @@ class AiFinding:
 
 @dataclass(frozen=True, slots=True)
 class TenderRequirements:
+    status: AiApplicationRequirementsStatus | str = AiApplicationRequirementsStatus.UNAVAILABLE
+    document_ids: tuple[str, ...] = ()
+    included_document_ids: tuple[str, ...] = ()
+    application_composition: tuple[AiFinding, ...] = ()
+    participant_eligibility: tuple[AiFinding, ...] = ()
+    declarations_and_consents: tuple[AiFinding, ...] = ()
     equipment: tuple[AiFinding, ...] = ()
     certificates: tuple[AiFinding, ...] = ()
     licenses: tuple[AiFinding, ...] = ()
@@ -342,6 +358,60 @@ class TenderRequirements:
     bid_security: tuple[AiFinding, ...] = ()
     contract_security: tuple[AiFinding, ...] = ()
     bank_guarantee: tuple[AiFinding, ...] = ()
+    submission_format_and_signature: tuple[AiFinding, ...] = ()
+    national_regime_and_origin: tuple[AiFinding, ...] = ()
+    price_proposal_and_estimate: tuple[AiFinding, ...] = ()
+    grounds_for_rejection: tuple[AiFinding, ...] = ()
+    ambiguities: tuple[AiFinding, ...] = ()
+    contradictions: tuple[AiFinding, ...] = ()
+    clarification_points: tuple[AiFinding, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            status = AiApplicationRequirementsStatus(self.status)
+        except (TypeError, ValueError):
+            status = AiApplicationRequirementsStatus.UNAVAILABLE
+        object.__setattr__(self, "status", status)
+
+
+_APPLICATION_REQUIREMENTS_FINDING_FIELDS = (
+    "application_composition",
+    "participant_eligibility",
+    "declarations_and_consents",
+    "equipment",
+    "certificates",
+    "licenses",
+    "specialists",
+    "documents",
+    "experience",
+    "deadlines",
+    "warranty",
+    "bid_security",
+    "contract_security",
+    "bank_guarantee",
+    "submission_format_and_signature",
+    "national_regime_and_origin",
+    "price_proposal_and_estimate",
+    "grounds_for_rejection",
+    "ambiguities",
+    "contradictions",
+    "clarification_points",
+)
+
+_LEGACY_REQUIREMENT_FINDING_FIELDS = (
+    "equipment",
+    "certificates",
+    "licenses",
+    "specialists",
+    "documents",
+    "experience",
+    "deadlines",
+    "warranty",
+    "bid_security",
+    "contract_security",
+    "bank_guarantee",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -467,8 +537,14 @@ class AiDocumentAnalysis:
             "registry_key": self.registry_key,
             "summary": self.summary,
             "requirements": {
-                name: [finding(item) for item in getattr(self.requirements, name)]
-                for name in TenderRequirements.__dataclass_fields__
+                "status": AiApplicationRequirementsStatus(self.requirements.status).value,
+                "document_ids": list(self.requirements.document_ids),
+                "included_document_ids": list(self.requirements.included_document_ids),
+                **{
+                    name: [finding(item) for item in getattr(self.requirements, name)]
+                    for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS
+                },
+                "warnings": list(self.requirements.warnings),
             },
             "technical_specification": {
                 "status": AiTechnicalSpecificationStatus(self.technical_specification.status).value,
@@ -592,7 +668,22 @@ class AiDocumentAnalysis:
             return tuple(result)
 
         raw_requirements = payload.get("requirements", {})
-        requirement_map = raw_requirements if isinstance(raw_requirements, Mapping) else {}
+        current_requirements = (
+            raw_requirements
+            if version == AI_ANALYSIS_SCHEMA_VERSION
+            and _valid_scoped_payload(
+                raw_requirements,
+                finding_fields=_APPLICATION_REQUIREMENTS_FINDING_FIELDS,
+                status_type=AiApplicationRequirementsStatus,
+            )
+            else {}
+        )
+        legacy_requirements = (
+            raw_requirements
+            if version < AI_ANALYSIS_SCHEMA_VERSION and isinstance(raw_requirements, Mapping)
+            else {}
+        )
+        requirement_map = current_requirements or legacy_requirements
         raw_status = payload.get("status", AiAnalysisStatus.PARTIAL.value)
         try:
             status = AiAnalysisStatus(raw_status)
@@ -658,14 +749,62 @@ class AiDocumentAnalysis:
         contract_ids = _payload_document_ids(contract.get("document_ids", ()))
         included_contract_ids = _payload_document_ids(contract.get("included_document_ids", ()))
         contract_warnings = _payload_strings(contract.get("warnings", ()), 1_000)
+        requirement_values = {
+            name: (
+                _scoped_payload_findings(
+                    findings(requirement_map.get(name)),
+                    provenance,
+                    APPLICATION_REQUIREMENTS_SOURCE_KINDS,
+                )
+                if current_requirements
+                else findings(requirement_map.get(name))
+                if name in _LEGACY_REQUIREMENT_FINDING_FIELDS
+                else ()
+            )
+            for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS
+        }
+        if current_requirements:
+            requirement_status = AiApplicationRequirementsStatus(
+                cast(str, current_requirements.get("status"))
+            )
+            requirement_ids = _payload_document_ids(current_requirements.get("document_ids", ()))
+            included_requirement_ids = _payload_document_ids(
+                current_requirements.get("included_document_ids", ())
+            )
+            requirement_warnings = _payload_strings(current_requirements.get("warnings", ()), 1_000)
+            if requirement_status is AiApplicationRequirementsStatus.COMPLETE and any(
+                not item.verified for items in requirement_values.values() for item in items
+            ):
+                requirement_status = AiApplicationRequirementsStatus.PARTIAL
+                requirement_warnings = tuple(
+                    dict.fromkeys(
+                        (*requirement_warnings, "Часть сохранённых требований не подтверждена.")
+                    )
+                )
+        elif version < AI_ANALYSIS_SCHEMA_VERSION:
+            requirement_status = AiApplicationRequirementsStatus.UNAVAILABLE
+            requirement_ids = ()
+            included_requirement_ids = ()
+            requirement_warnings = (
+                "Сохранённый legacy-анализ требований не имеет проверяемой области документов.",
+            )
+        else:
+            requirement_status = AiApplicationRequirementsStatus.UNAVAILABLE
+            requirement_ids = ()
+            included_requirement_ids = ()
+            requirement_values = {name: () for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS}
+            requirement_warnings = (
+                "Сохранённый анализ требований к заявке имеет повреждённую форму.",
+            )
         return cls(
             registry_key=registry_key,
             summary=_text(payload.get("summary"), _MAX_TEXT_LENGTH),
             requirements=TenderRequirements(
-                **{
-                    name: findings(requirement_map.get(name, []))
-                    for name in TenderRequirements.__dataclass_fields__
-                }
+                status=requirement_status,
+                document_ids=requirement_ids,
+                included_document_ids=included_requirement_ids,
+                **requirement_values,
+                warnings=requirement_warnings,
             ),
             risks=findings(payload.get("risks")),
             suspicious_conditions=findings(payload.get("suspicious_conditions")),
@@ -732,7 +871,11 @@ def _valid_scoped_payload(
     value: object,
     *,
     finding_fields: tuple[str, ...],
-    status_type: type[AiTechnicalSpecificationStatus] | type[AiDraftContractStatus],
+    status_type: (
+        type[AiApplicationRequirementsStatus]
+        | type[AiTechnicalSpecificationStatus]
+        | type[AiDraftContractStatus]
+    ),
 ) -> bool:
     if not isinstance(value, Mapping):
         return False
@@ -855,12 +998,15 @@ def _technical_payload_findings(
 def _scoped_payload_findings(
     findings: tuple[AiFinding, ...],
     provenance: AiAnalysisProvenance | None,
-    document_kind: DocumentKind,
+    document_kinds: DocumentKind | frozenset[DocumentKind],
 ) -> tuple[AiFinding, ...]:
+    kinds = (
+        frozenset({document_kinds}) if isinstance(document_kinds, DocumentKind) else document_kinds
+    )
     allowed_ids = {
         source.document_id
         for source in (provenance.sources if provenance is not None else ())
-        if source.document_kind == document_kind.value
+        if source.document_kind in {kind.value for kind in kinds}
     }
     return tuple(
         item
@@ -1127,6 +1273,7 @@ def _timezone_aware(value: str) -> str:
 
 __all__ = [
     "AI_ANALYSIS_SCHEMA_VERSION",
+    "AiApplicationRequirementsStatus",
     "AiAnalysisStatus",
     "AiAnalysisProvenance",
     "AiDocument",
@@ -1141,4 +1288,5 @@ __all__ = [
     "AiTechnicalSpecificationStatus",
     "AiSourceSnapshot",
     "TenderRequirements",
+    "_APPLICATION_REQUIREMENTS_FINDING_FIELDS",
 ]

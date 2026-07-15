@@ -5,11 +5,13 @@ from app.core.ai.document_context import AiContextStatistics, AiDocumentContext
 from app.core.ai.repository import AiDocumentAnalysisRepository
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
+    AiApplicationRequirementsStatus,
     AiAnalysisProvenance,
     AiDocument,
     AiDocumentAnalysis,
     AiDraftContractAnalysis,
     AiDraftContractStatus,
+    TenderRequirements,
 )
 
 
@@ -18,11 +20,11 @@ def _provenance(fingerprint: str) -> AiAnalysisProvenance:
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:00:00+00:00",
-        prompt_version="5",
-        output_schema_version="3",
+        prompt_version="6",
+        output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="6",
-        context_version="4",
+        analyzer_version="7",
+        context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -235,6 +237,67 @@ def test_contract_provider_failure_stays_unavailable_with_incomplete_context() -
     assert result.draft_contract.status.value == "unavailable"
     assert result.draft_contract.document_ids == ("contract", "omitted")
     assert result.draft_contract.included_document_ids == ("contract",)
+
+
+def test_application_requirement_completeness_changes_fingerprint_and_status() -> None:
+    class RequirementAnalyzer(Analyzer):
+        def analyze(self, key, documents, *, context_fingerprint):
+            result = super().analyze(key, documents, context_fingerprint=context_fingerprint)
+            return replace(
+                result,
+                requirements=TenderRequirements(
+                    status=AiApplicationRequirementsStatus.COMPLETE,
+                    document_ids=("requirements",),
+                    included_document_ids=("requirements",),
+                ),
+            )
+
+    class ContextBuilder:
+        omitted = 0
+        fingerprint_parameters = {"context_version": "5"}
+
+        def build_context(self, _key):
+            document = AiDocument(
+                "requirements",
+                "Требования к составу заявки.pdf",
+                "local_document_store",
+                "pdf",
+                "2026-07-15T00:00:00+00:00",
+                "verified",
+                "Требования к составу заявки",
+                "c" * 64,
+                document_kind="application_requirements",
+            )
+            return AiDocumentContext(
+                (document,),
+                AiContextStatistics(
+                    source_document_count=1 + self.omitted,
+                    included_document_count=1,
+                    character_count=29,
+                    omitted_document_count=self.omitted,
+                    application_requirements_document_count=1 + self.omitted,
+                    included_application_requirements_document_count=1,
+                    application_requirements_truncated=bool(self.omitted),
+                    application_requirements_document_ids=("requirements", "omitted")[
+                        : 1 + self.omitted
+                    ],
+                    included_application_requirements_document_ids=("requirements",),
+                ),
+            )
+
+    builder = ContextBuilder()
+    analyzer = RequirementAnalyzer()
+    service = TenderDocumentAiAnalysisService(builder, analyzer, WriteFailureRepository())
+
+    complete = service.analyze("procurement:test", force=True)
+    builder.omitted = 1
+    partial = service.analyze("procurement:test", force=True)
+
+    assert analyzer.fingerprints[0] != analyzer.fingerprints[1]
+    assert complete.requirements.status is AiApplicationRequirementsStatus.COMPLETE
+    assert partial.requirements.status is AiApplicationRequirementsStatus.PARTIAL
+    assert partial.requirements.document_ids == ("requirements", "omitted")
+    assert partial.requirements.included_document_ids == ("requirements",)
 
 
 def test_service_force_always_runs_new_analysis(tmp_path) -> None:

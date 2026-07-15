@@ -9,6 +9,7 @@ import pytest
 
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
+    AiApplicationRequirementsStatus,
     AiAnalysisProvenance,
     AiDocument,
     AiDocumentAnalysis,
@@ -19,8 +20,10 @@ from app.core.ai.schemas import (
     AiSourceSnapshot,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
+    TenderRequirements,
 )
 from app.core.ai.citations import resolve_citation
+from app.core.document_classification import DocumentKind
 from app.tenders.full_analysis import (
     FullAnalysisProgress,
     FullAnalysisStage,
@@ -46,6 +49,7 @@ def _current_analysis() -> AiDocumentAnalysis:
         "exact quote",
         checksum,
         original_character_count=11,
+        document_kind=DocumentKind.APPLICATION_REQUIREMENTS.value,
     )
     evidence = resolve_citation(
         document_id="doc",
@@ -68,16 +72,17 @@ def _current_analysis() -> AiDocumentAnalysis:
         truncated=True,
         included_character_count=11,
         original_character_count=20,
+        document_kind=DocumentKind.APPLICATION_REQUIREMENTS.value,
     )
     provenance = AiAnalysisProvenance(
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:01:00+00:00",
-        prompt_version="5",
-        output_schema_version="3",
+        prompt_version="6",
+        output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="6",
-        context_version="4",
+        analyzer_version="7",
+        context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -223,6 +228,73 @@ def test_dialog_renders_all_draft_contract_statuses(
     html = _render_ai_document_analysis(_result(analysis))
 
     assert expected in html
+
+
+def test_dialog_renders_scoped_application_requirements_groups_and_evidence() -> None:
+    analysis = _current_analysis()
+    requirements = TenderRequirements(
+        status=AiApplicationRequirementsStatus.PARTIAL,
+        document_ids=("doc", "missing"),
+        included_document_ids=("doc",),
+        documents=(analysis.risks[0],),
+        ambiguities=(analysis.risks[1],),
+        warnings=("Контекст требований к заявке неполон.",),
+    )
+
+    html = _render_ai_document_analysis(_result(replace(analysis, requirements=requirements)))
+
+    assert "Требования к заявке" in html
+    assert "Частичный результат" in html
+    assert "найдено 2" in html
+    assert "включено 1" in html
+    for label in (
+        "Состав заявки",
+        "Требования к участнику",
+        "Декларации и согласия",
+        "Оборудование и ресурсы",
+        "Сертификаты и качество",
+        "Лицензии, допуски и СРО",
+        "Специалисты и квалификация",
+        "Подтверждающие документы",
+        "Опыт исполнения",
+        "Сроки подачи и действия заявки",
+        "Гарантийные обязательства",
+        "Обеспечение заявки",
+        "Обеспечение исполнения контракта",
+        "Банковская или независимая гарантия",
+        "Формат и подписание",
+        "Национальный режим и происхождение",
+        "Ценовое предложение и смета",
+        "Основания отклонения",
+        "Неоднозначности",
+        "Противоречия",
+        "Вопросы для уточнения",
+    ):
+        assert label in html
+    assert "Контекст требований к заявке неполон." in html
+    assert "Неподтверждённый вывод — не влияет на рекомендацию." in html
+    assert "corteris-citation://open/" in html
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    (
+        (AiApplicationRequirementsStatus.COMPLETE, "Полный результат"),
+        (AiApplicationRequirementsStatus.PARTIAL, "Частичный результат"),
+        (AiApplicationRequirementsStatus.NOT_FOUND, "Требования к заявке не найдены"),
+        (AiApplicationRequirementsStatus.UNAVAILABLE, "Анализ требований к заявке недоступен"),
+    ),
+)
+def test_dialog_renders_all_application_requirement_statuses(
+    status: AiApplicationRequirementsStatus,
+    expected: str,
+) -> None:
+    analysis = replace(
+        _current_analysis(),
+        requirements=TenderRequirements(status=status),
+    )
+
+    assert expected in _render_ai_document_analysis(_result(analysis))
 
 
 def _result(analysis: AiDocumentAnalysis) -> TenderFullAnalysisResult:

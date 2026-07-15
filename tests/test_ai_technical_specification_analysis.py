@@ -12,7 +12,7 @@ from app.core.ai.schemas import (
     AiFindingStatus,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
-    TenderRequirements,
+    _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
 from app.core.document_classification import DocumentKind, classify_document_kind
 
@@ -58,7 +58,7 @@ def _payload(**technical: object) -> dict[str, object]:
     section.update(technical)
     return {
         "summary": "Summary",
-        "requirements": {name: [] for name in TenderRequirements.__dataclass_fields__},
+        "requirements": {name: [] for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS},
         "technical_specification": section,
         "draft_contract": {name: [] for name in DRAFT_FIELDS},
         "risks": [],

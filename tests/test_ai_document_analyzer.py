@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime
 import hashlib
 import json
@@ -22,7 +23,7 @@ from app.core.ai.schemas import (
     AiDraftContractAnalysis,
     AiFindingStatus,
     AiTechnicalSpecificationAnalysis,
-    TenderRequirements,
+    _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
 
 
@@ -88,7 +89,7 @@ def _finding(**overrides: object) -> dict[str, object]:
 def _valid_payload(**overrides: object) -> dict[str, object]:
     return {
         "summary": "Summary",
-        "requirements": {name: [] for name in TenderRequirements.__dataclass_fields__},
+        "requirements": {name: [] for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS},
         "technical_specification": {
             name: []
             for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
@@ -114,7 +115,7 @@ def _assert_no_findings(result) -> None:
     assert not result.contradictions
     assert not result.missing_documents
     assert all(
-        not getattr(result.requirements, name) for name in TenderRequirements.__dataclass_fields__
+        not getattr(result.requirements, name) for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS
     )
 
 
@@ -123,8 +124,13 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
     payload["requirements"]["deadlines"] = [_finding()]
     provider = Provider(payload)
 
+    document = replace(
+        _document(),
+        name="Requirements.pdf",
+        document_kind="application_requirements",
+    )
     result = TenderDocumentAiAnalyzer(provider).analyze(
-        "procurement:test", (_document(),), context_fingerprint=CONTEXT_FINGERPRINT
+        "procurement:test", (document,), context_fingerprint=CONTEXT_FINGERPRINT
     )
 
     assert result.status == "complete"
@@ -133,11 +139,14 @@ def test_valid_structure_and_exact_quote_becomes_verified() -> None:
     assert finding.evidence is not None
     assert finding.evidence.context_fingerprint == CONTEXT_FINGERPRINT
     assert finding.evidence.checksum_sha256 == "a" * 64
-    assert finding.evidence.character_start == _document().text.index(finding.evidence.quote)
+    assert finding.evidence.character_start == document.text.index(finding.evidence.quote)
     assert provider.calls == [
         (
             SYSTEM_PROMPT,
-            ["DOCUMENT doc-1 | TZ.pdf | KIND other\nThe delivery period is 10 days."],
+            [
+                "DOCUMENT doc-1 | Requirements.pdf | KIND application_requirements\n"
+                "The delivery period is 10 days."
+            ],
             build_responses_text_format(),
         )
     ]
@@ -155,11 +164,11 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
     assert provenance is not None
     assert provenance.context_fingerprint == CONTEXT_FINGERPRINT
     assert datetime.fromisoformat(provenance.created_at).utcoffset() is not None
-    assert provenance.prompt_version == AI_PROMPT_VERSION == "5"
-    assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "3"
-    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 5
-    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "6"
-    assert provenance.context_version == AI_CONTEXT_VERSION == "4"
+    assert provenance.prompt_version == AI_PROMPT_VERSION == "6"
+    assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
+    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 6
+    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "7"
+    assert provenance.context_version == AI_CONTEXT_VERSION == "5"
     assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
     assert provenance.provider_id == "test-provider"
     assert provenance.provider_model == "test-model"
