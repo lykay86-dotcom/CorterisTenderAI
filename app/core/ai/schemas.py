@@ -18,10 +18,10 @@ from app.core.document_classification import (
 )
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 8
+AI_ANALYSIS_SCHEMA_VERSION = 9
 _EXPECTED_PROVENANCE_PROMPT_VERSION = "6"
 _EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "4"
-_EXPECTED_PROVENANCE_ANALYZER_VERSION = "9"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "10"
 _EXPECTED_PROVENANCE_CONTEXT_VERSION = "5"
 _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
@@ -38,6 +38,7 @@ _MAX_SOURCES = 1_000
 _CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
 _LEGAL_RISK_ID_PATTERN = re.compile(r"legal_[0-9a-f]{32}")
 _FINANCIAL_RISK_ID_PATTERN = re.compile(r"financial_[0-9a-f]{32}")
+_COMPETITION_ID_PATTERN = re.compile(r"competition_[0-9a-f]{32}")
 _LEGAL_FIELD_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,79}")
 _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
@@ -157,6 +158,36 @@ class AiFinancialRiskCategory(StrEnum):
     SUBCONTRACTING_AND_THIRD_PARTY_COSTS = "subcontracting_and_third_party_costs"
     LIABILITY_PENALTIES_AND_DAMAGES = "liability_penalties_and_damages"
     CHANGE_SUSPENSION_AND_TERMINATION = "change_suspension_and_termination"
+    AMBIGUITIES_AND_CLARIFICATIONS = "ambiguities_and_clarifications"
+    CONTRADICTIONS = "contradictions"
+
+
+class AiCompetitionStatus(StrEnum):
+    NO_VERIFIED_CONDITIONS = "no_verified_conditions"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
+class AiCompetitionReviewPriority(StrEnum):
+    ROUTINE = "routine"
+    ELEVATED = "elevated"
+    URGENT = "urgent"
+
+
+class AiCompetitionCategory(StrEnum):
+    APPLICATION_AND_SUBMISSION_CONDITIONS = "application_and_submission_conditions"
+    PARTICIPANT_ELIGIBILITY = "participant_eligibility"
+    EXPERIENCE_AND_TRACK_RECORD = "experience_and_track_record"
+    LICENSES_CERTIFICATES_AND_AUTHORIZATIONS = "licenses_certificates_and_authorizations"
+    PERSONNEL_AND_EQUIPMENT = "personnel_and_equipment"
+    TECHNICAL_SPECIFICITY_AND_EQUIVALENCE = "technical_specificity_and_equivalence"
+    STANDARDS_AND_COMPATIBILITY = "standards_and_compatibility"
+    NATIONAL_REGIME_AND_ORIGIN = "national_regime_and_origin"
+    SECURITY_AND_FINANCIAL_ACCESS = "security_and_financial_access"
+    GEOGRAPHY_SITE_AND_EXECUTION_CONSTRAINTS = "geography_site_and_execution_constraints"
+    SUBCONTRACTING_AND_THIRD_PARTIES = "subcontracting_and_third_parties"
+    GROUNDS_FOR_REJECTION = "grounds_for_rejection"
     AMBIGUITIES_AND_CLARIFICATIONS = "ambiguities_and_clarifications"
     CONTRADICTIONS = "contradictions"
 
@@ -447,6 +478,46 @@ _FINANCIAL_RISK_SOURCE_FIELDS = frozenset(
     }
 )
 
+_COMPETITION_SOURCE_FIELDS = frozenset(
+    {
+        ("requirements", "application_composition"),
+        ("requirements", "declarations_and_consents"),
+        ("requirements", "documents"),
+        ("requirements", "submission_format_and_signature"),
+        ("requirements", "deadlines"),
+        ("requirements", "participant_eligibility"),
+        ("requirements", "experience"),
+        ("requirements", "licenses"),
+        ("requirements", "certificates"),
+        ("requirements", "specialists"),
+        ("requirements", "equipment"),
+        ("requirements", "bid_security"),
+        ("requirements", "contract_security"),
+        ("requirements", "bank_guarantee"),
+        ("requirements", "national_regime_and_origin"),
+        ("requirements", "grounds_for_rejection"),
+        ("requirements", "ambiguities"),
+        ("requirements", "clarification_points"),
+        ("requirements", "contradictions"),
+        ("technical_specification", "technical_characteristics"),
+        ("technical_specification", "materials_and_equipment"),
+        ("technical_specification", "standards_and_regulations"),
+        ("technical_specification", "acceptance_and_quality"),
+        ("technical_specification", "execution_conditions"),
+        ("technical_specification", "stages_and_deadlines"),
+        ("technical_specification", "customer_inputs_and_dependencies"),
+        ("technical_specification", "ambiguities"),
+        ("technical_specification", "clarification_points"),
+        ("technical_specification", "contradictions"),
+        ("draft_contract", "term_schedule_and_location"),
+        ("draft_contract", "performance_security"),
+        ("draft_contract", "contractor_obligations_and_subcontracting"),
+        ("draft_contract", "ambiguities"),
+        ("draft_contract", "clarification_points"),
+        ("draft_contract", "contradictions"),
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class AiLegalRiskSourceRef:
@@ -661,6 +732,111 @@ class AiFinancialRiskAssessment:
 
 
 @dataclass(frozen=True, slots=True)
+class AiCompetitionSourceRef:
+    section: str
+    field: str
+    citation_id: str
+
+    def __post_init__(self) -> None:
+        if (self.section, self.field) not in _COMPETITION_SOURCE_FIELDS:
+            raise ValueError("unsupported competition source")
+        if (
+            not isinstance(self.citation_id, str)
+            or _CITATION_ID_PATTERN.fullmatch(self.citation_id) is None
+        ):
+            raise ValueError("competition source must use a canonical citation ID")
+
+    def to_payload(self) -> dict[str, str]:
+        return {
+            "section": self.section,
+            "field": self.field,
+            "citation_id": self.citation_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiCompetitionItem:
+    condition_id: str
+    category: AiCompetitionCategory | str
+    review_priority: AiCompetitionReviewPriority | str
+    title: str
+    source_refs: tuple[AiCompetitionSourceRef, ...]
+    recommended_action: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.condition_id, str)
+            or _COMPETITION_ID_PATTERN.fullmatch(self.condition_id) is None
+        ):
+            raise ValueError("condition_id must be a canonical competition ID")
+        try:
+            category = AiCompetitionCategory(self.category)
+            priority = AiCompetitionReviewPriority(self.review_priority)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("unsupported competition category or priority") from exc
+        if (
+            not isinstance(self.source_refs, tuple)
+            or not self.source_refs
+            or not all(isinstance(item, AiCompetitionSourceRef) for item in self.source_refs)
+            or len(set(self.source_refs)) != len(self.source_refs)
+        ):
+            raise ValueError("source_refs must be a non-empty unique tuple")
+        title = _bounded_text(self.title, 500)
+        action = _bounded_text(self.recommended_action, 1_000)
+        if not title or not action:
+            raise ValueError("competition title and action must be non-empty")
+        object.__setattr__(self, "category", category)
+        object.__setattr__(self, "review_priority", priority)
+        object.__setattr__(self, "title", title)
+        object.__setattr__(self, "recommended_action", action)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "condition_id": self.condition_id,
+            "category": AiCompetitionCategory(self.category).value,
+            "review_priority": AiCompetitionReviewPriority(self.review_priority).value,
+            "title": self.title,
+            "source_refs": [item.to_payload() for item in self.source_refs],
+            "recommended_action": self.recommended_action,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiCompetitionAssessment:
+    status: AiCompetitionStatus | str = AiCompetitionStatus.UNAVAILABLE
+    policy_version: str = "1"
+    items: tuple[AiCompetitionItem, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            status = AiCompetitionStatus(self.status)
+        except (TypeError, ValueError):
+            status = AiCompetitionStatus.UNAVAILABLE
+        version = _bounded_text(self.policy_version, _MAX_VERSION_LENGTH)
+        if not version:
+            raise ValueError("policy_version must be non-empty")
+        if not isinstance(self.items, tuple) or not all(
+            isinstance(item, AiCompetitionItem) for item in self.items
+        ):
+            raise ValueError("items must contain competition items")
+        warnings = tuple(
+            dict.fromkeys(text for item in self.warnings if (text := _text(item, 1_000)))
+        )
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "policy_version", version)
+        object.__setattr__(self, "warnings", warnings)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "status": AiCompetitionStatus(self.status).value,
+            "policy_version": self.policy_version,
+            "items": [item.to_payload() for item in self.items],
+            "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class TenderRequirements:
     status: AiApplicationRequirementsStatus | str = AiApplicationRequirementsStatus.UNAVAILABLE
     document_ids: tuple[str, ...] = ()
@@ -822,6 +998,7 @@ class AiDocumentAnalysis:
     financial_risk_assessment: AiFinancialRiskAssessment = field(
         default_factory=AiFinancialRiskAssessment
     )
+    competition_assessment: AiCompetitionAssessment = field(default_factory=AiCompetitionAssessment)
 
     def __post_init__(self) -> None:
         try:
@@ -893,6 +1070,7 @@ class AiDocumentAnalysis:
             },
             "legal_risk_assessment": self.legal_risk_assessment.to_payload(),
             "financial_risk_assessment": self.financial_risk_assessment.to_payload(),
+            "competition_assessment": self.competition_assessment.to_payload(),
             "risks": [finding(item) for item in self.risks],
             "suspicious_conditions": [finding(item) for item in self.suspicious_conditions],
             "contradictions": [finding(item) for item in self.contradictions],
@@ -1176,6 +1354,7 @@ class AiDocumentAnalysis:
 
         from app.core.ai.financial_risk import assess_financial_risks
         from app.core.ai.legal_risk import assess_legal_risks
+        from app.core.ai.competition_review import assess_competition_conditions
 
         computed_legal = assess_legal_risks(analysis)
         if payload.get("legal_risk_assessment") == computed_legal.to_payload():
@@ -1207,7 +1386,23 @@ class AiDocumentAnalysis:
                 ),
                 warnings=tuple(dict.fromkeys((*computed_financial.warnings, warning))),
             )
-        return replace(analysis, financial_risk_assessment=financial)
+        analysis = replace(analysis, financial_risk_assessment=financial)
+
+        computed_competition = assess_competition_conditions(analysis)
+        if payload.get("competition_assessment") == computed_competition.to_payload():
+            competition = computed_competition
+        else:
+            warning = "Сохранённая оценка условий конкуренции повреждена и пересчитана локально."
+            competition = replace(
+                computed_competition,
+                status=(
+                    AiCompetitionStatus.UNAVAILABLE
+                    if computed_competition.status is AiCompetitionStatus.UNAVAILABLE
+                    else AiCompetitionStatus.PARTIAL
+                ),
+                warnings=tuple(dict.fromkeys((*computed_competition.warnings, warning))),
+            )
+        return replace(analysis, competition_assessment=competition)
 
 
 _TECHNICAL_SPECIFICATION_FINDING_FIELDS = tuple(
@@ -1637,6 +1832,12 @@ def _timezone_aware(value: str) -> str:
 
 __all__ = [
     "AI_ANALYSIS_SCHEMA_VERSION",
+    "AiCompetitionAssessment",
+    "AiCompetitionCategory",
+    "AiCompetitionItem",
+    "AiCompetitionReviewPriority",
+    "AiCompetitionSourceRef",
+    "AiCompetitionStatus",
     "AiApplicationRequirementsStatus",
     "AiAnalysisStatus",
     "AiAnalysisProvenance",

@@ -35,6 +35,8 @@ from app.core.ai.schemas import (
     AiApplicationRequirementsStatus,
     AiDocumentAnalysis,
     AiDraftContractStatus,
+    AiCompetitionReviewPriority,
+    AiCompetitionStatus,
     AiFinancialReviewPriority,
     AiFinancialRiskStatus,
     AiLegalReviewPriority,
@@ -42,6 +44,7 @@ from app.core.ai.schemas import (
     AiTechnicalSpecificationStatus,
     _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
+from app.core.ai.competition_review import competition_source_findings
 from app.core.ai.financial_risk import financial_risk_source_findings
 from app.core.ai.legal_risk import legal_risk_source_findings
 from app.ui.theme.colors import ThemeName, get_palette
@@ -522,6 +525,41 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
     financial_warnings = (
         "".join(f"<li>{escape(item)}</li>" for item in financial.warnings) or "<li>Нет.</li>"
     )
+    competition = analysis.competition_assessment
+    competition_counts = {
+        priority: sum(item.review_priority is priority for item in competition.items)
+        for priority in AiCompetitionReviewPriority
+    }
+    competition_status = {
+        AiCompetitionStatus.COMPLETE: "Полный реестр подтверждённых условий",
+        AiCompetitionStatus.PARTIAL: "Частичный реестр; требуется проверка полноты",
+        AiCompetitionStatus.NO_VERIFIED_CONDITIONS: (
+            "Документально подтверждённые условия, включённые в текущую политику "
+            "конкурентной проверки, не выявлены."
+        ),
+        AiCompetitionStatus.UNAVAILABLE: "Оценка условий конкуренции недоступна",
+    }.get(competition.status, "Оценка условий конкуренции недоступна")
+    competition_priority_labels = {
+        AiCompetitionReviewPriority.URGENT: "Срочно",
+        AiCompetitionReviewPriority.ELEVATED: "Повышенный",
+        AiCompetitionReviewPriority.ROUTINE: "Плановый",
+    }
+    competition_items = (
+        "".join(
+            "<li>"
+            f"<b>{escape(item.title)}</b><br>"
+            f"Категория: {escape(item.category.value)} · "
+            f"приоритет: {escape(competition_priority_labels[item.review_priority])}<br>"
+            f"Действие: {escape(item.recommended_action)}"
+            f"<ul>{render_findings(competition_source_findings(analysis, item))}</ul>"
+            "</li>"
+            for item in competition.items
+        )
+        or "<li>Нет подтверждённых элементов.</li>"
+    )
+    competition_warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in competition.warnings) or "<li>Нет.</li>"
+    )
 
     technical = analysis.technical_specification
     technical_status = {
@@ -642,6 +680,17 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"{financial_counts[AiFinancialReviewPriority.ROUTINE]}</p>"
         f"<ul>{financial_items}</ul>"
         f"<h4>Предупреждения финансовой оценки</h4><ul>{financial_warnings}</ul>"
+        f"<h3>Анализ конкуренции</h3>"
+        f"<p><b>Информационная оценка документально подтверждённых условий участия. "
+        f"Не является оценкой числа конкурентов, вероятности победы, законности условий "
+        f"закупки или рекомендацией об участии.</b></p>"
+        f"<p><b>Статус:</b> {escape(competition_status)} · policy version: "
+        f"{escape(competition.policy_version)} · срочно: "
+        f"{competition_counts[AiCompetitionReviewPriority.URGENT]} · повышенный: "
+        f"{competition_counts[AiCompetitionReviewPriority.ELEVATED]} · плановый: "
+        f"{competition_counts[AiCompetitionReviewPriority.ROUTINE]}</p>"
+        f"<ul>{competition_items}</ul>"
+        f"<h4>Предупреждения конкурентной оценки</h4><ul>{competition_warnings}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
         f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"

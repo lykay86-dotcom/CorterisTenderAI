@@ -392,6 +392,24 @@ def test_repository_skips_non_mapping_or_malformed_json_and_reuses_previous_v3(
     _assert_previous_is_reused_without_secret_leak(repository, fingerprint)
 
 
+def test_repository_rejects_duplicate_competition_json_key_and_reuses_previous(tmp_path) -> None:
+    repository = AiDocumentAnalysisRepository(tmp_path / "registry.sqlite3")
+    fingerprint = "a" * 64
+    repository.save(_current_analysis(fingerprint, summary="Previous"), fingerprint)
+    payload = json.dumps(
+        _current_analysis(fingerprint, summary="SECRET newest payload").to_payload()
+    )
+    duplicate_key_payload = payload[:-1] + ', "competition_assessment": {}}'
+    _insert_newest_raw_row(
+        repository,
+        fingerprint,
+        payload_json=duplicate_key_payload,
+        stored_version=AI_ANALYSIS_SCHEMA_VERSION,
+    )
+
+    _assert_previous_is_reused_without_secret_leak(repository, fingerprint)
+
+
 def test_repository_skips_column_payload_version_mismatch_and_reuses_previous_v3(
     tmp_path,
 ) -> None:
