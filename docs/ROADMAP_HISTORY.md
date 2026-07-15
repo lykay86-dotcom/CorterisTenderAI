@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-119 завершён
+
+- PR #41 (`feat(rm-119): add explainable application requirements analysis`) слит в `main`
+  коммитом `dedc361` (`dedc361c1ed88b16e0aa00e7e9f07f9ac131422a`).
+- Post-merge Quality Gate run `29406013475` завершился статусом `SUCCESS`: Python 3.12 —
+  `1114 passed in 88.59s`, Python 3.13 — `1114 passed in 77.06s`.
+- На обеих версиях прошли Ruff check/format (`511 files`), mypy (16 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Один public pure classifier и каноническая область источников выделяют application
+  requirements/form/instructions/procurement notice, сохраняя приоритет ТЗ и проекта договора;
+  AI context переиспользует их и включает application completeness metadata в fingerprint.
+- Строгая provider-output schema v4 содержит обязательный раздел из 21 группы, но не отдаёт
+  provider контроль над status/category/verified/legal-risk/financial-risk/score/recommendation.
+- Persisted payload v6 безопасно читает legacy v1–v5 как unverified/unavailable, отклоняет
+  future/corrupt cache и проверяет current provenance без изменения SQLite schema.
+- Application evidence проходит единый RM-116 citation resolver только для current locally
+  classified application documents; damaged, altered или non-application evidence остаётся
+  unverified.
+- Existing UI и JSON/HTML export показывают status, completeness, 21 группу,
+  citations/provenance и предупреждения без бизнес-логики или private paths.
+- RM-107 score/recommendation/action plan и абсолютный приоритет critical stop-factor не изменены;
+  application findings не входят в decision evidence.
+- Переиспользованы существующие provider/analyzer/service/Orchestrator/repository/context
+  builder/exporter; второй AI workflow, provider call, application repository/table и миграция БД
+  не добавлены.
+- Локальная приёмка: target `311 passed in 12.91s`, full `1114 passed in 55.17s`, Ruff
+  (`511 files`), mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
+- RM-119 переведён в `DONE`; RM-120 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации.
+
 ## 2026-07-15 — RM-118 завершён
 
 - PR #39 (`feat(rm-118): add explainable draft contract analysis`) слит в `main` коммитом
