@@ -4,9 +4,14 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 import pytest
 
+from app.core.ai.recheck import (
+    AI_RECHECK_DISCLAIMER,
+    TenderAiRecheckResult,
+    compare_ai_analyses,
+)
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
@@ -663,3 +668,73 @@ def test_dialog_can_render_successful_retry_after_error() -> None:
 
     assert "Recovered" in dialog.ai_analysis.toPlainText()
     assert dialog.export_ai_button.isEnabled()
+
+
+def test_ai_recheck_button_requires_valid_current_provenance_and_emits_after_confirmation(
+    monkeypatch,
+) -> None:
+    dialog = TenderFullAnalysisDialog("procurement:test")
+    requested: list[str] = []
+    dialog.ai_recheck_requested.connect(requested.append)
+
+    assert dialog.ai_recheck_button.text() == "Повторно проверить AI"
+    assert dialog.ai_recheck_button.isEnabled() is False
+
+    dialog.set_result(_result(_current_analysis()))
+    assert dialog.ai_recheck_button.isEnabled() is True
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *_args, **_kwargs: QMessageBox.StandardButton.Yes,
+    )
+
+    dialog.ai_recheck_button.click()
+
+    assert requested == ["procurement:test"]
+    assert dialog.tabs.count() == 4
+
+
+def test_ai_recheck_running_state_blocks_double_click_and_renders_result() -> None:
+    dialog = TenderFullAnalysisDialog("procurement:test")
+    baseline = _current_analysis()
+    current = replace(
+        baseline,
+        summary="Changed safely <script>SECRET</script>",
+        provenance=replace(
+            baseline.provenance,
+            analysis_id="analysis_current",
+            created_at="2026-07-15T11:00:00+00:00",
+            provider_response_id="resp_" + "f" * 64,
+        ),
+    )
+    dialog.set_result(_result(baseline))
+
+    dialog.begin_ai_recheck()
+
+    assert dialog.ai_recheck_button.isEnabled() is False
+    assert dialog.message_label.text() == "Повторная проверка AI…"
+
+    result = TenderAiRecheckResult(
+        registry_key="procurement:test",
+        current_analysis=current,
+        assessment=compare_ai_analyses(baseline, current),
+        started_at="2026-07-15T11:00:00+00:00",
+        completed_at="2026-07-15T11:00:01+00:00",
+        warnings=(),
+    )
+    dialog.set_ai_recheck_result(result)
+    html = dialog.ai_analysis.toHtml()
+
+    assert dialog.ai_recheck_button.isEnabled() is True
+    assert "Повторная проверка AI" in dialog.ai_analysis.toPlainText()
+    assert AI_RECHECK_DISCLAIMER in dialog.ai_analysis.toPlainText()
+    assert "Изменён" in dialog.ai_analysis.toPlainText()
+    assert "<script>" not in html
+
+
+@pytest.mark.parametrize("status", ["provider_error", "no_documents", "invalid_response"])
+def test_ai_recheck_button_stays_disabled_for_non_comparable_current_status(status: str) -> None:
+    dialog = TenderFullAnalysisDialog("procurement:test")
+    dialog.set_result(_result(replace(_current_analysis(), status=status)))
+
+    assert dialog.ai_recheck_button.isEnabled() is False

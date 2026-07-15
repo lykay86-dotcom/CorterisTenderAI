@@ -5,6 +5,7 @@ import pytest
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
 from app.core.ai.document_context import AiContextStatistics, AiDocumentContext
 from app.core.ai.repository import AiDocumentAnalysisRepository
+from app.core.ai.recheck import AiRecheckStatus
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiApplicationRequirementsStatus,
@@ -318,6 +319,107 @@ def test_service_force_always_runs_new_analysis(tmp_path) -> None:
     service.analyze("procurement:test", force=True)
 
     assert analyzer.calls == 2
+
+
+def test_service_recheck_captures_baseline_then_calls_analyzer_once_and_appends_current() -> None:
+    events: list[str] = []
+
+    class CountingBuilder(Builder):
+        calls = 0
+
+        def build(self, key):
+            self.calls += 1
+            return super().build(key)
+
+    class RecheckAnalyzer(Analyzer):
+        def analyze(self, key, documents, *, context_fingerprint):
+            events.append("analyze")
+            result = super().analyze(key, documents, context_fingerprint=context_fingerprint)
+            return replace(
+                result,
+                summary="Current summary",
+                provenance=_provenance(context_fingerprint),
+            )
+
+    class RecordingRepository:
+        last_warning = ""
+
+        def reusable(self, key, fingerprint):
+            events.append("baseline")
+            return AiDocumentAnalysis(
+                key,
+                "Baseline summary",
+                status="complete",
+                provenance=_provenance(fingerprint),
+            )
+
+        def save(self, analysis, fingerprint):
+            assert analysis.provenance.context_fingerprint == fingerprint
+            events.append("save")
+
+    builder = CountingBuilder()
+    analyzer = RecheckAnalyzer()
+    service = TenderDocumentAiAnalysisService(builder, analyzer, RecordingRepository())
+
+    result = service.recheck("procurement:test")
+
+    assert events == ["baseline", "analyze", "save"]
+    assert builder.calls == 1
+    assert analyzer.calls == 1
+    assert result.assessment.status is AiRecheckStatus.CHANGED
+    assert result.current_analysis.summary == "Current summary"
+
+
+def test_service_recheck_repository_read_failure_still_calls_provider_once() -> None:
+    class ReadFailureRepository:
+        last_warning = ""
+
+        def reusable(self, _key, _fingerprint):
+            raise OSError("database path contains SECRET")
+
+        def save(self, _analysis, _fingerprint):
+            return None
+
+    analyzer = Analyzer()
+    result = TenderDocumentAiAnalysisService(Builder(), analyzer, ReadFailureRepository()).recheck(
+        "procurement:test"
+    )
+
+    assert analyzer.calls == 1
+    assert result.assessment.status is AiRecheckStatus.BASELINE_MISSING
+    rendered = " ".join((*result.warnings, *result.assessment.warnings))
+    assert "SECRET" not in rendered
+    assert "repository" not in rendered.casefold()
+
+
+def test_service_recheck_current_provider_failure_is_not_saved_or_replaced_by_baseline() -> None:
+    class Repository:
+        last_warning = ""
+        saves = 0
+
+        def reusable(self, key, fingerprint):
+            return AiDocumentAnalysis(
+                key,
+                "Stale baseline",
+                status="complete",
+                provenance=_provenance(fingerprint),
+            )
+
+        def save(self, _analysis, _fingerprint):
+            self.saves += 1
+
+    repository = Repository()
+    analyzer = ProviderFailureAnalyzer()
+
+    result = TenderDocumentAiAnalysisService(Builder(), analyzer, repository).recheck(
+        "procurement:test"
+    )
+
+    assert analyzer.calls == 1
+    assert repository.saves == 0
+    assert result.current_analysis.status == "provider_error"
+    assert result.current_analysis.summary != "Stale baseline"
+    assert result.assessment.status is AiRecheckStatus.CURRENT_UNAVAILABLE
 
 
 class WriteFailureRepository:
