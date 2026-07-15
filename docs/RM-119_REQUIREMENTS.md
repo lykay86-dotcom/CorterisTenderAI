@@ -178,3 +178,44 @@ git diff --check
 
 The feature branch does not mark RM-119 `DONE`; feature merge, post-merge Windows Quality Gate and
 a separate docs-only closeout remain mandatory.
+
+## Local implementation acceptance
+
+Implementation checkpoint: `98277a948d8a6851239bac9e68d4d117599d1f24`
+Baseline: `995d76c6eb1cc28661fec6e0a2f909447cd2abc2`
+Python: `3.12.7`
+
+- Exact RM-119 target contour: `311 passed in 12.91s`.
+- Full suite: `1114 passed in 55.17s`.
+- `python -m ruff check .`: passed.
+- `python -m ruff format . --check`: passed (`511 files already formatted`).
+- `python -m mypy`: passed (`16 source files`).
+- `python scripts/check_repository_secrets.py`: passed.
+- `python -m pip_audit --skip-editable`: no known vulnerabilities; the editable project was
+  skipped as expected. The sandbox-blocked first network attempt was repeated with explicitly
+  allowed network access and a worktree-local cache.
+- `git diff --check`: passed.
+
+The adversarial review found exactly one production `provider.analyze(...)`, one public
+`classify_document_kind()`, one provider/analyzer/analysis-service/Orchestrator/repository graph,
+one root `requirements` object and one `RUNNING_AI` stage. The canonical
+`APPLICATION_REQUIREMENTS_SOURCE_KINDS` is defined once and imported by context, analyzer and
+payload/provenance validation. No `ApplicationRequirementsAnalysisService`, parallel root object,
+second prompt/citation/UI/export path, database object or migration was added.
+
+Provider output contains only the 21 required candidate arrays and cannot set local status,
+document scope, verification, provenance, score or decision fields. Scoped completeness enters
+the existing fingerprint; foreign-kind, unknown, altered, locator-conflicting and damaged
+provenance evidence fails closed. Legacy v1-v5 requirements remain unscoped/unavailable and
+unverified, future/corrupt cache is incompatible, and current provider failure is not replaced by
+stale success. Existing TS and draft-contract target regressions pass.
+
+The existing AI tab, citation navigator and JSON/HTML exporter show the four local statuses,
+found/included counts, all 21 groups, warnings and safe citations without raw response, prompt,
+full documents, credentials, tracebacks or private paths. RM-120/RM-121 conclusions were not
+implemented. Production RM-107 files are unchanged; requirements findings do not enter decision
+evidence/actions, generic verified risks retain their review behavior, and the deterministic
+critical stop factor remains absolute at score 100.
+
+This is feature-branch acceptance only. RM-119 remains `IN PROGRESS` until feature merge,
+post-merge Windows Quality Gate on Python 3.12 and 3.13, and a separate docs-only closeout PR.
