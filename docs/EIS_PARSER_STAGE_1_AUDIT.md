@@ -1,8 +1,8 @@
 # RM-126.1 — аудит парсера ЕИС, этап 1
 
-Дата: 16 июля 2026 года.  
-Baseline: `45d63ff4eba95d8443baed37275e619280634e12`.  
-Ветка: `feat/rm-126-eis-parser-hardening-stage-1`.  
+Дата: 16 июля 2026 года.
+Baseline: `45d63ff4eba95d8443baed37275e619280634e12`.
+Ветка: `feat/rm-126-eis-parser-hardening-stage-1`.
 Среда: Windows, Python 3.12.7, Europe/Moscow (UTC+03:00).
 
 ## Вывод
@@ -144,4 +144,3 @@ Collector, verification, scoring и full analysis уже связаны корр
 Playwright, обход CAPTCHA/403/rate limits, загрузка содержимого документов, второй
 collector/client/model/database/workflow, новый UI, изменения scoring/AI и live network в
 обычных тестах.
-

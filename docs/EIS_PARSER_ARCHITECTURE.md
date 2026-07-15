@@ -132,4 +132,3 @@ Fixtures полностью offline. Live canary — отдельный явны
 
 Проверка идёт слоями: unit fixtures → router/detail/get_tender integration → EIS/Collector
 target → workflow smokes → full pytest → Ruff/format/mypy/secret scan/pip-audit/diff check.
-

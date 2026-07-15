@@ -6,7 +6,7 @@ not require credentials and does not emulate authenticated user actions.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -43,6 +43,18 @@ from app.tenders.provider_base import (
     TenderSearchQuery,
     TenderSearchResult,
 )
+from app.tenders.providers.eis_parser.errors import (
+    EisParserStructureChangedError,
+    EisParserValidationError,
+    EisUnsafeUrlError,
+)
+from app.tenders.providers.eis_parser.documents_parser import DOCUMENTS_PARSER_VERSION
+from app.tenders.providers.eis_parser.models import EisParseDiagnostics
+from app.tenders.providers.eis_parser.search_parser import (
+    SEARCH_PARSER_VERSION,
+    build_search_diagnostics,
+)
+from app.tenders.providers.eis_parser.validation import validate_eis_url
 
 
 class EisAccessBlockedError(TenderProviderError):
@@ -71,9 +83,7 @@ class EisProviderConfig:
     supported_page_sizes: tuple[int, ...] = (10, 20, 50, 100)
 
     def __post_init__(self) -> None:
-        parsed = urlparse(self.base_url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("base_url must be an absolute HTTP(S) URL")
+        validate_eis_url(self.base_url, base_url=self.base_url)
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         if self.retry_attempts < 1:
@@ -184,10 +194,14 @@ class EisParseResult:
     items: tuple[UnifiedTender, ...]
     total: int | None
     warnings: tuple[str, ...] = ()
+    diagnostics: EisParseDiagnostics | None = None
 
 
 class EisHtmlParser:
     """Normalize current and legacy EIS result-card markup."""
+
+    search_parser_version = SEARCH_PARSER_VERSION
+    documents_parser_version = DOCUMENTS_PARSER_VERSION
 
     PROCUREMENT_NUMBER = re.compile(r"(?<!\d)(\d{11,25})(?!\d)")
     TOTAL_PATTERNS = (
@@ -211,13 +225,22 @@ class EisHtmlParser:
 
         items: list[UnifiedTender] = []
         warnings: list[str] = []
+        missing_title_count = 0
+        missing_customer_count = 0
+        missing_price_count = 0
+        unknown_law_count = 0
         for index, card in enumerate(cards, start=1):
             try:
                 tender = self._parse_card(card)
             except EisParseError as exc:
                 warnings.append(f"Карточка {index}: {exc}")
+                folded_error = str(exc).casefold()
+                missing_title_count += int("наименование" in folded_error)
+                missing_customer_count += int("заказчик" in folded_error)
                 continue
             items.append(tender)
+            missing_price_count += int(tender.price is None)
+            unknown_law_count += int(not tender.law)
 
         page_text = root.text()
         total = None
@@ -230,12 +253,27 @@ class EisHtmlParser:
                     total = None
                 break
 
-        if cards and not items:
-            raise EisParseError("EIS returned result cards, but none could be normalized")
+        diagnostics = build_search_diagnostics(
+            html,
+            cards_detected=len(cards),
+            cards_parsed=len(items),
+            total=total,
+            missing_title_count=missing_title_count,
+            missing_customer_count=missing_customer_count,
+            missing_price_count=missing_price_count,
+            unknown_law_count=unknown_law_count,
+            warnings=tuple(warnings),
+        )
+        enriched_items: list[UnifiedTender] = []
+        for item in items:
+            metadata = dict(item.raw_metadata)
+            metadata["eis_parse_diagnostics"] = diagnostics.to_payload()
+            enriched_items.append(replace(item, raw_metadata=metadata))
         return EisParseResult(
-            items=tuple(items),
+            items=tuple(enriched_items),
             total=total,
             warnings=tuple(warnings),
+            diagnostics=diagnostics,
         )
 
     def parse_documents(self, html: str) -> tuple[TenderDocument, ...]:
@@ -254,7 +292,7 @@ class EisHtmlParser:
             if not self._is_document_link(href, name):
                 continue
 
-            url = urljoin(self.base_url, href)
+            url = validate_eis_url(href, base_url=self.base_url)
             identity = url.casefold()
             if identity in seen:
                 continue
@@ -286,7 +324,7 @@ class EisHtmlParser:
             href = "/epz/order/extendedsearch/results.html?" + urlencode(
                 {"searchString": procurement_number}
             )
-        source_url = urljoin(self.base_url, href)
+        source_url = validate_eis_url(href, base_url=self.base_url)
 
         title = self._field_value(
             card,
@@ -297,13 +335,12 @@ class EisHtmlParser:
         if not title:
             raise EisParseError("не найдено наименование закупки")
 
-        customer_name = (
-            self._field_value(
-                card,
-                ("заказчик", "организация, осуществляющая размещение"),
-            )
-            or "Заказчик не указан"
+        customer_name = self._field_value(
+            card,
+            ("заказчик", "организация, осуществляющая размещение"),
         )
+        if not customer_name:
+            raise EisParseError("не найден заказчик")
         region = self._field_value(
             card,
             (
@@ -361,6 +398,7 @@ class EisHtmlParser:
             raw_metadata={
                 "provider": "eis",
                 "interface": "public_html",
+                "parser_version": SEARCH_PARSER_VERSION,
                 "source_card_text": card.text()[:4000],
             },
         )
@@ -630,7 +668,8 @@ def matches_eis_query(
 def eis_documents_url(source_url: str) -> str:
     """Return the public documents tab URL for a normalized EIS card."""
 
-    parsed = urlparse(source_url)
+    safe_source_url = validate_eis_url(source_url)
+    parsed = urlparse(safe_source_url)
     path = parsed.path
     if path.endswith("/common-info.html"):
         path = path[: -len("common-info.html")] + "documents.html"
@@ -638,8 +677,8 @@ def eis_documents_url(source_url: str) -> str:
         path = path[: -len("event-journal.html")] + "documents.html"
     elif not path.endswith("/documents.html"):
         separator = "&" if parsed.query else "?"
-        return source_url + separator + "tab=documents"
-    return urlunparse(parsed._replace(path=path))
+        return validate_eis_url(safe_source_url + separator + "tab=documents")
+    return validate_eis_url(urlunparse(parsed._replace(path=path)))
 
 
 class EisTenderProvider(TenderProvider):
@@ -738,7 +777,27 @@ class EisTenderProvider(TenderProvider):
                 item.external_id,
                 item.procurement_number,
             }:
-                return item
+                from app.tenders.providers.eis_parser.detail_router import (
+                    detect_law,
+                    merge_tender_details,
+                    parse_detail,
+                    resolve_detail_url,
+                )
+
+                law = detect_law(search_law=item.law, url=item.source_url)
+                detail_url = resolve_detail_url(
+                    external_id=normalized,
+                    source_url=item.source_url,
+                    law=law,
+                    base_url=self.config.base_url,
+                )
+                response = self._get(detail_url)
+                details = parse_detail(
+                    response.text(),
+                    source_url=detail_url,
+                    law=law,
+                )
+                return merge_tender_details(item, details)
         raise TenderProviderError(f"Закупка ЕИС {normalized} не найдена")
 
     def list_documents(self, external_id: str) -> Sequence[TenderDocument]:
@@ -804,9 +863,10 @@ class EisTenderProvider(TenderProvider):
         *,
         allow_non_200: bool = False,
     ) -> HttpResponse:
+        safe_url = validate_eis_url(url, base_url=self.config.base_url)
         try:
             response = self.transport.get(
-                url,
+                safe_url,
                 headers={
                     "User-Agent": self.config.user_agent,
                     "Accept": "text/html,application/xhtml+xml",
@@ -828,6 +888,10 @@ class EisTenderProvider(TenderProvider):
                 detail = f"истёк таймаут подключения после {exc.attempts} попыток"
             raise TenderProviderError(f"Ошибка подключения к ЕИС: {detail}") from exc
 
+        if not allow_non_200 and response.status_code == 403:
+            raise EisAccessBlockedError(
+                "ЕИС отклонила публичный запрос (HTTP 403); обход защиты не выполняется"
+            )
         if not allow_non_200 and response.status_code != 200:
             raise TenderProviderError(f"ЕИС вернула HTTP {response.status_code}")
         return response
@@ -883,7 +947,9 @@ def _parse_first_datetime(value: str) -> datetime | None:
         formats = ("%d.%m.%Y",)
     for fmt in formats:
         try:
-            return datetime.strptime(raw, fmt)
+            from app.tenders.providers.eis_parser.detail_common import EIS_TIMEZONE
+
+            return datetime.strptime(raw, fmt).replace(tzinfo=EIS_TIMEZONE)
         except ValueError:
             continue
     return None
@@ -985,8 +1051,11 @@ __all__ = [
     "EisHtmlParser",
     "EisParseError",
     "EisParseResult",
+    "EisParserStructureChangedError",
+    "EisParserValidationError",
     "EisProviderConfig",
     "EisTenderProvider",
+    "EisUnsafeUrlError",
     "build_eis_search_url",
     "eis_documents_url",
     "matches_eis_query",
