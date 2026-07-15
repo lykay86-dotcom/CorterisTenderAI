@@ -1,5 +1,34 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-121 завершён
+
+- PR #45 (`feat(rm-121): add explainable financial risk assessment`) слит в `main` коммитом
+  `ac1cec2` (`ac1cec2e11ce4cb08ec7aab3b4ab74ad255da746`).
+- Post-merge Quality Gate run `29416563733` завершился статусом `SUCCESS`: Python 3.12 —
+  `1289 passed in 66.64s`, Python 3.13 — `1289 passed in 88.80s`.
+- На обеих версиях прошли Ruff check/format (`515 files`), mypy (18 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Pure local financial policy строит versioned registry только из current verified specialized
+  requirements, technical specification и draft-contract findings без второго provider call,
+  text heuristics, money parsing или финансового прогноза.
+- Category и review priority заданы фиксированными mappings; stable risk IDs и ordering основаны
+  на canonical citation IDs. Generic root findings и deterministic stop-factors не копируются.
+- Persisted payload v8 локально пересчитывается при чтении; legacy v1–v7 остаётся unavailable,
+  а future/corrupt/tampered cache обрабатывается fail-closed без изменения SQLite schema.
+- Provider schema/response format v4, prompt v6, context v5, citation resolver v1 и legal policy
+  v1 не изменены; сохранены один analyzer/service/Orchestrator/repository/provider call и одна
+  `RUNNING_AI` stage.
+- Existing AI tab и JSON/HTML exporter показывают status, policy version, priority counts,
+  escaped titles/actions, current internal citations, warnings и финансовый disclaimer.
+- RM-107 score/recommendation/action plan и абсолютный приоритет critical stop-factor не изменены;
+  financial registry не входит в decision evidence.
+- CommercialEstimator сохраняет каноническую Decimal-границу; incomplete estimate остаётся
+  `DATA_INSUFFICIENT` без вымышленных total cost, profit или margin.
+- Локальная приёмка: target `337 passed in 13.12s`, full `1289 passed in 55.25s`, Ruff
+  (`515 files`), mypy (18 файлов), secret scan, dependency audit и diff-check успешны.
+- RM-121 переведён в `DONE`; RM-122 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации анализа конкуренции.
+
 ## 2026-07-15 — RM-120 завершён
 
 - PR #43 (`feat(rm-120): add explainable legal risk assessment`) слит в `main` коммитом
