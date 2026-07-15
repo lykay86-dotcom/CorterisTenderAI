@@ -152,9 +152,9 @@ Baseline environment: Python 3.12.7, worktree-local `TEMP/TMP`,
 - Baseline SHA: `2697637fc0173082f1a6fec7c5b5eaef8e099698`.
 - Target baseline: `240 passed in 12.73s`.
 - Full baseline: `1043 passed in 53.98s`.
-- Implementation checkpoint SHA: pending.
+- Implementation checkpoint SHA: `1ab489c305c144424d22f4c106922f677e0b4fa1`.
 - Final target/full counts, Ruff, format, mypy, secret scan, dependency audit, diff check, and
-  adversarial review: pending implementation.
+  adversarial review are recorded below.
 
 Required final commands:
 
@@ -170,3 +170,36 @@ git diff --check
 
 Feature-branch acceptance does not mark RM-118 `DONE`; feature merge, post-merge Windows Quality
 Gate on Python 3.12/3.13, and a separate docs-only closeout remain mandatory.
+
+## Local implementation acceptance
+
+Implementation checkpoint: `1ab489c305c144424d22f4c106922f677e0b4fa1`
+Baseline: `2697637fc0173082f1a6fec7c5b5eaef8e099698`
+Python: `3.12.7`
+
+- Exact RM-118 target contour: `277 passed in 11.82s`.
+- Full suite: `1080 passed in 51.12s`.
+- `python -m ruff check .`: passed.
+- `python -m ruff format . --check`: passed (`510 files already formatted`).
+- `python -m mypy`: passed (`16 source files`).
+- `python scripts/check_repository_secrets.py`: passed.
+- `python -m pip_audit --skip-editable`: no known vulnerabilities; the editable project was
+  skipped as expected.
+- `git diff --check`: passed.
+
+The adversarial review found exactly one production `provider.analyze(...)`, one public
+`classify_document_kind()`, one provider/analyzer/analysis-service/Orchestrator/repository graph,
+and one `RUNNING_AI` stage. No `ContractAnalysisService`, second prompt workflow, second citation
+resolver, second UI/export path, database schema change, or migration was added. Shared scoped
+helpers cover TS and draft-contract normalization/completeness without copying the TS section.
+
+The review also confirmed that provider output cannot set local status, verification, severity,
+score or decision fields; contract completeness participates in the fingerprint; current cached
+generic, TS, unknown and non-contract evidence cannot be promoted; locator conflicts and damaged
+provenance fail closed; raw response, prompt, full documents, secrets and private paths are not
+persisted or rendered. RM-120/RM-121 conclusions were not implemented. Draft-contract findings
+do not enter RM-107 evidence/actions, and the deterministic critical stop factor retains absolute
+priority at score 100.
+
+This is feature-branch acceptance only. RM-118 remains `IN PROGRESS` until feature merge,
+post-merge Windows Quality Gate on Python 3.12 and 3.13, and a separate docs-only closeout PR.
