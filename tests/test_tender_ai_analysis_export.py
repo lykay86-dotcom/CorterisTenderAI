@@ -10,6 +10,8 @@ from app.core.ai.schemas import (
     AiAnalysisProvenance,
     AiDocument,
     AiDocumentAnalysis,
+    AiDraftContractAnalysis,
+    AiDraftContractStatus,
     AiFinding,
     AiFindingStatus,
     AiSourceSnapshot,
@@ -63,6 +65,43 @@ def test_export_round_trips_and_escapes_technical_specification(tmp_path) -> Non
     assert "<script>" not in html
     assert "&lt;script&gt;unsafe technical statement&lt;/script&gt;" in html
     assert "ТЗ сокращено" in html
+
+
+def test_export_round_trips_and_escapes_draft_contract(tmp_path) -> None:
+    unverified = AiFinding(
+        "draft_contract.subject_and_scope",
+        "<script>unsafe contract statement</script>",
+        None,
+        AiFindingStatus.UNVERIFIED,
+    )
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Summary",
+        status="partial",
+        draft_contract=AiDraftContractAnalysis(
+            status=AiDraftContractStatus.PARTIAL,
+            document_ids=("contract-1",),
+            included_document_ids=("contract-1",),
+            subject_and_scope=(unverified,),
+            warnings=("Договор сокращён",),
+        ),
+    )
+
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "contract.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "contract.html")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+    assert restored.draft_contract.subject_and_scope[0].statement == (
+        "<script>unsafe contract statement</script>"
+    )
+    assert payload["draft_contract"]["status"] == "partial"
+    assert "Проект договора/контракта" in html
+    assert "subject_and_scope" in html
+    assert "<script>" not in html
+    assert "&lt;script&gt;unsafe contract statement&lt;/script&gt;" in html
+    assert "Договор сокращён" in html
 
 
 @pytest.mark.parametrize(
@@ -153,11 +192,11 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:01:00+00:00",
-        prompt_version="4",
-        output_schema_version="2",
+        prompt_version="5",
+        output_schema_version="3",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="5",
-        context_version="3",
+        analyzer_version="6",
+        context_version="4",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",

@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
 from app.core.ai.document_context import AiContextStatistics, AiDocumentContext
 from app.core.ai.repository import AiDocumentAnalysisRepository
@@ -6,6 +8,8 @@ from app.core.ai.schemas import (
     AiAnalysisProvenance,
     AiDocument,
     AiDocumentAnalysis,
+    AiDraftContractAnalysis,
+    AiDraftContractStatus,
 )
 
 
@@ -14,11 +18,11 @@ def _provenance(fingerprint: str) -> AiAnalysisProvenance:
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:00:00+00:00",
-        prompt_version="4",
-        output_schema_version="2",
+        prompt_version="5",
+        output_schema_version="3",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="5",
-        context_version="3",
+        analyzer_version="6",
+        context_version="4",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -86,7 +90,7 @@ def test_service_passes_cache_lookup_fingerprint_to_analyzer() -> None:
 def test_ts_omission_metadata_changes_cache_fingerprint() -> None:
     class ContextBuilder:
         omitted = 0
-        fingerprint_parameters = {"context_version": "3"}
+        fingerprint_parameters = {"context_version": "4"}
 
         def build_context(self, _key):
             document = AiDocument(
@@ -125,6 +129,112 @@ def test_ts_omission_metadata_changes_cache_fingerprint() -> None:
     service.analyze("procurement:test", force=True)
 
     assert analyzer.fingerprints[0] != analyzer.fingerprints[1]
+
+
+def test_contract_omission_metadata_changes_fingerprint_and_marks_section_partial() -> None:
+    class ContractAnalyzer(Analyzer):
+        def analyze(self, key, documents, *, context_fingerprint):
+            result = super().analyze(
+                key,
+                documents,
+                context_fingerprint=context_fingerprint,
+            )
+            return replace(
+                result,
+                draft_contract=AiDraftContractAnalysis(
+                    status=AiDraftContractStatus.COMPLETE,
+                    document_ids=("contract",),
+                    included_document_ids=("contract",),
+                ),
+            )
+
+    class ContextBuilder:
+        omitted = 0
+        fingerprint_parameters = {"context_version": "4"}
+
+        def build_context(self, _key):
+            document = AiDocument(
+                "contract",
+                "Проект договора.pdf",
+                "local_document_store",
+                "pdf",
+                "2026-07-15T00:00:00+00:00",
+                "verified",
+                "Проект договора",
+                "b" * 64,
+                document_kind="draft_contract",
+            )
+            return AiDocumentContext(
+                (document,),
+                AiContextStatistics(
+                    source_document_count=1 + self.omitted,
+                    included_document_count=1,
+                    character_count=15,
+                    omitted_document_count=self.omitted,
+                    draft_contract_document_count=1 + self.omitted,
+                    included_draft_contract_document_count=1,
+                    draft_contract_truncated=bool(self.omitted),
+                    draft_contract_document_ids=("contract", "omitted")[: 1 + self.omitted],
+                    included_draft_contract_document_ids=("contract",),
+                ),
+            )
+
+    builder = ContextBuilder()
+    analyzer = ContractAnalyzer()
+    repository = WriteFailureRepository()
+    service = TenderDocumentAiAnalysisService(builder, analyzer, repository)
+
+    complete = service.analyze("procurement:test", force=True)
+    builder.omitted = 1
+    partial = service.analyze("procurement:test", force=True)
+
+    assert analyzer.fingerprints[0] != analyzer.fingerprints[1]
+    assert complete.draft_contract.document_ids == ("contract",)
+    assert partial.draft_contract.status.value == "partial"
+    assert partial.draft_contract.document_ids == ("contract", "omitted")
+    assert partial.draft_contract.included_document_ids == ("contract",)
+
+
+def test_contract_provider_failure_stays_unavailable_with_incomplete_context() -> None:
+    class ContextBuilder:
+        fingerprint_parameters = {"context_version": "4"}
+
+        def build_context(self, _key):
+            document = AiDocument(
+                "contract",
+                "Проект договора.pdf",
+                "local_document_store",
+                "pdf",
+                "2026-07-15T00:00:00+00:00",
+                "verified",
+                "Проект договора",
+                "b" * 64,
+                document_kind="draft_contract",
+            )
+            return AiDocumentContext(
+                (document,),
+                AiContextStatistics(
+                    source_document_count=2,
+                    included_document_count=1,
+                    character_count=15,
+                    omitted_document_count=1,
+                    draft_contract_document_count=2,
+                    included_draft_contract_document_count=1,
+                    draft_contract_truncated=True,
+                    draft_contract_document_ids=("contract", "omitted"),
+                    included_draft_contract_document_ids=("contract",),
+                ),
+            )
+
+    service = TenderDocumentAiAnalysisService(
+        ContextBuilder(), ProviderFailureAnalyzer(), WriteFailureRepository()
+    )
+
+    result = service.analyze("procurement:test", force=True)
+
+    assert result.draft_contract.status.value == "unavailable"
+    assert result.draft_contract.document_ids == ("contract", "omitted")
+    assert result.draft_contract.included_document_ids == ("contract",)
 
 
 def test_service_force_always_runs_new_analysis(tmp_path) -> None:

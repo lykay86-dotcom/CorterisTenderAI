@@ -15,11 +15,11 @@ from app.ai.provider import _safe_provider_id, _safe_provider_model
 from app.core.document_classification import DocumentKind
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 4
-_EXPECTED_PROVENANCE_PROMPT_VERSION = "4"
-_EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "2"
-_EXPECTED_PROVENANCE_ANALYZER_VERSION = "5"
-_EXPECTED_PROVENANCE_CONTEXT_VERSION = "3"
+AI_ANALYSIS_SCHEMA_VERSION = 5
+_EXPECTED_PROVENANCE_PROMPT_VERSION = "5"
+_EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "3"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "6"
+_EXPECTED_PROVENANCE_CONTEXT_VERSION = "4"
 _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
 _MAX_DOCUMENT_ID_LENGTH = 500
@@ -70,6 +70,13 @@ class AiFindingStatus(StrEnum):
 
 
 class AiTechnicalSpecificationStatus(StrEnum):
+    NOT_FOUND = "not_found"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
+class AiDraftContractStatus(StrEnum):
     NOT_FOUND = "not_found"
     COMPLETE = "complete"
     PARTIAL = "partial"
@@ -366,6 +373,37 @@ class AiTechnicalSpecificationAnalysis:
 
 
 @dataclass(frozen=True, slots=True)
+class AiDraftContractAnalysis:
+    status: AiDraftContractStatus | str = AiDraftContractStatus.UNAVAILABLE
+    document_ids: tuple[str, ...] = ()
+    included_document_ids: tuple[str, ...] = ()
+    subject_and_scope: tuple[AiFinding, ...] = ()
+    term_schedule_and_location: tuple[AiFinding, ...] = ()
+    price_and_price_change: tuple[AiFinding, ...] = ()
+    payment_terms: tuple[AiFinding, ...] = ()
+    acceptance_and_closing_documents: tuple[AiFinding, ...] = ()
+    performance_security: tuple[AiFinding, ...] = ()
+    warranty_and_defect_remediation: tuple[AiFinding, ...] = ()
+    customer_obligations_and_dependencies: tuple[AiFinding, ...] = ()
+    contractor_obligations_and_subcontracting: tuple[AiFinding, ...] = ()
+    liability_penalties_and_damages: tuple[AiFinding, ...] = ()
+    change_suspension_and_termination: tuple[AiFinding, ...] = ()
+    force_majeure_and_notifications: tuple[AiFinding, ...] = ()
+    dispute_confidentiality_and_ip: tuple[AiFinding, ...] = ()
+    ambiguities: tuple[AiFinding, ...] = ()
+    contradictions: tuple[AiFinding, ...] = ()
+    clarification_points: tuple[AiFinding, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            status = AiDraftContractStatus(self.status)
+        except (TypeError, ValueError):
+            status = AiDraftContractStatus.UNAVAILABLE
+        object.__setattr__(self, "status", status)
+
+
+@dataclass(frozen=True, slots=True)
 class AiDocumentAnalysis:
     registry_key: str
     summary: str
@@ -388,6 +426,7 @@ class AiDocumentAnalysis:
     technical_specification: AiTechnicalSpecificationAnalysis = field(
         default_factory=AiTechnicalSpecificationAnalysis
     )
+    draft_contract: AiDraftContractAnalysis = field(default_factory=AiDraftContractAnalysis)
 
     def __post_init__(self) -> None:
         try:
@@ -440,6 +479,16 @@ class AiDocumentAnalysis:
                     for name in _TECHNICAL_SPECIFICATION_FINDING_FIELDS
                 },
                 "warnings": list(self.technical_specification.warnings),
+            },
+            "draft_contract": {
+                "status": AiDraftContractStatus(self.draft_contract.status).value,
+                "document_ids": list(self.draft_contract.document_ids),
+                "included_document_ids": list(self.draft_contract.included_document_ids),
+                **{
+                    name: [finding(item) for item in getattr(self.draft_contract, name)]
+                    for name in _DRAFT_CONTRACT_FINDING_FIELDS
+                },
+                "warnings": list(self.draft_contract.warnings),
             },
             "risks": [finding(item) for item in self.risks],
             "suspicious_conditions": [finding(item) for item in self.suspicious_conditions],
@@ -595,6 +644,20 @@ class AiDocumentAnalysis:
             if isinstance(raw_included_ts_ids, (list, tuple))
             else ()
         )
+        raw_contract = payload.get("draft_contract", {})
+        contract = (
+            raw_contract
+            if version == AI_ANALYSIS_SCHEMA_VERSION
+            and _valid_scoped_payload(
+                raw_contract,
+                finding_fields=_DRAFT_CONTRACT_FINDING_FIELDS,
+                status_type=AiDraftContractStatus,
+            )
+            else {}
+        )
+        contract_ids = _payload_document_ids(contract.get("document_ids", ()))
+        included_contract_ids = _payload_document_ids(contract.get("included_document_ids", ()))
+        contract_warnings = _payload_strings(contract.get("warnings", ()), 1_000)
         return cls(
             registry_key=registry_key,
             summary=_text(payload.get("summary"), _MAX_TEXT_LENGTH),
@@ -627,6 +690,20 @@ class AiDocumentAnalysis:
                 },
                 warnings=ts_warnings,
             ),
+            draft_contract=AiDraftContractAnalysis(
+                status=contract.get("status", AiDraftContractStatus.UNAVAILABLE.value),
+                document_ids=contract_ids,
+                included_document_ids=included_contract_ids,
+                **{
+                    name: _scoped_payload_findings(
+                        findings(contract.get(name)),
+                        provenance,
+                        DocumentKind.DRAFT_CONTRACT,
+                    )
+                    for name in _DRAFT_CONTRACT_FINDING_FIELDS
+                },
+                warnings=contract_warnings,
+            ),
         )
 
 
@@ -636,8 +713,27 @@ _TECHNICAL_SPECIFICATION_FINDING_FIELDS = tuple(
     if name not in {"status", "document_ids", "included_document_ids", "warnings"}
 )
 
+_DRAFT_CONTRACT_FINDING_FIELDS = tuple(
+    name
+    for name in AiDraftContractAnalysis.__dataclass_fields__
+    if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+)
+
 
 def _valid_technical_payload(value: object) -> bool:
+    return _valid_scoped_payload(
+        value,
+        finding_fields=_TECHNICAL_SPECIFICATION_FINDING_FIELDS,
+        status_type=AiTechnicalSpecificationStatus,
+    )
+
+
+def _valid_scoped_payload(
+    value: object,
+    *,
+    finding_fields: tuple[str, ...],
+    status_type: type[AiTechnicalSpecificationStatus] | type[AiDraftContractStatus],
+) -> bool:
     if not isinstance(value, Mapping):
         return False
     expected = {
@@ -645,7 +741,7 @@ def _valid_technical_payload(value: object) -> bool:
         "document_ids",
         "included_document_ids",
         "warnings",
-        *_TECHNICAL_SPECIFICATION_FINDING_FIELDS,
+        *finding_fields,
     }
     if set(value) != expected:
         return False
@@ -653,18 +749,27 @@ def _valid_technical_payload(value: object) -> bool:
     if not isinstance(raw_status, str):
         return False
     try:
-        AiTechnicalSpecificationStatus(raw_status)
+        status_type(raw_status)
     except (TypeError, ValueError):
         return False
     return all(
         isinstance(value.get(name), list)
-        for name in (
-            *_TECHNICAL_SPECIFICATION_FINDING_FIELDS,
-            "document_ids",
-            "included_document_ids",
-            "warnings",
-        )
+        for name in (*finding_fields, "document_ids", "included_document_ids", "warnings")
     )
+
+
+def _payload_document_ids(value: object) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(
+        text for item in value if (text := _safe_source_value(item, _MAX_DOCUMENT_ID_LENGTH))
+    )
+
+
+def _payload_strings(value: object, limit: int) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(text for item in value if (text := _text(item, limit)))
 
 
 def _payload_provenance(value: object) -> AiAnalysisProvenance | None:
@@ -740,14 +845,26 @@ def _technical_payload_findings(
     findings: tuple[AiFinding, ...],
     provenance: AiAnalysisProvenance | None,
 ) -> tuple[AiFinding, ...]:
-    technical_ids = {
+    return _scoped_payload_findings(
+        findings,
+        provenance,
+        DocumentKind.TECHNICAL_SPECIFICATION,
+    )
+
+
+def _scoped_payload_findings(
+    findings: tuple[AiFinding, ...],
+    provenance: AiAnalysisProvenance | None,
+    document_kind: DocumentKind,
+) -> tuple[AiFinding, ...]:
+    allowed_ids = {
         source.document_id
         for source in (provenance.sources if provenance is not None else ())
-        if source.document_kind == DocumentKind.TECHNICAL_SPECIFICATION.value
+        if source.document_kind == document_kind.value
     }
     return tuple(
         item
-        if item.evidence is not None and item.evidence.document_id in technical_ids
+        if item.evidence is not None and item.evidence.document_id in allowed_ids
         else AiFinding(item.category, item.statement, None, AiFindingStatus.UNVERIFIED)
         for item in findings
     )
@@ -1014,6 +1131,8 @@ __all__ = [
     "AiAnalysisProvenance",
     "AiDocument",
     "AiDocumentAnalysis",
+    "AiDraftContractAnalysis",
+    "AiDraftContractStatus",
     "AiEvidence",
     "AiEvidenceVerificationMethod",
     "AiFinding",

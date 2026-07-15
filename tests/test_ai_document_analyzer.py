@@ -19,6 +19,7 @@ from app.core.ai.repository import context_fingerprint as build_context_fingerpr
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
     AiDocument,
+    AiDraftContractAnalysis,
     AiFindingStatus,
     AiTechnicalSpecificationAnalysis,
     TenderRequirements,
@@ -93,6 +94,11 @@ def _valid_payload(**overrides: object) -> dict[str, object]:
             for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
             if name not in {"status", "document_ids", "included_document_ids", "warnings"}
         },
+        "draft_contract": {
+            name: []
+            for name in AiDraftContractAnalysis.__dataclass_fields__
+            if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+        },
         "risks": [],
         "suspicious_conditions": [],
         "contradictions": [],
@@ -149,11 +155,11 @@ def test_successful_response_builds_current_provenance_from_exact_documents() ->
     assert provenance is not None
     assert provenance.context_fingerprint == CONTEXT_FINGERPRINT
     assert datetime.fromisoformat(provenance.created_at).utcoffset() is not None
-    assert provenance.prompt_version == AI_PROMPT_VERSION == "4"
-    assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "2"
-    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 4
-    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "5"
-    assert provenance.context_version == AI_CONTEXT_VERSION == "3"
+    assert provenance.prompt_version == AI_PROMPT_VERSION == "5"
+    assert provenance.output_schema_version == AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "3"
+    assert provenance.persisted_schema_version == AI_ANALYSIS_SCHEMA_VERSION == 5
+    assert provenance.analyzer_version == AI_ANALYZER_VERSION == "6"
+    assert provenance.context_version == AI_CONTEXT_VERSION == "4"
     assert provenance.citation_resolver_version == CITATION_RESOLVER_VERSION == "1"
     assert provenance.provider_id == "test-provider"
     assert provenance.provider_model == "test-model"
@@ -504,7 +510,7 @@ def test_valid_structure_keeps_quote_backed_contradiction_across_documents() -> 
     assert result.contradictions[0].evidence.page == 3
 
 
-def test_unique_quote_ignores_provider_locator_conflict_with_safe_warning() -> None:
+def test_unique_quote_with_provider_locator_conflict_is_unverified() -> None:
     document = AiDocument(
         "doc-1",
         "TZ.pdf",
@@ -522,10 +528,8 @@ def test_unique_quote_ignores_provider_locator_conflict_with_safe_warning() -> N
     )
 
     assert result.status == "partial"
-    assert result.risks[0].verified
-    assert result.risks[0].evidence is not None
-    assert result.risks[0].evidence.page == 2
-    assert result.risks[0].evidence.section == "Страница 2"
+    assert not result.risks[0].verified
+    assert result.risks[0].evidence is None
     assert result.warnings == ("Часть ответа AI отклонена защитной проверкой.",)
 
 

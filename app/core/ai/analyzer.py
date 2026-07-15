@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import hashlib
 import math
 import re
-from typing import Mapping
+from typing import Any, Mapping, TypeVar, cast
 from uuid import uuid4
 
 from app.ai.provider import AIProvider, MAX_RAW_RESPONSE_ID_LENGTH
@@ -30,6 +30,8 @@ from app.core.ai.schemas import (
     AiAnalysisStatus,
     AiDocument,
     AiDocumentAnalysis,
+    AiDraftContractAnalysis,
+    AiDraftContractStatus,
     AiFinding,
     AiFindingStatus,
     AiSourceSnapshot,
@@ -37,6 +39,7 @@ from app.core.ai.schemas import (
     AiTechnicalSpecificationStatus,
     TenderRequirements,
 )
+from app.core.document_classification import DocumentKind
 
 
 MAX_SUMMARY_LENGTH = 12_000
@@ -84,6 +87,7 @@ class TenderDocumentAiAnalyzer:
                 technical_specification=AiTechnicalSpecificationAnalysis(
                     status=AiTechnicalSpecificationStatus.NOT_FOUND
                 ),
+                draft_contract=AiDraftContractAnalysis(status=AiDraftContractStatus.NOT_FOUND),
             )
         try:
             response = self.provider.analyze(
@@ -210,28 +214,22 @@ class TenderDocumentAiAnalyzer:
                 for name in TenderRequirements.__dataclass_fields__
             }
         )
-        technical_document_ids = tuple(
-            item.document_id
-            for item in documents
-            if item.document_kind == "technical_specification"
-        )
         raw_technical = payload.get("technical_specification", {})
         if not isinstance(raw_technical, Mapping):
             issues.append("technical_specification")
             raw_technical = {}
-        technical_issues: list[str] = []
-        technical_values = {
-            name: self._findings(
-                raw_technical.get(name, ()),
-                documents,
-                context_fingerprint,
-                f"technical_specification.{name}",
-                technical_issues,
-                allowed_document_ids=frozenset(technical_document_ids),
-            )
-            for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
-            if name not in {"status", "document_ids", "included_document_ids", "warnings"}
-        }
+        technical_values, technical_document_ids, technical_issues = self._scoped_findings(
+            raw_technical,
+            documents,
+            context_fingerprint,
+            category_prefix="technical_specification",
+            document_kind=DocumentKind.TECHNICAL_SPECIFICATION,
+            finding_fields=tuple(
+                name
+                for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
+                if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+            ),
+        )
         technical_values["contradictions"] = _require_multi_source_contradictions(
             technical_values["contradictions"], technical_issues
         )
@@ -250,6 +248,44 @@ class TenderDocumentAiAnalyzer:
             **technical_values,
             warnings=(
                 ("Часть анализа технического задания не подтверждена.",) if technical_issues else ()
+            ),
+        )
+        raw_contract = payload.get("draft_contract", {})
+        if not isinstance(raw_contract, Mapping):
+            issues.append("draft_contract")
+            raw_contract = {}
+        contract_values, contract_document_ids, contract_issues = self._scoped_findings(
+            raw_contract,
+            documents,
+            context_fingerprint,
+            category_prefix="draft_contract",
+            document_kind=DocumentKind.DRAFT_CONTRACT,
+            finding_fields=tuple(
+                name
+                for name in AiDraftContractAnalysis.__dataclass_fields__
+                if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+            ),
+        )
+        contract_values["contradictions"] = _require_independent_contract_contradictions(
+            contract_values["contradictions"], contract_issues
+        )
+        issues.extend(contract_issues)
+        if not contract_document_ids:
+            contract_status = AiDraftContractStatus.NOT_FOUND
+            contract_values = {name: () for name in contract_values}
+        elif contract_issues:
+            contract_status = AiDraftContractStatus.PARTIAL
+        else:
+            contract_status = AiDraftContractStatus.COMPLETE
+        contract = AiDraftContractAnalysis(
+            status=contract_status,
+            document_ids=contract_document_ids,
+            included_document_ids=contract_document_ids,
+            **contract_values,
+            warnings=(
+                ("Часть анализа проекта договора/контракта не подтверждена.",)
+                if contract_issues
+                else ()
             ),
         )
         missing_documents = self._strings(
@@ -313,7 +349,36 @@ class TenderDocumentAiAnalyzer:
                 else ()
             ),
             technical_specification=technical,
+            draft_contract=contract,
         )
+
+    def _scoped_findings(
+        self,
+        raw_section: Mapping[str, object],
+        documents: tuple[AiDocument, ...],
+        context_fingerprint: str,
+        *,
+        category_prefix: str,
+        document_kind: DocumentKind,
+        finding_fields: tuple[str, ...],
+    ) -> tuple[dict[str, tuple[AiFinding, ...]], tuple[str, ...], list[str]]:
+        issues: list[str] = []
+        document_ids = tuple(
+            item.document_id for item in documents if item.document_kind == document_kind.value
+        )
+        allowed_document_ids = frozenset(document_ids)
+        values = {
+            name: self._findings(
+                raw_section.get(name, ()),
+                documents,
+                context_fingerprint,
+                f"{category_prefix}.{name}",
+                issues,
+                allowed_document_ids=allowed_document_ids,
+            )
+            for name in finding_fields
+        }
+        return values, document_ids, issues
 
     @staticmethod
     def _render(document: AiDocument) -> str:
@@ -342,6 +407,7 @@ class TenderDocumentAiAnalyzer:
                 issues.append(category)
             return ()
         result: list[AiFinding] = []
+        seen_candidates: set[tuple[str, str, str]] = set()
         for index, item in enumerate(raw):
             if not isinstance(item, Mapping):
                 issues.append(f"{category}[{index}]")
@@ -378,6 +444,10 @@ class TenderDocumentAiAnalyzer:
             page, page_valid = _page(item.get("page"))
             if not page_valid:
                 issues.append(f"{category}.page")
+            candidate_key = (statement.casefold(), document_id, quote)
+            if candidate_key in seen_candidates:
+                continue
+            seen_candidates.add(candidate_key)
             try:
                 resolution = (
                     resolve_citation(
@@ -406,6 +476,7 @@ class TenderDocumentAiAnalyzer:
                 page is not None and page != evidence.page
             ):
                 issues.append(f"{category}.locator")
+                evidence = None
             verified = evidence is not None
             result.append(
                 AiFinding(
@@ -415,7 +486,7 @@ class TenderDocumentAiAnalyzer:
                     (AiFindingStatus.VERIFIED if verified else AiFindingStatus.UNVERIFIED),
                 )
             )
-        return _deduplicate_findings(result)
+        return tuple(result)
 
     @staticmethod
     def _strings(raw: object, issues: list[str]) -> tuple[str, ...]:
@@ -495,32 +566,29 @@ class TenderDocumentAiAnalysisService:
             ts_found_ids = tuple(statistics.technical_specification_document_ids)
             ts_included_ids = tuple(statistics.included_technical_specification_document_ids)
             technical = result.technical_specification
-            if not ts_found_ids:
-                technical = replace(
-                    technical,
-                    status=AiTechnicalSpecificationStatus.NOT_FOUND,
-                    document_ids=(),
-                    included_document_ids=(),
-                )
-            elif statistics.technical_specification_truncated:
-                technical = replace(
-                    technical,
-                    status=AiTechnicalSpecificationStatus.PARTIAL,
-                    document_ids=ts_found_ids,
-                    included_document_ids=ts_included_ids,
-                    warnings=tuple(
-                        dict.fromkeys(
-                            (*technical.warnings, "Контекст технического задания неполон.")
-                        )
-                    ),
-                )
-            else:
-                technical = replace(
-                    technical,
-                    document_ids=ts_found_ids,
-                    included_document_ids=ts_included_ids,
-                )
-            result = replace(result, technical_specification=technical)
+            technical = _apply_scoped_context(
+                technical,
+                found_ids=ts_found_ids,
+                included_ids=ts_included_ids,
+                incomplete=statistics.technical_specification_truncated,
+                not_found_status=AiTechnicalSpecificationStatus.NOT_FOUND,
+                partial_status=AiTechnicalSpecificationStatus.PARTIAL,
+                warning="Контекст технического задания неполон.",
+            )
+            contract = _apply_scoped_context(
+                result.draft_contract,
+                found_ids=tuple(statistics.draft_contract_document_ids),
+                included_ids=tuple(statistics.included_draft_contract_document_ids),
+                incomplete=statistics.draft_contract_truncated,
+                not_found_status=AiDraftContractStatus.NOT_FOUND,
+                partial_status=AiDraftContractStatus.PARTIAL,
+                warning="Контекст проекта договора/контракта неполон.",
+            )
+            result = replace(
+                result,
+                technical_specification=technical,
+                draft_contract=contract,
+            )
             if statistics.truncated:
                 result = _add_warning(
                     result,
@@ -556,6 +624,9 @@ def _safe_failure(
     ts_ids = tuple(
         item.document_id for item in documents if item.document_kind == "technical_specification"
     )
+    contract_ids = tuple(
+        item.document_id for item in documents if item.document_kind == "draft_contract"
+    )
     return AiDocumentAnalysis(
         registry_key,
         messages[status],
@@ -569,22 +640,16 @@ def _safe_failure(
             document_ids=ts_ids,
             included_document_ids=ts_ids,
         ),
+        draft_contract=AiDraftContractAnalysis(
+            status=(
+                AiDraftContractStatus.UNAVAILABLE
+                if contract_ids
+                else AiDraftContractStatus.NOT_FOUND
+            ),
+            document_ids=contract_ids,
+            included_document_ids=contract_ids,
+        ),
     )
-
-
-def _deduplicate_findings(items: list[AiFinding]) -> tuple[AiFinding, ...]:
-    result: list[AiFinding] = []
-    seen: set[tuple[str, str, str]] = set()
-    for item in items:
-        key = (
-            item.statement.casefold(),
-            item.evidence.document_id if item.evidence is not None else "",
-            item.evidence.quote if item.evidence is not None else "",
-        )
-        if key not in seen:
-            seen.add(key)
-            result.append(item)
-    return tuple(result)
 
 
 def _require_multi_source_contradictions(
@@ -604,6 +669,65 @@ def _require_multi_source_contradictions(
         else:
             result.append(item)
     return tuple(result)
+
+
+def _require_independent_contract_contradictions(
+    items: tuple[AiFinding, ...],
+    issues: list[str],
+) -> tuple[AiFinding, ...]:
+    citation_ids: dict[str, set[str]] = {}
+    for item in items:
+        if item.evidence is not None:
+            citation_ids.setdefault(item.statement.casefold(), set()).add(item.evidence.citation_id)
+    result: list[AiFinding] = []
+    for item in items:
+        if len(citation_ids.get(item.statement.casefold(), set())) < 2:
+            if item.verified:
+                issues.append("draft_contract.contradictions.citations")
+            result.append(replace(item, evidence=None, status=AiFindingStatus.UNVERIFIED))
+        else:
+            result.append(item)
+    return tuple(result)
+
+
+_ScopedAnalysis = TypeVar(
+    "_ScopedAnalysis",
+    AiTechnicalSpecificationAnalysis,
+    AiDraftContractAnalysis,
+)
+
+
+def _apply_scoped_context(
+    section: _ScopedAnalysis,
+    *,
+    found_ids: tuple[str, ...],
+    included_ids: tuple[str, ...],
+    incomplete: bool,
+    not_found_status: AiTechnicalSpecificationStatus | AiDraftContractStatus,
+    partial_status: AiTechnicalSpecificationStatus | AiDraftContractStatus,
+    warning: str,
+) -> _ScopedAnalysis:
+    if not found_ids:
+        return replace(
+            section,
+            status=not_found_status,
+            document_ids=(),
+            included_document_ids=(),
+        )
+    if incomplete:
+        next_status = section.status if str(section.status) == "unavailable" else partial_status
+        return replace(
+            section,
+            status=next_status,
+            document_ids=found_ids,
+            included_document_ids=included_ids,
+            warnings=tuple(dict.fromkeys((*section.warnings, warning))),
+        )
+    return replace(
+        section,
+        document_ids=found_ids,
+        included_document_ids=included_ids,
+    )
 
 
 def _bounded_text(
@@ -721,6 +845,22 @@ def _without_verified_findings(analysis: AiDocumentAnalysis) -> AiDocumentAnalys
                 AiTechnicalSpecificationStatus.PARTIAL
                 if analysis.technical_specification.document_ids
                 else AiTechnicalSpecificationStatus.NOT_FOUND
+            ),
+        ),
+        draft_contract=replace(
+            analysis.draft_contract,
+            **cast(
+                Any,
+                {
+                    name: downgrade(getattr(analysis.draft_contract, name))
+                    for name in AiDraftContractAnalysis.__dataclass_fields__
+                    if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+                },
+            ),
+            status=(
+                AiDraftContractStatus.PARTIAL
+                if analysis.draft_contract.document_ids
+                else AiDraftContractStatus.NOT_FOUND
             ),
         ),
     )

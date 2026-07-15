@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import asdict, fields
 from pathlib import Path
 from types import SimpleNamespace
 
 from app.core.ai.document_context import TenderDocumentContextBuilder
+from app.core.ai.repository import context_fingerprint
 
 
 class TextService:
@@ -210,3 +211,47 @@ def test_context_reuses_classifier_and_prioritizes_technical_specification() -> 
     assert context.statistics.technical_specification_document_ids == ("z-technical",)
     assert context.statistics.included_technical_specification_document_count == 1
     assert context.statistics.technical_specification_truncated
+
+
+def test_context_orders_contract_after_ts_and_tracks_contract_completeness() -> None:
+    technical = _record("z-ts", "ts")
+    technical.source_path = Path("C:/missing/Техническое задание.pdf")
+    contract = _record("a-contract", "contract")
+    contract.source_path = Path("C:/missing/Проект договора.pdf")
+    notice = _record("b-notice", "notice")
+    notice.source_path = Path("C:/missing/Извещение.pdf")
+    service = FlexibleTextService(
+        (notice, contract, technical),
+        {
+            "z-ts": "Техническое задание. Параметр 10 мм.",
+            "a-contract": "Проект договора. Оплата в течение 10 дней.",
+            "b-notice": "Извещение о закупке.",
+        },
+    )
+
+    complete = TenderDocumentContextBuilder(service).build_context("procurement:test")
+    limited = TenderDocumentContextBuilder(service, max_total_characters=45).build_context(
+        "procurement:test"
+    )
+
+    assert [item.document_id for item in complete.documents] == [
+        "z-ts",
+        "a-contract",
+        "b-notice",
+    ]
+    assert complete.statistics.draft_contract_document_count == 1
+    assert complete.statistics.included_draft_contract_document_count == 1
+    assert complete.statistics.draft_contract_document_ids == ("a-contract",)
+    assert complete.statistics.included_draft_contract_document_ids == ("a-contract",)
+    assert not complete.statistics.draft_contract_truncated
+    assert limited.statistics.draft_contract_truncated
+
+    complete_fingerprint = context_fingerprint(
+        complete.documents,
+        context_parameters={"context_statistics": asdict(complete.statistics)},
+    )
+    limited_fingerprint = context_fingerprint(
+        limited.documents,
+        context_parameters={"context_statistics": asdict(limited.statistics)},
+    )
+    assert complete_fingerprint != limited_fingerprint
