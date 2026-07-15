@@ -4,16 +4,47 @@
 
 ## Активный этап
 
-**RM-125 — стабилизация AI-платформы**
+**RM-126 — аудит раздела Тендеры**
 
 Статус: `IN PROGRESS`
 
-Этап назначается только после merge реализации RM-124, успешного post-merge Windows Quality
-Gate на merge-коммите и merged docs-only closeout. До изменения application-кода RM-125
-требуется отдельный аудит стабильности единого AI graph, failure/cache/recheck contracts и
-deterministic/AI boundaries.
+Этап назначается только после merge реализации RM-125, успешного post-merge Windows Quality
+Gate на merge-коммите и merged docs-only closeout. До изменения application-кода RM-126
+требуется отдельный аудит существующих Tender UI, search/runtime, adapters, repositories,
+collectors и deterministic decision boundaries.
 
 ## Предыдущий этап
+
+**RM-125 — стабилизация AI-платформы**
+
+Статус: `DONE`
+
+Подтверждение:
+
+- feature PR #53 слит в `main` коммитом `bdceb70`;
+- post-merge Quality Gate run `29450245855` успешен на Python 3.12 и 3.13;
+- полный Windows suite: Python 3.12 — `1496 passed in 95.46s`, Python 3.13 —
+  `1496 passed in 61.69s`;
+- единый immutable execution contract v1 exact-связывает provider, model и все версии анализа;
+- typed cache lookup пропускает corrupt/future/mismatched rows и может найти более старую exact
+  current-compatible запись без mutable repository warning state;
+- empty-source, provider-error и cacheability paths имеют bounded deterministic semantics без
+  retry, raw provider errors или stale fallback;
+- per-key coordinator сериализует одинаковые run/recheck и не блокирует разные ключи;
+- participation decision получает AI-анализ только явно, без implicit latest fallback;
+- сохранены один provider call site, analyzer/service/Orchestrator/repository, одна
+  `RUNNING_AI` stage и существующий runtime graph;
+- provider schema/format v4, prompt v6, payload v10, context v6, citation resolver v1 и recheck
+  policy v1 не изменены; analyzer повышен до v12;
+- RM-107 score/recommendation/actions/evidence/confidence, commercial estimate и абсолютный
+  приоритет critical stop-factor не изменены;
+- новая AI-stage, provider call, repository, БД, таблица или migration не добавлены;
+- локально: target `315 passed in 7.15s`, full `1496 passed in 58.68s`, Ruff (`523 files`),
+  mypy (20 файлов), secret scan, dependency audit и diff-check успешны;
+- post-merge gate подтвердил Ruff (`523 files`), mypy (20 файлов), secret scan, offline,
+  migration, composition и build smoke tests, а также dependency audit на обеих версиях Python.
+
+## Ранее завершённый этап
 
 **RM-124 — повторная проверка AI**
 
@@ -26,36 +57,10 @@ deterministic/AI boundaries.
 - полный Windows suite: Python 3.12 — `1466 passed in 108.68s`, Python 3.13 —
   `1466 passed in 80.07s`;
 - pure comparator использует exact provenance/fingerprint/version contract и только locally
-  verified findings, формируя deterministic deltas без heuristic matching;
-- service/orchestrator recheck строит context один раз, читает baseline до append-only save и
-  вызывает existing analyzer ровно один раз без automatic retry, critic или stale fallback;
-- repository/current failures получают safe `baseline_missing`/`current_unavailable` semantics;
-- existing dialog/background worker и optional JSON/HTML export добавлены без новой вкладки,
-  stage, provider call site, repository, таблицы или migration;
-- provider schema/format v4, prompt v6, payload v10, analyzer v11, context v6 и citation resolver
-  v1 не изменены; recheck policy имеет версию 1;
-- RM-107 score/recommendation/actions/evidence/confidence, commercial estimate и абсолютный
-  приоритет critical stop-factor не изменены;
-- локально: target `150 passed`, full `1466 passed`, Ruff, mypy (20 файлов), secret scan,
-  dependency audit и diff-check успешны;
-- post-merge gate подтвердил Ruff (`521 files`), mypy (20 файлов), secret scan, smoke tests и
-  dependency audit на обеих версиях Python.
-
-## Ранее завершённый этап
-
-**RM-123 — полнота документации**
-
-Статус: `DONE`
-
-Подтверждение:
-
-- feature PR #49 слит в `main` коммитом `759f015`;
-- post-merge Quality Gate run `29430495132` успешен на Python 3.12 и 3.13;
-- полный Windows suite: `1442 passed` на обеих версиях Python;
-- canonical inventory и pure local completeness assessment используют fail-closed payload v10;
+  verified findings;
 - RM-107 score/recommendation и critical stop-factor policy не изменены.
 
 ## Текущее действие
 
-Провести отдельный аудит RM-125 до изменения стабильности AI-платформы, её failure/cache/recheck
-contracts или deterministic/AI boundary.
+Провести отдельный аудит RM-126 до изменения раздела Тендеры, search/runtime, adapters,
+repositories, collectors или deterministic decision boundary.
