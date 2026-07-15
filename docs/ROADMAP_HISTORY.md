@@ -1,5 +1,31 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-16 — RM-126 завершён
+
+- Audit PR #55 (`docs(rm-126): audit tenders section`) слит в `main` коммитом `f09d07e`
+  (`f09d07ebb1a15acb42279d3b8f7e0393c8d84afc`).
+- Post-merge Quality Gate run `29453928900` завершился статусом `SUCCESS`: Python 3.12 —
+  `1496 passed in 76.46s`, Python 3.13 — `1496 passed in 157.55s`.
+- На обеих версиях прошли Ruff check/format (`523 files`), mypy (20 файлов), repository secret
+  scan, offline/migration/import/composition/build smoke tests и dependency audit.
+- Entry baseline `7d51159a` прошёл target `395 passed in 36.20s` и full
+  `1496 passed in 63.74s`; финальная локальная audit branch — target `395 passed in 33.99s`,
+  full `1496 passed in 61.27s`, остальные workflow-equivalent checks и diff-check успешны.
+- `docs/RM-126_AUDIT.md` фиксирует UI journeys, sync/async search comparison, provider/profile/
+  credentials/persistence/lifecycle/downstream boundaries, 12 findings и семь evidence-based Mermaid
+  diagrams; `docs/RM-126_REQUIREMENTS.md` задаёт обязательный handoff RM-127–RM-140.
+- Приняты D-01–D-10: modern shell владеет единственной tender page; async Collector — целевой search
+  boundary с временным sync facade; существующие provider manager, keyring, saved-profile repository,
+  Collector normalization/verification и shared `tender_records` переиспользуются.
+- C1–C20 распределены по одному основному RM из RM-127–RM-140; третьи search/provider/settings/
+  credential/health/normalization/persistence owners запрещены.
+- HIGH handoff для будущих этапов: embedded legacy UI, два search orchestration path, отсутствие
+  общего tender shutdown и неоднородная timezone policy. Publication blocker не обнаружен.
+- Audit и closeout не изменяют production-код, зависимости, DB schema или migrations и не выполняют
+  live-запросы к площадкам; deterministic decision и абсолютный приоритет critical stop-factor сохранены.
+- RM-126 переведён в `DONE`; RM-127 назначен единственным `IN PROGRESS` для изоляции tender page по
+  D-01 после merge closeout и успешного финального Windows Quality Gate.
+
 ## 2026-07-15 — RM-125 завершён
 
 - PR #53 (`Fix/rm 125 stabilize ai platform`) слит в `main` коммитом `bdceb70`
