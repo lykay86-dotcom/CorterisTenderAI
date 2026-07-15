@@ -15,6 +15,12 @@ from app.core.ai.schemas import (
     AiDraftContractStatus,
     AiFinding,
     AiFindingStatus,
+    AiLegalReviewPriority,
+    AiLegalRiskAssessment,
+    AiLegalRiskCategory,
+    AiLegalRiskItem,
+    AiLegalRiskSourceRef,
+    AiLegalRiskStatus,
     AiSourceSnapshot,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
@@ -189,6 +195,61 @@ def test_export_marks_truncated_context(tmp_path) -> None:
     assert "400000" in html
 
 
+def test_export_adds_escaped_legal_registry_to_existing_json_and_html(tmp_path) -> None:
+    citation_id = "cit_" + "a" * 32
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Safe",
+        status="partial",
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.PARTIAL,
+            licenses=(
+                AiFinding(
+                    "requirements.licenses",
+                    "<script>provider statement</script>",
+                    None,
+                    AiFindingStatus.UNVERIFIED,
+                ),
+            ),
+        ),
+        legal_risk_assessment=AiLegalRiskAssessment(
+            status=AiLegalRiskStatus.PARTIAL,
+            policy_version="1",
+            items=(
+                AiLegalRiskItem(
+                    risk_id="legal_" + "b" * 32,
+                    category=AiLegalRiskCategory.ELIGIBILITY_AND_AUTHORIZATIONS,
+                    review_priority=AiLegalReviewPriority.ELEVATED,
+                    title="<b>Проверка разрешений</b>",
+                    source_refs=(AiLegalRiskSourceRef("requirements", "licenses", citation_id),),
+                    recommended_action="Проверить <img src=x onerror=alert(1)>",
+                ),
+            ),
+            warnings=("Контекст неполон",),
+        ),
+    )
+
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "legal.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "legal.html")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    assert payload == analysis.to_payload()
+    assert set(payload["legal_risk_assessment"]) == {
+        "status",
+        "policy_version",
+        "items",
+        "warnings",
+    }
+    assert "Юридические риски" in html
+    assert "Информационная оценка; не является юридическим заключением" in html
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;b&gt;Проверка разрешений&lt;/b&gt;" in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+    assert "file://" not in html
+
+
 def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path) -> None:
     fingerprint = "d" * 64
     checksum = "b" * 64
@@ -233,7 +294,7 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="7",
+        analyzer_version="8",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",

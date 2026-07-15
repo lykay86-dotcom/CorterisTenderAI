@@ -212,3 +212,19 @@ def test_duplicate_requirement_is_collapsed_per_source() -> None:
     requirements = analysis.security_requirements
     assert len(requirements) == 1
     assert requirements[0].value == "10%"
+
+
+def test_rm120_does_not_duplicate_deterministic_stop_or_legal_risk_rules() -> None:
+    analysis = TenderRequirementsAnalyzer().analyze(
+        "procurement:rm120",
+        (
+            source(
+                "Проект договора.txt",
+                "Штраф и пеня. Обязательное наличие лицензии МЧС.",
+            ),
+        ),
+    )
+
+    assert analysis.contract_risks
+    assert analysis.stop_factors
+    assert not hasattr(analysis, "legal_risk_assessment")

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import StrEnum
 import hashlib
@@ -18,10 +18,10 @@ from app.core.document_classification import (
 )
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 6
+AI_ANALYSIS_SCHEMA_VERSION = 7
 _EXPECTED_PROVENANCE_PROMPT_VERSION = "6"
 _EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "4"
-_EXPECTED_PROVENANCE_ANALYZER_VERSION = "7"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "8"
 _EXPECTED_PROVENANCE_CONTEXT_VERSION = "5"
 _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
@@ -36,6 +36,8 @@ _MAX_PROVIDER_MODEL_LENGTH = 200
 _MAX_PROVIDER_RESPONSE_ID_LENGTH = 200
 _MAX_SOURCES = 1_000
 _CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
+_LEGAL_RISK_ID_PATTERN = re.compile(r"legal_[0-9a-f]{32}")
+_LEGAL_FIELD_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,79}")
 _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
 _PROVIDER_RESPONSE_REF_PATTERN = re.compile(r"resp_[0-9a-f]{64}")
@@ -91,6 +93,40 @@ class AiApplicationRequirementsStatus(StrEnum):
     COMPLETE = "complete"
     PARTIAL = "partial"
     UNAVAILABLE = "unavailable"
+
+
+class AiLegalRiskStatus(StrEnum):
+    NO_VERIFIED_RISKS = "no_verified_risks"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
+class AiLegalReviewPriority(StrEnum):
+    ROUTINE = "routine"
+    ELEVATED = "elevated"
+    URGENT = "urgent"
+
+
+class AiLegalRiskCategory(StrEnum):
+    APPLICATION_COMPOSITION_AND_DECLARATIONS = "application_composition_and_declarations"
+    SUBMISSION_FORMAT_AND_SIGNATURE = "submission_format_and_signature"
+    GROUNDS_FOR_REJECTION = "grounds_for_rejection"
+    ELIGIBILITY_AND_AUTHORIZATIONS = "eligibility_and_authorizations"
+    NATIONAL_REGIME_AND_ORIGIN = "national_regime_and_origin"
+    SECURITY_AND_GUARANTEES = "security_and_guarantees"
+    SCOPE_AND_CUSTOMER_DEPENDENCIES = "scope_and_customer_dependencies"
+    PRICE_PAYMENT_AND_CHANGE_MECHANISM = "price_payment_and_change_mechanism"
+    ACCEPTANCE_AND_CLOSING = "acceptance_and_closing"
+    LIABILITY_PENALTIES_AND_DAMAGES = "liability_penalties_and_damages"
+    CHANGE_SUSPENSION_AND_TERMINATION = "change_suspension_and_termination"
+    WARRANTY_AND_REMEDIES = "warranty_and_remedies"
+    SUBCONTRACTING_AND_THIRD_PARTIES = "subcontracting_and_third_parties"
+    FORCE_MAJEURE_AND_NOTICES = "force_majeure_and_notices"
+    DISPUTES_CONFIDENTIALITY_AND_IP = "disputes_confidentiality_and_ip"
+    STANDARDS_AND_REGULATIONS = "standards_and_regulations"
+    AMBIGUITIES_AND_CLARIFICATIONS = "ambiguities_and_clarifications"
+    CONTRADICTIONS = "contradictions"
 
 
 class AiEvidenceVerificationMethod(StrEnum):
@@ -340,6 +376,113 @@ class AiFinding:
 
 
 @dataclass(frozen=True, slots=True)
+class AiLegalRiskSourceRef:
+    section: str
+    field: str
+    citation_id: str
+
+    def __post_init__(self) -> None:
+        if self.section not in {"requirements", "technical_specification", "draft_contract"}:
+            raise ValueError("unsupported legal risk source section")
+        if not isinstance(self.field, str) or _LEGAL_FIELD_PATTERN.fullmatch(self.field) is None:
+            raise ValueError("unsupported legal risk source field")
+        if (
+            not isinstance(self.citation_id, str)
+            or _CITATION_ID_PATTERN.fullmatch(self.citation_id) is None
+        ):
+            raise ValueError("legal risk source must use a canonical citation ID")
+
+    def to_payload(self) -> dict[str, str]:
+        return {
+            "section": self.section,
+            "field": self.field,
+            "citation_id": self.citation_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiLegalRiskItem:
+    risk_id: str
+    category: AiLegalRiskCategory | str
+    review_priority: AiLegalReviewPriority | str
+    title: str
+    source_refs: tuple[AiLegalRiskSourceRef, ...]
+    recommended_action: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.risk_id, str)
+            or _LEGAL_RISK_ID_PATTERN.fullmatch(self.risk_id) is None
+        ):
+            raise ValueError("risk_id must be a canonical legal risk ID")
+        try:
+            category = AiLegalRiskCategory(self.category)
+            priority = AiLegalReviewPriority(self.review_priority)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("unsupported legal risk category or priority") from exc
+        if (
+            not isinstance(self.source_refs, tuple)
+            or not self.source_refs
+            or not all(isinstance(item, AiLegalRiskSourceRef) for item in self.source_refs)
+            or len(set(self.source_refs)) != len(self.source_refs)
+        ):
+            raise ValueError("source_refs must be a non-empty unique tuple")
+        title = _bounded_text(self.title, 500)
+        action = _bounded_text(self.recommended_action, 1_000)
+        if not title or not action:
+            raise ValueError("legal risk title and action must be non-empty")
+        object.__setattr__(self, "category", category)
+        object.__setattr__(self, "review_priority", priority)
+        object.__setattr__(self, "title", title)
+        object.__setattr__(self, "recommended_action", action)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "risk_id": self.risk_id,
+            "category": AiLegalRiskCategory(self.category).value,
+            "review_priority": AiLegalReviewPriority(self.review_priority).value,
+            "title": self.title,
+            "source_refs": [item.to_payload() for item in self.source_refs],
+            "recommended_action": self.recommended_action,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiLegalRiskAssessment:
+    status: AiLegalRiskStatus | str = AiLegalRiskStatus.UNAVAILABLE
+    policy_version: str = "1"
+    items: tuple[AiLegalRiskItem, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            status = AiLegalRiskStatus(self.status)
+        except (TypeError, ValueError):
+            status = AiLegalRiskStatus.UNAVAILABLE
+        version = _bounded_text(self.policy_version, _MAX_VERSION_LENGTH)
+        if not version:
+            raise ValueError("policy_version must be non-empty")
+        if not isinstance(self.items, tuple) or not all(
+            isinstance(item, AiLegalRiskItem) for item in self.items
+        ):
+            raise ValueError("items must contain legal risk items")
+        warnings = tuple(
+            dict.fromkeys(text for item in self.warnings if (text := _text(item, 1_000)))
+        )
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "policy_version", version)
+        object.__setattr__(self, "warnings", warnings)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "status": AiLegalRiskStatus(self.status).value,
+            "policy_version": self.policy_version,
+            "items": [item.to_payload() for item in self.items],
+            "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class TenderRequirements:
     status: AiApplicationRequirementsStatus | str = AiApplicationRequirementsStatus.UNAVAILABLE
     document_ids: tuple[str, ...] = ()
@@ -497,6 +640,7 @@ class AiDocumentAnalysis:
         default_factory=AiTechnicalSpecificationAnalysis
     )
     draft_contract: AiDraftContractAnalysis = field(default_factory=AiDraftContractAnalysis)
+    legal_risk_assessment: AiLegalRiskAssessment = field(default_factory=AiLegalRiskAssessment)
 
     def __post_init__(self) -> None:
         try:
@@ -566,6 +710,7 @@ class AiDocumentAnalysis:
                 },
                 "warnings": list(self.draft_contract.warnings),
             },
+            "legal_risk_assessment": self.legal_risk_assessment.to_payload(),
             "risks": [finding(item) for item in self.risks],
             "suspicious_conditions": [finding(item) for item in self.suspicious_conditions],
             "contradictions": [finding(item) for item in self.contradictions],
@@ -796,7 +941,7 @@ class AiDocumentAnalysis:
             requirement_warnings = (
                 "Сохранённый анализ требований к заявке имеет повреждённую форму.",
             )
-        return cls(
+        analysis = cls(
             registry_key=registry_key,
             summary=_text(payload.get("summary"), _MAX_TEXT_LENGTH),
             requirements=TenderRequirements(
@@ -844,6 +989,25 @@ class AiDocumentAnalysis:
                 warnings=contract_warnings,
             ),
         )
+        if version < AI_ANALYSIS_SCHEMA_VERSION:
+            return analysis
+
+        from app.core.ai.legal_risk import assess_legal_risks
+
+        computed_legal = assess_legal_risks(analysis)
+        if payload.get("legal_risk_assessment") == computed_legal.to_payload():
+            return replace(analysis, legal_risk_assessment=computed_legal)
+        warning = "Сохранённая оценка юридических рисков повреждена и пересчитана локально."
+        degraded_legal = replace(
+            computed_legal,
+            status=(
+                AiLegalRiskStatus.UNAVAILABLE
+                if computed_legal.status is AiLegalRiskStatus.UNAVAILABLE
+                else AiLegalRiskStatus.PARTIAL
+            ),
+            warnings=tuple(dict.fromkeys((*computed_legal.warnings, warning))),
+        )
+        return replace(analysis, legal_risk_assessment=degraded_legal)
 
 
 _TECHNICAL_SPECIFICATION_FINDING_FIELDS = tuple(
@@ -1284,6 +1448,12 @@ __all__ = [
     "AiEvidenceVerificationMethod",
     "AiFinding",
     "AiFindingStatus",
+    "AiLegalReviewPriority",
+    "AiLegalRiskAssessment",
+    "AiLegalRiskCategory",
+    "AiLegalRiskItem",
+    "AiLegalRiskSourceRef",
+    "AiLegalRiskStatus",
     "AiTechnicalSpecificationAnalysis",
     "AiTechnicalSpecificationStatus",
     "AiSourceSnapshot",

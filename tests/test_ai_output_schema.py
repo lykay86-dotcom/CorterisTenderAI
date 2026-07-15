@@ -173,6 +173,7 @@ def test_schema_finding_contract_is_bounded_nullable_and_has_no_internal_fields(
         "participation_decision",
         "critical_stop_factor",
         "legal_risk",
+        "legal_risk_assessment",
         "financial_risk",
         "citation_id",
         "provenance",

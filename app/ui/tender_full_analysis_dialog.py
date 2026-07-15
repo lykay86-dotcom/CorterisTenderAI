@@ -35,9 +35,12 @@ from app.core.ai.schemas import (
     AiApplicationRequirementsStatus,
     AiDocumentAnalysis,
     AiDraftContractStatus,
+    AiLegalReviewPriority,
+    AiLegalRiskStatus,
     AiTechnicalSpecificationStatus,
     _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
+from app.core.ai.legal_risk import legal_risk_source_findings
 from app.ui.theme.colors import ThemeName, get_palette
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
@@ -448,6 +451,41 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         )
         else ""
     )
+    legal = analysis.legal_risk_assessment
+    legal_counts = {
+        priority: sum(item.review_priority is priority for item in legal.items)
+        for priority in AiLegalReviewPriority
+    }
+    legal_status = {
+        AiLegalRiskStatus.COMPLETE: "Полный реестр подтверждённых условий",
+        AiLegalRiskStatus.PARTIAL: "Частичный реестр; требуется проверка полноты",
+        AiLegalRiskStatus.NO_VERIFIED_RISKS: (
+            "Подтверждённые условия, требующие отдельной юридической проверки, не выявлены"
+        ),
+        AiLegalRiskStatus.UNAVAILABLE: "Оценка юридических рисков недоступна",
+    }.get(legal.status, "Оценка юридических рисков недоступна")
+    legal_priority_labels = {
+        AiLegalReviewPriority.URGENT: "Срочно",
+        AiLegalReviewPriority.ELEVATED: "Повышенный",
+        AiLegalReviewPriority.ROUTINE: "Плановый",
+    }
+    legal_items = (
+        "".join(
+            "<li>"
+            f"<b>{escape(item.title)}</b><br>"
+            f"Категория: {escape(item.category.value)} · "
+            f"приоритет: {escape(legal_priority_labels[item.review_priority])}<br>"
+            f"Действие: {escape(item.recommended_action)}"
+            f"<ul>{render_findings(legal_risk_source_findings(analysis, item))}</ul>"
+            "</li>"
+            for item in legal.items
+        )
+        or "<li>Нет подтверждённых элементов.</li>"
+    )
+    legal_warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in legal.warnings) or "<li>Нет.</li>"
+    )
+
     technical = analysis.technical_specification
     technical_status = {
         AiTechnicalSpecificationStatus.COMPLETE: "Полный результат",
@@ -547,6 +585,16 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"включено {len(requirements.included_document_ids)}</p>{requirement_context_note}"
         f"{requirement_html}<h4>Предупреждения по требованиям к заявке</h4>"
         f"<ul>{requirement_warnings}</ul>"
+        f"<h3>Юридические риски</h3>"
+        f"<p><b>Информационная оценка; не является "
+        f"юридическим заключением.</b></p>"
+        f"<p><b>Статус:</b> {escape(legal_status)} · policy version: "
+        f"{escape(legal.policy_version)} · срочно: "
+        f"{legal_counts[AiLegalReviewPriority.URGENT]} · повышенный: "
+        f"{legal_counts[AiLegalReviewPriority.ELEVATED]} · плановый: "
+        f"{legal_counts[AiLegalReviewPriority.ROUTINE]}</p>"
+        f"<ul>{legal_items}</ul>"
+        f"<h4>Предупреждения юридической оценки</h4><ul>{legal_warnings}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
         f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"
