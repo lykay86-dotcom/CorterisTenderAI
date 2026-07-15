@@ -4,20 +4,20 @@
 
 ## Активный этап
 
-**RM-127 — новая структура вкладок**
+**RM-126.1 — аудит и укрепление текущего провайдера ЕИС**
 
 Статус: `IN PROGRESS`
 
-Этап следует принятому в RM-126 решению D-01: modern shell владеет единственной tender page,
-а существующие legacy widgets/actions извлекаются поэтапно без второго main window, нового search
-runtime, provider catalog, persistence root или analysis workflow. Application-код RM-127 можно
-начинать только после merge этого docs-only closeout и успешного финального Windows Quality Gate.
+Технический подэтап переоткрыт по явному подтверждению владельца проекта после получения позднего
+дополнения к RM-126. Он укрепляет существующий `AsyncEisTenderProvider` и общую Collector-цепочку,
+не создавая второй Collector, HTTP client, tender model, persistence root, scoring или analysis
+workflow. RM-127 временно возвращён в `PLANNED` и не выполняется параллельно.
 
-## Предыдущий этап
+## Завершённая часть активного этапа
 
-**RM-126 — аудит раздела Тендеры**
+**RM-126 — общий аудит раздела Тендеры**
 
-Статус: `DONE`
+Статус: `AUDIT DONE`; общий RM-126 переоткрыт до завершения RM-126.1
 
 Подтверждение:
 
@@ -54,5 +54,6 @@ runtime, provider catalog, persistence root или analysis workflow. Applicatio
 
 ## Текущее действие
 
-После merge closeout и зелёного финального Quality Gate начать RM-127 только с изоляции tender page
-по D-01 и handoff-контракту `docs/RM-126_REQUIREMENTS.md`.
+До изменения application-кода выполнить отдельный аудит текущего EIS parser/provider и создать
+`docs/EIS_PARSER_STAGE_1_AUDIT.md`. После этого реализовать RM-126.1 в существующей Collector-цепочке,
+пройти полный Windows Quality Gate и только затем вернуть RM-126 в `DONE` и активировать RM-127.
