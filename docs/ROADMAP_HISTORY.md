@@ -1,5 +1,20 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-16 — RM-126 переоткрыт для технического подэтапа RM-126.1
+
+- После завершения audit/closeout RM-126 владелец проекта предоставил и явно подтвердил позднее
+  дополнение `RM-126.1 — Аудит и укрепление текущего провайдера ЕИС`.
+- История audit PR #55, closeout PR #56 и их успешных Quality Gate сохраняется без изменения: общий
+  архитектурный аудит остаётся принятой завершённой частью RM-126.
+- Для соблюдения порядка из дополнения общий RM-126 временно возвращён в `IN PROGRESS`, RM-126.1
+  назначен единственным активным техническим подэтапом, а RM-127 возвращён в `PLANNED`.
+- RM-126.1 обязан переиспользовать `AsyncHttpClient`, `AsyncProviderSearchEngine`,
+  `AsyncEisTenderProvider`, `UnifiedTender`, `CollectorStateRepository`, verification/scoring/full
+  analysis и существующий DI; второй Collector, HTTP client, model, database или workflow запрещены.
+- До production-кода обязателен отдельный EIS parser audit. Условие завершения: feature merge,
+  post-merge Windows Quality Gate и docs-only closeout; только затем активируется RM-127.
+- Эта запись меняет только canonical ordering/status и не содержит production- или DB-изменений.
+
 ## 2026-07-16 — RM-126 завершён
 
 - Audit PR #55 (`docs(rm-126): audit tenders section`) слит в `main` коммитом `f09d07e`
