@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-118 завершён
+
+- PR #39 (`feat(rm-118): add explainable draft contract analysis`) слит в `main` коммитом
+  `40b7da2` (`40b7da25ec3ce43585650ddcec7afef994299f94`).
+- Post-merge Quality Gate run `29399058186` завершился статусом `SUCCESS`: Python 3.12 —
+  `1080 passed in 79.65s`, Python 3.13 — `1080 passed in 57.69s`.
+- На обеих версиях прошли Ruff check/format (`510 files`), mypy (16 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Один public pure classifier назначает `DocumentKind.DRAFT_CONTRACT`, сохраняет приоритет ТЗ;
+  AI context переиспользует его и включает contract completeness metadata в fingerprint.
+- Строгая provider-output schema v3 содержит обязательный раздел из 16 групп, но не отдаёт
+  provider контроль над status/category/verified/legal-risk/financial-risk/score/recommendation.
+- Persisted payload v5 безопасно читает legacy, отклоняет future/corrupt cache и проверяет
+  current provenance без изменения SQLite schema.
+- Contract evidence проходит единый RM-116 citation resolver только для current locally
+  classified contract documents; damaged, altered или non-contract evidence остаётся unverified.
+- Existing UI и JSON/HTML export показывают status, completeness, 16 групп, citations/provenance
+  и предупреждения без бизнес-логики или private paths.
+- RM-107 score/recommendation/action plan и абсолютный приоритет critical stop-factor не изменены;
+  contract findings не входят в decision evidence.
+- Переиспользованы существующие provider/analyzer/service/Orchestrator/repository/context
+  builder/exporter; второй AI workflow, provider call, contract repository/table и миграция БД
+  не добавлены.
+- Локальная приёмка: target `277 passed in 11.82s`, full `1080 passed in 51.12s`, Ruff
+  (`510 files`), mypy (16 файлов), secret scan, dependency audit и diff-check успешны.
+- Неблокирующее предупреждение GitHub Actions о переводе pinned official actions с Node.js 20
+  на Node.js 24 сохранено как отдельная обслуживающая задача и не влияет на успешный gate.
+- RM-118 переведён в `DONE`; RM-119 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации.
+
 ## 2026-07-15 — RM-117 завершён
 
 - PR #37 (`feat(rm-117): add explainable technical specification analysis`) слит в `main`
