@@ -600,7 +600,7 @@ def test_legacy_payload_never_promotes_financial_assessment(legacy_version: int)
 @pytest.mark.parametrize(
     ("path", "tampered"),
     (
-        (("status",), "complete"),
+        (("status",), "unavailable"),
         (("category",), "unknown"),
         (("review_priority",), "critical"),
         (("title",), "provider controlled"),

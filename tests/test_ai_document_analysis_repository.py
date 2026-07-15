@@ -150,9 +150,9 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
     )
 
 
-def test_rm120_versions_are_current_with_local_policy_bumps_only() -> None:
+def test_rm121_versions_are_current_with_local_policy_bumps_only() -> None:
     assert AI_PROMPT_VERSION == "6"
-    assert AI_ANALYZER_VERSION == "8"
+    assert AI_ANALYZER_VERSION == "9"
     assert CITATION_RESOLVER_VERSION == "1"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
     assert AI_ANALYSIS_SCHEMA_VERSION == 8
