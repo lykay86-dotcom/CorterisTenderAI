@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.document_classification import classify_document_kind
+from app.core.document_classification import (
+    APPLICATION_REQUIREMENTS_SOURCE_KINDS,
+    classify_document_kind,
+)
 from app.tenders.requirement_analysis import (
     AnalysisRiskLevel,
     DocumentKind,
@@ -72,6 +75,21 @@ def test_draft_contract_classifier_rejects_false_positives_and_preserves_ts_prio
     expected: DocumentKind,
 ) -> None:
     assert classify_document_kind(source_name, text) is expected
+
+
+def test_application_requirement_scope_is_shared_with_deterministic_classifier() -> None:
+    cases = (
+        ("Требования к заявке.pdf", "", DocumentKind.APPLICATION_REQUIREMENTS),
+        ("Форма заявки.pdf", "", DocumentKind.APPLICATION_FORM),
+        ("Инструкция по заполнению заявки.pdf", "", DocumentKind.INSTRUCTIONS),
+        ("Информационная карта.pdf", "", DocumentKind.PROCUREMENT_NOTICE),
+    )
+
+    analyzer = TenderRequirementsAnalyzer()
+    assert {analyzer.classify_document(name, text) for name, text, _ in cases} == (
+        APPLICATION_REQUIREMENTS_SOURCE_KINDS
+    )
+    assert all(classify_document_kind(name, text) is expected for name, text, expected in cases)
 
 
 def source(name: str, text: str, key: str = "doc") -> TenderAnalysisSource:

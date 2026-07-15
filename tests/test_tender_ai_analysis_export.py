@@ -7,6 +7,7 @@ import pytest
 from app.core.ai.citations import resolve_citation
 from app.core.ai.schemas import (
     AI_ANALYSIS_SCHEMA_VERSION,
+    AiApplicationRequirementsStatus,
     AiAnalysisProvenance,
     AiDocument,
     AiDocumentAnalysis,
@@ -17,6 +18,7 @@ from app.core.ai.schemas import (
     AiSourceSnapshot,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
+    TenderRequirements,
 )
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
 
@@ -102,6 +104,42 @@ def test_export_round_trips_and_escapes_draft_contract(tmp_path) -> None:
     assert "<script>" not in html
     assert "&lt;script&gt;unsafe contract statement&lt;/script&gt;" in html
     assert "Договор сокращён" in html
+
+
+def test_export_round_trips_scoped_application_requirements_and_escapes_xss(tmp_path) -> None:
+    unverified = AiFinding(
+        "requirements.documents",
+        "<script>unsafe requirement</script>",
+        None,
+        AiFindingStatus.UNVERIFIED,
+    )
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Summary",
+        status="partial",
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.PARTIAL,
+            document_ids=("requirements-1", "missing"),
+            included_document_ids=("requirements-1",),
+            documents=(unverified,),
+            warnings=("Контекст требований к заявке неполон.",),
+        ),
+    )
+
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "requirements.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "requirements.html")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+    assert restored.requirements.status is AiApplicationRequirementsStatus.PARTIAL
+    assert restored.requirements.documents[0].statement == "<script>unsafe requirement</script>"
+    assert payload["requirements"]["document_ids"] == ["requirements-1", "missing"]
+    assert "Требования к заявке" in html
+    assert "найдено документов: 2; включено: 1" in html
+    assert "Контекст требований к заявке неполон." in html
+    assert "<script>" not in html
+    assert "&lt;script&gt;unsafe requirement&lt;/script&gt;" in html
 
 
 @pytest.mark.parametrize(
@@ -192,11 +230,11 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:01:00+00:00",
-        prompt_version="5",
-        output_schema_version="3",
+        prompt_version="6",
+        output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="6",
-        context_version="4",
+        analyzer_version="7",
+        context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",

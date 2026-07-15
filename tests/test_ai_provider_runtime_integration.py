@@ -14,7 +14,7 @@ from app.core.ai.schemas import (
     AiDocument,
     AiDraftContractAnalysis,
     AiTechnicalSpecificationAnalysis,
-    TenderRequirements,
+    _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
 from app.core.config_manager import ConfigManager
 from app.tenders.search_runtime import create_tender_search_runtime
@@ -44,7 +44,7 @@ class RecordingProvider(AIProvider):
             "text": json.dumps(
                 {
                     "summary": "Safe summary",
-                    "requirements": {name: [] for name in TenderRequirements.__dataclass_fields__},
+                    "requirements": {name: [] for name in _APPLICATION_REQUIREMENTS_FINDING_FIELDS},
                     "technical_specification": {
                         name: []
                         for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__

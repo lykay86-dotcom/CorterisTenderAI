@@ -255,3 +255,60 @@ def test_context_orders_contract_after_ts_and_tracks_contract_completeness() -> 
         context_parameters={"context_statistics": asdict(limited.statistics)},
     )
     assert complete_fingerprint != limited_fingerprint
+
+
+def test_context_orders_and_fingerprints_application_requirement_scope() -> None:
+    names = {
+        "ts": "Техническое задание.pdf",
+        "contract": "Проект договора.pdf",
+        "requirements": "Требования к составу заявки.pdf",
+        "form": "Форма заявки.pdf",
+        "instructions": "Инструкция по заполнению заявки.pdf",
+        "notice": "Информационная карта.pdf",
+        "estimate": "Расчет НМЦК.xlsx",
+        "other": "Протокол рассмотрения заявок.pdf",
+    }
+    records = []
+    texts = {}
+    for key, name in names.items():
+        record = _record(key, key)
+        record.source_path = Path(f"C:/missing/{name}")
+        records.append(record)
+        texts[key] = name
+    service = FlexibleTextService(tuple(reversed(records)), texts)
+
+    context = TenderDocumentContextBuilder(service).build_context("procurement:test")
+
+    assert [item.document_id for item in context.documents] == list(names)
+    assert context.statistics.application_requirements_document_count == 4
+    assert context.statistics.included_application_requirements_document_count == 4
+    assert context.statistics.application_requirements_document_ids == (
+        "form",
+        "instructions",
+        "notice",
+        "requirements",
+    )
+    assert context.statistics.included_application_requirements_document_ids == (
+        "requirements",
+        "form",
+        "instructions",
+        "notice",
+    )
+    assert not context.statistics.application_requirements_truncated
+
+    duplicate = _record("requirements-copy", "requirements")
+    duplicate.source_path = Path("C:/missing/Требования к заявке.pdf")
+    incomplete = TenderDocumentContextBuilder(
+        FlexibleTextService(
+            (*records, duplicate), {**texts, "requirements-copy": texts["requirements"]}
+        )
+    ).build_context("procurement:test")
+    assert incomplete.statistics.application_requirements_truncated
+    assert "requirements-copy" in incomplete.statistics.application_requirements_document_ids
+    assert context_fingerprint(
+        context.documents,
+        context_parameters={"context_statistics": asdict(context.statistics)},
+    ) != context_fingerprint(
+        incomplete.documents,
+        context_parameters={"context_statistics": asdict(incomplete.statistics)},
+    )

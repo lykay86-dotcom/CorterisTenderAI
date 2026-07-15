@@ -14,7 +14,7 @@ from app.core.ai.output_schema import (
     decode_and_validate_provider_output,
 )
 from app.core.ai.prompts import SYSTEM_PROMPT
-from app.core.ai.schemas import TenderRequirements
+from app.core.ai.schemas import _APPLICATION_REQUIREMENTS_FINDING_FIELDS
 
 
 ROOT_KEYS = {
@@ -28,7 +28,7 @@ ROOT_KEYS = {
     "missing_documents",
     "final_ai_conclusion",
 }
-REQUIREMENT_KEYS = tuple(TenderRequirements.__dataclass_fields__)
+REQUIREMENT_KEYS = _APPLICATION_REQUIREMENTS_FINDING_FIELDS
 TECHNICAL_SPECIFICATION_KEYS = (
     "scope",
     "deliverables",
@@ -107,8 +107,8 @@ def _walk_objects(value: object) -> list[dict[str, object]]:
 def test_schema_name_version_and_responses_format_are_stable() -> None:
     schema = build_provider_output_json_schema()
 
-    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "3"
-    assert AI_RESPONSE_FORMAT_NAME == "corteris_tender_analysis_v3"
+    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
+    assert AI_RESPONSE_FORMAT_NAME == "corteris_tender_analysis_v4"
     assert build_responses_text_format() == {
         "type": "json_schema",
         "name": AI_RESPONSE_FORMAT_NAME,
@@ -172,6 +172,8 @@ def test_schema_finding_contract_is_bounded_nullable_and_has_no_internal_fields(
         "recommendation",
         "participation_decision",
         "critical_stop_factor",
+        "legal_risk",
+        "financial_risk",
         "citation_id",
         "provenance",
         "source_registry",
@@ -191,6 +193,10 @@ def test_prompt_keeps_provider_output_candidate_only_and_locators_as_hints() -> 
     assert "page and section are optional hints" in prompt
     assert "local application code" in prompt
     assert "kind is draft_contract" in prompt
+    assert "application_requirements, application_form, instructions, procurement_notice" in prompt
+    assert "does ООО «КОРТЕРИС» satisfy" in prompt
+    assert "do not predict application rejection" in prompt
+    assert "grounds_for_rejection" in prompt
     assert "do not make legal or financial conclusions" in prompt
     for forbidden_output in ("links", "citation ids", "provenance"):
         assert f"do not return {forbidden_output}" in prompt

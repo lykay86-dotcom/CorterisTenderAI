@@ -147,11 +147,11 @@ def test_context_fingerprint_changes_with_all_contract_versions_and_limits() -> 
 
 
 def test_rm118_versions_are_current_with_one_coordinated_bump() -> None:
-    assert AI_PROMPT_VERSION == "5"
-    assert AI_ANALYZER_VERSION == "6"
+    assert AI_PROMPT_VERSION == "6"
+    assert AI_ANALYZER_VERSION == "7"
     assert CITATION_RESOLVER_VERSION == "1"
-    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "3"
-    assert AI_ANALYSIS_SCHEMA_VERSION == 5
+    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
+    assert AI_ANALYSIS_SCHEMA_VERSION == 6
 
 
 def test_strict_fingerprint_does_not_reuse_old_lenient_result(tmp_path) -> None:
