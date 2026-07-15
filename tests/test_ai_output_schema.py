@@ -21,6 +21,7 @@ ROOT_KEYS = {
     "summary",
     "requirements",
     "technical_specification",
+    "draft_contract",
     "risks",
     "suspicious_conditions",
     "contradictions",
@@ -43,6 +44,24 @@ TECHNICAL_SPECIFICATION_KEYS = (
     "contradictions",
     "clarification_points",
 )
+DRAFT_CONTRACT_KEYS = (
+    "subject_and_scope",
+    "term_schedule_and_location",
+    "price_and_price_change",
+    "payment_terms",
+    "acceptance_and_closing_documents",
+    "performance_security",
+    "warranty_and_defect_remediation",
+    "customer_obligations_and_dependencies",
+    "contractor_obligations_and_subcontracting",
+    "liability_penalties_and_damages",
+    "change_suspension_and_termination",
+    "force_majeure_and_notifications",
+    "dispute_confidentiality_and_ip",
+    "ambiguities",
+    "contradictions",
+    "clarification_points",
+)
 FINDING_KEYS = {"statement", "document_id", "quote", "section", "page", "confidence"}
 
 
@@ -51,6 +70,7 @@ def _valid_payload() -> dict[str, Any]:
         "summary": "",
         "requirements": {name: [] for name in REQUIREMENT_KEYS},
         "technical_specification": {name: [] for name in TECHNICAL_SPECIFICATION_KEYS},
+        "draft_contract": {name: [] for name in DRAFT_CONTRACT_KEYS},
         "risks": [],
         "suspicious_conditions": [],
         "contradictions": [],
@@ -87,8 +107,8 @@ def _walk_objects(value: object) -> list[dict[str, object]]:
 def test_schema_name_version_and_responses_format_are_stable() -> None:
     schema = build_provider_output_json_schema()
 
-    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "2"
-    assert AI_RESPONSE_FORMAT_NAME == "corteris_tender_analysis_v2"
+    assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "3"
+    assert AI_RESPONSE_FORMAT_NAME == "corteris_tender_analysis_v3"
     assert build_responses_text_format() == {
         "type": "json_schema",
         "name": AI_RESPONSE_FORMAT_NAME,
@@ -114,6 +134,9 @@ def test_schema_is_deterministic_strict_and_matches_domain_buckets() -> None:
     technical_model = first["$defs"]["ProviderTechnicalSpecificationPayload"]
     assert tuple(technical_model["properties"]) == TECHNICAL_SPECIFICATION_KEYS
     assert set(technical_model["required"]) == set(TECHNICAL_SPECIFICATION_KEYS)
+    contract_model = first["$defs"]["ProviderDraftContractPayload"]
+    assert tuple(contract_model["properties"]) == DRAFT_CONTRACT_KEYS
+    assert set(contract_model["required"]) == set(DRAFT_CONTRACT_KEYS)
 
     for object_schema in _walk_objects(first):
         assert object_schema["additionalProperties"] is False
@@ -167,6 +190,8 @@ def test_prompt_keeps_provider_output_candidate_only_and_locators_as_hints() -> 
     assert "exactly one json object" in prompt
     assert "page and section are optional hints" in prompt
     assert "local application code" in prompt
+    assert "kind is draft_contract" in prompt
+    assert "do not make legal or financial conclusions" in prompt
     for forbidden_output in ("links", "citation ids", "provenance"):
         assert f"do not return {forbidden_output}" in prompt
 
@@ -200,6 +225,9 @@ def test_decoder_accepts_minimal_and_full_valid_payloads() -> None:
         lambda payload: payload.update({"unknown": True}),
         lambda payload: payload["requirements"].pop("equipment"),
         lambda payload: payload["requirements"].update({"unknown": []}),
+        lambda payload: payload["draft_contract"].pop("subject_and_scope"),
+        lambda payload: payload["draft_contract"].update({"status": "complete"}),
+        lambda payload: payload["draft_contract"].update({"payment_terms": {}}),
         lambda payload: payload.update({"requirements": []}),
         lambda payload: payload.update({"risks": {}}),
         lambda payload: payload.update({"summary": 42}),

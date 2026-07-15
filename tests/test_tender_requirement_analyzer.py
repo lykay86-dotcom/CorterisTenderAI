@@ -59,6 +59,11 @@ def test_draft_contract_classifier_positive_cases(source_name: str, text: str) -
             "Предмет договора указан в техническом задании.",
             DocumentKind.TECHNICAL_SPECIFICATION,
         ),
+        (
+            "Справка.pdf",
+            "Предмет договора упомянут без структуры проекта договора.",
+            DocumentKind.OTHER,
+        ),
     ],
 )
 def test_draft_contract_classifier_rejects_false_positives_and_preserves_ts_priority(

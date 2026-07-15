@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from app.tenders.document_text_extractor import StoredDocumentText
 
 
-AI_CONTEXT_VERSION = "3"
+AI_CONTEXT_VERSION = "4"
 DEFAULT_MAX_DOCUMENT_CHARACTERS = 100_000
 DEFAULT_MAX_TOTAL_CHARACTERS = 400_000
 
@@ -41,6 +41,11 @@ class AiContextStatistics:
     technical_specification_truncated: bool = False
     technical_specification_document_ids: tuple[str, ...] = ()
     included_technical_specification_document_ids: tuple[str, ...] = ()
+    draft_contract_document_count: int = 0
+    included_draft_contract_document_count: int = 0
+    draft_contract_truncated: bool = False
+    draft_contract_document_ids: tuple[str, ...] = ()
+    included_draft_contract_document_ids: tuple[str, ...] = ()
 
     @property
     def truncated(self) -> bool:
@@ -51,6 +56,43 @@ class AiContextStatistics:
 class AiDocumentContext:
     documents: tuple[AiDocument, ...]
     statistics: AiContextStatistics
+
+
+@dataclass(slots=True)
+class _ScopedContextStatistics:
+    kind: DocumentKind
+    document_ids: tuple[str, ...]
+    included_document_ids: list[str]
+    incomplete: bool = False
+
+    @classmethod
+    def from_prepared(
+        cls,
+        kind: DocumentKind,
+        prepared: tuple[_PreparedRecord, ...],
+    ) -> _ScopedContextStatistics:
+        return cls(
+            kind=kind,
+            document_ids=tuple(
+                sorted(
+                    (
+                        str(getattr(item.record, "document_key", "") or "")
+                        for item in prepared
+                        if item.kind is kind
+                    ),
+                    key=str.casefold,
+                )
+            ),
+            included_document_ids=[],
+        )
+
+    def mark_incomplete(self, kind: DocumentKind) -> None:
+        if kind is self.kind:
+            self.incomplete = True
+
+    def include(self, kind: DocumentKind, document_id: str) -> None:
+        if kind is self.kind:
+            self.included_document_ids.append(document_id)
 
 
 class TenderDocumentContextBuilder:
@@ -92,27 +134,19 @@ class TenderDocumentContextBuilder:
         truncated = omitted = empty = unavailable = 0
         duplicate = len(records) - len(current_records)
 
-        ts_found = sum(item.kind is DocumentKind.TECHNICAL_SPECIFICATION for item in prepared)
-        ts_document_ids = tuple(
-            sorted(
-                (
-                    str(getattr(item.record, "document_key", "") or "")
-                    for item in prepared
-                    if item.kind is DocumentKind.TECHNICAL_SPECIFICATION
-                ),
-                key=str.casefold,
-            )
+        technical = _ScopedContextStatistics.from_prepared(
+            DocumentKind.TECHNICAL_SPECIFICATION, prepared
         )
-        included_ts_document_ids: list[str] = []
-        ts_included = 0
-        ts_incomplete = False
+        contract = _ScopedContextStatistics.from_prepared(DocumentKind.DRAFT_CONTRACT, prepared)
+        scoped = (technical, contract)
 
         for prepared_record in ordered:
             record = prepared_record.record
             kind = prepared_record.kind
             if not bool(getattr(record, "available_locally", False)):
                 unavailable += 1
-                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
+                for item in scoped:
+                    item.mark_incomplete(kind)
                 continue
             checksum = str(getattr(record, "checksum_sha256", "") or "").strip()
             if checksum and checksum in seen_checksums:
@@ -124,19 +158,23 @@ class TenderDocumentContextBuilder:
                 text = prepared_record.text
             except Exception:
                 unavailable += 1
-                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
+                for item in scoped:
+                    item.mark_incomplete(kind)
                 continue
             if prepared_record.read_failed:
                 unavailable += 1
-                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
+                for item in scoped:
+                    item.mark_incomplete(kind)
                 continue
             if not text:
                 empty += 1
-                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
+                for item in scoped:
+                    item.mark_incomplete(kind)
                 continue
             if characters >= self.max_total_characters:
                 omitted += 1
-                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
+                for item in scoped:
+                    item.mark_incomplete(kind)
                 continue
 
             original_count = len(text)
@@ -148,7 +186,8 @@ class TenderDocumentContextBuilder:
             was_truncated = len(rendered) < original_count
             if was_truncated:
                 truncated += 1
-                ts_incomplete = ts_incomplete or kind is DocumentKind.TECHNICAL_SPECIFICATION
+                for item in scoped:
+                    item.mark_incomplete(kind)
             characters += len(rendered)
             source_path = getattr(record, "source_path", None)
             document_key = str(getattr(record, "document_key", "") or "")
@@ -173,9 +212,8 @@ class TenderDocumentContextBuilder:
                     document_kind=kind.value,
                 )
             )
-            if kind is DocumentKind.TECHNICAL_SPECIFICATION:
-                ts_included += 1
-                included_ts_document_ids.append(document_key)
+            for item in scoped:
+                item.include(kind, document_key)
 
         statistics = AiContextStatistics(
             source_document_count=len(records),
@@ -186,11 +224,16 @@ class TenderDocumentContextBuilder:
             empty_document_count=empty,
             duplicate_document_count=duplicate,
             unavailable_document_count=unavailable,
-            technical_specification_document_count=ts_found,
-            included_technical_specification_document_count=ts_included,
-            technical_specification_truncated=ts_incomplete,
-            technical_specification_document_ids=ts_document_ids,
-            included_technical_specification_document_ids=tuple(included_ts_document_ids),
+            technical_specification_document_count=len(technical.document_ids),
+            included_technical_specification_document_count=len(technical.included_document_ids),
+            technical_specification_truncated=technical.incomplete,
+            technical_specification_document_ids=technical.document_ids,
+            included_technical_specification_document_ids=tuple(technical.included_document_ids),
+            draft_contract_document_count=len(contract.document_ids),
+            included_draft_contract_document_count=len(contract.included_document_ids),
+            draft_contract_truncated=contract.incomplete,
+            draft_contract_document_ids=contract.document_ids,
+            included_draft_contract_document_ids=tuple(contract.included_document_ids),
         )
         return AiDocumentContext(tuple(documents), statistics)
 
@@ -250,9 +293,10 @@ def _prepared_sort_key(item: _PreparedRecord) -> tuple[int, str, str, str]:
     path = getattr(record, "source_path", None)
     priority = {
         DocumentKind.TECHNICAL_SPECIFICATION: 0,
-        DocumentKind.PROCUREMENT_NOTICE: 1,
-        DocumentKind.ESTIMATE: 1,
-    }.get(item.kind, 2)
+        DocumentKind.DRAFT_CONTRACT: 1,
+        DocumentKind.PROCUREMENT_NOTICE: 2,
+        DocumentKind.ESTIMATE: 2,
+    }.get(item.kind, 3)
     return (
         priority,
         str(getattr(record, "document_key", "") or "").casefold(),

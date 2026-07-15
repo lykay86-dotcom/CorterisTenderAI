@@ -33,6 +33,7 @@ from app.tenders.full_analysis import (
 from app.core.ai.schemas import (
     AiAnalysisStatus,
     AiDocumentAnalysis,
+    AiDraftContractStatus,
     AiTechnicalSpecificationStatus,
 )
 from app.ui.theme.colors import ThemeName, get_palette
@@ -432,6 +433,38 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
     technical_warnings = (
         "".join(f"<li>{escape(item)}</li>" for item in technical.warnings) or "<li>Нет.</li>"
     )
+    contract = analysis.draft_contract
+    contract_status = {
+        AiDraftContractStatus.COMPLETE: "Полный результат",
+        AiDraftContractStatus.PARTIAL: "Частичный результат",
+        AiDraftContractStatus.NOT_FOUND: "Проект договора/контракта не найден",
+        AiDraftContractStatus.UNAVAILABLE: "Анализ проекта договора/контракта недоступен",
+    }.get(contract.status, "Анализ проекта договора/контракта недоступен")
+    contract_groups = {
+        "subject_and_scope": "Предмет и объём обязательств",
+        "term_schedule_and_location": "Сроки, этапы и место исполнения",
+        "price_and_price_change": "Цена и изменение цены",
+        "payment_terms": "Условия оплаты",
+        "acceptance_and_closing_documents": "Приёмка и закрывающие документы",
+        "performance_security": "Обеспечение исполнения и гарантий",
+        "warranty_and_defect_remediation": "Гарантия и устранение недостатков",
+        "customer_obligations_and_dependencies": "Обязанности и зависимости заказчика",
+        "contractor_obligations_and_subcontracting": "Обязанности исполнителя и субподряд",
+        "liability_penalties_and_damages": "Ответственность, штрафы и убытки",
+        "change_suspension_and_termination": "Изменение, приостановка и расторжение",
+        "force_majeure_and_notifications": "Форс-мажор и уведомления",
+        "dispute_confidentiality_and_ip": "Споры, конфиденциальность и права",
+        "ambiguities": "Неоднозначности",
+        "contradictions": "Противоречия",
+        "clarification_points": "Вопросы для уточнения",
+    }
+    contract_html = "".join(
+        f"<h4>{escape(label)}</h4><ul>{render_findings(getattr(contract, name))}</ul>"
+        for name, label in contract_groups.items()
+    )
+    contract_warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in contract.warnings) or "<li>Нет.</li>"
+    )
     missing = (
         "".join(f"<li>{escape(item)}</li>" for item in analysis.missing_documents)
         or "<li>Не выявлено.</li>"
@@ -461,6 +494,10 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"<p><b>Документы ТЗ:</b> найдено {len(technical.document_ids)}, "
         f"включено {len(technical.included_document_ids)}</p>{technical_html}"
         f"<h4>Предупреждения по ТЗ</h4><ul>{technical_warnings}</ul>"
+        f"<h3>Проект договора/контракта</h3><p><b>Статус:</b> {escape(contract_status)}</p>"
+        f"<p><b>Документы проекта договора:</b> найдено {len(contract.document_ids)}, "
+        f"включено {len(contract.included_document_ids)}</p>{contract_html}"
+        f"<h4>Предупреждения по проекту договора</h4><ul>{contract_warnings}</ul>"
         f"<h3>Требования</h3><ul>{render_findings(requirements)}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
@@ -485,6 +522,12 @@ def _current_citation_targets(analysis: AiDocumentAnalysis | None) -> dict[str, 
         if name not in {"status", "document_ids", "included_document_ids", "warnings"}
         for item in getattr(analysis.technical_specification, name)
     )
+    contract = tuple(
+        item
+        for name in analysis.draft_contract.__dataclass_fields__
+        if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+        for item in getattr(analysis.draft_contract, name)
+    )
     targets: dict[str, str] = {}
     for finding in (
         *requirements,
@@ -492,6 +535,7 @@ def _current_citation_targets(analysis: AiDocumentAnalysis | None) -> dict[str, 
         *analysis.suspicious_conditions,
         *analysis.contradictions,
         *technical,
+        *contract,
     ):
         if analysis.is_current_verified(finding) and finding.evidence is not None:
             targets[finding.evidence.citation_id] = finding.evidence.document_id

@@ -142,6 +142,20 @@ def test_non_contract_unknown_and_altered_evidence_remain_unverified() -> None:
     )
 
 
+def test_contract_locator_conflict_is_unverified_and_partial() -> None:
+    finding = _finding()
+    finding["page"] = 99
+    finding["section"] = "Несовпадающий раздел"
+
+    result = TenderDocumentAiAnalyzer(Provider(_payload(payment_terms=[finding]))).analyze(
+        "procurement:test", (_document(),), context_fingerprint=FINGERPRINT
+    )
+
+    assert result.draft_contract.status is AiDraftContractStatus.PARTIAL
+    assert not result.draft_contract.payment_terms[0].verified
+    assert result.draft_contract.payment_terms[0].evidence is None
+
+
 def test_contract_not_found_and_provider_failures_are_local_statuses() -> None:
     missing = TenderDocumentAiAnalyzer(Provider(_payload())).analyze(
         "procurement:test",
@@ -240,3 +254,41 @@ def test_corrupt_cached_contract_shape_fails_closed() -> None:
 
     assert restored.draft_contract.status is AiDraftContractStatus.UNAVAILABLE
     assert not restored.draft_contract.payment_terms
+
+
+def test_legacy_payload_reads_with_unavailable_empty_contract_section() -> None:
+    result = TenderDocumentAiAnalyzer(Provider(_payload(payment_terms=[_finding()]))).analyze(
+        "procurement:test", (_document(),), context_fingerprint=FINGERPRINT
+    )
+    legacy = result.to_payload()
+    legacy["payload_version"] = 4
+    legacy.pop("draft_contract")
+
+    restored = AiDocumentAnalysis.from_payload(legacy)
+
+    assert restored.payload_version == 4
+    assert restored.draft_contract.status is AiDraftContractStatus.UNAVAILABLE
+    assert not restored.draft_contract.payment_terms
+
+
+def test_cached_ts_evidence_cannot_be_promoted_to_contract() -> None:
+    ts = _document(
+        "ts",
+        kind=DocumentKind.TECHNICAL_SPECIFICATION,
+        text="Поставка включает насос.",
+    )
+    payload = _payload()
+    payload["technical_specification"]["scope"] = [
+        _finding(document_id="ts", quote="Поставка включает насос.")
+    ]
+    result = TenderDocumentAiAnalyzer(Provider(payload)).analyze(
+        "procurement:test", (_document(), ts), context_fingerprint=FINGERPRINT
+    )
+    stored = result.to_payload()
+    stored["draft_contract"]["subject_and_scope"] = stored["technical_specification"]["scope"]
+
+    restored = AiDocumentAnalysis.from_payload(stored)
+
+    finding = restored.draft_contract.subject_and_scope[0]
+    assert finding.status is AiFindingStatus.UNVERIFIED
+    assert finding.evidence is None

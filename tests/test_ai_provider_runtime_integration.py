@@ -10,7 +10,12 @@ from app.ai.provider import AIProvider, DisabledProvider, OpenAICompatibleProvid
 from app.bootstrap import _create_ai_runtime
 from app.core.ai.output_schema import build_responses_text_format
 from app.core.ai.provider_selection import AiProviderId, OLLAMA_DEFAULT_BASE_URL
-from app.core.ai.schemas import AiDocument, AiTechnicalSpecificationAnalysis, TenderRequirements
+from app.core.ai.schemas import (
+    AiDocument,
+    AiDraftContractAnalysis,
+    AiTechnicalSpecificationAnalysis,
+    TenderRequirements,
+)
 from app.core.config_manager import ConfigManager
 from app.tenders.search_runtime import create_tender_search_runtime
 
@@ -43,6 +48,17 @@ class RecordingProvider(AIProvider):
                     "technical_specification": {
                         name: []
                         for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
+                        if name
+                        not in {
+                            "status",
+                            "document_ids",
+                            "included_document_ids",
+                            "warnings",
+                        }
+                    },
+                    "draft_contract": {
+                        name: []
+                        for name in AiDraftContractAnalysis.__dataclass_fields__
                         if name
                         not in {
                             "status",

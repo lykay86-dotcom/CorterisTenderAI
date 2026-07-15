@@ -49,7 +49,17 @@ class TenderAiAnalysisExporter:
             for name in technical.__dataclass_fields__
             if name not in {"status", "document_ids", "included_document_ids", "warnings"}
         )
-        all_findings = (*all_findings, *(item for _, items in technical_groups for item in items))
+        contract = analysis.draft_contract
+        contract_groups = tuple(
+            (name, getattr(contract, name))
+            for name in contract.__dataclass_fields__
+            if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+        )
+        all_findings = (
+            *all_findings,
+            *(item for _, items in technical_groups for item in items),
+            *(item for _, items in contract_groups for item in items),
+        )
 
         def findings(items) -> str:
             rows = []
@@ -111,6 +121,14 @@ class TenderAiAnalysisExporter:
         technical_warnings = (
             "".join(f"<li>{escape(item)}</li>" for item in technical.warnings) or "<li>Нет.</li>"
         )
+        contract_tables = "".join(
+            f"<h3>{escape(name)}</h3><table><tr><th>Категория</th><th>Вывод</th>"
+            f"<th>Источник</th></tr>{findings(items)}</table>"
+            for name, items in contract_groups
+        )
+        contract_warnings = (
+            "".join(f"<li>{escape(item)}</li>" for item in contract.warnings) or "<li>Нет.</li>"
+        )
         context_note = (
             "<p><strong>Контекст сокращён по безопасному лимиту.</strong></p>"
             if analysis.context_truncated
@@ -128,6 +146,11 @@ class TenderAiAnalysisExporter:
             f"{len(technical.document_ids)}; включено: "
             f"{len(technical.included_document_ids)}</p>"
             f"{technical_tables}<h3>Предупреждения по ТЗ</h3><ul>{technical_warnings}</ul>"
+            f"<h2>Проект договора/контракта</h2><p>Статус: "
+            f"{escape(contract.status.value)}; найдено документов: "
+            f"{len(contract.document_ids)}; включено: {len(contract.included_document_ids)}</p>"
+            f"{contract_tables}<h3>Предупреждения по проекту договора</h3>"
+            f"<ul>{contract_warnings}</ul>"
             f"<h2>Требования</h2><table><tr><th>Категория</th><th>Вывод</th><th>Источник</th></tr>{findings(all_requirements)}</table>"
             f"<h2>Риски</h2><table>{findings(analysis.risks)}</table>"
             f"<h2>Подозрительные условия</h2><table>{findings(analysis.suspicious_conditions)}</table>"

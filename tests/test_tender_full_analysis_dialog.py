@@ -12,6 +12,8 @@ from app.core.ai.schemas import (
     AiAnalysisProvenance,
     AiDocument,
     AiDocumentAnalysis,
+    AiDraftContractAnalysis,
+    AiDraftContractStatus,
     AiFinding,
     AiFindingStatus,
     AiSourceSnapshot,
@@ -71,11 +73,11 @@ def _current_analysis() -> AiDocumentAnalysis:
         analysis_id="analysis_123",
         context_fingerprint=fingerprint,
         created_at="2026-07-14T10:01:00+00:00",
-        prompt_version="4",
-        output_schema_version="2",
+        prompt_version="5",
+        output_schema_version="3",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="5",
-        context_version="3",
+        analyzer_version="6",
+        context_version="4",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -153,6 +155,74 @@ def test_dialog_renders_technical_specification_status_groups_and_evidence() -> 
     assert "Confirmed" in html
     assert "Неподтверждённый вывод" in html
     assert "Контекст технического задания неполон" in html
+
+
+def test_dialog_renders_draft_contract_groups_status_warnings_and_evidence() -> None:
+    analysis = _current_analysis()
+    verified = analysis.risks[0]
+    unverified = analysis.risks[1]
+    analysis = replace(
+        analysis,
+        draft_contract=AiDraftContractAnalysis(
+            status=AiDraftContractStatus.PARTIAL,
+            document_ids=("doc",),
+            included_document_ids=("doc",),
+            subject_and_scope=(unverified,),
+            payment_terms=(verified,),
+            warnings=("Контекст проекта договора/контракта неполон.",),
+        ),
+    )
+
+    result = _result(analysis)
+    html = _render_ai_document_analysis(result)
+
+    assert "Проект договора/контракта" in html
+    assert "Частичный результат" in html
+    for label in (
+        "Предмет и объём обязательств",
+        "Сроки, этапы и место исполнения",
+        "Цена и изменение цены",
+        "Условия оплаты",
+        "Приёмка и закрывающие документы",
+        "Обеспечение исполнения и гарантий",
+        "Гарантия и устранение недостатков",
+        "Обязанности и зависимости заказчика",
+        "Обязанности исполнителя и субподряд",
+        "Ответственность, штрафы и убытки",
+        "Изменение, приостановка и расторжение",
+        "Форс-мажор и уведомления",
+        "Споры, конфиденциальность и права",
+        "Неоднозначности",
+        "Противоречия",
+        "Вопросы для уточнения",
+    ):
+        assert label in html
+    assert "Контекст проекта договора/контракта неполон." in html
+    assert "Неподтверждённый вывод — не влияет на рекомендацию." in html
+    assert "corteris-citation://open/" in html
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (AiDraftContractStatus.COMPLETE, "Полный результат"),
+        (AiDraftContractStatus.PARTIAL, "Частичный результат"),
+        (AiDraftContractStatus.NOT_FOUND, "Проект договора/контракта не найден"),
+        (AiDraftContractStatus.UNAVAILABLE, "Анализ проекта договора/контракта недоступен"),
+    ],
+)
+def test_dialog_renders_all_draft_contract_statuses(
+    status: AiDraftContractStatus,
+    expected: str,
+) -> None:
+    analysis = replace(
+        _current_analysis(),
+        draft_contract=AiDraftContractAnalysis(status=status),
+    )
+
+    html = _render_ai_document_analysis(_result(analysis))
+
+    assert expected in html
 
 
 def _result(analysis: AiDocumentAnalysis) -> TenderFullAnalysisResult:

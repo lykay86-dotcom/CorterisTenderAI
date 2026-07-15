@@ -8,6 +8,7 @@ from app.core.ai.analyzer import TenderDocumentAiAnalyzer
 from app.core.ai.schemas import (
     AiDocument,
     AiDocumentAnalysis,
+    AiDraftContractAnalysis,
     AiFindingStatus,
     AiTechnicalSpecificationAnalysis,
     AiTechnicalSpecificationStatus,
@@ -20,6 +21,11 @@ FINGERPRINT = "f" * 64
 TS_FIELDS = tuple(
     name
     for name in AiTechnicalSpecificationAnalysis.__dataclass_fields__
+    if name not in {"status", "document_ids", "included_document_ids", "warnings"}
+)
+DRAFT_FIELDS = tuple(
+    name
+    for name in AiDraftContractAnalysis.__dataclass_fields__
     if name not in {"status", "document_ids", "included_document_ids", "warnings"}
 )
 
@@ -54,6 +60,7 @@ def _payload(**technical: object) -> dict[str, object]:
         "summary": "Summary",
         "requirements": {name: [] for name in TenderRequirements.__dataclass_fields__},
         "technical_specification": section,
+        "draft_contract": {name: [] for name in DRAFT_FIELDS},
         "risks": [],
         "suspicious_conditions": [],
         "contradictions": [],
