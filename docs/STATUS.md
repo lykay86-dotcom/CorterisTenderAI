@@ -4,41 +4,41 @@
 
 ## Активный этап
 
-**RM-120 — юридические риски**
+**RM-121 — финансовые риски**
 
 Статус: `IN PROGRESS`
 
-Этап назначается только после merge реализации RM-119, успешного post-merge Windows Quality
-Gate на merge-коммите и merged docs-only closeout. До изменения application-кода RM-120
-требуется отдельный аудит текущего анализа юридических рисков и его deterministic/AI boundaries.
+Этап назначается только после merge реализации RM-120, успешного post-merge Windows Quality
+Gate на merge-коммите и merged docs-only closeout. До изменения application-кода RM-121
+требуется отдельный аудит текущего финансового анализа и его deterministic/AI boundaries.
 
 ## Предыдущий этап
 
-**RM-119 — анализ требований к заявке**
+**RM-120 — юридические риски**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- feature PR #41 слит в `main` коммитом `dedc361`;
-- post-merge Quality Gate run `29406013475` успешен на Python 3.12 и 3.13;
-- полный Windows suite: Python 3.12 — `1114 passed in 88.59s`, Python 3.13 —
-  `1114 passed in 77.06s`;
-- единый deterministic classifier надёжно назначает application requirements/form/instructions,
-  сохраняет приоритет ТЗ и проекта договора и используется также AI context builder;
-- строгий provider-output schema v4 содержит 21 application-группу, persisted payload v6 читает
-  legacy безопасно и отклоняет future/corrupt cache fail-closed;
-- application findings подтверждаются только единым RM-116 citation resolver и current provenance
-  для локально классифицированных документов заявки;
-- existing UI и JSON/HTML export показывают complete/partial/not_found/unavailable, все 21 группу,
-  citations и предупреждения без бизнес-логики или private paths;
-- сохранены единые provider/analyzer/service/Orchestrator/repository/context builder/exporter,
-  один production provider call и одна `RUNNING_AI` стадия;
+- feature PR #43 слит в `main` коммитом `f2f87ff`;
+- post-merge Quality Gate run `29411717306` успешен на Python 3.12 и 3.13;
+- полный Windows suite: Python 3.12 — `1198 passed in 74.13s`, Python 3.13 —
+  `1198 passed in 73.26s`;
+- pure local legal policy строит versioned registry только из current verified specialized
+  requirements, ТЗ и draft-contract findings;
+- категории, priorities, stable IDs и actions детерминированы; generic risks и deterministic
+  stop-factors не копируются;
+- persisted payload v7 локально пересчитывается и сверяется, legacy v1–v6 и повреждённые данные
+  обрабатываются fail-closed;
+- existing UI и JSON/HTML export показывают четыре статуса, priorities, citations, warnings и
+  disclaimer с безопасным escaping;
+- сохранены единые provider/analyzer/service/Orchestrator/repository/UI/exporter, один production
+  provider call и одна `RUNNING_AI` стадия;
 - RM-107 score/recommendation и абсолютный приоритет critical stop-factor не изменены;
 - новая БД или миграция БД не потребовались;
-- локально: target `311 passed`, full `1114 passed`, Ruff, mypy (16 файлов), secret scan,
+- локально: target `342 passed`, full `1198 passed`, Ruff, mypy (17 файлов), secret scan,
   dependency audit и diff-check успешны;
-- post-merge gate подтвердил Ruff (`511 files`), mypy (16 файлов), secret scan, smoke tests и
+- post-merge gate подтвердил Ruff (`513 files`), mypy (17 файлов), secret scan, smoke tests и
   dependency audit на обеих версиях Python.
 
 ## Ранее завершённый этап
@@ -57,5 +57,5 @@ Gate на merge-коммите и merged docs-only closeout. До изменен
 
 ## Текущее действие
 
-Провести отдельный аудит RM-120 до изменения анализа юридических рисков или его
+Провести отдельный аудит RM-121 до изменения анализа финансовых рисков или его
 AI/deterministic contract.

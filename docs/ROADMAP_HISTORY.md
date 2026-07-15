@@ -1,5 +1,33 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-120 завершён
+
+- PR #43 (`feat(rm-120): add explainable legal risk assessment`) слит в `main` коммитом
+  `f2f87ff` (`f2f87ff640082470bf822acee937ddd184ebcb23`).
+- Post-merge Quality Gate run `29411717306` завершился статусом `SUCCESS`: Python 3.12 —
+  `1198 passed in 74.13s`, Python 3.13 — `1198 passed in 73.26s`.
+- На обеих версиях прошли Ruff check/format (`513 files`), mypy (17 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Pure local legal policy строит versioned registry только из current verified specialized
+  requirements, technical specification и draft-contract findings без второго provider call,
+  regex-классификации или network legal verification.
+- Category и review priority заданы фиксированными mappings; stable risk IDs и ordering основаны
+  на canonical citation IDs. Generic root risks и deterministic stop-factors не копируются.
+- Persisted payload v7 локально пересчитывается при чтении; legacy v1–v6 остаётся unavailable,
+  а future/corrupt/tampered cache обрабатывается fail-closed без изменения SQLite schema.
+- Provider schema/response format v4, prompt v6, context v5 и citation resolver v1 не изменены;
+  сохранены один analyzer/service/Orchestrator/repository/provider call и одна `RUNNING_AI` stage.
+- Existing AI tab и JSON/HTML exporter показывают status, policy version, priority counts,
+  escaped titles/actions, current internal citations, warnings и юридический disclaimer.
+- RM-107 score/recommendation/action plan и абсолютный приоритет critical stop-factor не изменены;
+  legal registry не входит в decision evidence.
+- Локальная приёмка: target `342 passed in 11.92s`, full `1198 passed in 51.00s`, Ruff
+  (`513 files`), mypy (17 файлов), secret scan, dependency audit и diff-check успешны.
+- Неблокирующее предупреждение GitHub Actions о переводе pinned official actions с Node.js 20
+  на Node.js 24 сохранено как отдельная обслуживающая задача и не влияет на успешный gate.
+- RM-120 переведён в `DONE`; RM-121 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации финансовых рисков.
+
 ## 2026-07-15 — RM-119 завершён
 
 - PR #41 (`feat(rm-119): add explainable application requirements analysis`) слит в `main`
