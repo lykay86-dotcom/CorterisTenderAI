@@ -148,9 +148,20 @@ tests/test_tender_ai_analysis_export.py
 
 ## RED и feature acceptance
 
-RED tests должны быть добавлены отдельным commit
-`test(rm-125): define AI platform stability contract`. Точная RED-причина и последующие target/
-full/Ruff/mypy/secret/audit/diff результаты записываются сюда после соответствующих прогонов.
+RED contract добавлен отдельным test package для immutable execution identity, provider/model-aware
+cache, typed repository lookup, no-document provenance/cacheability, fixed provider failures,
+same-key concurrency, lock cleanup, explicit RM-107 boundary и architecture invariants.
+
+До production implementation 13-file target завершился одной collection error с точной причиной:
+
+```text
+ModuleNotFoundError: No module named 'app.core.ai.execution_contract'
+1 error in 3.93s
+```
+
+Новый test file проходит Ruff check и Ruff format check. RED фиксируется commit
+`test(rm-125): define AI platform stability contract`. Последующие target/full/Ruff/mypy/secret/
+audit/diff результаты записываются сюда после соответствующих прогонов.
 
 До feature merge, post-merge Windows matrix и отдельного docs-only closeout RM-125 остаётся
 `IN PROGRESS`.
