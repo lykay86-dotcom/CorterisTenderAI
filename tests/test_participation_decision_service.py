@@ -20,6 +20,12 @@ from app.core.ai.schemas import (
     AiEvidenceVerificationMethod,
     AiFinding,
     AiFindingStatus,
+    AiFinancialReviewPriority,
+    AiFinancialRiskAssessment,
+    AiFinancialRiskCategory,
+    AiFinancialRiskItem,
+    AiFinancialRiskSourceRef,
+    AiFinancialRiskStatus,
     AiLegalReviewPriority,
     AiLegalRiskAssessment,
     AiLegalRiskCategory,
@@ -94,7 +100,7 @@ def _current_analysis_with_risk() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="8",
+        analyzer_version="9",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",
@@ -405,6 +411,69 @@ def test_legal_registry_does_not_change_rm107_score_recommendation_actions_or_ev
 
     assert decision.score == 100
     assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
+    assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
+    assert not any("AI-" in action for action in decision.actions)
+
+
+def test_financial_registry_does_not_change_rm107_decision_or_stop_factors() -> None:
+    score = SimpleNamespace(
+        total_score=100,
+        recommendation=ParticipationRecommendation.RECOMMENDED,
+        recommendation_text="Participate",
+    )
+    verification = SimpleNamespace(
+        registry_key="procurement:1",
+        status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=0.9,
+    )
+    estimate = SimpleNamespace(
+        registry_key="procurement:1", status=CommercialEstimateStatus.COMPLETE
+    )
+    base = _current_analysis_with_risk()
+    finding = base.risks[0]
+    assert finding.evidence is not None
+    analysis = replace(
+        base,
+        risks=(),
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.COMPLETE,
+            document_ids=("doc",),
+            included_document_ids=("doc",),
+            bid_security=(finding,),
+        ),
+        financial_risk_assessment=AiFinancialRiskAssessment(
+            status=AiFinancialRiskStatus.COMPLETE,
+            policy_version="1",
+            items=(
+                AiFinancialRiskItem(
+                    risk_id="financial_" + "a" * 32,
+                    category=AiFinancialRiskCategory.SECURITY_AND_GUARANTEE_COSTS,
+                    review_priority=AiFinancialReviewPriority.ELEVATED,
+                    title="Обеспечение и стоимость гарантий",
+                    source_refs=(
+                        AiFinancialRiskSourceRef(
+                            "requirements",
+                            "bid_security",
+                            finding.evidence.citation_id,
+                        ),
+                    ),
+                    recommended_action="Проверить обеспечение вручную.",
+                ),
+            ),
+            warnings=(),
+        ),
+    )
+
+    decision = ParticipationDecisionService(
+        _ScoreService(score),
+        _StateRepository(verification),
+        _EstimateRepository(estimate),
+        ai_analysis_repository=_AiRepository(analysis),
+    ).evaluate("procurement:1")
+
+    assert decision.score == 100
+    assert decision.recommendation == ParticipationDecisionRecommendation.PARTICIPATE
+    assert decision.stop_factors == ()
     assert not any(item.source == "ai_document_analysis" for item in decision.evidence)
     assert not any("AI-" in action for action in decision.actions)
 

@@ -6,10 +6,13 @@ from html import escape
 import json
 from pathlib import Path
 
+from app.core.ai.financial_risk import financial_risk_source_findings
 from app.core.ai.legal_risk import legal_risk_source_findings
 from app.core.ai.schemas import (
     AiApplicationRequirementsStatus,
     AiDocumentAnalysis,
+    AiFinancialReviewPriority,
+    AiFinancialRiskStatus,
     AiLegalReviewPriority,
     AiLegalRiskStatus,
     _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
@@ -213,6 +216,40 @@ class TenderAiAnalysisExporter:
         legal_warnings = (
             "".join(f"<li>{escape(item)}</li>" for item in legal.warnings) or "<li>Нет.</li>"
         )
+        financial = analysis.financial_risk_assessment
+        financial_status = {
+            AiFinancialRiskStatus.COMPLETE: "Полный реестр подтверждённых условий",
+            AiFinancialRiskStatus.PARTIAL: "Частичный реестр; требуется проверка полноты",
+            AiFinancialRiskStatus.NO_VERIFIED_CONDITIONS: (
+                "Подтверждённые финансово значимые условия не выявлены"
+            ),
+            AiFinancialRiskStatus.UNAVAILABLE: "Оценка финансовых условий недоступна",
+        }.get(financial.status, "Оценка финансовых условий недоступна")
+        financial_priority_labels = {
+            AiFinancialReviewPriority.URGENT: "Срочно",
+            AiFinancialReviewPriority.ELEVATED: "Повышенный",
+            AiFinancialReviewPriority.ROUTINE: "Плановый",
+        }
+        financial_counts = {
+            priority: sum(item.review_priority is priority for item in financial.items)
+            for priority in AiFinancialReviewPriority
+        }
+        financial_rows = (
+            "".join(
+                "<tr>"
+                f"<td>{escape(item.category.value)}</td>"
+                f"<td>{escape(item.title)}</td>"
+                f"<td>{escape(financial_priority_labels[item.review_priority])}</td>"
+                f"<td><table>{findings(financial_risk_source_findings(analysis, item))}</table></td>"
+                f"<td>{escape(item.recommended_action)}</td>"
+                "</tr>"
+                for item in financial.items
+            )
+            or "<tr><td colspan='5'>Нет подтверждённых элементов.</td></tr>"
+        )
+        financial_warnings = (
+            "".join(f"<li>{escape(item)}</li>" for item in financial.warnings) or "<li>Нет.</li>"
+        )
         context_note = (
             "<p><strong>Контекст сокращён по безопасному лимиту.</strong></p>"
             if analysis.context_truncated
@@ -250,6 +287,18 @@ class TenderAiAnalysisExporter:
             f"<table><tr><th>Группа</th><th>Условие проверки</th><th>Приоритет</th>"
             f"<th>Исходные условия и источники</th><th>Действие</th></tr>{legal_rows}</table>"
             f"<h3>Предупреждения юридической оценки</h3><ul>{legal_warnings}</ul>"
+            f"<h2>Финансовые условия</h2><p><strong>Информационная оценка условий "
+            f"документации; не является финансовым прогнозом, расчётом убытка или "
+            f"рекомендацией об участии.</strong></p>"
+            f"<p>Статус: {escape(financial_status)}; policy version: "
+            f"{escape(financial.policy_version)}; срочно: "
+            f"{financial_counts[AiFinancialReviewPriority.URGENT]}; повышенный: "
+            f"{financial_counts[AiFinancialReviewPriority.ELEVATED]}; плановый: "
+            f"{financial_counts[AiFinancialReviewPriority.ROUTINE]}.</p>"
+            f"<table><tr><th>Группа</th><th>Условие проверки</th><th>Приоритет</th>"
+            f"<th>Исходные условия и источники</th><th>Действие</th></tr>"
+            f"{financial_rows}</table>"
+            f"<h3>Предупреждения финансовой оценки</h3><ul>{financial_warnings}</ul>"
             f"<h2>Риски</h2><table>{findings(analysis.risks)}</table>"
             f"<h2>Подозрительные условия</h2><table>{findings(analysis.suspicious_conditions)}</table>"
             f"<h2>Противоречия</h2><table>{findings(analysis.contradictions)}</table>"

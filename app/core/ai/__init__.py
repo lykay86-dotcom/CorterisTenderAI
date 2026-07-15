@@ -7,6 +7,11 @@ from app.core.ai.document_context import (
     TenderDocumentContextBuilder,
 )
 from app.core.ai.orchestrator import TenderAiOrchestrationResult, TenderAiOrchestrator
+from app.core.ai.financial_risk import (
+    AI_FINANCIAL_RISK_POLICY_VERSION,
+    assess_financial_risks,
+    financial_risk_source_findings,
+)
 from app.core.ai.legal_risk import (
     AI_LEGAL_RISK_POLICY_VERSION,
     assess_legal_risks,
@@ -30,6 +35,12 @@ from app.core.ai.schemas import (
     AiDocument,
     AiDocumentAnalysis,
     AiEvidence,
+    AiFinancialReviewPriority,
+    AiFinancialRiskAssessment,
+    AiFinancialRiskCategory,
+    AiFinancialRiskItem,
+    AiFinancialRiskSourceRef,
+    AiFinancialRiskStatus,
     AiLegalReviewPriority,
     AiLegalRiskAssessment,
     AiLegalRiskCategory,
@@ -50,6 +61,12 @@ __all__ = [
     "AiDocumentAnalysisRepository",
     "AiDocumentContext",
     "AiEvidence",
+    "AiFinancialReviewPriority",
+    "AiFinancialRiskAssessment",
+    "AiFinancialRiskCategory",
+    "AiFinancialRiskItem",
+    "AiFinancialRiskSourceRef",
+    "AiFinancialRiskStatus",
     "AiLegalReviewPriority",
     "AiLegalRiskAssessment",
     "AiLegalRiskCategory",
@@ -73,7 +90,10 @@ __all__ = [
     "TenderAiOrchestrationResult",
     "TenderAiOrchestrator",
     "TenderRequirements",
+    "AI_FINANCIAL_RISK_POLICY_VERSION",
     "AI_LEGAL_RISK_POLICY_VERSION",
+    "assess_financial_risks",
     "assess_legal_risks",
+    "financial_risk_source_findings",
     "legal_risk_source_findings",
 ]

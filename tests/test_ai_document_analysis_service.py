@@ -23,7 +23,7 @@ def _provenance(fingerprint: str) -> AiAnalysisProvenance:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="8",
+        analyzer_version="9",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",

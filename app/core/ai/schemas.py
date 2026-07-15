@@ -18,10 +18,10 @@ from app.core.document_classification import (
 )
 
 
-AI_ANALYSIS_SCHEMA_VERSION = 7
+AI_ANALYSIS_SCHEMA_VERSION = 8
 _EXPECTED_PROVENANCE_PROMPT_VERSION = "6"
 _EXPECTED_PROVENANCE_OUTPUT_SCHEMA_VERSION = "4"
-_EXPECTED_PROVENANCE_ANALYZER_VERSION = "8"
+_EXPECTED_PROVENANCE_ANALYZER_VERSION = "9"
 _EXPECTED_PROVENANCE_CONTEXT_VERSION = "5"
 _EXPECTED_PROVENANCE_CITATION_RESOLVER_VERSION = "1"
 _MAX_TEXT_LENGTH = 12_000
@@ -37,6 +37,7 @@ _MAX_PROVIDER_RESPONSE_ID_LENGTH = 200
 _MAX_SOURCES = 1_000
 _CITATION_ID_PATTERN = re.compile(r"cit_[0-9a-f]{32}")
 _LEGAL_RISK_ID_PATTERN = re.compile(r"legal_[0-9a-f]{32}")
+_FINANCIAL_RISK_ID_PATTERN = re.compile(r"financial_[0-9a-f]{32}")
 _LEGAL_FIELD_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,79}")
 _SOURCE_REF_PATTERN = re.compile(r"doc_[0-9a-f]{32}")
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
@@ -125,6 +126,37 @@ class AiLegalRiskCategory(StrEnum):
     FORCE_MAJEURE_AND_NOTICES = "force_majeure_and_notices"
     DISPUTES_CONFIDENTIALITY_AND_IP = "disputes_confidentiality_and_ip"
     STANDARDS_AND_REGULATIONS = "standards_and_regulations"
+    AMBIGUITIES_AND_CLARIFICATIONS = "ambiguities_and_clarifications"
+    CONTRADICTIONS = "contradictions"
+
+
+class AiFinancialRiskStatus(StrEnum):
+    NO_VERIFIED_CONDITIONS = "no_verified_conditions"
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    UNAVAILABLE = "unavailable"
+
+
+class AiFinancialReviewPriority(StrEnum):
+    ROUTINE = "routine"
+    ELEVATED = "elevated"
+    URGENT = "urgent"
+
+
+class AiFinancialRiskCategory(StrEnum):
+    PRICE_AND_ESTIMATE = "price_and_estimate"
+    PAYMENT_AND_CASH_FLOW = "payment_and_cash_flow"
+    SECURITY_AND_GUARANTEE_COSTS = "security_and_guarantee_costs"
+    SCOPE_AND_VOLUME_UNCERTAINTY = "scope_and_volume_uncertainty"
+    MATERIALS_AND_EQUIPMENT_COSTS = "materials_and_equipment_costs"
+    EXECUTION_SCHEDULE_AND_RESOURCE_LOAD = "execution_schedule_and_resource_load"
+    ACCEPTANCE_AND_PAYMENT_DEPENDENCY = "acceptance_and_payment_dependency"
+    WARRANTY_AND_DEFECT_COSTS = "warranty_and_defect_costs"
+    CUSTOMER_INPUTS_AND_DEPENDENCIES = "customer_inputs_and_dependencies"
+    NATIONAL_REGIME_AND_SUPPLY_RESTRICTIONS = "national_regime_and_supply_restrictions"
+    SUBCONTRACTING_AND_THIRD_PARTY_COSTS = "subcontracting_and_third_party_costs"
+    LIABILITY_PENALTIES_AND_DAMAGES = "liability_penalties_and_damages"
+    CHANGE_SUSPENSION_AND_TERMINATION = "change_suspension_and_termination"
     AMBIGUITIES_AND_CLARIFICATIONS = "ambiguities_and_clarifications"
     CONTRADICTIONS = "contradictions"
 
@@ -375,6 +407,47 @@ class AiFinding:
         return self.status == AiFindingStatus.VERIFIED
 
 
+_FINANCIAL_RISK_SOURCE_FIELDS = frozenset(
+    {
+        ("requirements", "price_proposal_and_estimate"),
+        ("requirements", "bid_security"),
+        ("requirements", "contract_security"),
+        ("requirements", "bank_guarantee"),
+        ("requirements", "warranty"),
+        ("requirements", "national_regime_and_origin"),
+        ("requirements", "ambiguities"),
+        ("requirements", "clarification_points"),
+        ("requirements", "contradictions"),
+        ("technical_specification", "scope"),
+        ("technical_specification", "deliverables"),
+        ("technical_specification", "quantities_and_volumes"),
+        ("technical_specification", "technical_characteristics"),
+        ("technical_specification", "materials_and_equipment"),
+        ("technical_specification", "execution_conditions"),
+        ("technical_specification", "stages_and_deadlines"),
+        ("technical_specification", "acceptance_and_quality"),
+        ("technical_specification", "customer_inputs_and_dependencies"),
+        ("technical_specification", "ambiguities"),
+        ("technical_specification", "clarification_points"),
+        ("technical_specification", "contradictions"),
+        ("draft_contract", "subject_and_scope"),
+        ("draft_contract", "term_schedule_and_location"),
+        ("draft_contract", "price_and_price_change"),
+        ("draft_contract", "payment_terms"),
+        ("draft_contract", "acceptance_and_closing_documents"),
+        ("draft_contract", "performance_security"),
+        ("draft_contract", "warranty_and_defect_remediation"),
+        ("draft_contract", "customer_obligations_and_dependencies"),
+        ("draft_contract", "contractor_obligations_and_subcontracting"),
+        ("draft_contract", "liability_penalties_and_damages"),
+        ("draft_contract", "change_suspension_and_termination"),
+        ("draft_contract", "ambiguities"),
+        ("draft_contract", "clarification_points"),
+        ("draft_contract", "contradictions"),
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class AiLegalRiskSourceRef:
     section: str
@@ -476,6 +549,111 @@ class AiLegalRiskAssessment:
     def to_payload(self) -> dict[str, object]:
         return {
             "status": AiLegalRiskStatus(self.status).value,
+            "policy_version": self.policy_version,
+            "items": [item.to_payload() for item in self.items],
+            "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiFinancialRiskSourceRef:
+    section: str
+    field: str
+    citation_id: str
+
+    def __post_init__(self) -> None:
+        if (self.section, self.field) not in _FINANCIAL_RISK_SOURCE_FIELDS:
+            raise ValueError("unsupported financial risk source")
+        if (
+            not isinstance(self.citation_id, str)
+            or _CITATION_ID_PATTERN.fullmatch(self.citation_id) is None
+        ):
+            raise ValueError("financial risk source must use a canonical citation ID")
+
+    def to_payload(self) -> dict[str, str]:
+        return {
+            "section": self.section,
+            "field": self.field,
+            "citation_id": self.citation_id,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiFinancialRiskItem:
+    risk_id: str
+    category: AiFinancialRiskCategory | str
+    review_priority: AiFinancialReviewPriority | str
+    title: str
+    source_refs: tuple[AiFinancialRiskSourceRef, ...]
+    recommended_action: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.risk_id, str)
+            or _FINANCIAL_RISK_ID_PATTERN.fullmatch(self.risk_id) is None
+        ):
+            raise ValueError("risk_id must be a canonical financial risk ID")
+        try:
+            category = AiFinancialRiskCategory(self.category)
+            priority = AiFinancialReviewPriority(self.review_priority)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("unsupported financial risk category or priority") from exc
+        if (
+            not isinstance(self.source_refs, tuple)
+            or not self.source_refs
+            or not all(isinstance(item, AiFinancialRiskSourceRef) for item in self.source_refs)
+            or len(set(self.source_refs)) != len(self.source_refs)
+        ):
+            raise ValueError("source_refs must be a non-empty unique tuple")
+        title = _bounded_text(self.title, 500)
+        action = _bounded_text(self.recommended_action, 1_000)
+        if not title or not action:
+            raise ValueError("financial risk title and action must be non-empty")
+        object.__setattr__(self, "category", category)
+        object.__setattr__(self, "review_priority", priority)
+        object.__setattr__(self, "title", title)
+        object.__setattr__(self, "recommended_action", action)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "risk_id": self.risk_id,
+            "category": AiFinancialRiskCategory(self.category).value,
+            "review_priority": AiFinancialReviewPriority(self.review_priority).value,
+            "title": self.title,
+            "source_refs": [item.to_payload() for item in self.source_refs],
+            "recommended_action": self.recommended_action,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AiFinancialRiskAssessment:
+    status: AiFinancialRiskStatus | str = AiFinancialRiskStatus.UNAVAILABLE
+    policy_version: str = "1"
+    items: tuple[AiFinancialRiskItem, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        try:
+            status = AiFinancialRiskStatus(self.status)
+        except (TypeError, ValueError):
+            status = AiFinancialRiskStatus.UNAVAILABLE
+        version = _bounded_text(self.policy_version, _MAX_VERSION_LENGTH)
+        if not version:
+            raise ValueError("policy_version must be non-empty")
+        if not isinstance(self.items, tuple) or not all(
+            isinstance(item, AiFinancialRiskItem) for item in self.items
+        ):
+            raise ValueError("items must contain financial risk items")
+        warnings = tuple(
+            dict.fromkeys(text for item in self.warnings if (text := _text(item, 1_000)))
+        )
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "policy_version", version)
+        object.__setattr__(self, "warnings", warnings)
+
+    def to_payload(self) -> dict[str, object]:
+        return {
+            "status": AiFinancialRiskStatus(self.status).value,
             "policy_version": self.policy_version,
             "items": [item.to_payload() for item in self.items],
             "warnings": list(self.warnings),
@@ -641,6 +819,9 @@ class AiDocumentAnalysis:
     )
     draft_contract: AiDraftContractAnalysis = field(default_factory=AiDraftContractAnalysis)
     legal_risk_assessment: AiLegalRiskAssessment = field(default_factory=AiLegalRiskAssessment)
+    financial_risk_assessment: AiFinancialRiskAssessment = field(
+        default_factory=AiFinancialRiskAssessment
+    )
 
     def __post_init__(self) -> None:
         try:
@@ -711,6 +892,7 @@ class AiDocumentAnalysis:
                 "warnings": list(self.draft_contract.warnings),
             },
             "legal_risk_assessment": self.legal_risk_assessment.to_payload(),
+            "financial_risk_assessment": self.financial_risk_assessment.to_payload(),
             "risks": [finding(item) for item in self.risks],
             "suspicious_conditions": [finding(item) for item in self.suspicious_conditions],
             "contradictions": [finding(item) for item in self.contradictions],
@@ -992,22 +1174,40 @@ class AiDocumentAnalysis:
         if version < AI_ANALYSIS_SCHEMA_VERSION:
             return analysis
 
+        from app.core.ai.financial_risk import assess_financial_risks
         from app.core.ai.legal_risk import assess_legal_risks
 
         computed_legal = assess_legal_risks(analysis)
         if payload.get("legal_risk_assessment") == computed_legal.to_payload():
-            return replace(analysis, legal_risk_assessment=computed_legal)
-        warning = "Сохранённая оценка юридических рисков повреждена и пересчитана локально."
-        degraded_legal = replace(
-            computed_legal,
-            status=(
-                AiLegalRiskStatus.UNAVAILABLE
-                if computed_legal.status is AiLegalRiskStatus.UNAVAILABLE
-                else AiLegalRiskStatus.PARTIAL
-            ),
-            warnings=tuple(dict.fromkeys((*computed_legal.warnings, warning))),
-        )
-        return replace(analysis, legal_risk_assessment=degraded_legal)
+            legal = computed_legal
+        else:
+            warning = "Сохранённая оценка юридических рисков повреждена и пересчитана локально."
+            legal = replace(
+                computed_legal,
+                status=(
+                    AiLegalRiskStatus.UNAVAILABLE
+                    if computed_legal.status is AiLegalRiskStatus.UNAVAILABLE
+                    else AiLegalRiskStatus.PARTIAL
+                ),
+                warnings=tuple(dict.fromkeys((*computed_legal.warnings, warning))),
+            )
+        analysis = replace(analysis, legal_risk_assessment=legal)
+
+        computed_financial = assess_financial_risks(analysis)
+        if payload.get("financial_risk_assessment") == computed_financial.to_payload():
+            financial = computed_financial
+        else:
+            warning = "Сохранённая оценка финансовых условий повреждена и пересчитана локально."
+            financial = replace(
+                computed_financial,
+                status=(
+                    AiFinancialRiskStatus.UNAVAILABLE
+                    if computed_financial.status is AiFinancialRiskStatus.UNAVAILABLE
+                    else AiFinancialRiskStatus.PARTIAL
+                ),
+                warnings=tuple(dict.fromkeys((*computed_financial.warnings, warning))),
+            )
+        return replace(analysis, financial_risk_assessment=financial)
 
 
 _TECHNICAL_SPECIFICATION_FINDING_FIELDS = tuple(

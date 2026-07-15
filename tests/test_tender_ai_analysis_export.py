@@ -15,6 +15,12 @@ from app.core.ai.schemas import (
     AiDraftContractStatus,
     AiFinding,
     AiFindingStatus,
+    AiFinancialReviewPriority,
+    AiFinancialRiskAssessment,
+    AiFinancialRiskCategory,
+    AiFinancialRiskItem,
+    AiFinancialRiskSourceRef,
+    AiFinancialRiskStatus,
     AiLegalReviewPriority,
     AiLegalRiskAssessment,
     AiLegalRiskCategory,
@@ -250,6 +256,66 @@ def test_export_adds_escaped_legal_registry_to_existing_json_and_html(tmp_path) 
     assert "file://" not in html
 
 
+def test_export_adds_escaped_financial_registry_to_existing_json_and_html(tmp_path) -> None:
+    citation_id = "cit_" + "a" * 32
+    analysis = AiDocumentAnalysis(
+        "procurement:test",
+        "Safe",
+        status="partial",
+        requirements=TenderRequirements(
+            status=AiApplicationRequirementsStatus.PARTIAL,
+            bid_security=(
+                AiFinding(
+                    "requirements.bid_security",
+                    "<script>provider statement</script>",
+                    None,
+                    AiFindingStatus.UNVERIFIED,
+                ),
+            ),
+        ),
+        financial_risk_assessment=AiFinancialRiskAssessment(
+            status=AiFinancialRiskStatus.PARTIAL,
+            policy_version="1",
+            items=(
+                AiFinancialRiskItem(
+                    risk_id="financial_" + "b" * 32,
+                    category=AiFinancialRiskCategory.SECURITY_AND_GUARANTEE_COSTS,
+                    review_priority=AiFinancialReviewPriority.ELEVATED,
+                    title="<b>Обеспечение и гарантии</b>",
+                    source_refs=(
+                        AiFinancialRiskSourceRef("requirements", "bid_security", citation_id),
+                    ),
+                    recommended_action="Проверить <img src=x onerror=alert(1)>",
+                ),
+            ),
+            warnings=("Контекст неполон",),
+        ),
+    )
+
+    json_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "financial.json")
+    html_path = TenderAiAnalysisExporter().export(analysis, tmp_path / "financial.html")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    html = html_path.read_text(encoding="utf-8")
+
+    assert payload == analysis.to_payload()
+    assert set(payload["financial_risk_assessment"]) == {
+        "status",
+        "policy_version",
+        "items",
+        "warnings",
+    }
+    assert "Финансовые условия" in html
+    assert (
+        "Информационная оценка условий документации; не является финансовым прогнозом, "
+        "расчётом убытка или рекомендацией об участии."
+    ) in html
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;b&gt;Обеспечение и гарантии&lt;/b&gt;" in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+    assert "file://" not in html
+
+
 def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path) -> None:
     fingerprint = "d" * 64
     checksum = "b" * 64
@@ -294,7 +360,7 @@ def test_export_contains_only_escaped_internal_current_citation_sources(tmp_path
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="8",
+        analyzer_version="9",
         context_version="5",
         citation_resolver_version="1",
         provider_id="openai",

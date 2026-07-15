@@ -35,11 +35,14 @@ from app.core.ai.schemas import (
     AiApplicationRequirementsStatus,
     AiDocumentAnalysis,
     AiDraftContractStatus,
+    AiFinancialReviewPriority,
+    AiFinancialRiskStatus,
     AiLegalReviewPriority,
     AiLegalRiskStatus,
     AiTechnicalSpecificationStatus,
     _APPLICATION_REQUIREMENTS_FINDING_FIELDS,
 )
+from app.core.ai.financial_risk import financial_risk_source_findings
 from app.core.ai.legal_risk import legal_risk_source_findings
 from app.ui.theme.colors import ThemeName, get_palette
 from app.reporting.tender_ai_analysis import TenderAiAnalysisExporter
@@ -485,6 +488,40 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
     legal_warnings = (
         "".join(f"<li>{escape(item)}</li>" for item in legal.warnings) or "<li>Нет.</li>"
     )
+    financial = analysis.financial_risk_assessment
+    financial_counts = {
+        priority: sum(item.review_priority is priority for item in financial.items)
+        for priority in AiFinancialReviewPriority
+    }
+    financial_status = {
+        AiFinancialRiskStatus.COMPLETE: "Полный реестр подтверждённых условий",
+        AiFinancialRiskStatus.PARTIAL: "Частичный реестр; требуется проверка полноты",
+        AiFinancialRiskStatus.NO_VERIFIED_CONDITIONS: (
+            "Подтверждённые финансово значимые условия не выявлены"
+        ),
+        AiFinancialRiskStatus.UNAVAILABLE: "Оценка финансовых условий недоступна",
+    }.get(financial.status, "Оценка финансовых условий недоступна")
+    financial_priority_labels = {
+        AiFinancialReviewPriority.URGENT: "Срочно",
+        AiFinancialReviewPriority.ELEVATED: "Повышенный",
+        AiFinancialReviewPriority.ROUTINE: "Плановый",
+    }
+    financial_items = (
+        "".join(
+            "<li>"
+            f"<b>{escape(item.title)}</b><br>"
+            f"Категория: {escape(item.category.value)} · "
+            f"приоритет: {escape(financial_priority_labels[item.review_priority])}<br>"
+            f"Действие: {escape(item.recommended_action)}"
+            f"<ul>{render_findings(financial_risk_source_findings(analysis, item))}</ul>"
+            "</li>"
+            for item in financial.items
+        )
+        or "<li>Нет подтверждённых элементов.</li>"
+    )
+    financial_warnings = (
+        "".join(f"<li>{escape(item)}</li>" for item in financial.warnings) or "<li>Нет.</li>"
+    )
 
     technical = analysis.technical_specification
     technical_status = {
@@ -595,6 +632,16 @@ def _render_ai_document_analysis(result: TenderFullAnalysisResult) -> str:
         f"{legal_counts[AiLegalReviewPriority.ROUTINE]}</p>"
         f"<ul>{legal_items}</ul>"
         f"<h4>Предупреждения юридической оценки</h4><ul>{legal_warnings}</ul>"
+        f"<h3>Финансовые условия</h3>"
+        f"<p><b>Информационная оценка условий документации; не является финансовым прогнозом, "
+        f"расчётом убытка или рекомендацией об участии.</b></p>"
+        f"<p><b>Статус:</b> {escape(financial_status)} · policy version: "
+        f"{escape(financial.policy_version)} · срочно: "
+        f"{financial_counts[AiFinancialReviewPriority.URGENT]} · повышенный: "
+        f"{financial_counts[AiFinancialReviewPriority.ELEVATED]} · плановый: "
+        f"{financial_counts[AiFinancialReviewPriority.ROUTINE]}</p>"
+        f"<ul>{financial_items}</ul>"
+        f"<h4>Предупреждения финансовой оценки</h4><ul>{financial_warnings}</ul>"
         f"<h3>Риски</h3><ul>{render_findings(analysis.risks)}</ul>"
         f"<h3>Подозрительные условия</h3><ul>{render_findings(analysis.suspicious_conditions)}</ul>"
         f"<h3>Противоречия</h3><ul>{render_findings(analysis.contradictions)}</ul>"
