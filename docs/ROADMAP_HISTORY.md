@@ -1,5 +1,39 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-123 завершён
+
+- PR #49 (`feat(rm-123): add deterministic documentation completeness`) слит в `main` коммитом
+  `759f015` (`759f015b2d101e56c9dc2a3db2ac57332b9d8ccc`).
+- Post-merge Quality Gate run `29430495132` завершился статусом `SUCCESS`: Python 3.12 —
+  `1442 passed in 85.09s`, Python 3.13 — `1442 passed in 81.29s`.
+- На обеих версиях прошли Ruff check/format (`519 files`), mypy (20 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Первый Python 3.12 attempt завершился transient native Windows heap crash `0xc0000374` без
+  failing assertion или Python exception; rerun того же merge SHA полностью прошёл без изменения
+  кода, что подтвердило runner-level transient failure.
+- Canonical inventory объединяет existing document catalog и latest text extraction по
+  `document_key`, сохраняет download failures/archive members и включает safe identity, kind,
+  statuses, checksum и context inclusion/truncation без private source metadata.
+- Pure local policy задаёт deterministic statuses, counts, stable issue IDs, titles и actions без
+  второго provider call, statement/keyword matching, I/O, network, DB или money calculations.
+  Provider `missing_documents` не является source of truth и отображается отдельно.
+- Inventory входит в context fingerprint; current payload v10 строго валидируется, assessment
+  локально пересчитывается и exact-сверяется. Legacy v1–v9 остаётся unavailable, а
+  future/corrupt/tampered cache и duplicate JSON keys обрабатываются fail-closed без изменения
+  SQLite schema.
+- Provider schema/response format v4, prompt v6, citation resolver v1 и
+  legal/financial/competition policy v1 не изменены; payload повышен до v10, analyzer — до v11,
+  context — до v6, documentation completeness policy имеет версию 1.
+- Сохранены один classifier, analyzer/service/Orchestrator/repository/provider call, одна
+  `RUNNING_AI` stage и existing AI tab/JSON/HTML exporter. UI/export показывают status,
+  disclaimer, counts, coverage, safe inventory, issues/actions и warnings с HTML escaping.
+- RM-107 score/recommendation/action plan/evidence/confidence и абсолютный приоритет critical
+  stop-factor не изменены; documentation assessment не входит в decision evidence.
+- Локальная приёмка: target `589 passed in 15.07s`, full `1442 passed in 52.38s`, Ruff
+  (`519 files`), mypy (20 файлов), secret scan, dependency audit и diff-check успешны.
+- RM-123 переведён в `DONE`; RM-124 назначен следующим активным этапом только для отдельного
+  будущего аудита и реализации повторной проверки AI.
+
 ## 2026-07-15 — RM-122 завершён
 
 - PR #47 (`feat(rm-122): add explainable competition assessment`) слит в `main` коммитом

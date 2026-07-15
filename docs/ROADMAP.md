@@ -17,8 +17,9 @@
 - RM-120: `DONE`.
 - RM-121: `DONE`.
 - RM-122: `DONE`.
-- RM-123: `IN PROGRESS`.
-- RM-124–RM-200: `PLANNED`.
+- RM-123: `DONE`.
+- RM-124: `IN PROGRESS`.
+- RM-125–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -152,8 +153,8 @@
 - [x] RM-120 — юридические риски.
 - [x] RM-121 — финансовые риски.
 - [x] RM-122 — анализ конкуренции.
-- [ ] RM-123 — полнота документации (активный).
-- [ ] RM-124 — повторная проверка AI.
+- [x] RM-123 — полнота документации.
+- [ ] RM-124 — повторная проверка AI (активный).
 - [ ] RM-125 — стабилизация AI-платформы.
 
 ## Обязательный prerequisite RM-111 — воспроизводимый quality gate
@@ -480,6 +481,45 @@ migration, composition и build smoke tests, а также dependency audit ус
 Новая AI-stage, provider call, repository, БД или миграция не добавлены. RM-122 соответствует
 Definition of Done; следующим активным этапом назначен RM-123, application-код которого требует
 отдельного аудита полноты документации.
+
+## RM-123 — implementation acceptance
+
+Статус реализации: `DONE` (PR #49, merge `759f015`).
+
+- canonical local inventory объединяет existing `TenderDocumentStore.list_documents()` и latest
+  `TenderDocumentTextService.list_results()` по `document_key`, сохраняет download failures и
+  archive members, использует stable ordering и safe identity без private paths, URLs или errors;
+- pure documentation-completeness policy формирует deterministic status, counts, issues, stable
+  IDs и actions без второго provider call, text/keyword matching, network, filesystem, DB или
+  money calculations; provider `missing_documents` не управляет локальной оценкой;
+- inventory и decision-relevant statuses/checksum/kind/inclusion/truncation входят в context
+  fingerprint; перестановка input records fingerprint не меняет;
+- persisted payload повышен до версии 10, analyzer — до версии 11, context — до версии 6;
+  provider schema/format v4, prompt v6, citation resolver v1 и legal/financial/competition policy
+  v1 не изменены;
+- current v10 inventory строго валидируется, assessment локально пересчитывается и exact-сверяется;
+  legacy v1–v9 остаётся unavailable, future/corrupt/tampered data и duplicate JSON keys
+  обрабатываются fail-closed без новой таблицы или миграции SQLite;
+- existing AI tab и JSON/HTML exporter показывают четыре русских статуса, disclaimer, counts,
+  coverage, safe inventory, issues/actions и warnings; AI `missing_documents` маркируется отдельно,
+  external values экранируются;
+- сохранены один classifier, analyzer/service/Orchestrator/repository/provider call, одна
+  `RUNNING_AI` stage и существующие UI/export workflow;
+- RM-107 score/recommendation/actions/evidence/confidence и абсолютный приоритет critical
+  stop-factor не изменены; documentation assessment не входит в decision evidence;
+- локальная приёмка на Python 3.12.7: target `589 passed in 15.07s`, full
+  `1442 passed in 52.38s`, Ruff (`519 files`), mypy (20 файлов), secret scan, dependency audit
+  и diff-check успешны.
+
+PR #49 слит в `main` 15 июля 2026 года коммитом `759f015`. Post-merge Quality Gate run
+`29430495132` успешно прошёл на Python 3.12 (`1442 passed in 85.09s`) и Python 3.13
+(`1442 passed in 81.29s`); Ruff (`519 files`), mypy (20 файлов), secret scan, offline,
+migration, composition и build smoke tests, а также dependency audit успешны на обеих версиях.
+Первый Python 3.12 attempt завершился transient native Windows heap crash `0xc0000374`; rerun
+того же merge SHA прошёл полностью без изменения кода. Новая AI-stage, provider call,
+repository, БД или миграция не добавлены. RM-123 соответствует Definition of Done; следующим
+активным этапом назначен RM-124, application-код которого требует отдельного аудита повторной
+проверки AI.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.
