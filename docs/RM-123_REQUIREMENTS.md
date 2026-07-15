@@ -255,3 +255,39 @@ score 100.
 Обязательны pure policy, inventory/context, provider/offline, persistence tamper, duplicate-key,
 UI/export/security, RM-107 regression и static architecture tests из ТЗ. RED должен доказать
 отсутствие нового module/contract до production implementation.
+
+### Feature acceptance
+
+Окружение: Python `3.12.7`, `QT_QPA_PLATFORM=offscreen`, worktree-local `TEMP/TMP` и pytest
+`--basetemp`. Системный `%TEMP%` недоступен текущему sandbox-процессу, поэтому acceptance
+выполнен с локальным temp root без изменения application-кода.
+
+- Baseline SHA: `8e5947e993a3d61cc6697abe4f410cb0771d2697`.
+- Feature SHA: `828cd007a5ea81bbde186aebfc138c30f1db625a`.
+- Target contour из ТЗ с фактическими extractor-модулями репозитория:
+  `589 passed in 15.07s`.
+- Полный suite: `1442 passed in 52.38s`.
+- `python -m ruff check .`: passed.
+- `python -m ruff format . --check`: passed (`519 files already formatted`).
+- `python -m mypy`: passed (`20 source files`).
+- `python scripts/check_repository_secrets.py`: passed.
+- `python -m pip_audit --skip-editable`: no known vulnerabilities; editable project skipped as
+  expected. После ожидаемого sandbox network denial команда повторена с разрешённым доступом и
+  worktree-local cache.
+- `git diff --check`: passed.
+
+Фактические версии: provider schema `4`, response format `corteris_tender_analysis_v4`, prompt
+`6`, citation resolver `1`, legal/financial/competition policy `1` — без изменений; payload
+`9 -> 10`, analyzer `10 -> 11`, context `5 -> 6`, documentation completeness policy `1`.
+
+Статический acceptance подтвердил один production `provider.analyze(...)`, один
+`TenderAiOrchestrator`, один `AiDocumentAnalysisRepository`, одну enum/stage пару `RUNNING_AI`,
+одно production-использование stage и один existing document classifier. Provider schema не
+содержит documentation fields. Pure policy не использует I/O/network/DB/repository/provider,
+regex/keyword matching, money/`Decimal`/`float`, legacy engine, `raw_metadata` или company
+profile.
+
+Физическая SQLite schema и migrations не изменялись. Production-файлы RM-107, participation
+score и stop-factor policy не изменялись. Regression tests подтвердили, что complete/partial
+documentation assessment не меняет score, recommendation, actions, evidence или stop factors,
+а critical stop factor остаётся абсолютным при score 100.
