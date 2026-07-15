@@ -14,8 +14,9 @@
 - RM-117: `DONE`.
 - RM-118: `DONE`.
 - RM-119: `DONE`.
-- RM-120: `IN PROGRESS`.
-- RM-121–RM-200: `PLANNED`.
+- RM-120: `DONE`.
+- RM-121: `IN PROGRESS`.
+- RM-122–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
@@ -146,8 +147,8 @@
 - [x] RM-117 — анализ ТЗ.
 - [x] RM-118 — анализ проекта договора в тендере.
 - [x] RM-119 — анализ требований к заявке.
-- [ ] RM-120 — юридические риски (активный).
-- [ ] RM-121 — финансовые риски.
+- [x] RM-120 — юридические риски.
+- [ ] RM-121 — финансовые риски (активный).
 - [ ] RM-122 — анализ конкуренции.
 - [ ] RM-123 — полнота документации.
 - [ ] RM-124 — повторная проверка AI.
@@ -387,6 +388,35 @@ migration, composition и build smoke tests, а также dependency audit ус
 версиях. RM-107 score/recommendation и абсолютный приоритет critical stop-factor не изменены;
 новая БД или миграция БД не потребовались. RM-119 соответствует Definition of Done; следующим
 активным этапом назначен RM-120, application-код которого требует отдельного аудита.
+
+## RM-120 — implementation acceptance
+
+Статус реализации: `DONE` (PR #43, merge `f2f87ff`).
+
+- локальный versioned legal-review registry строится только из current verified specialized
+  requirements, technical specification и draft-contract findings;
+- category, review priority, stable risk ID и recommended action задаются фиксированной pure
+  policy без второго AI-вызова, text heuristics или сетевой юридической проверки;
+- generic root risks и deterministic stop-factors не копируются в legal registry;
+- persisted payload повышен до версии 7, analyzer — до версии 8; provider schema/format v4,
+  prompt v6, context v5 и citation resolver v1 не изменены;
+- current v7 cache локально пересчитывается и сверяется, legacy v1–v6 остаётся unavailable,
+  future/corrupt/tampered data обрабатывается fail-closed без новой таблицы или миграции SQLite;
+- existing AI tab и JSON/HTML exporter показывают четыре статуса, priorities, actions, current
+  citations, warnings и disclaimer с HTML escaping;
+- RM-107 score/recommendation/actions/evidence и абсолютный приоритет critical stop-factor не
+  изменены;
+- локальная приёмка на Python 3.12.7: target `342 passed in 11.92s`, full
+  `1198 passed in 51.00s`, Ruff (`513 files`), mypy (17 файлов), secret scan, dependency audit
+  и diff-check успешны.
+
+PR #43 слит в `main` 15 июля 2026 года коммитом `f2f87ff`. Post-merge Quality Gate run
+`29411717306` успешно прошёл на Python 3.12 (`1198 passed in 74.13s`) и Python 3.13
+(`1198 passed in 73.26s`); Ruff (`513 files`), mypy (17 файлов), secret scan, offline,
+migration, composition и build smoke tests, а также dependency audit успешны на обеих версиях.
+Новая AI-stage, provider call, repository, БД или миграция не добавлены. RM-120 соответствует
+Definition of Done; следующим активным этапом назначен RM-121, application-код которого требует
+отдельного аудита финансового анализа.
 
 # RM-126–RM-140 — универсальный поиск и площадки
 - [ ] RM-126 — Аудит раздела Тендеры.
