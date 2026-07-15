@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-15 — RM-125 завершён
+
+- PR #53 (`Fix/rm 125 stabilize ai platform`) слит в `main` коммитом `bdceb70`
+  (`bdceb70f0df1632baf83db4131a7ac4ed6215349`).
+- Post-merge Quality Gate run `29450245855` завершился статусом `SUCCESS`: Python 3.12 —
+  `1496 passed in 95.46s`, Python 3.13 — `1496 passed in 61.69s`.
+- На обеих версиях прошли Ruff check/format (`523 files`), mypy (20 файлов), repository secret
+  scan, offline/migration/composition/build smoke tests и dependency audit.
+- Единый immutable execution contract v1 exact-связывает provider/model и все versioned
+  boundaries анализа; analyzer повышен до v12, остальные утверждённые contracts сохранены.
+- Typed cache lookup пропускает corrupt/future/mismatched rows, находит более старую exact
+  current-compatible запись и не использует mutable production warning state.
+- Empty-source analysis создаёт valid provenance без provider call; pure cacheability predicate
+  исключает persistence без exact key/fingerprint/current contract/payload/provenance.
+- Allowlisted provider failures получают fixed bounded warnings без raw exception text, retry
+  или stale fallback.
+- Per-key coordinator сериализует одинаковые run/recheck, сохраняет параллельность разных ключей
+  и очищает lock state после исключения.
+- Participation decision больше не использует implicit latest AI analysis; текущий AI-результат
+  передаётся только явно через existing full-analysis path.
+- Сохранены один provider call site, analyzer/service/Orchestrator/repository, одна
+  `RUNNING_AI` stage и existing runtime graph; новая AI-stage, provider call, repository, БД,
+  таблица или migration не добавлены.
+- RM-107 score/recommendation/actions/evidence/confidence/commercial estimate и абсолютный
+  приоритет critical stop-factor не изменены.
+- Локальная приёмка: target `315 passed in 7.15s`, full `1496 passed in 58.68s`, Ruff
+  (`523 files`), mypy (20 файлов), secret scan, dependency audit и diff-check успешны.
+- RM-125 переведён в `DONE`; RM-126 назначен следующим активным этапом только для отдельного
+  будущего аудита раздела Тендеры.
+
 ## 2026-07-15 — RM-124 завершён
 
 - PR #51 (`feat(rm-124): add explainable AI recheck`) слит в `main` коммитом `cfd044e`
