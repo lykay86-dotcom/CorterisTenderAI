@@ -7,6 +7,10 @@ from enum import StrEnum
 import hashlib
 import json
 
+from app.core.ai.execution_contract import (
+    execution_contract_from_provenance,
+    execution_contract_matches,
+)
 from app.core.ai.schemas import AiAnalysisStatus, AiDocumentAnalysis, AiFinding
 
 
@@ -241,17 +245,12 @@ def _same_comparison_contract(
     right = current.provenance
     if left is None or right is None:
         return False
+    expected_contract = execution_contract_from_provenance(right)
     return (
-        baseline.registry_key == current.registry_key
+        expected_contract is not None
+        and baseline.registry_key == current.registry_key
         and left.context_fingerprint == right.context_fingerprint
-        and left.prompt_version == right.prompt_version
-        and left.output_schema_version == right.output_schema_version
-        and left.persisted_schema_version == right.persisted_schema_version
-        and left.analyzer_version == right.analyzer_version
-        and left.context_version == right.context_version
-        and left.citation_resolver_version == right.citation_resolver_version
-        and left.provider_id == right.provider_id
-        and left.provider_model == right.provider_model
+        and execution_contract_matches(left, expected_contract)
     )
 
 

@@ -11,6 +11,13 @@ from app.core.ai.documentation_completeness import (
     AI_DOCUMENTATION_COMPLETENESS_POLICY_VERSION,
     assess_documentation_completeness,
 )
+from app.core.ai.execution_contract import (
+    AI_EXECUTION_CONTRACT_VERSION,
+    AiExecutionContract,
+    current_execution_contract,
+    execution_contract_from_provenance,
+    execution_contract_matches,
+)
 from app.core.ai.competition_review import (
     AI_COMPETITION_POLICY_VERSION,
     assess_competition_conditions,
@@ -38,7 +45,7 @@ from app.core.ai.provider_selection import (
     OLLAMA_AUTH_PLACEHOLDER,
     OLLAMA_DEFAULT_BASE_URL,
 )
-from app.core.ai.repository import AiDocumentAnalysisRepository
+from app.core.ai.repository import AiCacheLookupResult, AiDocumentAnalysisRepository
 from app.core.ai.recheck import (
     AI_RECHECK_DISCLAIMER,
     AI_RECHECK_POLICY_VERSION,
@@ -103,8 +110,10 @@ __all__ = [
     "AiDocumentationIssueCode",
     "AiDocumentationScope",
     "AiDocumentAnalysisRepository",
+    "AiCacheLookupResult",
     "AiDocumentContext",
     "AiEvidence",
+    "AiExecutionContract",
     "AiFinancialReviewPriority",
     "AiFinancialRiskAssessment",
     "AiFinancialRiskCategory",
@@ -143,6 +152,7 @@ __all__ = [
     "AI_DOCUMENTATION_COMPLETENESS_POLICY_VERSION",
     "AI_DOCUMENTATION_COMPLETENESS_DISCLAIMER",
     "AI_FINANCIAL_RISK_POLICY_VERSION",
+    "AI_EXECUTION_CONTRACT_VERSION",
     "AI_LEGAL_RISK_POLICY_VERSION",
     "AI_RECHECK_DISCLAIMER",
     "AI_RECHECK_POLICY_VERSION",
@@ -153,5 +163,8 @@ __all__ = [
     "financial_risk_source_findings",
     "competition_source_findings",
     "compare_ai_analyses",
+    "current_execution_contract",
+    "execution_contract_from_provenance",
+    "execution_contract_matches",
     "legal_risk_source_findings",
 ]

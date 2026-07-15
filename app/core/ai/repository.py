@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
@@ -12,6 +13,11 @@ from uuid import uuid4
 
 from app.core.ai.citations import CITATION_RESOLVER_VERSION
 from app.core.ai.document_context import AI_CONTEXT_VERSION
+from app.core.ai.execution_contract import (
+    AI_ANALYZER_VERSION,
+    AiExecutionContract,
+    execution_contract_matches,
+)
 from app.core.ai.output_schema import AI_PROVIDER_OUTPUT_SCHEMA_VERSION
 from app.core.ai.prompts import AI_PROMPT_VERSION
 from app.core.ai.schemas import (
@@ -22,7 +28,6 @@ from app.core.ai.schemas import (
 )
 
 
-AI_ANALYZER_VERSION = "11"
 _CACHE_CORRUPT_WARNING = "Повреждённая запись AI-анализа пропущена."
 _CACHE_INCOMPATIBLE_WARNING = "Кеш AI-анализа имеет несовместимую версию."
 _CACHE_SKIPPED_WARNING = "Повреждённая или несовместимая запись AI-анализа пропущена."
@@ -99,12 +104,20 @@ def _canonical_context_parameters(
     return parameters
 
 
+@dataclass(frozen=True, slots=True)
+class AiCacheLookupResult:
+    """Analysis and warnings owned by one immutable repository lookup."""
+
+    analysis: AiDocumentAnalysis | None
+    warnings: tuple[str, ...] = ()
+    skipped_rows: int = 0
+
+
 class AiDocumentAnalysisRepository:
     """Append-only analysis history with recovery from bad rows."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
-        self.last_warning = ""
 
     def initialize(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +190,8 @@ class AiDocumentAnalysisRepository:
         self,
         registry_key: str,
         fingerprint: str,
-    ) -> AiDocumentAnalysis | None:
+        expected_execution_contract: AiExecutionContract,
+    ) -> AiCacheLookupResult:
         rows = self._rows(
             "registry_key=? AND context_fingerprint=?",
             (registry_key.strip(), fingerprint),
@@ -187,6 +201,7 @@ class AiDocumentAnalysisRepository:
             expected_registry_key=registry_key.strip(),
             return_incompatible=False,
             reusable_fingerprint=fingerprint,
+            expected_execution_contract=expected_execution_contract,
         )
 
     def latest(self, registry_key: str) -> AiDocumentAnalysis | None:
@@ -196,14 +211,14 @@ class AiDocumentAnalysisRepository:
             expected_registry_key=registry_key.strip(),
             return_incompatible=True,
             reusable_fingerprint=None,
-        )
+            expected_execution_contract=None,
+        ).analysis
 
     def _rows(
         self,
         where: str,
         parameters: tuple[object, ...],
     ) -> list[tuple[str, object]]:
-        self.last_warning = ""
         self.initialize()
         with sqlite3.connect(self.path) as connection:
             return list(
@@ -222,12 +237,15 @@ class AiDocumentAnalysisRepository:
         expected_registry_key: str,
         return_incompatible: bool,
         reusable_fingerprint: str | None,
-    ) -> AiDocumentAnalysis | None:
+        expected_execution_contract: AiExecutionContract | None,
+    ) -> AiCacheLookupResult:
         incompatible: AiDocumentAnalysis | None = None
         saw_corruption = False
+        skipped_rows = 0
         for payload_json, stored_version in rows:
             if type(stored_version) is not int:
                 saw_corruption = True
+                skipped_rows += 1
                 continue
             if stored_version > AI_ANALYSIS_SCHEMA_VERSION or stored_version < 1:
                 incompatible = AiDocumentAnalysis(
@@ -236,24 +254,30 @@ class AiDocumentAnalysisRepository:
                     status=AiAnalysisStatus.CACHE_INCOMPATIBLE,
                     payload_version=stored_version,
                 )
+                skipped_rows += 1
                 continue
             try:
                 payload = json.loads(payload_json, object_pairs_hook=_unique_json_object)
             except (TypeError, UnicodeDecodeError, ValueError):
                 saw_corruption = True
+                skipped_rows += 1
                 continue
             analysis = AiDocumentAnalysis.from_payload(payload)
             if analysis.payload_version != stored_version:
                 saw_corruption = True
+                skipped_rows += 1
                 continue
             if analysis.status == AiAnalysisStatus.CACHE_INCOMPATIBLE:
                 incompatible = analysis
+                skipped_rows += 1
                 continue
             if analysis.status == AiAnalysisStatus.INVALID_RESPONSE:
                 saw_corruption = True
+                skipped_rows += 1
                 continue
             if analysis.registry_key != expected_registry_key:
                 saw_corruption = True
+                skipped_rows += 1
                 continue
             if reusable_fingerprint is not None and (
                 analysis.payload_version != AI_ANALYSIS_SCHEMA_VERSION
@@ -261,15 +285,33 @@ class AiDocumentAnalysisRepository:
                 or analysis.provenance.context_fingerprint != reusable_fingerprint
             ):
                 saw_corruption = True
+                skipped_rows += 1
                 continue
-            if saw_corruption or incompatible is not None:
-                self.last_warning = _CACHE_SKIPPED_WARNING
-            return analysis
+            if expected_execution_contract is not None and not execution_contract_matches(
+                analysis.provenance,
+                expected_execution_contract,
+            ):
+                skipped_rows += 1
+                continue
+            warnings = (
+                (_CACHE_SKIPPED_WARNING,) if saw_corruption or incompatible is not None else ()
+            )
+            return AiCacheLookupResult(
+                analysis=analysis,
+                warnings=warnings,
+                skipped_rows=skipped_rows,
+            )
         if saw_corruption:
-            self.last_warning = _CACHE_CORRUPT_WARNING
+            warnings = (_CACHE_CORRUPT_WARNING,)
         elif incompatible is not None:
-            self.last_warning = _CACHE_INCOMPATIBLE_WARNING
-        return incompatible if return_incompatible else None
+            warnings = (_CACHE_INCOMPATIBLE_WARNING,)
+        else:
+            warnings = ()
+        return AiCacheLookupResult(
+            analysis=incompatible if return_incompatible else None,
+            warnings=warnings,
+            skipped_rows=skipped_rows,
+        )
 
 
 def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -295,6 +337,7 @@ __all__ = [
     "AI_ANALYZER_VERSION",
     "AI_CONTEXT_VERSION",
     "AI_PROMPT_VERSION",
+    "AiCacheLookupResult",
     "AiDocumentAnalysisRepository",
     "context_fingerprint",
 ]

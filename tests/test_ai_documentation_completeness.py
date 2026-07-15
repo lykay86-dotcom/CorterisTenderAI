@@ -166,7 +166,7 @@ def test_contract_values_and_versions_are_exact() -> None:
     }
     assert AI_DOCUMENTATION_COMPLETENESS_POLICY_VERSION == "1"
     assert AI_ANALYSIS_SCHEMA_VERSION == 10
-    assert AI_ANALYZER_VERSION == "11"
+    assert AI_ANALYZER_VERSION == "12"
     assert AI_PROVIDER_OUTPUT_SCHEMA_VERSION == "4"
     assert AI_RESPONSE_FORMAT_NAME == "corteris_tender_analysis_v4"
     assert AI_PROMPT_VERSION == "6"

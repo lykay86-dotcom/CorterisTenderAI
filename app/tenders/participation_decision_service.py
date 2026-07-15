@@ -17,9 +17,6 @@ from app.tenders.participation_decision_policy import ParticipationDecisionPolic
 from app.core.ai.schemas import AiDocumentAnalysis, AiFinding
 
 
-_USE_LATEST_AI_ANALYSIS = object()
-
-
 class ParticipationDecisionService:
     """Assemble existing evidence; RM-107.4 will own detailed policy rules."""
 
@@ -30,19 +27,17 @@ class ParticipationDecisionService:
         commercial_estimate_repository: object,
         *,
         policy: ParticipationDecisionPolicy | None = None,
-        ai_analysis_repository: object | None = None,
     ) -> None:
         self.score_service = score_service
         self.state_repository = state_repository
         self.commercial_estimate_repository = commercial_estimate_repository
         self.policy = policy or ParticipationDecisionPolicy()
-        self.ai_analysis_repository = ai_analysis_repository
 
     def evaluate(
         self,
         registry_key: str,
         *,
-        ai_document_analysis: AiDocumentAnalysis | None | object = (_USE_LATEST_AI_ANALYSIS),
+        ai_document_analysis: AiDocumentAnalysis | None = None,
     ) -> ParticipationDecision:
         key = registry_key.strip()
         if not key:
@@ -52,17 +47,7 @@ class ParticipationDecisionService:
         verification = self.state_repository.get_verification_state(key)
         latest_estimate = self.commercial_estimate_repository.latest(key)
         estimate = latest_estimate[1] if latest_estimate is not None else None
-        if ai_document_analysis is _USE_LATEST_AI_ANALYSIS:
-            try:
-                ai_analysis = (
-                    self.ai_analysis_repository.latest(key)
-                    if self.ai_analysis_repository is not None
-                    else None
-                )
-            except Exception:
-                ai_analysis = None
-        else:
-            ai_analysis = ai_document_analysis
+        ai_analysis = ai_document_analysis
         decision_input = ParticipationDecisionInput(
             registry_key=key,
             score=score,
