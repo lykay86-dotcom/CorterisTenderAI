@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from app.core.document_classification import classify_document_kind
 from app.tenders.requirement_analysis import (
     AnalysisRiskLevel,
     DocumentKind,
@@ -10,6 +13,60 @@ from app.tenders.requirement_analysis import (
     TenderAnalysisSource,
     TenderRequirementsAnalyzer,
 )
+
+
+@pytest.mark.parametrize(
+    ("source_name", "text"),
+    [
+        ("Проект договора.pdf", ""),
+        ("Проект контракта.docx", ""),
+        ("Проект государственного контракта.pdf", ""),
+        ("Приложение.pdf", "ПРОЕКТ ДОГОВОРА"),
+        (
+            "Документ.pdf",
+            "Предмет договора. Права и обязанности сторон. Порядок расчётов. "
+            "Ответственность сторон. Реквизиты сторон.",
+        ),
+    ],
+)
+def test_draft_contract_classifier_positive_cases(source_name: str, text: str) -> None:
+    assert classify_document_kind(source_name, text) is DocumentKind.DRAFT_CONTRACT
+
+
+@pytest.mark.parametrize(
+    ("source_name", "text", "expected"),
+    [
+        ("Требования к опыту.pdf", "Не менее двух исполненных договоров.", DocumentKind.OTHER),
+        ("Извещение.pdf", "Порядок заключения контракта.", DocumentKind.PROCUREMENT_NOTICE),
+        (
+            "Инструкция участникам.pdf",
+            "Обеспечение исполнения контракта предоставляется победителем.",
+            DocumentKind.INSTRUCTIONS,
+        ),
+        (
+            "Техническое задание.pdf",
+            "Работы выполняются по договору.",
+            DocumentKind.TECHNICAL_SPECIFICATION,
+        ),
+        ("Форма заявки.pdf", "Согласие заключить будущий контракт.", DocumentKind.APPLICATION_FORM),
+        (
+            "Расчёт НМЦК.pdf",
+            "Расчёт выполнен по договорам-аналогам.",
+            DocumentKind.ESTIMATE,
+        ),
+        (
+            "Приложение к договору — Техническое задание.pdf",
+            "Предмет договора указан в техническом задании.",
+            DocumentKind.TECHNICAL_SPECIFICATION,
+        ),
+    ],
+)
+def test_draft_contract_classifier_rejects_false_positives_and_preserves_ts_priority(
+    source_name: str,
+    text: str,
+    expected: DocumentKind,
+) -> None:
+    assert classify_document_kind(source_name, text) is expected
 
 
 def source(name: str, text: str, key: str = "doc") -> TenderAnalysisSource:
