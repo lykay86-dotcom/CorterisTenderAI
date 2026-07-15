@@ -14,6 +14,7 @@ from app.ai.provider import AIProvider, MAX_RAW_RESPONSE_ID_LENGTH
 from app.core.ai.citations import CITATION_RESOLVER_VERSION, resolve_citation
 from app.core.ai.competition_review import assess_competition_conditions
 from app.core.ai.document_context import AI_CONTEXT_VERSION, TenderDocumentContextBuilder
+from app.core.ai.documentation_completeness import assess_documentation_completeness
 from app.core.ai.financial_risk import assess_financial_risks
 from app.core.ai.legal_risk import assess_legal_risks
 from app.core.ai.output_schema import (
@@ -570,6 +571,10 @@ class TenderDocumentAiAnalysisService:
             )
         parameters = dict(getattr(self.context_builder, "fingerprint_parameters", {}))
         statistics = getattr(context, "statistics", None)
+        documentation_inventory = tuple(getattr(context, "documentation_inventory", ()))
+        parameters["documentation_inventory"] = [
+            item.to_payload() for item in documentation_inventory
+        ]
         statistic_fields = getattr(statistics, "__dataclass_fields__", {})
         if statistics is not None and statistic_fields:
             parameters["context_statistics"] = {
@@ -595,6 +600,7 @@ class TenderDocumentAiAnalysisService:
             documents,
             context_fingerprint=fingerprint,
         )
+        result = replace(result, documentation_inventory=documentation_inventory)
         if statistics is not None:
             result = replace(
                 result,
@@ -643,6 +649,10 @@ class TenderDocumentAiAnalysisService:
                     result,
                     "Контекст AI-анализа был сокращён по безопасному лимиту.",
                 )
+        result = replace(
+            result,
+            documentation_completeness_assessment=(assess_documentation_completeness(result)),
+        )
         result = replace(result, legal_risk_assessment=assess_legal_risks(result))
         result = replace(result, financial_risk_assessment=assess_financial_risks(result))
         result = replace(

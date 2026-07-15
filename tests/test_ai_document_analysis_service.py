@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from app.core.ai.analyzer import TenderDocumentAiAnalysisService
 from app.core.ai.document_context import AiContextStatistics, AiDocumentContext
 from app.core.ai.repository import AiDocumentAnalysisRepository
@@ -10,10 +12,13 @@ from app.core.ai.schemas import (
     AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
+    AiDocumentationCompletenessStatus,
+    AiDocumentationDocumentSnapshot,
     AiDraftContractAnalysis,
     AiDraftContractStatus,
     TenderRequirements,
 )
+from app.core.document_classification import DocumentKind
 
 
 def _provenance(fingerprint: str) -> AiAnalysisProvenance:
@@ -24,8 +29,8 @@ def _provenance(fingerprint: str) -> AiAnalysisProvenance:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="10",
-        context_version="5",
+        analyzer_version="11",
+        context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -340,6 +345,89 @@ class ProviderFailureAnalyzer(Analyzer):
         self.calls += 1
         self.fingerprints.append(context_fingerprint)
         return AiDocumentAnalysis(key, "Unavailable", status="provider_error")
+
+
+class LocalInventoryBuilder:
+    fingerprint_parameters = {"context_version": "6"}
+
+    def build_context(self, _key):
+        documents = (
+            AiDocument(
+                "ts",
+                "Техническое задание.pdf",
+                "local_document_store",
+                "pdf",
+                "2026-07-15T00:00:00+00:00",
+                "extracted",
+                "Техническое задание",
+                "a" * 64,
+                document_kind=DocumentKind.TECHNICAL_SPECIFICATION.value,
+            ),
+            AiDocument(
+                "app",
+                "Требования к заявке.pdf",
+                "local_document_store",
+                "pdf",
+                "2026-07-15T00:00:00+00:00",
+                "extracted",
+                "Требования к заявке",
+                "b" * 64,
+                document_kind=DocumentKind.APPLICATION_REQUIREMENTS.value,
+            ),
+        )
+        inventory = tuple(
+            AiDocumentationDocumentSnapshot(
+                document_id=item.document_id,
+                display_name=item.name,
+                document_kind=item.document_kind,
+                origin="catalog",
+                download_status="downloaded",
+                extraction_status="extracted",
+                checksum_sha256=item.checksum_sha256,
+                available_locally=True,
+                text_available=True,
+                included_in_context=True,
+                context_truncated=False,
+            )
+            for item in documents
+        )
+        return AiDocumentContext(
+            documents,
+            AiContextStatistics(
+                source_document_count=2,
+                included_document_count=2,
+                character_count=sum(len(item.text) for item in documents),
+                technical_specification_document_count=1,
+                included_technical_specification_document_count=1,
+                technical_specification_document_ids=("ts",),
+                included_technical_specification_document_ids=("ts",),
+                application_requirements_document_count=1,
+                included_application_requirements_document_count=1,
+                application_requirements_document_ids=("app",),
+                included_application_requirements_document_ids=("app",),
+            ),
+            inventory,
+        )
+
+
+@pytest.mark.parametrize("status", ["provider_disabled", "provider_error"])
+def test_provider_failure_keeps_local_documentation_assessment(status: str) -> None:
+    class OfflineAnalyzer(Analyzer):
+        def analyze(self, key, _documents, *, context_fingerprint):
+            self.calls += 1
+            return AiDocumentAnalysis(key, "Offline", status=status)
+
+    analyzer = OfflineAnalyzer()
+    result = TenderDocumentAiAnalysisService(
+        LocalInventoryBuilder(), analyzer, WriteFailureRepository()
+    ).analyze("procurement:test", force=True)
+
+    assert analyzer.calls == 1
+    assert (
+        result.documentation_completeness_assessment.status
+        is AiDocumentationCompletenessStatus.COMPLETE
+    )
+    assert result.documentation_completeness_assessment.known_document_count == 2
 
 
 def test_service_does_not_cache_provider_error(tmp_path) -> None:

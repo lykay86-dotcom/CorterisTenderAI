@@ -178,7 +178,10 @@ def create_tender_search_runtime(
 
     ai_analysis_repository = AiDocumentAnalysisRepository(data_path / "tender_ai_analysis.sqlite3")
     ai_document_analysis_service = TenderDocumentAiAnalysisService(
-        TenderDocumentContextBuilder(text_extraction_service),
+        TenderDocumentContextBuilder(
+            text_extraction_service,
+            document_store=document_store,
+        ),
         TenderDocumentAiAnalyzer(ai_provider or DisabledProvider()),
         ai_analysis_repository,
     )

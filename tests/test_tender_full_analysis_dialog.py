@@ -19,6 +19,12 @@ from app.core.ai.schemas import (
     AiCompetitionStatus,
     AiDocument,
     AiDocumentAnalysis,
+    AiDocumentationCompletenessAssessment,
+    AiDocumentationCompletenessStatus,
+    AiDocumentationDocumentSnapshot,
+    AiDocumentationIssue,
+    AiDocumentationIssueCode,
+    AiDocumentationScope,
     AiDraftContractAnalysis,
     AiDraftContractStatus,
     AiFinding,
@@ -99,8 +105,8 @@ def _current_analysis() -> AiDocumentAnalysis:
         prompt_version="6",
         output_schema_version="4",
         persisted_schema_version=AI_ANALYSIS_SCHEMA_VERSION,
-        analyzer_version="10",
-        context_version="5",
+        analyzer_version="11",
+        context_version="6",
         citation_resolver_version="1",
         provider_id="openai",
         provider_model="gpt-5",
@@ -350,6 +356,74 @@ def test_ai_tab_has_safe_human_readable_status(status: str, label: str) -> None:
     )
 
     assert label in html
+
+
+@pytest.mark.parametrize(
+    ("status", "label"),
+    [
+        ("complete", "Локально известный комплект готов для текущего анализа"),
+        ("partial", "Комплект обработан частично; требуется устранить проблемы"),
+        ("no_documents", "Документы для проверки не найдены"),
+        ("unavailable", "Оценка полноты документации недоступна"),
+    ],
+)
+def test_ai_tab_renders_all_documentation_statuses(status: str, label: str) -> None:
+    analysis = replace(
+        _current_analysis(),
+        documentation_completeness_assessment=AiDocumentationCompletenessAssessment(
+            status=AiDocumentationCompletenessStatus(status)
+        ),
+    )
+
+    html = _render_ai_document_analysis(_result(analysis))
+
+    assert "Полнота документации" in html
+    assert label in html
+    assert html.index("Полнота документации") < html.index("Техническое задание")
+
+
+def test_ai_tab_escapes_documentation_details_and_separates_provider_claims() -> None:
+    snapshot = AiDocumentationDocumentSnapshot(
+        "ts",
+        r"C:\Users\SecretUser\<script>specification</script>.pdf",
+        DocumentKind.TECHNICAL_SPECIFICATION,
+        "catalog",
+        "failed",
+        "not_recorded",
+        "",
+        False,
+        False,
+        False,
+        False,
+    )
+    issue = AiDocumentationIssue(
+        "documentation_" + "b" * 32,
+        AiDocumentationIssueCode.DOWNLOAD_FAILED,
+        AiDocumentationScope.TECHNICAL_SPECIFICATION,
+        ("ts",),
+        "<script>local issue</script>",
+        "<img src=x onerror=alert(1)>",
+    )
+    analysis = replace(
+        _current_analysis(),
+        missing_documents=("<script>provider claim</script>",),
+        documentation_inventory=(snapshot,),
+        documentation_completeness_assessment=AiDocumentationCompletenessAssessment(
+            status=AiDocumentationCompletenessStatus.PARTIAL,
+            known_document_count=1,
+            issues=(issue,),
+        ),
+    )
+
+    html = _render_ai_document_analysis(_result(analysis))
+
+    assert "<script>specification</script>.pdf" not in html
+    assert "unknown" in html
+    assert "&lt;script&gt;local issue&lt;/script&gt;" in html
+    assert "&lt;script&gt;provider claim&lt;/script&gt;" in html
+    assert "Возможные отсутствующие документы по ответу AI — не подтверждено" in html
+    assert r"C:\Users\SecretUser" not in html
+    assert "<script>" not in html
 
 
 def test_ai_tab_distinguishes_verified_and_unverified_findings() -> None:

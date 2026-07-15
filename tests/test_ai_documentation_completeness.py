@@ -184,10 +184,14 @@ def test_schema_contracts_are_frozen_and_slotted() -> None:
     )
     assessment = AiDocumentationCompletenessAssessment(issues=(issue,))
 
-    for value in (snapshot, issue, assessment):
+    for value, field_name in (
+        (snapshot, "display_name"),
+        (issue, "title"),
+        (assessment, "policy_version"),
+    ):
         assert not hasattr(value, "__dict__")
         with pytest.raises(FrozenInstanceError):
-            value.policy_version = "2" if value is assessment else "x"  # type: ignore[attr-defined]
+            setattr(value, field_name, "changed")
 
 
 def test_empty_inventory_is_no_documents() -> None:
@@ -415,6 +419,60 @@ def test_tampered_current_assessment_is_recomputed_partial() -> None:
     assert restored.documentation_completeness_assessment.warnings
 
 
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("status",), "no_documents"),
+        (("included_document_count",), 0),
+        (("issues",), [{"issue_id": "documentation_" + "0" * 32}]),
+    ],
+)
+def test_tampered_current_assessment_fields_are_never_trusted(
+    path: tuple[str, ...], value: object
+) -> None:
+    analysis = _analysis(_complete_inventory())
+    analysis = replace(
+        analysis,
+        documentation_completeness_assessment=assess_documentation_completeness(analysis),
+    )
+    payload = analysis.to_payload()
+    payload["documentation_completeness_assessment"][path[0]] = value
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+
+    assert (
+        restored.documentation_completeness_assessment.status
+        is AiDocumentationCompletenessStatus.PARTIAL
+    )
+    assert restored.documentation_completeness_assessment.warnings
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("document_id", "foreign"),
+        ("document_kind", "draft_contract"),
+        ("download_status", "failed"),
+        ("extraction_status", "unsupported"),
+    ],
+)
+def test_tampered_current_inventory_is_validated_and_recomputed(field: str, value: object) -> None:
+    analysis = _analysis(_complete_inventory())
+    analysis = replace(
+        analysis,
+        documentation_completeness_assessment=assess_documentation_completeness(analysis),
+    )
+    payload = analysis.to_payload()
+    payload["documentation_inventory"][0][field] = value
+
+    restored = AiDocumentAnalysis.from_payload(payload)
+
+    assert (
+        restored.documentation_completeness_assessment.status
+        is not AiDocumentationCompletenessStatus.COMPLETE
+    )
+
+
 def test_legacy_payload_has_unavailable_empty_assessment() -> None:
     payload = _analysis(_complete_inventory()).to_payload()
     payload["payload_version"] = 9
@@ -451,6 +509,34 @@ def test_inventory_changes_fingerprint_and_order_does_not() -> None:
     assert changed != first
 
 
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"checksum_sha256": "f" * 64},
+        {"document_kind": DocumentKind.DRAFT_CONTRACT},
+        {"download_status": "failed", "available_locally": False},
+        {"extraction_status": "partial"},
+        {"included_in_context": False},
+        {"context_truncated": True},
+    ],
+)
+def test_every_inventory_decision_field_changes_fingerprint(changes: dict[str, object]) -> None:
+    inventory = _complete_inventory()
+    baseline = context_fingerprint(
+        (),
+        context_parameters={"documentation_inventory": [item.to_payload() for item in inventory]},
+    )
+    changed = (replace(inventory[0], **changes), inventory[1])
+
+    assert (
+        context_fingerprint(
+            (),
+            context_parameters={"documentation_inventory": [item.to_payload() for item in changed]},
+        )
+        != baseline
+    )
+
+
 def test_provider_contract_and_rm107_verified_findings_ignore_documentation_section() -> None:
     schema = build_provider_output_json_schema()
     rendered = json.dumps(schema, sort_keys=True)
@@ -480,7 +566,9 @@ def test_pure_policy_has_no_forbidden_dependencies_or_calls() -> None:
         "company_profile",
         "Decimal",
         "float(",
-        "re.",
+        "import re",
+        "re.search",
+        "re.match",
     )
     assert not any(item in source for item in forbidden)
 
