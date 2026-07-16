@@ -1,5 +1,33 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-16 — RM-129 завершён, RM-130 активирован
+
+- Audit `docs/RM-129_AUDIT.md` и implementation plan зафиксированы docs-only commit `ddb8427` до
+  application changes; expected-red characterization — commit `3331131`.
+- Existing `CompanyCapabilityProfileRepository` повышен до schema v2 в том же JSON path; v1
+  мигрируется in memory, typed load fail-closed различает missing/current/migrated/corrupt/future и
+  не уничтожает original.
+- Content-bound confirmation version 1 связывает все decision facts с deterministic SHA-256;
+  explicit currency, decimal strings и aware UTC timestamps сохраняются без guessed capabilities.
+- Pure frozen `BusinessCapabilityProjection` является одной confirmed-facts boundary для manual score,
+  automatic Collector и stop-factor engine; runtime/controller/dialog разделяют existing repository.
+- V1/v2 golden score components/explanations/recommendation, stop и final decision совпадают; matching,
+  saved search, DB/migrations, provider/network, AI и `ParticipationDecisionService` не изменены;
+  critical block остаётся абсолютным.
+- Локальная acceptance: focused `76 passed in 5.25s`, neighbor `38 passed in 6.85s`, adjacent
+  summary/full-analysis `51 passed in 3.53s`, full pytest `1623 passed in 70.35s`; secret scan,
+  Ruff/format (`549 files`), mypy, workflow smokes, dependency audit и diff-check успешны.
+- Feature PR #64 (`feat(rm-129): add universal confirmed business profiles`) слит в `main` коммитом
+  `f9b43c3` (`f9b43c37bb5c7e631e4851cde2b39c1178d34239`).
+- PR Quality Gate run `29522220375` успешен: Python 3.12 — `1623 passed in 164.70s`, Python 3.13 —
+  `1623 passed in 63.03s`.
+- Exact-SHA post-merge run `29522737754` успешен: Python 3.12 — `1623 passed in 69.59s`,
+  Python 3.13 — `1623 passed in 103.67s`; все обязательные jobs завершились `success`.
+- Неблокирующее предупреждение official actions о принудительном Node.js 24 не повлияло на gate и
+  остаётся отдельной CI maintenance задачей.
+- RM-129 переведён в `DONE`; RM-130 назначен единственным `IN PROGRESS` для audit-first upgrade
+  existing saved-search profile contract. RM-131–RM-200 остаются `PLANNED`.
+
 ## 2026-07-16 — RM-129: feature acceptance подготовлена
 
 - Audit `docs/RM-129_AUDIT.md` и implementation plan зафиксированы docs-only commit `ddb8427` до
