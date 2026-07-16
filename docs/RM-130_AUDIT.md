@@ -342,3 +342,30 @@ timestamps and non-persistence of transient runtime text.
 **FEATURE IMPLEMENTATION READY FOR PR/CI.** RM-130 remains `IN PROGRESS`. It must not be marked
 `DONE`, and RM-131 must not start, until the feature PR is merged, the exact merge-SHA Windows Quality
 Gate succeeds on Python 3.12 and 3.13, and a separate docs-only closeout is merged.
+
+## 15. Merge and exact-SHA closeout evidence
+
+Feature PR #66, `feat(rm-130): add safe saved search profile schema v2`, was merged into `main` as
+`3a4d53067b7b0f8eaf0b5969c139284c9d5ed987` after both PR jobs succeeded.
+
+PR Quality Gate run `29533900495`:
+
+- Python 3.12: `1656 passed in 101.17s`;
+- Python 3.13: `1656 passed in 150.85s`.
+
+Automatic exact merge-SHA Quality Gate run `29534568925` executed against exact head
+`3a4d53067b7b0f8eaf0b5969c139284c9d5ed987` and completed successfully:
+
+- Python 3.12: `1656 passed in 141.74s`;
+- Python 3.13: `1656 passed in 66.21s`.
+
+Both versions passed repository secret scan, Ruff check/format (`554 files`), configured mypy
+(`20 source files`), offline credential smoke, legacy migration/schema smoke, public import,
+headless composition, release/build contract and dependency audit with no known vulnerabilities.
+
+The feature merge contains no DB/schema/migration or dependency change and no live provider call.
+One search-profile repository/path/UI/worker ownership and deterministic decision/critical-stop
+priority remain intact.
+
+**RM-130 ACCEPTED FOR DOCS-ONLY CLOSEOUT.** This closeout marks RM-130 `DONE` and activates RM-131 as
+the sole `IN PROGRESS` roadmap stage; RM-132–RM-200 remain `PLANNED`.
