@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Iterable
 from pathlib import Path
 import json
 from typing import TYPE_CHECKING
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QSplitter,
+    QStatusBar,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -55,6 +57,7 @@ from app.ui.ai_provider_settings import AiProviderSettingsWidget
 
 if TYPE_CHECKING:
     from app.core.ai.provider_selection import AiProviderSelectionService
+    from PySide6.QtGui import QAction
 
 LICENSE_OPTIONS = [
     "Лицензия МЧС",
@@ -80,15 +83,38 @@ TEMPLATE_NAMES = [
 ]
 
 
-class MainWindow(QMainWindow):
+class TenderWorkspacePage(QWidget):
+    """Reusable owner of the existing tender workspace and its callbacks."""
+
+    SECTION_KEYS = (
+        "overview",
+        "analysis",
+        "estimate",
+        "catalog",
+        "readiness",
+        "tools",
+        "price_monitor",
+        "settings",
+    )
+    SETTINGS_SECTION_KEYS = (
+        "platforms",
+        "ai",
+        "company",
+        "economics",
+        "templates",
+        "database",
+    )
+
     def __init__(
         self,
         *,
         ai_provider_selection_service: "AiProviderSelectionService | None" = None,
+        status_bar: QStatusBar | None = None,
+        parent: QWidget | None = None,
     ):
-        super().__init__()
-        self.setWindowTitle("AIBOS Security — Corteris Tender AI 1.2.1")
-        self.resize(1480, 920)
+        super().__init__(parent)
+        self.setObjectName("TenderWorkspacePage")
+        self._status_bar = status_bar or QStatusBar(self)
         self.repo = TenderRepository()
         self.current_id = None
         self.last_report = None
@@ -115,9 +141,15 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def _build(self):
-        self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        self.tabs = QTabWidget(self)
+        self.tabs.setObjectName("TenderWorkspaceTabs")
+        root.addWidget(self.tabs)
+        self._section_indexes: dict[str, int] = {}
+        self._settings_section_indexes: dict[str, int] = {}
         dash = QWidget()
+        dash.setObjectName("TenderWorkspaceSection_overview")
         dl = QVBoxLayout(dash)
         top = QHBoxLayout()
         self.logo = QLabel()
@@ -149,9 +181,10 @@ class MainWindow(QMainWindow):
             b.clicked.connect(slot)
             actions.addWidget(b)
         dl.addLayout(actions)
-        self.tabs.addTab(dash, "Панель управления")
+        self._section_indexes["overview"] = self.tabs.addTab(dash, "Панель управления")
 
         an = QWidget()
+        an.setObjectName("TenderWorkspaceSection_analysis")
         al = QVBoxLayout(an)
         calc = QHBoxLayout()
         self.profit_mode = QComboBox()
@@ -175,21 +208,89 @@ class MainWindow(QMainWindow):
         self.output = QTextEdit()
         self.output.setReadOnly(True)
         al.addWidget(self.output)
-        self.tabs.addTab(an, "Анализ тендера")
+        self._section_indexes["analysis"] = self.tabs.addTab(an, "Анализ тендера")
 
-        self.tabs.addTab(self._estimate_tab(), "Смета")
-        self.tabs.addTab(self._catalog_tab(), "Оборудование и бренды")
-        self.tabs.addTab(self._readiness_tab(), "Проверка заявки")
-        self.tabs.addTab(self._v14_tools_tab(), "Инструменты 1.4")
-        self.tabs.addTab(self._price_monitor_tab(), "Мониторинг цен 1.5")
-        settings = QTabWidget()
-        settings.addTab(self._platform_tab(), "Площадки API/RSS/FTP")
-        settings.addTab(self._ai_tab(), "ChatGPT / ИИ")
-        settings.addTab(self._company_tab(), "Компания и реквизиты")
-        settings.addTab(self._rules_tab(), "Лицензии и экономика")
-        settings.addTab(self._templates_tab(), "Фирменные бланки")
-        settings.addTab(self._diagnostics_tab(), "Диагностика БД")
-        self.tabs.addTab(settings, "Настройки")
+        sections = (
+            ("estimate", "Смета", self._estimate_tab()),
+            ("catalog", "Оборудование и бренды", self._catalog_tab()),
+            ("readiness", "Проверка заявки", self._readiness_tab()),
+            ("tools", "Инструменты 1.4", self._v14_tools_tab()),
+            ("price_monitor", "Мониторинг цен 1.5", self._price_monitor_tab()),
+        )
+        for key, label, widget in sections:
+            widget.setObjectName(f"TenderWorkspaceSection_{key}")
+            self._section_indexes[key] = self.tabs.addTab(widget, label)
+
+        settings_page = QWidget()
+        settings_page.setObjectName("TenderWorkspaceSection_settings")
+        settings_layout = QVBoxLayout(settings_page)
+        settings_layout.setContentsMargins(0, 0, 0, 0)
+        self.settings_tabs = QTabWidget(settings_page)
+        self.settings_tabs.setObjectName("TenderWorkspaceSettingsTabs")
+        settings_layout.addWidget(self.settings_tabs)
+        settings_sections = (
+            ("platforms", "Площадки API/RSS/FTP", self._platform_tab()),
+            ("ai", "ChatGPT / ИИ", self._ai_tab()),
+            ("company", "Компания и реквизиты", self._company_tab()),
+            ("economics", "Лицензии и экономика", self._rules_tab()),
+            ("templates", "Фирменные бланки", self._templates_tab()),
+            ("database", "Диагностика БД", self._diagnostics_tab()),
+        )
+        for key, label, widget in settings_sections:
+            widget.setObjectName(f"TenderWorkspaceSettingsSection_{key}")
+            self._settings_section_indexes[key] = self.settings_tabs.addTab(widget, label)
+        self._section_indexes["settings"] = self.tabs.addTab(settings_page, "Настройки")
+
+    @property
+    def section_keys(self) -> tuple[str, ...]:
+        return self.SECTION_KEYS
+
+    @property
+    def settings_section_keys(self) -> tuple[str, ...]:
+        return self.SETTINGS_SECTION_KEYS
+
+    def statusBar(self) -> QStatusBar:
+        """Return the shell-owned status bar used by existing callbacks."""
+        return self._status_bar
+
+    def refresh_tenders(self) -> None:
+        """Refresh the existing local tender table."""
+        self.refresh()
+
+    def open_tender(self, tender_id: str) -> bool:
+        """Select an existing local row without inventing a missing tender."""
+        normalized = str(tender_id).strip()
+        if not normalized:
+            return False
+        self.refresh_tenders()
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is None or item.text() != normalized:
+                continue
+            self.table.selectRow(row)
+            self.select_row(row, 0)
+            return True
+        return False
+
+    def apply_compatibility_search_text(self, query: str) -> None:
+        """Populate only the existing price/equipment catalog query."""
+        self.catalog_query.setText(str(query).strip())
+
+    def select_section(self, key: str) -> bool:
+        """Select a known top-level section by its stable key."""
+        index = self._section_indexes.get(str(key).strip())
+        if index is None:
+            return False
+        self.tabs.setCurrentIndex(index)
+        return True
+
+    def bind_tender_actions(self, actions: Iterable["QAction"]) -> None:
+        """Expose existing controller actions without reparenting or recreating them."""
+        installed = self.actions()
+        for action in actions:
+            if action not in installed:
+                self.addAction(action)
+                installed.append(action)
 
     def _estimate_tab(self):
         w = QWidget()
@@ -1080,3 +1181,34 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Экспорт", f"База экспортирована:\n{output}")
         except Exception as exc:
             QMessageBox.critical(self, "Экспорт", str(exc))
+
+
+class MainWindow(QMainWindow):
+    """Compatibility shell around the reusable tender workspace page."""
+
+    def __init__(
+        self,
+        *,
+        ai_provider_selection_service: "AiProviderSelectionService | None" = None,
+    ) -> None:
+        super().__init__()
+        self.setObjectName("LegacyMainWindowCompatibilityWrapper")
+        self.setWindowTitle("AIBOS Security — Corteris Tender AI 1.2.1")
+        self.resize(1480, 920)
+        self.workspace_page = TenderWorkspacePage(
+            ai_provider_selection_service=ai_provider_selection_service,
+            status_bar=self.statusBar(),
+            parent=self,
+        )
+        self.setCentralWidget(self.workspace_page)
+
+    def __getattr__(self, name: str):
+        """Delegate legacy attribute reads to the sole workspace instance."""
+        try:
+            page = object.__getattribute__(self, "workspace_page")
+        except AttributeError:
+            raise AttributeError(name) from None
+        return getattr(page, name)
+
+
+__all__ = ["MainWindow", "TenderWorkspacePage"]
