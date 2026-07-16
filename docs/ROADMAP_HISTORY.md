@@ -1,5 +1,32 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-16 — RM-127 завершён, RM-128 активирован
+
+- Audit `docs/RM-127_AUDIT.md` и implementation plan были зафиксированы docs-only commit
+  `13dfb83` до production changes; characterization contract — commit `cb21b82`.
+- Existing tender content выделен как одна `TenderWorkspacePage(QWidget)` с exact 8 top-level и
+  6 nested settings tabs, stable keys/objectNames и narrow compatibility API.
+- Production `ModernMainWindow` больше не создаёт hidden legacy `MainWindow`, не вызывает
+  `takeCentralWidget()` и не обращается к `table/current_id/catalog_query` напрямую; standalone
+  legacy wrapper строит одну reusable page.
+- Один существующий `TenderSearchUiController`, те же 7 direct и 2 scheduler QAction, menu/toolbar,
+  shortcuts, dialogs, workers и C11 full-analysis workflow сохранены без дублирования.
+- Topbar сохраняет прежний price/equipment catalog contract; universal search RM-128, новый engine,
+  Collector, repository, DB/migration, provider, decision или AI changes не добавлены.
+- Локальная acceptance: focused `54 passed in 31.02s`; полный pytest дважды —
+  `1532 passed in 55.91s` и `1532 passed in 77.25s`; secret scan, Ruff, format, mypy,
+  workflow smokes, dependency audit и diff-check успешны.
+- Feature PR #60 (`feat(rm-127): isolate tender workspace in modern tab structure`) слит в `main`
+  коммитом `0b95567` (`0b9556799a20ddbf7338476fe76f602e7ff79d07`).
+- PR Quality Gate run `29488228903` успешен: Python 3.12 — `1532 passed in 94.14s`,
+  Python 3.13 — `1532 passed in 83.76s`.
+- Post-merge Quality Gate run `29489511239` успешен: Python 3.12 —
+  `1532 passed in 82.83s`, Python 3.13 — `1532 passed in 145.43s`; на обеих версиях прошли
+  Ruff check/format (`540 files`), mypy (20 файлов), secret scan,
+  offline/migration/import/composition/build smoke tests и dependency audit.
+- RM-127 переведён в `DONE`; RM-128 назначен единственным `IN PROGRESS` для одной search panel над
+  существующим saved-profile repository и audited sync/async facade. RM-129–RM-200 остаются `PLANNED`.
+
 ## 2026-07-16 — RM-126.1 завершён, RM-127 активирован
 
 - Feature PR #58 (`feat(rm-126.1): harden EIS parser stage 1`) слит в `main` коммитом `b6369c8`
