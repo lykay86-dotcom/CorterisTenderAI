@@ -465,7 +465,13 @@ class CollectorProviderManager:
         enabled = bool(settings.enabled)
         details = definition.configuration_details
 
-        if not enabled:
+        if settings_status is ProviderSettingsLoadStatus.CORRUPT:
+            ui_state = ProviderUiState.ERROR
+            status_text = "Файл настроек повреждён; запуск заблокирован"
+        elif settings_status is ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE:
+            ui_state = ProviderUiState.ERROR
+            status_text = "Версия файла настроек не поддерживается; запуск заблокирован"
+        elif not enabled:
             ui_state = ProviderUiState.DISABLED
             status_text = "Отключён пользователем"
         elif record is not None:

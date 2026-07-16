@@ -60,6 +60,7 @@ def test_split_v1_uses_general_enablement_before_legacy_commercial(tmp_path) -> 
     )
     assert result.get("sber_commercial").enabled is True
     assert any("sber_a" in warning for warning in result.warnings)
+    assert any("b2b_center" in warning and "overrides" in warning for warning in result.warnings)
 
 
 def test_first_split_v1_mutation_backs_up_both_sources_and_is_idempotent(tmp_path) -> None:

@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
-from app.tenders.collector.provider_control import CollectorProviderManager
+import pytest
+
+from app.tenders.collector.provider_control import (
+    CollectorProviderManager,
+    ProviderUiState,
+)
 from app.tenders.collector.provider_settings import (
     ProviderConfiguration,
     ProviderSettingOrigin,
+    ProviderSettingsMutationError,
 )
+from app.tenders.collector.run_session import CollectorRunSession
+from app.tenders.provider_base import TenderSearchQuery
 
 
 def test_environment_override_is_runtime_only_and_secret_free(tmp_path) -> None:
@@ -66,3 +75,28 @@ def test_manager_snapshot_and_states_do_not_start_network(tmp_path, monkeypatch)
 
     assert manager.settings_snapshot().get("eis").enabled
     assert manager.states()
+
+
+def test_corrupt_settings_block_states_and_run_before_runtime(tmp_path) -> None:
+    (tmp_path / "collector_provider_settings.json").write_text("{broken", encoding="utf-8")
+    manager = CollectorProviderManager(tmp_path, environment={})
+    states = manager.states()
+    runtime_calls = 0
+
+    def runtime_factory():
+        nonlocal runtime_calls
+        runtime_calls += 1
+        raise AssertionError("runtime must not be created")
+
+    session = CollectorRunSession(
+        tmp_path,
+        runtime_factory=runtime_factory,
+        provider_settings_snapshot_factory=manager.settings_snapshot,
+    )
+
+    assert all(not state.enabled for state in states)
+    assert all(state.ui_state is ProviderUiState.ERROR for state in states)
+    assert all(not state.enabled_editable for state in states)
+    with pytest.raises(ProviderSettingsMutationError, match="corrupt"):
+        asyncio.run(session.run(TenderSearchQuery(), provider_ids=("eis",)))
+    assert runtime_calls == 0

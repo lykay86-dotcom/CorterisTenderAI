@@ -114,6 +114,11 @@ class ProviderSettingsSnapshot:
 
     @property
     def enabled_provider_ids(self) -> tuple[str, ...]:
+        if self.status in {
+            ProviderSettingsLoadStatus.CORRUPT,
+            ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
+        }:
+            return ()
         return tuple(item.provider_id for item in self.providers if item.enabled)
 
     def resolve_provider_ids(self, provider_ids: object) -> tuple[str, ...]:
@@ -221,6 +226,13 @@ def create_provider_settings_snapshot(
                     )
                 configuration_origin = ProviderSettingOrigin.ENVIRONMENT
                 configuration_editable = False
+
+        if loaded.status in {
+            ProviderSettingsLoadStatus.CORRUPT,
+            ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
+        }:
+            enabled = False
+            configuration_editable = False
 
         resolved.append(
             ProviderSettingsRecord(
@@ -401,6 +413,10 @@ class ProviderEnablementRepository:
                 warnings=(f"Split provider settings are corrupt: {type(exc).__name__}",),
             )
         for provider_id, value in legacy_enabled.items():
+            if provider_id in enabled and enabled[provider_id] != value:
+                warnings.append(
+                    f"General enablement for {provider_id} overrides legacy commercial value."
+                )
             enabled.setdefault(provider_id, value)
         ids = set(enabled) | set(configurations)
         records = tuple(

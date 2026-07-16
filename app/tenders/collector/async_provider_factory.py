@@ -21,6 +21,8 @@ from app.tenders.matching_catalog import MatchingCatalogRepository
 from app.tenders.corteris_filter import CorterisTenderClassifier
 from app.tenders.collector.provider_settings import (
     ProviderEnablementRepository,
+    ProviderSettingsLoadStatus,
+    ProviderSettingsMutationError,
     ProviderSettingsSnapshot,
     create_provider_settings_snapshot,
 )
@@ -59,6 +61,14 @@ def create_default_async_providers(
     only providers enabled by the user are added, and they remain honest
     ``not_configured`` adapters until a real API contract is verified.
     """
+
+    if provider_settings_snapshot is not None and provider_settings_snapshot.status in {
+        ProviderSettingsLoadStatus.CORRUPT,
+        ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
+    }:
+        raise ProviderSettingsMutationError(
+            f"Provider settings are unavailable: {provider_settings_snapshot.status.value}"
+        )
 
     providers = [
         AsyncEisTenderProvider(
