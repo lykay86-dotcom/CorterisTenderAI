@@ -9,6 +9,7 @@ from decimal import Decimal
 import pytest
 
 from app.tenders.collector.provider_control import ProviderDisplayState, ProviderUiState
+from app.tenders.search_profile_repository import TenderSearchProfileRepository
 from app.tenders.search_profiles import (
     SearchProfileRuntimeQueryPolicy,
     TenderSearchProfile,
@@ -94,3 +95,17 @@ def test_profile_policy_is_typed_and_unknown_policy_fails_closed() -> None:
 
     with pytest.raises(ValueError, match="runtime_query_policy"):
         replace(_profile(), runtime_query_policy="unknown")
+
+
+def test_runtime_text_never_mutates_repository_bytes(tmp_path) -> None:
+    repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
+    repository.initialize()
+    saved = repository.save(_profile(), replace_existing=False)
+    before = repository.path.read_bytes()
+
+    resolved = _resolve(repository.get(saved.id), "  только текущий запуск  ")
+
+    assert resolved.execution_mode is SearchProfileExecutionMode.KEYWORD_OVERRIDE
+    assert resolved.query.keywords == ("только текущий запуск",)
+    assert repository.path.read_bytes() == before
+    assert repository.get(saved.id).keywords == ("камеры", "монтаж")
