@@ -24,9 +24,12 @@ from app.tenders.models import (
     UnifiedTender,
 )
 from app.tenders.tender_registry import tender_registry_key
+from app.tenders.unified_search import UnifiedTenderSearchRequest
 from app.ui.tender_search_ui_controller import (
     TenderSearchUiController,
 )
+from tests.test_tender_collector_dialog import _result as make_collector_result
+from tests.test_rm127_tender_workspace_contract import _page
 from tests.tender_search_ui_helpers import make_profile_run
 
 
@@ -49,6 +52,22 @@ class FakeRunner:
         if self.error is not None:
             raise self.error
         return make_profile_run()
+
+
+class FakeCollectorSession:
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, tuple[str, ...]]] = []
+
+    async def run(
+        self,
+        query,
+        *,
+        provider_ids,
+        cancellation_token,
+        progress_callback,
+    ):
+        self.calls.append((query, tuple(provider_ids)))
+        return make_collector_result()
 
 
 class FakeTenderRegistry:
@@ -208,3 +227,67 @@ def test_controller_opens_existing_document_dialog_for_analysis_citation(
     assert dialog.selected_document().document_key == stored.document_key
     assert dialog.isVisible()
     assert opened_urls == []
+
+
+def test_controller_installs_one_panel_and_routes_it_only_to_collector(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    app = _app()
+    page = _page(monkeypatch)
+    runner = FakeRunner()
+    collector_session = FakeCollectorSession()
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=_runtime(tmp_path, runner),
+        collector_session=collector_session,
+        thread_pool=ImmediateThreadPool(),
+    )
+
+    controller.install_on_tender_workspace(page)
+    controller.install_on_tender_workspace(page)
+    panel = controller.unified_search_panel
+    assert panel is not None
+    assert page.findChildren(type(panel)) == [panel]
+    request = UnifiedTenderSearchRequest(
+        panel.selected_profile_id(),
+        "  камеры   IP  ",
+        panel.selected_provider_ids(),
+    )
+
+    controller.start_unified_search(request)
+    app.processEvents()
+
+    assert len(collector_session.calls) == 1
+    query, provider_ids = collector_session.calls[0]
+    assert query.keywords == ("камеры IP",)
+    assert provider_ids == ("eis",)
+    assert runner.calls == []
+    assert controller._collector_worker is None
+    assert not panel.running
+    assert "Поиск завершён" in panel.status_label.text()
+
+
+def test_unified_search_rejects_stale_provider_without_starting_network(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _app()
+    page = _page(monkeypatch)
+    collector_session = FakeCollectorSession()
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=_runtime(tmp_path, FakeRunner()),
+        collector_session=collector_session,
+        thread_pool=ImmediateThreadPool(),
+    )
+    controller.install_on_tender_workspace(page)
+    panel = controller.unified_search_panel
+    assert panel is not None
+
+    controller.start_unified_search(
+        UnifiedTenderSearchRequest("all-corteris", "камеры", ("stale-source",))
+    )
+
+    assert collector_session.calls == []
+    assert "не найден" in panel.status_label.text()
