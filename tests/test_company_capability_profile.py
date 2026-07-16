@@ -36,12 +36,13 @@ def _profile(**changes) -> CompanyCapabilityProfile:
         "brands": ("Trassir",),
         "suppliers": ("Поставщик 1",),
         "minimum_margin_percent": Decimal("20"),
-        "confirmed_at": NOW,
-        "confirmed_by": "Директор",
-        "evidence_note": "Проверено по документам компании",
     }
     values.update(changes)
-    return CompanyCapabilityProfile(**values)
+    return CompanyCapabilityProfile(**values).confirm(
+        confirmed_by="Директор",
+        confirmed_at=datetime.fromisoformat(NOW),
+        evidence_note="Проверено по документам компании",
+    )
 
 
 def test_profile_normalizes_and_reports_missing_sections() -> None:

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 if TYPE_CHECKING:
     from app.tenders.collector.company_capability import CompanyCapabilityProfile
 
+from app.tenders.business_profile import BusinessCapabilityProjection
 from app.tenders.corteris_filter import (
     CorterisTenderClassifier,
     normalize_text,
@@ -253,50 +254,66 @@ class CorterisCompanyProfile:
             raise ValueError("invalid extended price range")
 
     @classmethod
-    def from_capability(
+    def from_business_profile(
         cls,
-        capability: "CompanyCapabilityProfile",
+        business_profile: BusinessCapabilityProjection,
     ) -> "CorterisCompanyProfile":
-        max_project = capability.max_project_amount or Decimal("0")
+        """Build the existing scoring policy from the shared pure projection."""
+
+        max_project = business_profile.max_project_amount or Decimal("0")
         terms = _ordered_unique(
             (
-                *capability.equipment,
-                *capability.brands,
-                *capability.suppliers,
-                *capability.stock_items,
+                *business_profile.equipment,
+                *business_profile.brands,
+                *business_profile.suppliers,
+                *business_profile.stock_items,
             )
         )
         licenses = _ordered_unique(
             (
-                *capability.licenses,
-                *capability.license_work_types,
-                *capability.sro_memberships,
+                *business_profile.licenses,
+                *business_profile.license_work_types,
+                *business_profile.sro_memberships,
             )
         )
         return cls(
             version=(
                 "company-capability:"
-                + (capability.updated_at or capability.confirmed_at or "empty")
+                + (business_profile.updated_at or business_profile.confirmed_at or "empty")
             ),
             priority_regions=_ordered_unique(
-                (*capability.self_install_regions, *capability.partner_regions)
+                (
+                    *business_profile.self_install_regions,
+                    *business_profile.partner_regions,
+                )
             ),
             nationwide_regions=(),
             preferred_price_min=Decimal("0"),
             preferred_price_max=max_project,
             extended_price_max=max_project,
+            price_currency=business_profile.base_currency,
             known_licenses=licenses,
             equipment_terms=terms,
             okpd2_prefixes=(),
-            configured=capability.is_configured,
-            missing_capability_fields=capability.missing_sections,
-            business_directions=capability.business_directions,
-            confirmed_experience=capability.confirmed_experience,
+            configured=business_profile.is_configured,
+            missing_capability_fields=business_profile.missing_sections,
+            business_directions=business_profile.business_directions,
+            confirmed_experience=business_profile.confirmed_experience,
             financial_confirmed=(
-                capability.max_project_amount is not None and capability.working_capital is not None
+                business_profile.max_project_amount is not None
+                and business_profile.working_capital is not None
             ),
             strict_capabilities=True,
         )
+
+    @classmethod
+    def from_capability(
+        cls,
+        capability: "CompanyCapabilityProfile",
+    ) -> "CorterisCompanyProfile":
+        """Compatibility wrapper around the shared business projection."""
+
+        return cls.from_business_profile(BusinessCapabilityProjection.from_capability(capability))
 
 
 @dataclass(frozen=True, slots=True)

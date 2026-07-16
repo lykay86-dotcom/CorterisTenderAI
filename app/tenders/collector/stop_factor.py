@@ -10,6 +10,7 @@ import hashlib
 import re
 from typing import Iterable
 
+from app.tenders.business_profile import BusinessCapabilityProjection
 from app.tenders.collector.company_capability import CompanyCapabilityProfile
 from app.tenders.corteris_filter import normalize_text
 from app.tenders.models import UnifiedTender, is_timezone_aware
@@ -171,8 +172,17 @@ class StopFactorAssessment:
 class StopFactorEngine:
     """Evaluate hard gates without allowing a score to override them."""
 
-    def __init__(self, profile: CompanyCapabilityProfile | None = None) -> None:
-        self.profile = profile or CompanyCapabilityProfile()
+    def __init__(
+        self,
+        profile: BusinessCapabilityProjection | CompanyCapabilityProfile | None = None,
+    ) -> None:
+        self.profile = (
+            profile
+            if isinstance(profile, BusinessCapabilityProjection)
+            else BusinessCapabilityProjection.from_capability(
+                profile if profile is not None else CompanyCapabilityProfile()
+            )
+        )
 
     def evaluate(
         self,
@@ -391,7 +401,33 @@ class StopFactorEngine:
                 else self.profile.max_contract_security
             )
             required_amount = _security_amount(finding.value, tender)
-            if required_amount is not None and limit is not None and required_amount > limit:
+            required_currency = _security_currency(finding.value, tender)
+            if (
+                required_amount is not None
+                and limit is not None
+                and required_currency is not None
+                and required_currency != self.profile.base_currency
+            ):
+                factor = self._from_finding(
+                    finding,
+                    StopFactorKind.SECURITY_CAPACITY_EXCEEDED,
+                    StopFactorStatus.DATA_INSUFFICIENT,
+                    "Получить подтверждённый курс и сопоставить обеспечение с лимитом профиля.",
+                )
+                result.append(
+                    StopFactor(
+                        factor.factor_id,
+                        factor.kind,
+                        factor.status,
+                        factor.title,
+                        f"Требуется {required_amount} {required_currency}; "
+                        f"подтверждённый лимит {limit} "
+                        f"{self.profile.base_currency}. Сопоставление без курса невозможно.",
+                        factor.criticality,
+                        factor.evidence,
+                    )
+                )
+            elif required_amount is not None and limit is not None and required_amount > limit:
                 factor = self._from_finding(
                     finding,
                     StopFactorKind.SECURITY_CAPACITY_EXCEEDED,
@@ -512,6 +548,15 @@ def _security_amount(value: str, tender: UnifiedTender) -> Decimal | None:
     money = re.search(r"(\d[\d\s]*(?:[.,]\d+)?)\s*(?:руб|₽)", rendered, re.IGNORECASE)
     if money:
         return Decimal(money.group(1).replace(" ", "").replace(",", "."))
+    return None
+
+
+def _security_currency(value: str, tender: UnifiedTender) -> str | None:
+    rendered = value.replace("\xa0", " ").strip()
+    if re.search(r"(\d{1,3}(?:[.,]\d+)?)\s*%", rendered) and tender.price is not None:
+        return tender.price.currency
+    if re.search(r"(\d[\d\s]*(?:[.,]\d+)?)\s*(?:руб|₽)", rendered, re.IGNORECASE):
+        return "RUB"
     return None
 
 
