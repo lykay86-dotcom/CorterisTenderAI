@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from app.tenders.search_profile_repository import SearchProfileCatalogLoadStatus
 from app.tenders.search_runtime import create_tender_search_runtime
@@ -28,7 +29,11 @@ def test_no_second_profile_store_or_sqlite_owner_exists() -> None:
         text = path.read_text(encoding="utf-8")
         if "TenderSearchProfileRepository(" in text:
             owners.append(path)
-        if "search_profiles.sqlite" in text or "search_profile" in text and "CREATE TABLE" in text:
+        if "search_profiles.sqlite" in text or re.search(
+            r"CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+search_profiles?\b",
+            text,
+            flags=re.IGNORECASE,
+        ):
             sqlite_mentions.append(path)
 
     assert owners == [Path("app/tenders/search_runtime.py")]

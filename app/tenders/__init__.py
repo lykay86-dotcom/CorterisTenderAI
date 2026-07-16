@@ -112,6 +112,9 @@ from app.tenders.requirement_analysis import (
 )
 from app.tenders.search_profile_repository import (
     BuiltinSearchProfileError,
+    SearchProfileCatalogLoadResult,
+    SearchProfileCatalogLoadStatus,
+    SearchProfileCatalogMutationError,
     SearchProfileNotFoundError,
     TenderSearchProfileRepository,
 )
@@ -120,8 +123,18 @@ from app.tenders.search_profile_runner import (
     TenderSearchProfileRunner,
 )
 from app.tenders.search_profiles import (
+    SearchProfileRuntimeQueryPolicy,
     TenderSearchProfile,
     create_builtin_search_profiles,
+    format_optional_decimal,
+    parse_optional_decimal_text,
+)
+from app.tenders.unified_search import (
+    ResolvedUnifiedTenderSearch,
+    SearchProfileExecutionMode,
+    UnifiedTenderSearchRequest,
+    UnifiedTenderSearchValidationError,
+    resolve_unified_tender_search,
 )
 from app.tenders.search_runtime import (
     TenderSearchRuntime,
@@ -194,6 +207,11 @@ __all__ = [
     "MatchingEntryKind",
     "RelevanceGrade",
     "SearchProfileNotFoundError",
+    "SearchProfileCatalogLoadResult",
+    "SearchProfileCatalogLoadStatus",
+    "SearchProfileCatalogMutationError",
+    "SearchProfileExecutionMode",
+    "SearchProfileRuntimeQueryPolicy",
     "StoredTenderDocument",
     "TenderDirection",
     "TenderDocumentDownloadError",
@@ -205,6 +223,9 @@ __all__ = [
     "TenderRelevance",
     "TenderSearchProfile",
     "TenderSearchProfileRepository",
+    "ResolvedUnifiedTenderSearch",
+    "UnifiedTenderSearchRequest",
+    "UnifiedTenderSearchValidationError",
     "TenderSearchProfileRun",
     "TenderSearchProfileRunner",
     "TenderSearchRuntime",
@@ -245,6 +266,9 @@ __all__ = [
     "UnifiedTender",
     "AggregatedTenderSearchResult",
     "create_builtin_search_profiles",
+    "format_optional_decimal",
+    "parse_optional_decimal_text",
+    "resolve_unified_tender_search",
     "create_default_provider_registry",
     "create_tender_search_runtime",
     "tender_registry_key",

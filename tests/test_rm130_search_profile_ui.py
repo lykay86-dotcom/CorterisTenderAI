@@ -61,7 +61,7 @@ def test_editor_round_trips_exact_decimal_without_float(tmp_path) -> None:
     built = editor.build_profile()
     repository = TenderSearchProfileRepository(tmp_path / "search_profiles.json")
     repository.initialize()
-    repository.save(built, replace_existing=False)
+    saved = repository.save(built, replace_existing=False)
     payload = json.loads(repository.path.read_text(encoding="utf-8"))
     stored = next(item for item in payload["profiles"] if item["id"] == "exact-ui")
 
@@ -69,6 +69,14 @@ def test_editor_round_trips_exact_decimal_without_float(tmp_path) -> None:
     assert built.max_price == Decimal("9007199254740993.01")
     assert stored["min_price"] == "0.1"
     assert stored["max_price"] == "9007199254740993.01"
+
+    reloaded = repository.get(saved.id)
+    second_editor = TenderSearchProfileEditor()
+    second_editor.load_profile(reloaded)
+    assert second_editor.min_price_spin.text() == "0.1"
+    assert second_editor.max_price_spin.text() == "9007199254740993.01"
+    assert second_editor.build_profile().min_price == Decimal("0.1")
+    assert second_editor.build_profile().max_price == Decimal("9007199254740993.01")
 
 
 def test_migrated_v1_status_is_honest_and_editable(tmp_path) -> None:

@@ -8,7 +8,6 @@ from typing import Final
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDoubleSpinBox,
     QFormLayout,
     QFrame,
     QGridLayout,
@@ -25,7 +24,11 @@ from PySide6.QtWidgets import (
 )
 
 from app.tenders.corteris_filter import TenderDirection
-from app.tenders.search_profiles import TenderSearchProfile
+from app.tenders.search_profiles import (
+    TenderSearchProfile,
+    format_optional_decimal,
+    parse_optional_decimal_text,
+)
 from app.ui.theme.colors import ThemeName, get_palette
 
 
@@ -223,8 +226,8 @@ class TenderSearchProfileEditor(QWidget):
 
         self.min_price_spin = self._create_price_spin(finance_group)
         self.max_price_spin = self._create_price_spin(finance_group)
-        self.min_price_spin.valueChanged.connect(self._emit_changed)
-        self.max_price_spin.valueChanged.connect(self._emit_changed)
+        self.min_price_spin.textChanged.connect(self._emit_changed)
+        self.max_price_spin.textChanged.connect(self._emit_changed)
         finance_layout.addRow(
             "Минимальная цена",
             self.min_price_spin,
@@ -314,15 +317,11 @@ class TenderSearchProfileEditor(QWidget):
         self.profile_changed.emit()
 
     @staticmethod
-    def _create_price_spin(parent: QWidget) -> QDoubleSpinBox:
-        spin = QDoubleSpinBox(parent)
-        spin.setRange(-1.0, 999_999_999_999.0)
-        spin.setDecimals(2)
-        spin.setSingleStep(10_000.0)
-        spin.setSpecialValueText("Без ограничения")
-        spin.setSuffix(" ₽")
-        spin.setGroupSeparatorShown(True)
-        return spin
+    def _create_price_spin(parent: QWidget) -> QLineEdit:
+        editor = QLineEdit(parent)
+        editor.setPlaceholderText("Без ограничения")
+        editor.setMaxLength(80)
+        return editor
 
     @property
     def profile(self) -> TenderSearchProfile | None:
@@ -435,6 +434,7 @@ class TenderSearchProfileEditor(QWidget):
             is_builtin=self._profile.is_builtin,
             created_at=self._profile.created_at,
             updated_at=self._profile.updated_at,
+            runtime_query_policy=self._profile.runtime_query_policy,
         )
         self.clear_validation_message()
         return profile
@@ -454,17 +454,16 @@ class TenderSearchProfileEditor(QWidget):
 
     @staticmethod
     def _set_optional_price(
-        spin: QDoubleSpinBox,
-        value: float | None,
+        spin: QLineEdit,
+        value: object,
     ) -> None:
-        spin.setValue(-1.0 if value is None else float(value))
+        spin.setText(format_optional_decimal(value))
 
     @staticmethod
     def _optional_price(
-        spin: QDoubleSpinBox,
-    ) -> float | None:
-        value = spin.value()
-        return None if value < 0 else float(value)
+        spin: QLineEdit,
+    ) -> object:
+        return parse_optional_decimal_text(spin.text(), field_name="price")
 
     def apply_theme(
         self,
@@ -509,8 +508,7 @@ class TenderSearchProfileEditor(QWidget):
             }}
             QLineEdit,
             QPlainTextEdit,
-            QSpinBox,
-            QDoubleSpinBox {{
+            QSpinBox {{
                 color: {palette.text_primary};
                 background-color: {palette.input_background};
                 border: 1px solid {palette.border_default};
@@ -521,8 +519,7 @@ class TenderSearchProfileEditor(QWidget):
             }}
             QLineEdit:focus,
             QPlainTextEdit:focus,
-            QSpinBox:focus,
-            QDoubleSpinBox:focus {{
+            QSpinBox:focus {{
                 border-color: {palette.focus_ring};
             }}
             QLineEdit:disabled {{
