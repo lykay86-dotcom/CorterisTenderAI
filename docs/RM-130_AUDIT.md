@@ -283,5 +283,23 @@ its exact failure evidence is added here.
 
 ## 13. Expected-red evidence
 
-Pending the isolated second commit. No production implementation may start until exact command and
-failure summary are recorded in this section.
+The isolated five-module contract was added before any production change and run with:
+
+```powershell
+& $python -m pytest -q --basetemp .tmp/rm130-expected-red-final `
+  tests/test_rm130_search_profile_schema.py `
+  tests/test_rm130_search_profile_repository.py `
+  tests/test_rm130_search_profile_modes.py `
+  tests/test_rm130_search_profile_ui.py `
+  tests/test_rm130_search_profile_composition.py
+```
+
+Exact result: expected failure during collection, `4 errors in 3.06s`. The only causes were missing
+RM-130 public symbols:
+
+- `SearchProfileCatalogLoadStatus` / typed repository contract;
+- `SearchProfileRuntimeQueryPolicy` / schema-v2 policy contract.
+
+There was no application assertion failure, network call, Qt failure, Temp permission error or other
+environment problem. New-test Ruff check passed; Ruff format reported `5 files already formatted`.
+Production implementation is now unblocked by the audit/test ordering gate.
