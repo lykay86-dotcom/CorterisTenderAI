@@ -7,12 +7,14 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import StrEnum
 import json
+import os
 from pathlib import Path
 from threading import RLock
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from app.tenders.collector.provider_definitions import (
+    canonical_provider_definitions,
     canonical_provider_id,
     provider_aliases,
     resolve_provider_ids,
@@ -136,6 +138,105 @@ class ProviderSettingsSnapshot:
             ],
             "warnings": list(self.warnings),
         }
+
+
+def create_provider_settings_snapshot(
+    repository: "ProviderEnablementRepository",
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> ProviderSettingsSnapshot:
+    """Resolve one immutable non-secret settings snapshot without network I/O."""
+
+    from app.tenders.providers.commercial_catalog import (
+        default_commercial_provider_definitions,
+    )
+
+    loaded = repository.load_result()
+    persisted = {record.provider_id: record for record in loaded.records}
+    commercial = {
+        item.provider_id.casefold(): item for item in default_commercial_provider_definitions()
+    }
+    values = environment if environment is not None else os.environ
+    warnings = list(loaded.warnings)
+    resolved: list[ProviderSettingsRecord] = []
+    for descriptor in canonical_provider_definitions():
+        provider_id = descriptor.id.casefold()
+        stored = persisted.get(provider_id)
+        enabled = (
+            stored.enabled
+            if stored is not None and stored.enabled is not None
+            else descriptor.enabled_by_default
+        )
+        enabled_origin = (
+            stored.enabled_origin
+            if stored is not None and stored.enabled is not None
+            else ProviderSettingOrigin.DEFAULT
+        )
+        configuration = stored.configuration if stored is not None else ProviderConfiguration()
+        configuration_origin = (
+            stored.configuration_origin
+            if stored is not None and stored.configuration != ProviderConfiguration()
+            else ProviderSettingOrigin.DEFAULT
+        )
+        configuration_editable = True
+
+        definition = commercial.get(provider_id)
+        if definition is not None:
+            environment_enabled = _optional_environment_bool(
+                values,
+                definition.enabled_environment_variable,
+            )
+            if environment_enabled is not None:
+                enabled = environment_enabled
+                enabled_origin = ProviderSettingOrigin.ENVIRONMENT
+
+            environment_access = _optional_environment_bool(
+                values,
+                definition.access_confirmed_environment_variable,
+            )
+            endpoint_key = definition.api_base_url_environment_variable
+            endpoint_is_overridden = endpoint_key in values
+            if environment_access is not None or endpoint_is_overridden:
+                access_confirmed = (
+                    environment_access
+                    if environment_access is not None
+                    else configuration.access_confirmed
+                )
+                endpoint = (
+                    str(values.get(endpoint_key, ""))
+                    if endpoint_is_overridden
+                    else configuration.api_base_url
+                )
+                try:
+                    configuration = ProviderConfiguration(
+                        access_confirmed=access_confirmed,
+                        api_base_url=endpoint,
+                    )
+                except (TypeError, ValueError):
+                    configuration = ProviderConfiguration(
+                        access_confirmed=access_confirmed,
+                    )
+                    warnings.append(
+                        f"Environment endpoint for {provider_id} is invalid and was ignored."
+                    )
+                configuration_origin = ProviderSettingOrigin.ENVIRONMENT
+                configuration_editable = False
+
+        resolved.append(
+            ProviderSettingsRecord(
+                provider_id=provider_id,
+                enabled=bool(enabled),
+                configuration=configuration,
+                enabled_origin=enabled_origin,
+                configuration_origin=configuration_origin,
+                configuration_editable=configuration_editable,
+            )
+        )
+    return ProviderSettingsSnapshot(
+        providers=tuple(resolved),
+        status=loaded.status,
+        warnings=tuple(warnings),
+    )
 
 
 class ProviderEnablementRepository:
@@ -544,6 +645,20 @@ def _normalize_api_base_url(value: str) -> str:
     return urlunsplit((parsed.scheme.casefold(), hostname + port, path, "", ""))
 
 
+def _optional_environment_bool(
+    environment: Mapping[str, str],
+    key: str,
+) -> bool | None:
+    if key not in environment:
+        return None
+    normalized = str(environment.get(key, "")).strip().casefold()
+    if normalized in {"1", "true", "yes", "on", "да"}:
+        return True
+    if normalized in {"0", "false", "no", "off", "нет", ""}:
+        return False
+    return None
+
+
 __all__ = [
     "ProviderConfiguration",
     "ProviderEnablement",
@@ -554,4 +669,5 @@ __all__ = [
     "ProviderSettingsMutationError",
     "ProviderSettingsRecord",
     "ProviderSettingsSnapshot",
+    "create_provider_settings_snapshot",
 ]

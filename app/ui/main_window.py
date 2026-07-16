@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from pathlib import Path
 import json
 from typing import TYPE_CHECKING
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -82,9 +82,17 @@ TEMPLATE_NAMES = [
     "12_Управленческое_заключение.docx",
 ]
 
+LEGACY_PLATFORM_COMPATIBILITY_NOTICE = (
+    "Ручные подключения API/RSS/FTP сохранены только для совместимости и явной проверки соединения. "
+    "Они не используются Corteris Tender Collector как источники поиска."
+)
+LEGACY_PLATFORM_PROVIDER_ACTION_TEXT = "Открыть канонические источники тендеров"
+
 
 class TenderWorkspacePage(QWidget):
     """Reusable owner of the existing tender workspace and its callbacks."""
+
+    canonical_provider_settings_requested = Signal()
 
     SECTION_KEYS = (
         "overview",
@@ -628,6 +636,14 @@ class TenderWorkspacePage(QWidget):
     def _platform_tab(self):
         w = QWidget()
         layout = QVBoxLayout(w)
+        compatibility_notice = QLabel(LEGACY_PLATFORM_COMPATIBILITY_NOTICE, w)
+        compatibility_notice.setObjectName("LegacyPlatformCompatibilityNotice")
+        compatibility_notice.setWordWrap(True)
+        layout.addWidget(compatibility_notice)
+        canonical_sources = QPushButton(LEGACY_PLATFORM_PROVIDER_ACTION_TEXT, w)
+        canonical_sources.setObjectName("OpenCanonicalTenderProviders")
+        canonical_sources.clicked.connect(self.canonical_provider_settings_requested.emit)
+        layout.addWidget(canonical_sources)
         f = QHBoxLayout()
         self.platform_name = QLineEdit()
         self.platform_name.setPlaceholderText("Название")

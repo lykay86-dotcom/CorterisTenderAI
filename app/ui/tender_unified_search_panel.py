@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from app.tenders.collector.models import CollectionRunStatus, CollectorRunResult
 from app.tenders.collector.progress import CollectorProgressEvent, CollectorProgressPhase
 from app.tenders.collector.provider_control import ProviderDisplayState
+from app.tenders.collector.provider_definitions import canonical_provider_id
 from app.tenders.search_profiles import TenderSearchProfile
 from app.tenders.unified_search import UnifiedTenderSearchRequest
 from app.ui.theme.colors import ThemeName, get_palette
@@ -366,13 +367,17 @@ class TenderUnifiedSearchPanel(QFrame):
     def _select_profile_defaults(self) -> None:
         profile = self._selected_profile()
         enabled = {state.provider_id for state in self._provider_states if state.enabled}
-        defaults = (
-            ()
-            if profile is None
-            else tuple(
-                provider_id for provider_id in profile.provider_ids if provider_id in enabled
-            )
-        )
+        defaults: tuple[str, ...] = ()
+        if profile is not None:
+            resolved: list[str] = []
+            for provider_id in profile.provider_ids:
+                try:
+                    canonical = canonical_provider_id(provider_id)
+                except KeyError:
+                    continue
+                if canonical in enabled and canonical not in resolved:
+                    resolved.append(canonical)
+            defaults = tuple(resolved)
         self.set_selected_provider_ids(defaults)
         if profile is not None and not defaults:
             self.set_status("У выбранного профиля нет доступных источников.", error=True)

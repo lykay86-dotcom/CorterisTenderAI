@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from app.tenders.collector.provider_control import (
     ProviderDisplayState,
 )
+from app.tenders.collector.provider_definitions import canonical_provider_id
 from app.tenders.collector.scheduler import (
     CollectorScheduleFrequency,
     CollectorScheduleSettings,
@@ -233,7 +234,12 @@ class TenderCollectorScheduleDialog(QDialog):
             self.profile.setCurrentIndex(selected_profile)
 
         self.sources.setRowCount(0)
-        selected_sources = set(settings.provider_ids)
+        selected_sources: set[str] = set()
+        for provider_id in settings.provider_ids:
+            try:
+                selected_sources.add(canonical_provider_id(provider_id))
+            except KeyError:
+                continue
         for provider in providers:
             row = self.sources.rowCount()
             self.sources.insertRow(row)

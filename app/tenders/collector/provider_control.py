@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import json
@@ -17,7 +17,13 @@ from app.tenders.collector.network_runtime import (
     create_collector_network_runtime,
 )
 from app.tenders.collector.provider_settings import (
+    ProviderConfiguration,
     ProviderEnablementRepository,
+    ProviderSettingOrigin,
+    ProviderSettingsRecord,
+    ProviderSettingsLoadStatus,
+    ProviderSettingsSnapshot,
+    create_provider_settings_snapshot,
 )
 from app.tenders.provider_base import (
     ProviderDescriptor,
@@ -26,9 +32,7 @@ from app.tenders.provider_base import (
 )
 from app.tenders.providers.commercial_catalog import (
     CommercialProviderSettingsRepository,
-    CommercialProviderState,
-    CommercialProviderUserSettings,
-    create_commercial_provider_catalog,
+    default_commercial_provider_definitions,
 )
 from app.tenders.providers.eis_async import AsyncEisTenderProvider
 from app.tenders.providers.mos_supplier_api import (
@@ -182,6 +186,12 @@ class ProviderDisplayState:
     last_error: str
     latency_ms: int | None
     configuration_details: tuple[str, ...] = ()
+    configuration: ProviderConfiguration = field(default_factory=ProviderConfiguration)
+    enabled_origin: ProviderSettingOrigin = ProviderSettingOrigin.DEFAULT
+    configuration_origin: ProviderSettingOrigin = ProviderSettingOrigin.DEFAULT
+    enabled_editable: bool = True
+    configuration_editable: bool = True
+    settings_status: ProviderSettingsLoadStatus = ProviderSettingsLoadStatus.MISSING
 
     def __post_init__(self) -> None:
         if not self.provider_id.strip():
@@ -217,9 +227,13 @@ class CollectorProviderManager:
         self.data_directory = Path(data_directory).expanduser()
         self.data_directory.mkdir(parents=True, exist_ok=True)
         self.environment = environment
-        self.enablement_repository = enablement_repository or ProviderEnablementRepository(
-            self.data_directory / "collector_provider_settings.json"
+        self.settings_repository = enablement_repository or ProviderEnablementRepository(
+            self.data_directory / "collector_provider_settings.json",
+            legacy_settings_path=(self.data_directory / "commercial_provider_settings.json"),
         )
+        # Compatibility alias for existing injection/tests. The canonical owner is
+        # settings_repository and no second enablement store is created.
+        self.enablement_repository = self.settings_repository
         self.check_repository = check_repository or ProviderCheckRepository(
             self.data_directory / "collector_provider_health.json"
         )
@@ -233,39 +247,70 @@ class CollectorProviderManager:
         )
 
     def states(self) -> tuple[ProviderDisplayState, ...]:
-        definitions = self._definitions()
+        snapshot = self.settings_snapshot()
+        definitions = self._definitions(snapshot)
         records = self.check_repository.load()
         return tuple(
             self._display_state(
                 definition,
                 records.get(definition.descriptor.id.casefold()),
+                snapshot.get(definition.descriptor.id),
+                snapshot.status,
             )
             for definition in definitions
         )
 
     def enabled_provider_ids(self) -> tuple[str, ...]:
-        return tuple(state.provider_id for state in self.states() if state.enabled)
+        return self.settings_snapshot().enabled_provider_ids
+
+    def settings_snapshot(self) -> ProviderSettingsSnapshot:
+        return create_provider_settings_snapshot(
+            self.settings_repository,
+            environment=self.environment,
+        )
+
+    def resolve_provider_ids(self, provider_ids: Iterable[str]) -> tuple[str, ...]:
+        return self.settings_snapshot().resolve_provider_ids(tuple(provider_ids))
 
     def set_enabled(
         self,
         provider_id: str,
         enabled: bool,
     ) -> ProviderDisplayState:
-        normalized = provider_id.strip().casefold()
-        definitions = {item.descriptor.id.casefold(): item for item in self._definitions()}
+        normalized = self.resolve_provider_ids((provider_id,))[0]
+        definitions = {
+            item.descriptor.id.casefold(): item
+            for item in self._definitions(self.settings_snapshot())
+        }
         if normalized not in definitions:
             raise KeyError(provider_id)
+        current = self.settings_snapshot().get(normalized)
+        if current.enabled_origin is ProviderSettingOrigin.ENVIRONMENT:
+            raise PermissionError("Provider enablement is overridden by environment")
 
-        self.enablement_repository.set_enabled(
-            normalized,
-            enabled,
-        )
-        self._synchronize_commercial_enabled(
+        self.settings_repository.set_enabled(
             normalized,
             enabled,
         )
         states = {item.provider_id: item for item in self.states()}
         return states[normalized]
+
+    def set_configuration(
+        self,
+        provider_id: str,
+        configuration: ProviderConfiguration,
+    ) -> ProviderDisplayState:
+        normalized = self.resolve_provider_ids((provider_id,))[0]
+        commercial_ids = {
+            item.provider_id.casefold() for item in default_commercial_provider_definitions()
+        }
+        if normalized not in commercial_ids:
+            raise KeyError(provider_id)
+        current = self.settings_snapshot().get(normalized)
+        if not current.configuration_editable:
+            raise PermissionError("Provider configuration is overridden by environment")
+        self.settings_repository.set_configuration(normalized, configuration)
+        return next(item for item in self.states() if item.provider_id == normalized)
 
     async def check_provider(
         self,
@@ -321,16 +366,13 @@ class CollectorProviderManager:
     ) -> Mapping[str, ProviderHealth]:
         runtime = create_collector_network_runtime()
         try:
-            catalog = create_commercial_provider_catalog(
-                settings_path=(self.commercial_settings_repository.path),
-                environment=self.environment,
-            )
+            snapshot = self.settings_snapshot()
             providers = create_default_async_providers(
                 runtime,
                 mos_supplier_config=(MosSupplierApiConfig.from_environment(self.environment)),
                 include_commercial_catalog=True,
-                commercial_catalog=catalog,
-                provider_settings_repository=(self.enablement_repository),
+                provider_settings_snapshot=snapshot,
+                environment=self.environment,
                 include_disabled=True,
             )
             by_id = {provider.descriptor.id.casefold(): provider for provider in providers}
@@ -360,6 +402,7 @@ class CollectorProviderManager:
 
     def _definitions(
         self,
+        snapshot: ProviderSettingsSnapshot,
     ) -> tuple[_ProviderDefinitionView, ...]:
         mos_config = MosSupplierApiConfig.from_environment(self.environment)
         result = [
@@ -386,25 +429,19 @@ class CollectorProviderManager:
             ),
         ]
 
-        catalog = create_commercial_provider_catalog(
-            settings_path=(self.commercial_settings_repository.path),
-            environment=self.environment,
-        )
-        for resolved in catalog.resolve_all():
+        for definition in default_commercial_provider_definitions():
+            settings = snapshot.get(definition.provider_id)
+            configuration = settings.configuration
             result.append(
                 _ProviderDefinitionView(
-                    descriptor=resolved.definition.descriptor,
+                    descriptor=definition.descriptor,
                     connection_mode=("commercial_access_pending"),
                     configuration_details=(
-                        resolved.message,
+                        _commercial_configuration_message(configuration),
+                        "Credentials управляются защищённым контуром отдельно.",
                         (
-                            "API-ключ найден."
-                            if resolved.api_key.strip()
-                            else "API-ключ не настроен."
-                        ),
-                        (
-                            f"Endpoint: {resolved.api_base_url}"
-                            if resolved.api_base_url
+                            f"Endpoint: {configuration.api_base_url}"
+                            if configuration.api_base_url
                             else "Проверенный API endpoint не задан."
                         ),
                     ),
@@ -421,9 +458,11 @@ class CollectorProviderManager:
         self,
         definition: _ProviderDefinitionView,
         record: ProviderCheckRecord | None,
+        settings: ProviderSettingsRecord,
+        settings_status: ProviderSettingsLoadStatus,
     ) -> ProviderDisplayState:
         descriptor = definition.descriptor
-        enabled = self.enablement_repository.is_enabled(descriptor)
+        enabled = bool(settings.enabled)
         details = definition.configuration_details
 
         if not enabled:
@@ -437,7 +476,7 @@ class CollectorProviderManager:
                 ),
             )
         else:
-            ui_state, status_text = self._initial_state(definition)
+            ui_state, status_text = self._initial_state(definition, settings.configuration)
 
         return ProviderDisplayState(
             provider_id=descriptor.id.casefold(),
@@ -453,11 +492,32 @@ class CollectorProviderManager:
             last_error=(record.last_error if record else ""),
             latency_ms=(record.latency_ms if record else None),
             configuration_details=details,
+            configuration=settings.configuration,
+            enabled_origin=settings.enabled_origin,
+            configuration_origin=settings.configuration_origin,
+            enabled_editable=(
+                settings.enabled_origin is not ProviderSettingOrigin.ENVIRONMENT
+                and settings_status
+                not in {
+                    ProviderSettingsLoadStatus.CORRUPT,
+                    ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
+                }
+            ),
+            configuration_editable=(
+                settings.configuration_editable
+                and settings_status
+                not in {
+                    ProviderSettingsLoadStatus.CORRUPT,
+                    ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
+                }
+            ),
+            settings_status=settings_status,
         )
 
     def _initial_state(
         self,
         definition: _ProviderDefinitionView,
+        configuration: ProviderConfiguration,
     ) -> tuple[ProviderUiState, str]:
         provider_id = definition.descriptor.id.casefold()
         if provider_id == "eis":
@@ -477,46 +537,14 @@ class CollectorProviderManager:
                 "Настроен, подключение не проверено",
             )
 
-        catalog = create_commercial_provider_catalog(
-            settings_path=(self.commercial_settings_repository.path),
-            environment=self.environment,
-        )
-        resolved = catalog.get(provider_id)
-        if resolved.state == CommercialProviderState.READY_FOR_VERIFICATION:
+        if configuration.access_confirmed and configuration.api_base_url:
             return (
                 ProviderUiState.UNKNOWN,
-                "Настройки заполнены, требуется проверка",
+                "Non-secret настройки заполнены; нужны credentials и проверка",
             )
         return (
             ProviderUiState.NOT_CONFIGURED,
-            resolved.message,
-        )
-
-    def _synchronize_commercial_enabled(
-        self,
-        provider_id: str,
-        enabled: bool,
-    ) -> None:
-        catalog = create_commercial_provider_catalog(
-            settings_path=(self.commercial_settings_repository.path),
-            environment=self.environment,
-        )
-        commercial_ids = {item.definition.provider_id.casefold() for item in catalog.resolve_all()}
-        if provider_id not in commercial_ids:
-            return
-
-        current = self.commercial_settings_repository.load()
-        previous = current.get(
-            provider_id,
-            CommercialProviderUserSettings(),
-        )
-        self.commercial_settings_repository.update(
-            provider_id,
-            CommercialProviderUserSettings(
-                enabled=enabled,
-                access_confirmed=previous.access_confirmed,
-                api_base_url=previous.api_base_url,
-            ),
+            _commercial_configuration_message(configuration),
         )
 
 
@@ -562,6 +590,14 @@ def _connection_mode_label(value: str) -> str:
         "official_api_bearer": ("Официальный API · Bearer"),
         "commercial_access_pending": ("API-доступ ожидает подтверждения"),
     }.get(value, value or "Не указан")
+
+
+def _commercial_configuration_message(configuration: ProviderConfiguration) -> str:
+    if not configuration.access_confirmed:
+        return "Не подтверждён разрешённый способ доступа. Проверьте договор и право использования API."
+    if not configuration.api_base_url:
+        return "Разрешённый доступ подтверждён, но проверенный API endpoint не задан."
+    return "Non-secret настройки доступа заполнены."
 
 
 def _utc_now() -> str:

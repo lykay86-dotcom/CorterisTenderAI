@@ -105,6 +105,7 @@ from app.ui.tender_participation_score_dialog import (
     TenderParticipationScoreDialog,
 )
 from app.ui.tender_provider_manager_dialog import (
+    TenderProviderConfigurationDialog,
     TenderProviderManagerDialog,
 )
 from app.ui.provider_credentials_dialog import ProviderCredentialsDialog
@@ -462,7 +463,13 @@ class TenderSearchUiController(QObject):
         self.data_directory = Path(data_directory).expanduser()
         self.runtime = runtime or create_tender_search_runtime(self.data_directory)
         self.provider_manager = provider_manager or CollectorProviderManager(self.data_directory)
-        self.collector_session = collector_session or CollectorRunSession(self.data_directory)
+        snapshot_factory = getattr(self.provider_manager, "settings_snapshot", None)
+        self.collector_session = collector_session or CollectorRunSession(
+            self.data_directory,
+            provider_settings_snapshot_factory=(
+                snapshot_factory if callable(snapshot_factory) else None
+            ),
+        )
         registry_path = (
             self.runtime.tender_registry.path
             if self.runtime.tender_registry is not None
@@ -753,6 +760,13 @@ class TenderSearchUiController(QObject):
             raise TypeError("Tender workspace does not support action binding")
         binder(self.tender_workspace_actions())
 
+        legacy_handoff = getattr(workspace, "canonical_provider_settings_requested", None)
+        if legacy_handoff is not None and not bool(
+            getattr(workspace, "_provider_settings_handoff_bound", False)
+        ):
+            legacy_handoff.connect(self.open_provider_manager_dialog)
+            setattr(workspace, "_provider_settings_handoff_bound", True)
+
         installer = getattr(workspace, "install_unified_search_panel", None)
         if not callable(installer):
             raise TypeError("Tender workspace does not support unified search")
@@ -964,11 +978,22 @@ class TenderSearchUiController(QObject):
                 self._collector_dialog.set_error("Выбранный профиль отключён.")
             return False
 
-        selected = tuple(
-            dict.fromkeys(
-                str(item).strip().casefold() for item in (provider_ids or ()) if str(item).strip()
+        try:
+            requested_provider_ids = tuple(
+                str(item) for item in (provider_ids or ()) if str(item).strip()
             )
-        )
+            resolver = getattr(self.provider_manager, "resolve_provider_ids", None)
+            selected = (
+                resolver(requested_provider_ids)
+                if callable(resolver)
+                else tuple(
+                    dict.fromkeys(item.strip().casefold() for item in requested_provider_ids)
+                )
+            )
+        except (KeyError, TypeError, ValueError):
+            if self._collector_dialog is not None:
+                self._collector_dialog.set_error("Выбран неизвестный источник.")
+            return False
         enabled = set(self.provider_manager.enabled_provider_ids())
         selected = tuple(provider_id for provider_id in selected if provider_id in enabled)
         if not selected:
@@ -1112,9 +1137,7 @@ class TenderSearchUiController(QObject):
             )
             self._provider_dialog.provider_enabled_changed.connect(self.set_provider_enabled)
             self._provider_dialog.provider_check_requested.connect(self.check_provider_connection)
-            self._provider_dialog.provider_configuration_requested.connect(
-                self.configure_provider_credentials
-            )
+            self._provider_dialog.provider_configuration_requested.connect(self.configure_provider)
             self._provider_dialog.check_all_requested.connect(self.check_all_provider_connections)
             self._provider_dialog.refresh_button.clicked.connect(self.refresh_provider_states)
 
@@ -1138,6 +1161,45 @@ class TenderSearchUiController(QObject):
                 states,
                 preserve_selection=True,
             )
+        self.scheduler_ui_controller.refresh_schedule_dialog()
+
+    @Slot(str)
+    def configure_provider(self, provider_id: str) -> None:
+        normalized = provider_id.strip().casefold()
+        if normalized == "mos_supplier":
+            self.configure_provider_credentials(normalized)
+            return
+        state = next(
+            (item for item in self.provider_manager.states() if item.provider_id == normalized),
+            None,
+        )
+        if state is None or state.implementation_status != "commercial_access_pending":
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status("Для источника нет non-secret настроек.")
+            return
+        editor = TenderProviderConfigurationDialog(
+            state,
+            parent=self._provider_dialog,
+        )
+        if editor.exec() != TenderProviderConfigurationDialog.DialogCode.Accepted:
+            return
+        setter = getattr(self.provider_manager, "set_configuration", None)
+        if not callable(setter):
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status("Менеджер не поддерживает настройку источника.")
+            return
+        try:
+            setter(normalized, editor.configuration())
+        except Exception as exc:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    f"Не удалось сохранить non-secret настройки: {type(exc).__name__}",
+                    error=True,
+                )
+            return
+        self.refresh_provider_states()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_status("Настройки источника сохранены.")
 
     @Slot(str, bool)
     def set_provider_enabled(
