@@ -106,3 +106,16 @@ def test_panel_refresh_preserves_only_valid_source_selection() -> None:
     assert panel.selected_provider_ids() == ()
     assert not panel.start_button.isEnabled()
     assert "нет доступных" in panel.status_label.text().casefold()
+
+
+def test_profile_refresh_keeps_still_valid_per_run_source_selection() -> None:
+    _app()
+    panel = TenderUnifiedSearchPanel()
+    profiles = (_profile("video", ("eis", "mos")),)
+    panel.set_provider_states((_state("eis", enabled=True), _state("mos", enabled=True)))
+    panel.set_profiles(profiles)
+    panel.set_selected_provider_ids(("mos",))
+
+    panel.set_profiles(profiles, select_id="video")
+
+    assert panel.selected_provider_ids() == ("mos",)

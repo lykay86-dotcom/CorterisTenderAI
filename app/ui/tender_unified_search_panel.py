@@ -143,7 +143,9 @@ class TenderUnifiedSearchPanel(QFrame):
         *,
         select_id: str = "",
     ) -> None:
-        current_id = str(select_id or self.selected_profile_id()).strip().casefold()
+        previous_id = self.selected_profile_id()
+        previous_sources = self.selected_provider_ids()
+        current_id = str(select_id or previous_id).strip().casefold()
         self._profiles = tuple(profile for profile in profiles if profile.enabled)
         self.profile_combo.blockSignals(True)
         try:
@@ -157,7 +159,15 @@ class TenderUnifiedSearchPanel(QFrame):
                 self.profile_combo.setCurrentIndex(selected_index)
         finally:
             self.profile_combo.blockSignals(False)
-        self._profile_changed()
+        if previous_id and self.selected_profile_id() == previous_id:
+            self._render_profile_summary()
+            self.set_selected_provider_ids(previous_sources)
+            if self.selected_provider_ids():
+                self.set_status("Параметры поиска готовы.")
+            else:
+                self.set_status("У выбранного профиля нет доступных источников.", error=True)
+        else:
+            self._profile_changed()
 
     def set_provider_states(
         self,
@@ -343,12 +353,15 @@ class TenderUnifiedSearchPanel(QFrame):
         return True
 
     def _profile_changed(self, _index: int = -1) -> None:
+        self._render_profile_summary()
+        self._select_profile_defaults()
+
+    def _render_profile_summary(self) -> None:
         profile = self._selected_profile()
         if profile is None:
             self.profile_summary.setText("Нет доступных профилей поиска.")
         else:
             self.profile_summary.setText(profile.description or "Описание профиля не задано.")
-        self._select_profile_defaults()
 
     def _select_profile_defaults(self) -> None:
         profile = self._selected_profile()
