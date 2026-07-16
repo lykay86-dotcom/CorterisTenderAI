@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from enum import StrEnum
 import re
 from typing import Mapping, Any
 
@@ -20,6 +21,12 @@ from app.tenders.models import (
 
 
 _PROFILE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
+
+
+class SearchProfileRuntimeQueryPolicy(StrEnum):
+    """Versioned policy for transient text in the unified-search request."""
+
+    REPLACE_KEYWORDS_IF_PRESENT = "replace_keywords_if_present"
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,8 +55,17 @@ class TenderSearchProfile:
     created_at: str = ""
     updated_at: str = ""
     price_currency: str = "RUB"
+    runtime_query_policy: SearchProfileRuntimeQueryPolicy = (
+        SearchProfileRuntimeQueryPolicy.REPLACE_KEYWORDS_IF_PRESENT
+    )
 
     def __post_init__(self) -> None:
+        try:
+            runtime_query_policy = SearchProfileRuntimeQueryPolicy(self.runtime_query_policy)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("runtime_query_policy is unsupported") from exc
+        object.__setattr__(self, "runtime_query_policy", runtime_query_policy)
+
         object.__setattr__(
             self,
             "price_currency",
@@ -76,6 +92,34 @@ class TenderSearchProfile:
         normalized_id = self.id.strip().casefold()
         if normalized_id != self.id:
             object.__setattr__(self, "id", normalized_id)
+        object.__setattr__(self, "keywords", _string_tuple(self.keywords))
+        object.__setattr__(
+            self,
+            "excluded_keywords",
+            _string_tuple(self.excluded_keywords),
+        )
+        object.__setattr__(
+            self,
+            "directions",
+            tuple(TenderDirection(item) for item in self.directions),
+        )
+        object.__setattr__(self, "regions", _string_tuple(self.regions))
+        object.__setattr__(self, "laws", _string_tuple(self.laws))
+        object.__setattr__(
+            self,
+            "provider_ids",
+            _provider_id_tuple(self.provider_ids),
+        )
+        object.__setattr__(
+            self,
+            "created_at",
+            _normalize_optional_timestamp(self.created_at, field_name="created_at"),
+        )
+        object.__setattr__(
+            self,
+            "updated_at",
+            _normalize_optional_timestamp(self.updated_at, field_name="updated_at"),
+        )
         if not _PROFILE_ID_RE.fullmatch(normalized_id):
             raise ValueError(
                 "Profile id must contain 2-64 lowercase Latin letters, digits, '_' or '-'"
@@ -97,10 +141,6 @@ class TenderSearchProfile:
             and self.min_price > self.max_price
         ):
             raise ValueError("min_price cannot be greater than max_price")
-        if any(not item.strip() for item in self.provider_ids):
-            raise ValueError("provider_ids cannot contain empty values")
-        if len(set(self.provider_ids)) != len(self.provider_ids):
-            raise ValueError("provider_ids must be unique")
 
     def to_search_query(
         self,
@@ -183,6 +223,7 @@ class TenderSearchProfile:
             "is_builtin": self.is_builtin,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "runtime_query_policy": self.runtime_query_policy.value,
         }
 
     @classmethod
@@ -222,6 +263,14 @@ class TenderSearchProfile:
             is_builtin=bool(payload.get("is_builtin", False)),
             created_at=str(payload.get("created_at", "")),
             updated_at=str(payload.get("updated_at", "")),
+            runtime_query_policy=SearchProfileRuntimeQueryPolicy(
+                str(
+                    payload.get(
+                        "runtime_query_policy",
+                        SearchProfileRuntimeQueryPolicy.REPLACE_KEYWORDS_IF_PRESENT.value,
+                    )
+                )
+            ),
         )
 
 
@@ -381,6 +430,19 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _provider_id_tuple(value: object) -> tuple[str, ...]:
+    values = _string_tuple(value)
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        provider_id = item.casefold()
+        if provider_id in seen:
+            continue
+        seen.add(provider_id)
+        result.append(provider_id)
+    return tuple(result)
+
+
 def _optional_decimal(value: object) -> Decimal | None:
     if value in (None, ""):
         return None
@@ -396,11 +458,52 @@ def _optional_int(value: object) -> int | None:
 def _iso_timestamp(value: datetime | None = None) -> str:
     moment = value or datetime.now(timezone.utc)
     if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
+        raise ValueError("timestamp must include timezone information")
     return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
 
 
+def _normalize_optional_timestamp(value: object, *, field_name: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an ISO 8601 timestamp") from exc
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError(f"{field_name} must include timezone information")
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def parse_optional_decimal_text(
+    value: object,
+    *,
+    field_name: str = "price",
+) -> Decimal | None:
+    """Parse one optional UI money value without a float boundary."""
+
+    text = str(value or "").strip().replace("\u00a0", "").replace(" ", "")
+    if not text:
+        return None
+    if "," in text:
+        if "." in text or text.count(",") != 1:
+            raise ValueError(f"{field_name} must be a decimal number")
+        text = text.replace(",", ".")
+    return normalize_money_amount(text, field_name=field_name)
+
+
+def format_optional_decimal(value: object) -> str:
+    """Render one optional money value exactly for a line-edit boundary."""
+
+    if value in (None, ""):
+        return ""
+    return str(normalize_money_amount(value, field_name="price"))  # type: ignore[arg-type]
+
+
 __all__ = [
+    "SearchProfileRuntimeQueryPolicy",
     "TenderSearchProfile",
     "create_builtin_search_profiles",
+    "format_optional_decimal",
+    "parse_optional_decimal_text",
 ]

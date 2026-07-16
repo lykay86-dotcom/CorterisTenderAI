@@ -15,6 +15,7 @@ from app.tenders.search_profile_repository import (
 from app.tenders.search_profiles import (
     SearchProfileRuntimeQueryPolicy,
     TenderSearchProfile,
+    create_builtin_search_profiles,
 )
 
 
@@ -82,11 +83,35 @@ def test_valid_v1_migrates_only_in_memory_with_explicit_warnings(tmp_path) -> No
     assert any("timezone" in warning.casefold() for warning in result.warnings)
 
 
+def test_v1_preserves_custom_and_modified_disabled_builtin_without_writing(tmp_path) -> None:
+    path = tmp_path / "search_profiles.json"
+    builtin = create_builtin_search_profiles()[0].to_dict()
+    builtin.pop("runtime_query_policy")
+    builtin.update({"name": "Edited v1 builtin", "enabled": False, "is_builtin": False})
+    custom = _profile().to_dict()
+    custom.pop("runtime_query_policy")
+    before = _write(path, version=1, profiles=[custom, builtin])
+
+    result = TenderSearchProfileRepository(path).load_result()
+    by_id = {profile.id: profile for profile in result.profiles}
+
+    assert result.status is SearchProfileCatalogLoadStatus.MIGRATED_V1
+    assert by_id["all-corteris"].name == "Edited v1 builtin"
+    assert not by_id["all-corteris"].enabled
+    assert by_id["all-corteris"].is_builtin
+    assert by_id["custom-schema"].min_price == Decimal("0.1000000000000000001")
+    assert tuple(profile.id for profile in result.profiles[:7]) == tuple(
+        profile.id for profile in create_builtin_search_profiles()
+    )
+    assert result.profiles[-1].id == "custom-schema"
+    assert path.read_bytes() == before
+
+
 def test_current_v2_round_trip_uses_strings_policy_and_aware_utc(tmp_path) -> None:
     path = tmp_path / "search_profiles.json"
     repository = TenderSearchProfileRepository(path)
     repository.initialize()
-    repository.save(_profile(), replace_existing=False)
+    saved = repository.save(_profile(), replace_existing=False)
 
     result = repository.load_result()
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -99,16 +124,21 @@ def test_current_v2_round_trip_uses_strings_policy_and_aware_utc(tmp_path) -> No
     assert stored["max_price"] == "9007199254740993.01"
     assert stored["runtime_query_policy"] == "replace_keywords_if_present"
     assert datetime.fromisoformat(payload["updated_at"]).tzinfo is not None
-    assert next(item for item in result.profiles if item.id == "custom-schema") == _profile()
+    assert next(item for item in result.profiles if item.id == "custom-schema") == saved
 
 
 @pytest.mark.parametrize(
     "mutate",
     (
         lambda item: item.__setitem__("min_price", 0.1),
+        lambda item: item.__setitem__("min_price", "NaN"),
+        lambda item: item.__setitem__("min_price", "Infinity"),
+        lambda item: item.__setitem__("min_price", "-0.01"),
         lambda item: item.__setitem__("runtime_query_policy", "unknown"),
         lambda item: item.__setitem__("created_at", "2026-07-16T15:00:00"),
         lambda item: item.__setitem__("page_size", 0),
+        lambda item: item.__setitem__("minimum_score", 101),
+        lambda item: item.__setitem__("lookback_days", -1),
     ),
 )
 def test_invalid_known_v2_field_fails_closed_without_rewrite(tmp_path, mutate) -> None:
@@ -121,6 +151,8 @@ def test_invalid_known_v2_field_fails_closed_without_rewrite(tmp_path, mutate) -
 
     assert result.status is SearchProfileCatalogLoadStatus.CORRUPT
     assert result.profiles == ()
+    assert result.quarantine_path is not None
+    assert result.quarantine_path.read_bytes() == before
     assert path.read_bytes() == before
 
 
