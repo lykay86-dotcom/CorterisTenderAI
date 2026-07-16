@@ -194,6 +194,7 @@ def bootstrap() -> None:
         parent=window,
     )
     tender_search_controller.install_on_main_window(window)
+    tender_search_controller.install_on_tender_workspace(window.tender_workspace_page)
 
     if ai_provider_resolution.warnings:
         window.statusBar().showMessage(ai_provider_resolution.warnings[0], 8000)

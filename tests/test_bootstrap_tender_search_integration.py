@@ -11,3 +11,4 @@ def test_bootstrap_installs_tender_search_controller() -> None:
     assert "TenderSearchUiController" in source
     assert "context.paths.data_dir" in source
     assert "install_on_main_window(window)" in source
+    assert "install_on_tender_workspace(window.tender_workspace_page)" in source

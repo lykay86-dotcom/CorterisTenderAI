@@ -1,10 +1,4 @@
-"""Modern application shell for Corteris Tender AI v1.3 Alpha.
-
-Hotfix:
-The legacy QMainWindow is never embedded as a child window. Only its central
-widget is transferred into the new stacked workspace. This prevents the old
-window from covering Sidebar, TopBar and Dashboard.
-"""
+"""Modern application shell for Corteris Tender AI v1.3 Alpha."""
 
 from __future__ import annotations
 
@@ -24,9 +18,9 @@ from app.repositories.business_metrics import (
     BusinessRecordKind,
 )
 from app.ui.controllers.dashboard_controller import DashboardController
-from app.ui.main_window import MainWindow as LegacyMainWindow
 from app.ui.pages.business_workflow_page import BusinessWorkflowPage
 from app.ui.pages.dashboard_page import DashboardPage
+from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 from app.ui.theme.colors import ThemeName
 from app.ui.theme.stylesheet import build_stylesheet
 from app.ui.widgets.dashboard_layout import DashboardLayout
@@ -73,28 +67,15 @@ class ModernMainWindow(QMainWindow):
             parent=self,
         )
 
-        # ВАЖНО:
-        # Старое QMainWindow нельзя делать дочерним окном нового QMainWindow.
-        # На Windows оно сохраняет собственную геометрию/флаги окна и может
-        # перекрывать весь новый интерфейс. Мы создаём его скрытым и переносим
-        # только centralWidget в QStackedWidget.
-        self._legacy_window = LegacyMainWindow(
+        self.tender_workspace_page = TenderWorkspacePage(
             ai_provider_selection_service=ai_provider_selection_service,
+            status_bar=self.statusBar(),
+            parent=self.workspace.pages,
         )
-        self._legacy_window.hide()
-
-        legacy_content = self._legacy_window.takeCentralWidget()
-        if legacy_content is None:
-            legacy_content = self._placeholder("Рабочие модули прежней версии недоступны.")
-        else:
-            legacy_content.setParent(self.workspace.pages)
-            legacy_content.setWindowFlags(Qt.WindowType.Widget)
-            legacy_content.show()
-
         self.workspace.add_page(
             "tenders",
             "Тендеры и рабочие модули",
-            legacy_content,
+            self.tender_workspace_page,
         )
 
         self.workspace.add_page(
@@ -219,28 +200,11 @@ class ModernMainWindow(QMainWindow):
     def _open_tender_from_dashboard(self, tender_id: str) -> None:
         """Open a Dashboard tender in the existing working module."""
         self.workspace.sidebar.select("tenders")
-
-        if hasattr(self._legacy_window, "refresh"):
-            self._legacy_window.refresh()
-
-        table = getattr(self._legacy_window, "table", None)
-        if table is None:
-            return
-
-        for row in range(table.rowCount()):
-            item = table.item(row, 0)
-            if item is None or item.text() != tender_id:
-                continue
-
-            table.selectRow(row)
-            self._legacy_window.current_id = tender_id
-            if hasattr(self._legacy_window, "select_row"):
-                self._legacy_window.select_row(row, 0)
+        if self.tender_workspace_page.open_tender(tender_id):
             self.statusBar().showMessage(
                 f"Открыт тендер ID {tender_id}",
                 5000,
             )
-            return
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         """Apply and persist the selected UI theme."""
@@ -268,9 +232,7 @@ class ModernMainWindow(QMainWindow):
             return
 
         self.workspace.sidebar.select("tenders")
-
-        if hasattr(self._legacy_window, "catalog_query"):
-            self._legacy_window.catalog_query.setText(normalized)
+        self.tender_workspace_page.apply_compatibility_search_text(normalized)
 
         self.statusBar().showMessage(f"Поиск: {normalized}", 5000)
 
@@ -304,11 +266,9 @@ class ModernMainWindow(QMainWindow):
         return page
 
     def closeEvent(self, event) -> None:
-        """Stop background work and close both application shells."""
+        """Stop the background work owned by the modern shell."""
         try:
             self.dashboard_controller.shutdown()
-            self._legacy_window.close()
-            self._legacy_window.deleteLater()
         finally:
             super().closeEvent(event)
 

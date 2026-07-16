@@ -720,6 +720,27 @@ class TenderSearchUiController(QObject):
         )
         return self.action
 
+    def tender_workspace_actions(self) -> tuple[QAction, ...]:
+        """Return the canonical actions without creating a second action set."""
+        return (
+            self.action,
+            self.registry_action,
+            self.providers_action,
+            self.collector_action,
+            self.company_capability_action,
+            self.matching_catalog_action,
+            self.aggregator_discovery_action,
+            self.scheduler_ui_controller.schedule_action,
+            self.scheduler_ui_controller.notifications_action,
+        )
+
+    def install_on_tender_workspace(self, workspace: QWidget) -> None:
+        """Bind existing actions through the page's narrow compatibility seam."""
+        binder = getattr(workspace, "bind_tender_actions", None)
+        if not callable(binder):
+            raise TypeError("Tender workspace does not support action binding")
+        binder(self.tender_workspace_actions())
+
     @Slot()
     def open_profiles_dialog(self) -> None:
         parent = self.parent()
