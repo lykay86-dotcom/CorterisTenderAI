@@ -303,3 +303,42 @@ RM-130 public symbols:
 There was no application assertion failure, network call, Qt failure, Temp permission error or other
 environment problem. New-test Ruff check passed; Ruff format reported `5 files already formatted`.
 Production implementation is now unblocked by the audit/test ordering gate.
+
+## 14. Feature-branch acceptance evidence
+
+Implementation is fixed in three scoped feature commits:
+
+- `a60733e` — typed schema-v2 load/migration, canonical built-in identity and atomic repository;
+- `130f637` — explicit `SAVED_PROFILE` / `KEYWORD_OVERRIDE` resolution;
+- `b8b49f7` — Decimal-safe editor, typed catalog status UI and public exports.
+
+The existing owners remain singular: one `TenderSearchProfileRepository`, one
+`<data_directory>/search_profiles.json`, one profile dialog/editor workflow, one unified panel and
+one Collector worker construction seam. No DB/schema migration, dependency, provider/network,
+ranking/score/decision/critical-stop/AI or RM-131+ change was introduced.
+
+Exact local Windows/Python 3.12.7 results on 16 July 2026:
+
+- focused command from `docs/RM-130_IMPLEMENTATION_PLAN.md`: `82 passed in 9.68s`;
+- neighbor command from the same plan: `64 passed in 6.33s`;
+- full pytest: `1656 passed in 60.73s (0:01:00)`;
+- repository secret scan: `Repository secret scan passed.`;
+- Ruff check: `All checks passed!`;
+- Ruff format: `554 files already formatted`;
+- mypy: `Success: no issues found in 20 source files`;
+- offline credential smoke: `2 passed in 3.88s`;
+- legacy migration/schema smoke: `5 passed in 2.63s`;
+- public import smoke: `DashboardController`;
+- headless composition smoke: `1 passed in 0.19s`;
+- release/build smoke: `6 passed in 3.20s`;
+- dependency audit: `No known vulnerabilities found` (editable project skipped as intended);
+- `git diff --check`: clean; tracked feature worktree was clean before this evidence update.
+
+Tests prove byte-preserving future/corrupt behavior, byte-for-byte v1 backup, replace rollback/temp
+cleanup, whole-catalog validation, canonical built-in protection, exact
+`0.1`/`9007199254740993.01` editor→domain→JSON→domain→editor round-trip, aware-or-unknown
+timestamps and non-persistence of transient runtime text.
+
+**FEATURE IMPLEMENTATION READY FOR PR/CI.** RM-130 remains `IN PROGRESS`. It must not be marked
+`DONE`, and RM-131 must not start, until the feature PR is merged, the exact merge-SHA Windows Quality
+Gate succeeds on Python 3.12 and 3.13, and a separate docs-only closeout is merged.
