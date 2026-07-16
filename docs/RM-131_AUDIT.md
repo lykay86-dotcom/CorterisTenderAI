@@ -283,3 +283,19 @@ upgrading `collector_provider_settings.json` to schema v2, migrating split v1 de
 injecting one immutable resolved snapshot through the existing manager/session/factory/controller.
 Production and test changes remain blocked until this audit and
 `docs/RM-131_IMPLEMENTATION_PLAN.md` are committed separately, followed by expected-red evidence.
+
+## 15. Expected-red evidence
+
+After docs-only commit `243ab56`, seven RM-131 test modules were added without production changes and
+run with the exact focused command from the implementation plan.
+
+Exact result: expected collection failure, `7 errors in 4.49s`. Every error was limited to an absent
+RM-131 public boundary:
+
+- `ProviderConfiguration` and the typed provider-settings schema API;
+- pure `app.tenders.collector.provider_definitions` identity module;
+- legacy compatibility handoff constants in the existing tender workspace.
+
+There was no application assertion failure, network call, Qt failure, Windows Temp error or unrelated
+baseline regression. Ruff check passed and Ruff format reported all seven new files formatted.
+Production implementation is unblocked by the audit/test ordering gate.
