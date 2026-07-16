@@ -5,11 +5,17 @@ from __future__ import annotations
 from dataclasses import FrozenInstanceError, replace
 from datetime import datetime, timezone
 from decimal import Decimal
+import json
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from app.tenders.business_profile import BusinessCapabilityProjection
-from app.tenders.collector.company_capability import CompanyCapabilityProfile
+from app.tenders.collector.company_capability import (
+    CompanyCapabilityProfile,
+    CompanyCapabilityProfileRepository,
+)
 from app.tenders.collector.participation_score import (
     CorterisCompanyProfile,
     CorterisParticipationRanker,
@@ -21,7 +27,10 @@ from app.tenders.collector.stop_factor import (
     StopFactorKind,
     StopFactorStatus,
 )
+from app.tenders.collector.verification import TenderVerificationStatus
+from app.tenders.commercial_estimator import CommercialEstimateStatus
 from app.tenders.models import TenderMoney
+from app.tenders.participation_decision_service import ParticipationDecisionService
 from app.tenders.requirement_analysis import (
     TenderAnalysisSource,
     TenderRequirementsAnalyzer,
@@ -78,6 +87,28 @@ def _score(profile: CompanyCapabilityProfile):
         make_tender(title="Монтаж видеонаблюдения Trassir", amount="1500000"),
         ParticipationScoringContext(now=NOW),
     )
+
+
+def _equivalent_v1_v2_profiles(
+    tmp_path: Path,
+    **changes: object,
+) -> tuple[CompanyCapabilityProfile, CompanyCapabilityProfile]:
+    current = _confirmed(**changes)
+    legacy = current.to_dict()
+    for key in (
+        "base_currency",
+        "confirmation_version",
+        "confirmation_fingerprint",
+        "confirmation_source",
+    ):
+        legacy.pop(key)
+    path = tmp_path / "company_capability_profile.json"
+    path.write_text(
+        json.dumps({"schema_version": 1, "profile": legacy}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    migrated = CompanyCapabilityProfileRepository(path).load_result().profile
+    return migrated, current
 
 
 def test_projection_is_frozen_pure_snapshot_and_raw_properties_delegate() -> None:
@@ -174,6 +205,20 @@ def test_complete_profile_preserves_exact_golden_scoring_semantics() -> None:
     )
 
 
+def test_equivalent_v1_v2_profiles_have_identical_score_semantics(tmp_path: Path) -> None:
+    migrated, current = _equivalent_v1_v2_profiles(tmp_path)
+    migrated_score = _score(migrated)
+    current_score = _score(current)
+
+    assert migrated_score.total_score == current_score.total_score
+    assert migrated_score.recommendation is current_score.recommendation
+    assert migrated_score.recommendation_text == current_score.recommendation_text
+    assert migrated_score.components == current_score.components
+    assert migrated_score.positive_factors == current_score.positive_factors
+    assert migrated_score.negative_factors == current_score.negative_factors
+    assert migrated_score.stop_factors == current_score.stop_factors
+
+
 def test_empty_unconfirmed_profile_keeps_manual_review_cap_and_no_defaults() -> None:
     score = _score(CompanyCapabilityProfile())
     components = {item.key: item for item in score.components}
@@ -215,6 +260,26 @@ def test_confirmed_sro_removes_only_the_satisfied_capability_stop() -> None:
     )
 
     assert not any(item.kind is StopFactorKind.REQUIRED_SRO_MISSING for item in assessment.factors)
+
+
+def test_equivalent_v1_v2_profiles_have_identical_stop_semantics(tmp_path: Path) -> None:
+    migrated, current = _equivalent_v1_v2_profiles(
+        tmp_path,
+        sro_memberships=("СРО",),
+    )
+    tender = make_tender(title="Монтаж видеонаблюдения", amount="10000000", deadline_day=30)
+    analysis = _analysis("Обеспечение исполнения контракта составляет 10%.")
+
+    assessments = tuple(
+        StopFactorEngine(BusinessCapabilityProjection.from_capability(profile)).evaluate(
+            "tender:1", tender, analysis=analysis, now=NOW
+        )
+        for profile in (migrated, current)
+    )
+
+    assert assessments[0].status is assessments[1].status
+    assert assessments[0].factors == assessments[1].factors
+    assert assessments[0].evaluated_at == assessments[1].evaluated_at
 
 
 def test_security_limit_uses_decimal_and_explicit_matching_currency() -> None:
@@ -285,3 +350,75 @@ def test_critical_stop_still_overrides_high_score() -> None:
     assert assessment.status is StopFactorStatus.BLOCKED_BY_REQUIREMENT
     assert score.recommendation is ParticipationRecommendation.NOT_RECOMMENDED
     assert not score.accepted_for_registry
+
+
+def test_equivalent_v1_v2_profiles_keep_final_decision_contract(tmp_path: Path) -> None:
+    migrated, current = _equivalent_v1_v2_profiles(tmp_path)
+    tender = make_tender(title="Монтаж видеонаблюдения Trassir", amount="1500000")
+    analysis = _analysis("Извещение без специальных обязательных требований.")
+    verification = SimpleNamespace(
+        registry_key="tender:1",
+        status=TenderVerificationStatus.VERIFIED_OFFICIAL_API,
+        minimum_confidence=0.9,
+    )
+    estimate = SimpleNamespace(
+        registry_key="tender:1",
+        status=CommercialEstimateStatus.COMPLETE,
+    )
+
+    class ScoreService:
+        def __init__(self, score) -> None:
+            self.score = score
+
+        def latest(self, _registry_key: str):
+            return self.score
+
+    class StateRepository:
+        def __init__(self, stop) -> None:
+            self.stop = stop
+
+        def get_latest_stop_factor_assessment(self, _registry_key: str):
+            return self.stop
+
+        def get_verification_state(self, _registry_key: str):
+            return verification
+
+        @staticmethod
+        def save_participation_decision(_decision) -> None:
+            return None
+
+    class EstimateRepository:
+        @staticmethod
+        def latest(_registry_key: str):
+            return ("estimate", estimate)
+
+    decisions = []
+    for profile in (migrated, current):
+        projection = BusinessCapabilityProjection.from_capability(profile)
+        stop = StopFactorEngine(projection).evaluate("tender:1", tender, analysis=analysis, now=NOW)
+        score = CorterisParticipationRanker(
+            CorterisCompanyProfile.from_business_profile(projection)
+        ).score(
+            tender,
+            ParticipationScoringContext(
+                now=NOW,
+                requirement_analysis=analysis,
+                stop_factor_assessment=stop,
+            ),
+        )
+        decisions.append(
+            ParticipationDecisionService(
+                ScoreService(score),
+                StateRepository(stop),
+                EstimateRepository(),
+            ).evaluate("tender:1")
+        )
+
+    left, right = decisions
+    assert left.recommendation is right.recommendation
+    assert left.summary == right.summary
+    assert left.evidence == right.evidence
+    assert left.missing == right.missing
+    assert left.actions == right.actions
+    assert left.score == right.score
+    assert left.stop_factors == right.stop_factors

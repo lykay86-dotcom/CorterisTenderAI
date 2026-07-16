@@ -2,21 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
+import json
 import os
 from pathlib import Path
+
+import httpx
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from app.tenders.business_profile import BusinessCapabilityProjection
+from app.tenders.collector.async_provider_factory import create_default_collector_service
 from app.tenders.collector.company_capability import (
     CompanyCapabilityLoadStatus,
     CompanyCapabilityProfile,
     CompanyCapabilityProfileRepository,
 )
+from app.tenders.collector.network_runtime import create_collector_network_runtime
+from app.tenders.collector.participation_score import CorterisCompanyProfile
 from app.tenders.collector.participation_score_service import (
     CorterisParticipationScoreService,
 )
@@ -117,6 +124,32 @@ def test_runtime_exposes_same_capability_repository_used_by_manual_score(tmp_pat
     assert runtime.capability_repository.path == tmp_path / "company_capability_profile.json"
 
 
+def test_automatic_collector_uses_the_same_projection_without_network(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        requests: list[httpx.Request] = []
+
+        def handle(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, request=request)
+
+        raw = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+        network_runtime = create_collector_network_runtime(client=raw)
+        CompanyCapabilityProfileRepository(tmp_path / "company_capability_profile.json").save(
+            _confirmed()
+        )
+
+        service = create_default_collector_service(tmp_path, network_runtime)
+
+        assert service.stop_factor_engine is not None
+        projection = service.stop_factor_engine.profile
+        assert isinstance(projection, BusinessCapabilityProjection)
+        assert service.ranker.profile == CorterisCompanyProfile.from_business_profile(projection)
+        assert requests == []
+        await raw.aclose()
+
+    asyncio.run(scenario())
+
+
 def test_dialog_shows_corrupt_status_without_touching_file(tmp_path: Path) -> None:
     app = _app()
     path = tmp_path / "company_capability_profile.json"
@@ -127,6 +160,48 @@ def test_dialog_shows_corrupt_status_without_touching_file(tmp_path: Path) -> No
     assert dialog.load_result.status is CompanyCapabilityLoadStatus.CORRUPT
     assert "повреж" in dialog.status.text().casefold()
     assert path.read_bytes() == original
+    app.processEvents()
+
+
+def test_dialog_shows_migrated_v1_without_automatic_rewrite(tmp_path: Path) -> None:
+    app = _app()
+    path = tmp_path / "company_capability_profile.json"
+    legacy = _confirmed().to_dict()
+    for key in (
+        "base_currency",
+        "confirmation_version",
+        "confirmation_fingerprint",
+        "confirmation_source",
+    ):
+        legacy.pop(key)
+    original = json.dumps(
+        {"schema_version": 1, "profile": legacy},
+        ensure_ascii=False,
+    ).encode("utf-8")
+    path.write_bytes(original)
+
+    dialog = CompanyCapabilityDialog(CompanyCapabilityProfileRepository(path))
+
+    assert dialog.load_result.status is CompanyCapabilityLoadStatus.MIGRATED_V1
+    assert "schema v1" in dialog.status.text()
+    assert dialog.confirmation.isChecked()
+    assert path.read_bytes() == original
+    dialog.close()
+    app.processEvents()
+
+
+def test_dialog_shows_future_schema_without_automatic_rewrite(tmp_path: Path) -> None:
+    app = _app()
+    path = tmp_path / "company_capability_profile.json"
+    original = b'{"schema_version":999,"profile":{}}'
+    path.write_bytes(original)
+
+    dialog = CompanyCapabilityDialog(CompanyCapabilityProfileRepository(path))
+
+    assert dialog.load_result.status is CompanyCapabilityLoadStatus.UNSUPPORTED_FUTURE
+    assert "новее поддерживаемой" in dialog.status.text()
+    assert path.read_bytes() == original
+    dialog.close()
     app.processEvents()
 
 

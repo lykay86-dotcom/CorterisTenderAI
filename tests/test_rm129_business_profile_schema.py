@@ -32,8 +32,13 @@ def _draft(**changes: object) -> CompanyCapabilityProfile:
         "company_name": "ООО КОРТЕРИС",
         "business_directions": ("видеонаблюдение", "СКУД"),
         "self_install_regions": ("Москва",),
+        "partner_regions": ("Тула",),
         "licenses": ("МЧС",),
+        "license_work_types": ("монтаж пожарной сигнализации",),
+        "sro_memberships": ("СРО",),
+        "employee_qualifications": ("инженер",),
         "installation_crew_count": 2,
+        "completed_contracts": ("Контракт №0",),
         "confirmed_experience": ("Контракт №1",),
         "max_project_amount": Decimal("30000000.0100"),
         "working_capital": Decimal("5000000.50"),
@@ -43,7 +48,15 @@ def _draft(**changes: object) -> CompanyCapabilityProfile:
         "equipment": ("IP-камера",),
         "brands": ("Trassir",),
         "suppliers": ("Поставщик 1",),
+        "stock_items": ("камера",),
         "minimum_margin_percent": Decimal("20.00"),
+        "acceptable_payment_days": 30,
+        "maximum_deferment_days": 60,
+        "self_performed_directions": ("монтаж",),
+        "subcontracted_directions": ("проектирование",),
+        "undesired_object_types": ("медицинские объекты",),
+        "has_designers": True,
+        "regional_partners": ("Партнёр Тула",),
         "base_currency": "RUB",
     }
     values.update(changes)
@@ -107,6 +120,19 @@ def test_v1_load_is_fact_preserving_auditable_and_does_not_rewrite(tmp_path: Pat
     assert len(result.profile.confirmation_fingerprint) == 64
     assert result.profile.base_currency == "RUB"
     assert result.profile.max_project_amount == Decimal("30000000.0100")
+    assert result.profile.partner_regions == ("Тула",)
+    assert result.profile.license_work_types == ("монтаж пожарной сигнализации",)
+    assert result.profile.sro_memberships == ("СРО",)
+    assert result.profile.employee_qualifications == ("инженер",)
+    assert result.profile.completed_contracts == ("Контракт №0",)
+    assert result.profile.stock_items == ("камера",)
+    assert result.profile.acceptable_payment_days == 30
+    assert result.profile.maximum_deferment_days == 60
+    assert result.profile.self_performed_directions == ("монтаж",)
+    assert result.profile.subcontracted_directions == ("проектирование",)
+    assert result.profile.undesired_object_types == ("медицинские объекты",)
+    assert result.profile.has_designers is True
+    assert result.profile.regional_partners == ("Партнёр Тула",)
     assert result.profile.updated_at == "2026-07-12T12:05:00+00:00"
     assert path.read_bytes() == original
     assert path.stat().st_mtime_ns == before_mtime
@@ -140,6 +166,7 @@ def test_explicit_save_upgrades_v1_to_current_old_reader_shape(tmp_path: Path) -
     assert payload["profile"]["base_currency"] == "RUB"
     assert payload["profile"]["confirmation_source"] == "migrated_v1"
     assert repository.load_result().status is CompanyCapabilityLoadStatus.CURRENT
+    assert not path.with_suffix(path.suffix + ".tmp").exists()
 
 
 @pytest.mark.parametrize(
@@ -229,6 +256,21 @@ def test_v2_round_trip_preserves_decimal_scale_and_normalizes_aware_dates(tmp_pa
     assert restored.is_confirmed
 
 
+def test_unknown_current_fields_are_ignored_and_never_become_facts(tmp_path: Path) -> None:
+    path = tmp_path / "company_capability_profile.json"
+    repository = CompanyCapabilityProfileRepository(path)
+    repository.save(_confirmed())
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["profile"]["guessed_license"] = "ФСБ"
+    _write(path, payload)
+
+    result = repository.load_result()
+
+    assert result.status is CompanyCapabilityLoadStatus.CURRENT
+    assert not hasattr(result.profile, "guessed_license")
+    assert result.profile.licenses == ("МЧС",)
+
+
 def test_confirmation_is_bound_to_facts_but_not_updated_at_or_tuple_order() -> None:
     profile = _confirmed()
 
@@ -241,6 +283,57 @@ def test_confirmation_is_bound_to_facts_but_not_updated_at_or_tuple_order() -> N
     assert not replace(profile, max_project_amount=Decimal("30000000.02")).is_confirmed
     assert not replace(profile, licenses=("МЧС", "ФСБ")).is_confirmed
     assert not replace(profile, base_currency="USD").is_confirmed
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("company_name", "ООО ДРУГАЯ КОМПАНИЯ"),
+        ("business_directions", ("пожарная сигнализация",)),
+        ("self_install_regions", ("Казань",)),
+        ("partner_regions", ("Самара",)),
+        ("licenses", ("ФСБ",)),
+        ("license_work_types", ("другой вид работ",)),
+        ("sro_memberships", ("Другая СРО",)),
+        ("employee_qualifications", ("техник",)),
+        ("installation_crew_count", 3),
+        ("completed_contracts", ("Контракт №2",)),
+        ("confirmed_experience", ("Опыт №2",)),
+        ("max_project_amount", Decimal("31000000")),
+        ("working_capital", Decimal("6000000")),
+        ("max_bid_security", Decimal("500000")),
+        ("max_contract_security", Decimal("900000")),
+        ("bank_guarantee_limit", Decimal("1100000")),
+        ("base_currency", "USD"),
+        ("equipment", ("Турникет",)),
+        ("brands", ("Hikvision",)),
+        ("suppliers", ("Поставщик 2",)),
+        ("stock_items", ("контроллер",)),
+        ("minimum_margin_percent", Decimal("21")),
+        ("acceptable_payment_days", 31),
+        ("maximum_deferment_days", 61),
+        ("self_performed_directions", ("пусконаладка",)),
+        ("subcontracted_directions", ("земляные работы",)),
+        ("undesired_object_types", ("промышленный объект",)),
+        ("has_designers", False),
+        ("regional_partners", ("Партнёр Самара",)),
+    ],
+)
+def test_every_decision_fact_edit_invalidates_confirmation(field: str, value: object) -> None:
+    assert not replace(_confirmed(), **{field: value}).is_confirmed
+
+
+def test_confirmation_metadata_changes_do_not_change_content_fingerprint() -> None:
+    profile = _confirmed()
+    changed = replace(
+        profile,
+        confirmed_by="Другой директор",
+        confirmed_at="2026-07-13T12:00:00+00:00",
+        evidence_note="Новое основание",
+    )
+
+    assert changed.content_fingerprint == profile.content_fingerprint
+    assert changed.is_confirmed
 
 
 def test_confirmation_rejects_empty_confirmer_and_naive_timestamp() -> None:
