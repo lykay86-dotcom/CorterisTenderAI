@@ -4,14 +4,46 @@
 
 ## Активный этап
 
-**RM-128 — единая панель поиска**
+**RM-129 — универсальные бизнес-профили**
 
 Статус: `IN PROGRESS`
 
-RM-127 завершён после feature merge и успешного post-merge Windows Quality Gate. RM-128 назначен
-единственным активным этапом; RM-129–RM-200 остаются `PLANNED` и не выполняются параллельно.
+RM-128 завершён после audit-first реализации, feature merge и успешного exact-SHA post-merge
+Windows Quality Gate. RM-129 назначен единственным активным этапом; RM-130–RM-200 остаются
+`PLANNED` и не выполняются параллельно.
 
 ## Завершённый этап
+
+**RM-128 — единая панель поиска**
+
+Статус: `DONE`
+
+Подтверждение:
+
+- audit и implementation plan зафиксированы docs-only commit `39605d0` до application changes;
+- одна `TenderUnifiedSearchPanel` встроена над existing tabs одной `TenderWorkspacePage`; topbar
+  использует narrow page → panel → existing controller path и больше не меняет `catalog_query`;
+- pure immutable request boundary сохраняет query profile, `Decimal`, currency и dates, меняет только
+  ephemeral keywords и отклоняет missing/disabled/stale profile/provider без fallback/network;
+- unified panel, existing Collector dialog и scheduler разделяют один `TenderSearchUiController`,
+  один `_CollectorRunWorker`, cancellation token, progress/result cleanup и canonical registry;
+- unified path использует existing async `CollectorRunSession`; legacy profile dialog/sync runner
+  сохранён как rollback path до RM-138;
+- новый repository/engine/Collector/provider catalog/DB/migration/profile schema/dependency не создан;
+  decision/AI/critical stop-factor priority не изменены;
+- локально: focused `23 passed in 5.20s`, neighbor `66 passed in 8.80s`, full pytest
+  `1552 passed in 61.49s`; все workflow-equivalent gates успешны;
+- feature PR #62 слит в `main` коммитом `a67f5df`
+  (`a67f5df331f8257799e24a9ef3980c6feea69c7a`);
+- PR Quality Gate run `29499175129` успешен: Python 3.12 — `1552 passed in 67.74s`,
+  Python 3.13 — `1552 passed in 97.95s`;
+- exact-SHA post-merge run `29499519358` успешен: Python 3.12 —
+  `1552 passed in 169.06s`, Python 3.13 — `1552 passed in 73.62s`; первоначальный transient native
+  access violation Python 3.12 не воспроизвёлся при rerun того же SHA;
+- на обеих версиях прошли secret scan, Ruff check/format (`545 files`), mypy (20 файлов),
+  offline/migration/import/composition/build smoke и dependency audit.
+
+## Ранее завершённый этап
 
 **RM-127 — новая структура вкладок**
 
@@ -19,39 +51,12 @@ RM-127 завершён после feature merge и успешного post-merg
 
 Подтверждение:
 
-- audit и implementation plan зафиксированы commit `13dfb83` до application changes;
-- `TenderWorkspacePage(QWidget)` владеет единственным набором из 8 top-level и 6 settings tabs со
-  stable keys/objectNames; legacy `MainWindow` оставлен тонким standalone wrapper;
-- production `ModernMainWindow` больше не создаёт hidden legacy shell, не вызывает
-  `takeCentralWidget()` и не обращается к legacy fields;
-- Dashboard/topbar используют narrow page API; price/equipment compatibility semantics сохранены,
-  universal search RM-128 преждевременно не реализован;
-- один существующий `TenderSearchUiController` и те же 7 direct/2 scheduler QAction, dialogs,
-  workers, search/Collector runtime и C11 full-analysis workflow переиспользованы;
-- DB/schema/migrations/dependencies/providers/decision/AI не изменены;
-- локальный focused contour: `54 passed in 31.02s`; полный pytest дважды успешен:
-  `1532 passed in 55.91s` и `1532 passed in 77.25s`;
-- feature PR #60 слит в `main` коммитом `0b95567`
-  (`0b9556799a20ddbf7338476fe76f602e7ff79d07`);
-- post-merge Quality Gate run `29489511239` успешен: Python 3.12 —
-  `1532 passed in 82.83s`, Python 3.13 — `1532 passed in 145.43s`;
-- на обеих версиях прошли repository secret scan, Ruff check/format (`540 files`), mypy (20 файлов),
-  offline/migration/import/composition/build smoke tests и dependency audit.
-
-## Ранее завершённый этап
-
-**RM-126 — аудит раздела Тендеры и укрепление провайдера ЕИС**
-
-Статус: `DONE`
-
-Подтверждение:
-
-- feature PR #58 слит в `main` коммитом `b6369c8`;
-- post-merge Quality Gate run `29460395144` успешен на Python 3.12/3.13;
-- общий RM-126 и технический подэтап RM-126.1 имеют статус `DONE`.
+- feature PR #60 слит в `main` коммитом `0b95567`;
+- post-merge Quality Gate run `29489511239` успешен на Python 3.12/3.13;
+- reusable tender workspace и direct modern composition имеют статус `DONE`.
 
 ## Текущее действие
 
-Начать RM-128 с обязательного аудита существующих topbar search, saved-profile search и Collector
-entry contracts. Переиспользовать `TenderWorkspacePage`, `TenderSearchProfileRepository` и один
-существующий sync/async compatibility facade; не создавать новый query repository или третий engine.
+Начать RM-129 только с обязательного аудита существующих company capability, search profile,
+matching/ranking и deterministic decision contracts. Не смешивать business capability с saved search
+profiles и не менять score/recommendation/critical stop-factor priority.

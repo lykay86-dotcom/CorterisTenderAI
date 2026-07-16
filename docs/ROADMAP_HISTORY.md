@@ -1,5 +1,34 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-16 — RM-128 завершён, RM-129 активирован
+
+- Audit `docs/RM-128_AUDIT.md` и implementation plan зафиксированы docs-only commit `39605d0` до
+  application changes; expected-red characterization — commit `19aceba`.
+- Одна `TenderUnifiedSearchPanel` встроена над existing tabs одной `TenderWorkspacePage`; topbar
+  использует narrow page → panel → existing controller path и не меняет equipment `catalog_query`.
+- Pure immutable request boundary использует existing `TenderSearchProfileRepository` snapshots,
+  сохраняет profile query/`Decimal`/currency/dates и отклоняет unknown/disabled/stale provider без
+  silent fallback или network.
+- Unified panel, Collector dialog и scheduler разделяют один existing `TenderSearchUiController`,
+  единственный `_CollectorRunWorker`, cancellation/progress/result cleanup и canonical registry.
+- Unified path использует existing async `CollectorRunSession`; legacy sync profile dialog/runner
+  сохранён до parity/retirement RM-138.
+- Новый repository, engine, Collector, provider catalog, DB/migration, profile schema, dependency,
+  decision или AI contract не добавлен; critical stop-factor priority неизменен.
+- Локальная acceptance: focused `23 passed in 5.20s`, neighbor `66 passed in 8.80s`, full pytest
+  `1552 passed in 61.49s`; secret scan, Ruff/format (`545 files`), mypy, workflow smokes,
+  dependency audit и diff-check успешны.
+- Feature PR #62 (`feat(rm-128): add unified tender search panel`) слит в `main` коммитом `a67f5df`
+  (`a67f5df331f8257799e24a9ef3980c6feea69c7a`).
+- PR Quality Gate run `29499175129` успешен: Python 3.12 — `1552 passed in 67.74s`, Python 3.13 —
+  `1552 passed in 97.95s`.
+- Exact-SHA post-merge run `29499519358` успешен: Python 3.12 —
+  `1552 passed in 169.06s`, Python 3.13 — `1552 passed in 73.62s`; initial Python 3.12 native access
+  violation не воспроизвёлся при rerun того же SHA. Все обязательные jobs завершились `success`.
+- RM-128 переведён в `DONE`; RM-129 назначен единственным `IN PROGRESS` для audited generalization
+  existing company capability без смешивания с saved search profiles. RM-130–RM-200 остаются
+  `PLANNED`.
+
 ## 2026-07-16 — RM-127 завершён, RM-128 активирован
 
 - Audit `docs/RM-127_AUDIT.md` и implementation plan были зафиксированы docs-only commit
