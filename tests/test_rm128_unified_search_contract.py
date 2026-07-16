@@ -105,7 +105,7 @@ def test_nonblank_query_replaces_only_keywords_and_deduplicates_sources() -> Non
 
 
 @pytest.mark.parametrize(
-    ("profiles", "states", "request", "message"),
+    ("profiles", "states", "search_request", "message"),
     (
         ((), (_state("eis"),), UnifiedTenderSearchRequest("missing", "", ("eis",)), "не найден"),
         (
@@ -137,12 +137,12 @@ def test_nonblank_query_replaces_only_keywords_and_deduplicates_sources() -> Non
 def test_invalid_profile_or_provider_is_rejected_without_fallback(
     profiles,
     states,
-    request,
+    search_request,
     message,
 ) -> None:
     with pytest.raises(UnifiedTenderSearchValidationError, match=message):
         resolve_unified_tender_search(
-            request,
+            search_request,
             profiles=profiles,
             provider_states=states,
             today=date(2026, 7, 16),
