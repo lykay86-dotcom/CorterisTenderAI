@@ -195,3 +195,54 @@ callbacks, controller, actions, dialogs, workers, search runtime, Collector и C
 implementation разрешена только после фиксации этого аудита и
 `docs/RM-127_IMPLEMENTATION_PLAN.md` отдельным commit. Search semantics, DB, providers, decision,
 AI и lifecycle RM-140 остаются вне scope.
+
+## 11. Feature implementation evidence
+
+Audit-first порядок соблюдён:
+
+- docs-only audit commit: `13dfb83`;
+- characterization commit: `cb21b82`; до implementation он ожидаемо завершался
+  `ModuleNotFoundError` для ещё не существующей page boundary;
+- reusable page/thin wrapper commit: `cc1d8d7`;
+- modern composition/action binding commit: `4a037ea`.
+
+Реализовано ровно выбранное extraction:
+
+- `ModernMainWindow` создаёт `TenderWorkspacePage` напрямую;
+- production imports/references `_legacy_window`, `LegacyMainWindow` и `takeCentralWidget()` удалены;
+- legacy `MainWindow` создаёт одну page как thin standalone wrapper;
+- порядок и labels 8 top-level/6 settings tabs сохранены, добавлены stable keys/objectNames;
+- Dashboard и topbar используют `open_tender()` и `apply_compatibility_search_text()`;
+- topbar по-прежнему только заполняет price/equipment query, не запускает сеть/search/Collector;
+- controller передаёт page те же 7 direct и 2 scheduler QAction instances idempotently;
+- menu/toolbar/shortcuts, registry/results и C11 full-analysis service path сохранены;
+- DB, migrations, dependencies, providers, search engines, Collector, decision и AI не изменены.
+
+Локальная acceptance на Windows/Python 3.12.7:
+
+| Check | Exact result |
+|---|---|
+| RM-127 page/composition/bootstrap | `9 passed in 6.11s` |
+| RM-127 + соседний controller/dialog contour | `68 passed in 9.58s` |
+| C11/controller parity | `51 passed in 4.09s` |
+| Повторный RM-127/C11 focused | `54 passed in 31.02s` |
+| Full pytest, первый final | `1532 passed in 55.91s` |
+| Full pytest, повторный | `1532 passed in 77.25s` |
+| Secret scan | `Repository secret scan passed.` |
+| Ruff check | `All checks passed!` |
+| Ruff format | `540 files already formatted` |
+| mypy | `Success: no issues found in 20 source files` |
+| Offline credential smoke | `2 passed in 4.61s` |
+| Migration smoke | `5 passed in 2.86s` |
+| Import smoke | `DashboardController` |
+| Bootstrap composition smoke | `1 passed in 0.20s` |
+| Build/release smoke | `6 passed in 3.26s` |
+| Dependency audit | `No known vulnerabilities found`; editable project skipped |
+| Diff check | success |
+
+Первый `pip-audit` был заблокирован sandbox socket policy (`WinError 10013`); обязательный повтор
+с разрешённым network access успешен. Windows Temp permission blocker обойдён только параметром
+test harness `--basetemp`; application behavior и repository config для этого не менялись.
+
+Feature implementation **готова к PR**, но RM-127 остаётся `IN PROGRESS` до feature merge,
+успешного post-merge Windows Quality Gate Python 3.12/3.13 и отдельного docs-only closeout.
