@@ -136,6 +136,7 @@ class TenderWorkspacePage(QWidget):
         )
         self.price_service = PriceSearchService(self.price_repo)
         self.current_price_results = []
+        self._unified_search_panel: QWidget | None = None
         self._build()
         self._load()
         self.refresh()
@@ -275,6 +276,35 @@ class TenderWorkspacePage(QWidget):
     def apply_compatibility_search_text(self, query: str) -> None:
         """Populate only the existing price/equipment catalog query."""
         self.catalog_query.setText(str(query).strip())
+
+    def install_unified_search_panel(self, panel: QWidget) -> None:
+        """Mount the single controller-owned panel above the existing tabs."""
+        if self._unified_search_panel is panel:
+            return
+        if self._unified_search_panel is not None:
+            raise ValueError("A unified tender search panel is already installed")
+        self._unified_search_panel = panel
+        panel.setParent(self)
+        layout = self.layout()
+        if layout is None:
+            raise RuntimeError("Tender workspace layout is unavailable")
+        layout.insertWidget(0, panel)
+
+    def submit_unified_search_text(self, query: str) -> bool:
+        """Delegate a topbar query without owning search validation."""
+        panel = self._unified_search_panel
+        submitter = getattr(panel, "submit_query", None)
+        if not callable(submitter):
+            return False
+        return bool(submitter(str(query)))
+
+    def focus_unified_search(self) -> bool:
+        """Focus the installed search panel through its narrow API."""
+        panel = self._unified_search_panel
+        focuser = getattr(panel, "focus_search", None)
+        if not callable(focuser):
+            return False
+        return bool(focuser())
 
     def select_section(self, key: str) -> bool:
         """Select a known top-level section by its stable key."""

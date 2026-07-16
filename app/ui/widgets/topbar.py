@@ -24,7 +24,8 @@ class TopBar(QWidget):
         self.page_title = QLabel("Dashboard")
 
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Поиск тендеров, клиентов, документов…")
+        self.search.setPlaceholderText("Поиск тендеров…")
+        self.search.setToolTip("Запустить поиск тендеров по выбранному профилю и источникам")
         self.search.returnPressed.connect(lambda: self.search_requested.emit(self.search.text()))
         self.search.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 

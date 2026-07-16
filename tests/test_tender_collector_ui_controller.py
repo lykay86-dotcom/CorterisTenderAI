@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
 
 from app.tenders.collector.async_engine import AsyncProviderBatchResult
 from app.tenders.collector.models import (
@@ -38,6 +39,32 @@ def _app() -> QApplication:
 class ImmediateThreadPool:
     def start(self, runnable) -> None:
         runnable.run()
+
+
+class CapturingThreadPool:
+    def __init__(self) -> None:
+        self.runnables = []
+
+    def start(self, runnable) -> None:
+        self.runnables.append(runnable)
+
+
+class FakeWorkspace(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setLayout(QVBoxLayout())
+        self.actions_bound = ()
+        self.panel = None
+
+    def bind_tender_actions(self, actions) -> None:
+        self.actions_bound = tuple(actions)
+
+    def install_unified_search_panel(self, panel) -> None:
+        if self.panel is panel:
+            return
+        assert self.panel is None
+        self.panel = panel
+        self.layout().addWidget(panel)
 
 
 class FakeRunner:
@@ -178,3 +205,75 @@ def test_controller_runs_collector_and_updates_dialog(tmp_path) -> None:
     assert not controller.collector_dialog.running
     assert "Сбор завершён" in controller.collector_dialog.status_label.text()
     app.processEvents()
+
+
+def test_panel_and_dialog_share_busy_cancel_and_worker_cleanup(tmp_path) -> None:
+    _app()
+    pool = CapturingThreadPool()
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=_runtime(tmp_path),
+        provider_manager=FakeProviderManager(),
+        collector_session=FakeCollectorSession(),
+        thread_pool=pool,
+    )
+    workspace = FakeWorkspace()
+    controller.install_on_tender_workspace(workspace)
+    controller.open_collector_dialog()
+
+    assert controller.try_start_collector("all-corteris", ("eis",)) is True
+    worker = controller._collector_worker
+    assert worker is not None
+    assert len(pool.runnables) == 1
+    assert controller.collector_dialog is not None
+    assert controller.collector_dialog.running
+    assert controller.unified_search_panel is not None
+    assert controller.unified_search_panel.running
+
+    assert controller.try_start_collector("all-corteris", ("eis",)) is False
+    assert len(pool.runnables) == 1
+    controller.stop_collector()
+
+    assert worker.cancellation_token.is_cancelled
+    assert not controller.collector_dialog.stop_button.isEnabled()
+    assert not controller.unified_search_panel.stop_button.isEnabled()
+
+    controller._on_collector_succeeded(_result())
+
+    assert controller._collector_worker is None
+    assert not controller.collector_dialog.running
+    assert not controller.unified_search_panel.running
+
+
+def test_partial_failure_and_invalid_result_are_not_reported_as_success(tmp_path) -> None:
+    _app()
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=_runtime(tmp_path),
+        provider_manager=FakeProviderManager(),
+        collector_session=FakeCollectorSession(),
+        thread_pool=CapturingThreadPool(),
+    )
+    workspace = FakeWorkspace()
+    controller.install_on_tender_workspace(workspace)
+    controller.open_collector_dialog()
+    panel = controller.unified_search_panel
+    dialog = controller.collector_dialog
+    assert panel is not None
+    assert dialog is not None
+
+    assert controller.try_start_collector("all-corteris", ("eis",)) is True
+    controller._on_collector_succeeded(replace(_result(), status=CollectionRunStatus.PARTIAL))
+    assert "частично" in panel.status_label.text().casefold()
+    assert "ошибками" in dialog.status_label.text().casefold()
+
+    assert controller.try_start_collector("all-corteris", ("eis",)) is True
+    controller._on_collector_failed("RuntimeError", "bounded failure")
+    assert controller._collector_worker is None
+    assert "ошибкой" in panel.status_label.text().casefold()
+    assert "bounded failure" in dialog.status_label.text()
+
+    assert controller.try_start_collector("all-corteris", ("eis",)) is True
+    controller._on_collector_succeeded(object())
+    assert controller._collector_worker is None
+    assert "неподдерживаемый результат" in panel.status_label.text().casefold()

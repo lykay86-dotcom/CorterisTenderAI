@@ -232,9 +232,11 @@ class ModernMainWindow(QMainWindow):
             return
 
         self.workspace.sidebar.select("tenders")
-        self.tender_workspace_page.apply_compatibility_search_text(normalized)
-
-        self.statusBar().showMessage(f"Поиск: {normalized}", 5000)
+        if self.tender_workspace_page.submit_unified_search_text(normalized):
+            self.statusBar().showMessage(f"Поиск тендеров: {normalized}", 5000)
+        else:
+            self.tender_workspace_page.focus_unified_search()
+            self.statusBar().showMessage("Проверьте профиль и источники поиска", 5000)
 
     def _show_notifications(self) -> None:
         QMessageBox.information(

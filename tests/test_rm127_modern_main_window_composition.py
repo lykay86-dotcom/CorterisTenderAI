@@ -66,9 +66,11 @@ def test_dashboard_navigation_and_topbar_use_the_page_api(monkeypatch) -> None:
     assert window.tender_workspace_page.current_id == previous_id
 
     previous_tab = window.tender_workspace_page.tabs.currentIndex()
+    window.tender_workspace_page.catalog_query.setText("прайс остаётся")
     window._global_search("  камеры  ")
-    assert window.tender_workspace_page.catalog_query.text() == "камеры"
+    assert window.tender_workspace_page.catalog_query.text() == "прайс остаётся"
     assert window.tender_workspace_page.tabs.currentIndex() == previous_tab
+    assert window.workspace.sidebar.current_item == "tenders"
 
     window.close()
     window.deleteLater()

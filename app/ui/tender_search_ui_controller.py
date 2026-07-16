@@ -76,6 +76,12 @@ from app.tenders.search_profile_runner import (
     TenderSearchProfileRun,
     TenderSearchProfileRunner,
 )
+from app.tenders.provider_base import TenderSearchQuery
+from app.tenders.unified_search import (
+    UnifiedTenderSearchRequest,
+    UnifiedTenderSearchValidationError,
+    resolve_unified_tender_search,
+)
 from app.tenders.tender_registry import tender_registry_key
 from app.tenders.search_runtime import (
     TenderSearchRuntime,
@@ -113,6 +119,7 @@ from app.ui.tender_search_profiles_dialog import (
 from app.ui.tender_search_results_dialog import (
     TenderSearchResultsDialog,
 )
+from app.ui.tender_unified_search_panel import TenderUnifiedSearchPanel
 from app.ui.theme.colors import ThemeName
 
 
@@ -481,6 +488,7 @@ class TenderSearchUiController(QObject):
         self._provider_check_worker: _ProviderCheckWorker | None = None
         self._provider_check_ids: tuple[str, ...] = ()
         self._collector_dialog: TenderCollectorDialog | None = None
+        self._unified_search_panel: TenderUnifiedSearchPanel | None = None
         self._collector_worker: _CollectorRunWorker | None = None
         self._collector_profile_id = ""
         self._result_dialogs: list[TenderSearchResultsDialog] = []
@@ -620,6 +628,10 @@ class TenderSearchUiController(QObject):
         return self._collector_dialog
 
     @property
+    def unified_search_panel(self) -> TenderUnifiedSearchPanel | None:
+        return self._unified_search_panel
+
+    @property
     def result_dialogs(self) -> tuple[TenderSearchResultsDialog, ...]:
         return tuple(self._result_dialogs)
 
@@ -735,11 +747,42 @@ class TenderSearchUiController(QObject):
         )
 
     def install_on_tender_workspace(self, workspace: QWidget) -> None:
-        """Bind existing actions through the page's narrow compatibility seam."""
+        """Bind canonical actions and the single unified-search panel."""
         binder = getattr(workspace, "bind_tender_actions", None)
         if not callable(binder):
             raise TypeError("Tender workspace does not support action binding")
         binder(self.tender_workspace_actions())
+
+        installer = getattr(workspace, "install_unified_search_panel", None)
+        if not callable(installer):
+            raise TypeError("Tender workspace does not support unified search")
+        if self._unified_search_panel is None:
+            panel = TenderUnifiedSearchPanel(
+                theme=self._theme,
+                parent=workspace,
+            )
+            panel.start_requested.connect(self.start_unified_search)
+            panel.stop_requested.connect(self.stop_collector)
+            panel.profiles_requested.connect(self.open_profiles_dialog)
+            panel.sources_requested.connect(self.open_provider_manager_dialog)
+            panel.registry_requested.connect(self.open_registry_dialog)
+            self._unified_search_panel = panel
+        installer(self._unified_search_panel)
+        self.refresh_unified_search_configuration()
+
+    @Slot()
+    def refresh_unified_search_configuration(self) -> None:
+        panel = self._unified_search_panel
+        if panel is None or panel.running:
+            return
+        panel.set_provider_states(
+            self.provider_manager.states(),
+            preserve_selection=True,
+        )
+        panel.set_profiles(
+            self.runtime.repository.list_profiles(include_disabled=False),
+            select_id=self._collector_profile_id,
+        )
 
     @Slot()
     def open_profiles_dialog(self) -> None:
@@ -753,6 +796,12 @@ class TenderSearchUiController(QObject):
                 parent=parent_widget,
             )
             self._profiles_dialog.profile_run_requested.connect(self.run_profile)
+            self._profiles_dialog.panel.profile_saved.connect(
+                lambda _profile_id: self.refresh_unified_search_configuration()
+            )
+            self._profiles_dialog.panel.profile_deleted.connect(
+                lambda _profile_id: self.refresh_unified_search_configuration()
+            )
 
         self._profiles_dialog.refresh_profiles()
         self._profiles_dialog.open()
@@ -900,11 +949,6 @@ class TenderSearchUiController(QObject):
         normalized = profile_id.strip().casefold()
         if not normalized:
             return False
-        if self._collector_worker is not None:
-            if self._collector_dialog is not None:
-                self._collector_dialog.set_status("Сборщик уже выполняется.")
-            return False
-
         try:
             profile = self.runtime.repository.get(normalized)
         except Exception as exc:
@@ -928,23 +972,78 @@ class TenderSearchUiController(QObject):
                 self._collector_dialog.set_error("Нет включённых источников для запуска.")
             return False
 
+        return self._try_start_collector_query(
+            profile_id=normalized,
+            profile_name=profile.name,
+            query=profile.to_search_query(),
+            provider_ids=selected,
+        )
+
+    @Slot(object)
+    def start_unified_search(self, request: object) -> None:
+        """Resolve one typed panel request against current canonical snapshots."""
+        panel = self._unified_search_panel
+        if not isinstance(request, UnifiedTenderSearchRequest):
+            if panel is not None:
+                panel.set_error("Получен неподдерживаемый запрос поиска.")
+            return
+        try:
+            resolved = resolve_unified_tender_search(
+                request,
+                profiles=self.runtime.repository.list_profiles(),
+                provider_states=self.provider_manager.states(),
+            )
+        except UnifiedTenderSearchValidationError as exc:
+            if panel is not None:
+                panel.set_error(exc.public_message)
+                panel.focus_search()
+            return
+
+        self._try_start_collector_query(
+            profile_id=resolved.profile.id,
+            profile_name=resolved.profile.name,
+            query=resolved.query,
+            provider_ids=resolved.provider_ids,
+        )
+
+    def _try_start_collector_query(
+        self,
+        *,
+        profile_id: str,
+        profile_name: str,
+        query: TenderSearchQuery,
+        provider_ids: tuple[str, ...],
+    ) -> bool:
+        """Create and wire the sole Collector worker for every UI entry point."""
+        if self._collector_worker is not None:
+            if self._collector_dialog is not None:
+                self._collector_dialog.set_status("Сборщик уже выполняется.")
+            if self._unified_search_panel is not None:
+                self._unified_search_panel.set_status("Поиск уже выполняется.", error=True)
+            return False
+
         worker = _CollectorRunWorker(
             self.collector_session,
-            profile.to_search_query(),
-            selected,
+            query,
+            provider_ids,
         )
         worker.signals.progress.connect(self._on_collector_progress)
         worker.signals.succeeded.connect(self._on_collector_succeeded)
         worker.signals.failed.connect(self._on_collector_failed)
         self._collector_worker = worker
-        self._collector_profile_id = normalized
+        self._collector_profile_id = profile_id
 
         if self._collector_dialog is not None:
             self._collector_dialog.begin_run(
-                profile.name,
-                selected,
+                profile_name,
+                provider_ids,
             )
-        self.collector_started.emit(normalized)
+        if self._unified_search_panel is not None:
+            self._unified_search_panel.begin_run(
+                profile_name,
+                provider_ids,
+            )
+        self.collector_started.emit(profile_id)
         self._thread_pool.start(worker)
         return True
 
@@ -956,11 +1055,15 @@ class TenderSearchUiController(QObject):
         worker.cancel()
         if self._collector_dialog is not None:
             self._collector_dialog.mark_cancel_requested()
+        if self._unified_search_panel is not None:
+            self._unified_search_panel.mark_cancel_requested()
 
     @Slot(object)
     def _on_collector_progress(self, event: object) -> None:
         if self._collector_dialog is not None and isinstance(event, CollectorProgressEvent):
             self._collector_dialog.apply_progress(event)
+        if self._unified_search_panel is not None and isinstance(event, CollectorProgressEvent):
+            self._unified_search_panel.apply_progress(event)
 
     @Slot(object)
     def _on_collector_succeeded(self, result: object) -> None:
@@ -973,6 +1076,8 @@ class TenderSearchUiController(QObject):
             return
         if self._collector_dialog is not None:
             self._collector_dialog.set_result(result)
+        if self._unified_search_panel is not None:
+            self._unified_search_panel.set_result(result)
         if self._registry_dialog is not None:
             self._registry_dialog.refresh_records()
         self.collector_finished.emit(result)
@@ -987,6 +1092,8 @@ class TenderSearchUiController(QObject):
         rendered = f"{error_type}: {message}"
         if self._collector_dialog is not None:
             self._collector_dialog.set_error(f"Сбор завершился ошибкой: {rendered}")
+        if self._unified_search_panel is not None:
+            self._unified_search_panel.set_error(f"Поиск завершился ошибкой: {rendered}")
         self.collector_failed.emit(rendered)
 
     @Slot()
@@ -1019,6 +1126,11 @@ class TenderSearchUiController(QObject):
             self._provider_dialog.set_states(states)
         if self._collector_dialog is not None and not self._collector_dialog.running:
             self._collector_dialog.set_provider_states(
+                states,
+                preserve_selection=True,
+            )
+        if self._unified_search_panel is not None and not self._unified_search_panel.running:
+            self._unified_search_panel.set_provider_states(
                 states,
                 preserve_selection=True,
             )
