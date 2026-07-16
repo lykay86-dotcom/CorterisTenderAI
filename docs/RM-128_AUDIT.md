@@ -158,3 +158,65 @@ profile/provider.
 Pure request boundary нужен для честной provider validation и сохранения business logic вне QWidget.
 Production changes разрешены только после отдельного commit этого аудита и
 `docs/RM-128_IMPLEMENTATION_PLAN.md`.
+
+## 11. Feature implementation evidence
+
+Audit-first порядок соблюдён:
+
+- docs-only audit/plan: `39605d0`;
+- expected-red characterization: `19aceba` (`ModuleNotFoundError` только для ещё отсутствующих
+  RM-128 boundaries);
+- pure request boundary: `fc015ed`;
+- reusable panel: `7c0a3f7`;
+- shared controller/page seam: `777079e`;
+- topbar composition: `8f7dca8`;
+- refresh-state fix/guard: `60685c6`;
+- shared busy/cancel/result regressions: `a3307ce`;
+- topbar no-network Collector composition: `32c57f7`.
+
+Фактически изменён application/test contour:
+
+- `app/tenders/unified_search.py` — immutable pure profile/provider/query resolution;
+- `app/ui/tender_unified_search_panel.py` — единственная reusable panel без service ownership;
+- `app/ui/main_window.py` — единственный host и narrow submit/focus delegation;
+- `app/ui/modern_main_window.py`, `app/ui/widgets/topbar.py` — explicit tender-search contract;
+- `app/ui/tender_search_ui_controller.py` — panel ownership и sole Collector worker seam;
+- три RM-128 test modules и scoped RM-127/controller regression updates.
+
+Architecture evidence:
+
+- `TenderWorkspacePage` содержит одну panel и один existing tabs set;
+- controller/runtime/profile repository/provider manager/Collector session не создаются panel-слоем;
+- `_CollectorRunWorker(` встречается в production controller ровно в одном construction site;
+- topbar не содержит/не меняет `catalog_query`; equipment catalog search остаётся самостоятельным;
+- unified path повторно валидирует current profile/provider snapshots и вызывает async
+  `CollectorRunSession`; legacy `run_profile()` по-прежнему вызывает sync runner;
+- dialog, scheduler и panel разделяют один busy guard, worker, cancellation token, progress cleanup и
+  existing registry refresh;
+- unknown/disabled/stale provider в unified request отклоняется до worker/network без fallback;
+- completed/partial/cancelled/failure/invalid-result состояния отображаются раздельно.
+
+Локальная acceptance Windows/Python 3.12.7:
+
+| Check | Exact result |
+|---|---|
+| Focused RM-128/controller/bootstrap | `23 passed in 5.20s` |
+| Neighbor RM-127/UI/Collector | `66 passed in 8.80s` |
+| Full pytest | `1552 passed in 61.49s (0:01:01)` |
+| Secret scan | `Repository secret scan passed.` |
+| Ruff check | `All checks passed!` |
+| Ruff format | `545 files already formatted` |
+| mypy | `Success: no issues found in 20 source files` |
+| Offline credential smoke | `2 passed in 5.38s` |
+| Migration/schema smoke | `5 passed in 3.12s` |
+| Import smoke | `DashboardController` |
+| Bootstrap composition smoke | `1 passed in 0.27s` |
+| Build/release smoke | `6 passed in 4.17s` |
+| Dependency audit | `No known vulnerabilities found`; editable project skipped |
+| Diff/status | `git diff --check` success; clean before evidence update |
+
+DB/schema/migration version, `search_profiles.json` schema v1, dependencies, provider catalog,
+credentials, money/time policy, normalization/provenance, score/recommendation/AI и critical
+stop-factor priority не изменены. Composition tests запрещают network I/O; live provider checks не
+запускаются. Feature готова к PR, но RM-128 остаётся `IN PROGRESS` до merge, successful post-merge
+Windows Quality Gate Python 3.12/3.13 и отдельного docs-only closeout.
