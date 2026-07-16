@@ -2,16 +2,22 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+import pytest
 
 from app.tenders.collector.async_http import (
     AsyncHttpClient,
     AsyncHttpClientConfig,
     AsyncHttpTimeouts,
     AsyncRetryPolicy,
+)
+from app.tenders.collector.cancellation import (
+    CollectorCancellationToken,
+    CollectorCancelledError,
 )
 from app.tenders.collector.rate_limiter import (
     AsyncRateLimiter,
@@ -28,6 +34,10 @@ from app.tenders.providers.eis_async import AsyncEisTenderProvider
 FIXTURES = Path(__file__).parent / "fixtures"
 SEARCH_HTML = (FIXTURES / "eis_search_results.html").read_bytes()
 DOCUMENTS_HTML = (FIXTURES / "eis_documents.html").read_bytes()
+NOTICE_44_HTML = (FIXTURES / "eis" / "notice_44_current.html").read_bytes()
+SEARCH_223_HTML = (FIXTURES / "eis" / "search_223_current.html").read_bytes()
+NOTICE_223_HTML = (FIXTURES / "eis" / "notice_223_current.html").read_bytes()
+MAINTENANCE_HTML = (FIXTURES / "eis" / "maintenance.html").read_bytes()
 
 
 def _client(handler):
@@ -111,7 +121,12 @@ def test_async_eis_get_tender_and_documents() -> None:
 
         async def handler(request: httpx.Request) -> httpx.Response:
             calls.append(str(request.url))
-            body = DOCUMENTS_HTML if "documents.html" in request.url.path else SEARCH_HTML
+            if "documents.html" in request.url.path:
+                body = DOCUMENTS_HTML
+            elif "common-info.html" in request.url.path:
+                body = NOTICE_44_HTML
+            else:
+                body = SEARCH_HTML
             return httpx.Response(
                 200,
                 content=body,
@@ -125,6 +140,7 @@ def test_async_eis_get_tender_and_documents() -> None:
         documents = await provider.list_documents("0373100000126000001")
 
         assert tender.procurement_number == "0373100000126000001"
+        assert tender.customer.inn == "7701234567"
         assert [item.name for item in documents] == [
             "Описание объекта закупки.pdf",
             "Форма заявки.docx",
@@ -140,17 +156,75 @@ def test_async_eis_health_check_reports_public_html_mode() -> None:
         async def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
-                text="Единая информационная система в сфере закупок",
+                content=SEARCH_HTML,
                 request=request,
             )
 
         client, raw = _client(handler)
         provider = AsyncEisTenderProvider(client)
         health = await provider.check_health()
+        components = await provider.check_health_components()
 
         assert health.status == ProviderHealthStatus.AVAILABLE
         assert "public_html_async" in health.message
         assert health.latency_ms is not None
+        assert components.network_status == ProviderHealthStatus.AVAILABLE
+        assert components.parser_status == ProviderHealthStatus.AVAILABLE
+        assert components.diagnostics is not None
+        await raw.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_async_eis_get_tender_routes_223_fz_detail() -> None:
+    async def scenario() -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            body = NOTICE_223_HTML if "common-info.html" in request.url.path else SEARCH_223_HTML
+            return httpx.Response(200, content=body, request=request)
+
+        client, raw = _client(handler)
+        provider = AsyncEisTenderProvider(client)
+        tender = await provider.get_tender("32616073849")
+
+        assert tender.law == "223-ФЗ"
+        assert tender.customer.inn == "7801234567"
+        assert tender.price is not None
+        assert tender.price.amount == Decimal("9007199254740993.09")
+        assert tender.raw_metadata["parser_version"] == "eis-notice-223-v1"
+        await raw.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_async_eis_health_separates_network_from_parser_drift() -> None:
+    async def scenario() -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=MAINTENANCE_HTML, request=request)
+
+        client, raw = _client(handler)
+        report = await AsyncEisTenderProvider(client).check_health_components()
+
+        assert report.network_status == ProviderHealthStatus.AVAILABLE
+        assert report.parser_status == ProviderHealthStatus.DEGRADED
+        await raw.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_async_eis_get_tender_respects_cancellation() -> None:
+    async def scenario() -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=SEARCH_HTML, request=request)
+
+        client, raw = _client(handler)
+        token = CollectorCancellationToken()
+        token.cancel("stop")
+        provider = AsyncEisTenderProvider(client)
+        with pytest.raises(CollectorCancelledError):
+            await provider.get_tender(
+                "0373100000126000001",
+                cancellation_token=token,
+            )
         await raw.aclose()
 
     asyncio.run(scenario())

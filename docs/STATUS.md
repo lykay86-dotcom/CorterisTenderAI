@@ -13,6 +13,27 @@
 не создавая второй Collector, HTTP client, tender model, persistence root, scoring или analysis
 workflow. RM-127 временно возвращён в `PLANNED` и не выполняется параллельно.
 
+## Реализация активного подэтапа до merge
+
+Статус: `IMPLEMENTED, AWAITING PR/CI`
+
+Подтверждение:
+
+- audit и архитектурный план зафиксированы отдельным commit `955ec6a` до изменения application-кода;
+- `AsyncEisTenderProvider` сохранён в единой Collector/DI цепочке; второй Collector, HTTP client,
+  tender model, persistence root, DB schema, migration, scoring или analysis workflow не добавлены;
+- `get_tender()` теперь открывает detail-page через общий `AsyncHttpClient`, детерминированно разделяет
+  44-ФЗ и 223-ФЗ, строго валидирует обязательные поля и объединяет факты с search card;
+- добавлены `EisLawType`, versioned parsers, diagnostics, structural fail-closed policy, URL allowlist,
+  отдельные network/parser health, opt-in sanitized snapshots и read-only live canary;
+- `Decimal`, aware UTC+03:00 datetime, ИНН, КПП, `organizationCode`, provenance и JSON persistence
+  проверены offline tests; старые public imports и `ProviderDescriptor.id = "eis"` сохранены;
+- локальный EIS/Collector target: `69 passed in 6.35s`; полный pytest: `1524 passed in 54.24s`;
+- repository secret scan, Ruff check, Ruff format (`537 files`), mypy (20 файлов),
+  offline/migration/import/composition/build smoke tests и dependency audit успешны;
+- live ЕИС автоматически не вызывалась: canary создан, его `--help` smoke успешен, сам сетевой запуск
+  остаётся явной operator action и не входит в offline CI.
+
 ## Завершённая часть активного этапа
 
 **RM-126 — общий аудит раздела Тендеры**
@@ -54,6 +75,6 @@ workflow. RM-127 временно возвращён в `PLANNED` и не вып
 
 ## Текущее действие
 
-До изменения application-кода выполнить отдельный аудит текущего EIS parser/provider и создать
-`docs/EIS_PARSER_STAGE_1_AUDIT.md`. После этого реализовать RM-126.1 в существующей Collector-цепочке,
-пройти полный Windows Quality Gate и только затем вернуть RM-126 в `DONE` и активировать RM-127.
+Создать feature PR RM-126.1, дождаться Windows Quality Gate на Python 3.12/3.13, слить реализацию и
+проверить post-merge gate. Только после этого отдельным docs-only closeout вернуть RM-126 в `DONE` и
+назначить RM-127 единственным активным этапом.

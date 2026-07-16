@@ -18,6 +18,7 @@ from app.tenders.providers.eis import EisTenderProvider
 FIXTURES = Path(__file__).parent / "fixtures"
 SEARCH_HTML = (FIXTURES / "eis_search_results.html").read_bytes()
 DOCUMENTS_HTML = (FIXTURES / "eis_documents.html").read_bytes()
+NOTICE_44_HTML = (FIXTURES / "eis" / "notice_44_current.html").read_bytes()
 
 
 class FakeTransport:
@@ -28,6 +29,8 @@ class FakeTransport:
         self.calls.append(url)
         if "documents.html" in url:
             body = DOCUMENTS_HTML
+        elif "common-info.html" in url:
+            body = NOTICE_44_HTML
         elif "home.html" in url:
             body = "Единая информационная система в сфере закупок".encode()
         else:
@@ -85,6 +88,7 @@ def test_get_tender_and_documents_use_public_pages() -> None:
     documents = provider.list_documents("0373100000126000001")
 
     assert tender.procurement_number == "0373100000126000001"
+    assert tender.customer.inn == "7701234567"
     assert len(documents) == 2
     assert any("documents.html" in url for url in transport.calls)
 

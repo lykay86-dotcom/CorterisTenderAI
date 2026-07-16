@@ -9,9 +9,9 @@ reported to the user and are never bypassed.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from time import perf_counter
 from typing import Sequence
-from urllib.parse import urljoin
 
 from app.tenders.collector.async_http import (
     AsyncHttpClient,
@@ -47,6 +47,17 @@ from app.tenders.providers.eis import (
     eis_documents_url,
     matches_eis_query,
 )
+from app.tenders.providers.eis_parser.detail_router import (
+    detect_law,
+    merge_tender_details,
+    parse_detail,
+    resolve_detail_url,
+)
+from app.tenders.providers.eis_parser.documents_parser import DOCUMENTS_PARSER_VERSION
+from app.tenders.providers.eis_parser.models import EisHealthReport
+from app.tenders.providers.eis_parser.search_parser import SEARCH_PARSER_VERSION
+from app.tenders.providers.eis_parser.snapshots import EisSnapshotWriter
+from app.tenders.providers.eis_parser.validation import validate_eis_url
 
 
 class AsyncEisTenderProvider(AsyncTenderProvider):
@@ -70,7 +81,8 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         implementation_status="public_html_async",
     )
     connection_mode = "public_html_async"
-    parser_version = "eis-html-2"
+    parser_version = SEARCH_PARSER_VERSION
+    documents_parser_version = DOCUMENTS_PARSER_VERSION
 
     def __init__(
         self,
@@ -80,6 +92,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         network_settings: ProviderNetworkSettings | None = None,
         checkpoint_repository: CollectorStateRepository | None = None,
         checkpoint_policy: EisCheckpointPolicy | None = None,
+        snapshot_directory: Path | None = None,
     ) -> None:
         self.http_client = http_client
         self.config = config or EisProviderConfig()
@@ -91,6 +104,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
             checkpoint_repository,
             policy=checkpoint_policy,
         )
+        self.snapshots = EisSnapshotWriter(snapshot_directory)
 
     async def search(
         self,
@@ -107,6 +121,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
             url,
             cancellation_token=cancellation_token,
         )
+        self.snapshots.save_html("search", response.text())
         try:
             parsed = self.parser.parse_search(response.text())
         except EisAccessBlockedError:
@@ -178,7 +193,29 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
                 item.external_id,
                 item.procurement_number,
             }:
-                return item
+                law = detect_law(search_law=item.law, url=item.source_url)
+                detail_url = resolve_detail_url(
+                    external_id=normalized,
+                    source_url=item.source_url,
+                    law=law,
+                    base_url=self.config.base_url,
+                )
+                response = await self._get(
+                    detail_url,
+                    cancellation_token=cancellation_token,
+                )
+                page_kind = "notice_223" if law.value == "223-FZ" else "notice_44"
+                self.snapshots.save_html(page_kind, response.text())
+                try:
+                    details = parse_detail(
+                        response.text(),
+                        source_url=detail_url,
+                        law=law,
+                    )
+                except Exception as exc:
+                    self.snapshots.save_error(page_kind, exc)
+                    raise
+                return merge_tender_details(item, details)
         raise TenderProviderError(f"Закупка ЕИС {normalized} не найдена")
 
     async def list_documents(
@@ -211,37 +248,80 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
     ) -> ProviderHealth:
         started = perf_counter()
         checked_at = _utc_now()
-        try:
-            response = await self._get(
-                urljoin(self.config.base_url, self.config.home_path),
-                cancellation_token=cancellation_token,
-                raise_for_status=False,
-            )
-            text = response.text().casefold()
-            if response.status_code == 200 and (
-                "единая информационная система" in text or "закуп" in text
-            ):
-                status = ProviderHealthStatus.AVAILABLE
-                message = "Публичная часть ЕИС доступна; режим: public_html_async."
-            elif response.status_code == 200:
-                status = ProviderHealthStatus.DEGRADED
-                message = "ЕИС ответила, но содержимое страницы не распознано."
-            else:
-                status = ProviderHealthStatus.UNAVAILABLE
-                message = f"ЕИС вернула HTTP {response.status_code}."
-        except EisAccessBlockedError as exc:
-            status = ProviderHealthStatus.DEGRADED
-            message = str(exc)
-        except TenderProviderError as exc:
-            status = ProviderHealthStatus.UNAVAILABLE
-            message = str(exc)
+        report = await self.check_health_components(cancellation_token=cancellation_token)
 
         return ProviderHealth(
             provider_id=self.descriptor.id,
-            status=status,
+            status=report.status,
             checked_at=checked_at,
-            message=message,
+            message=(
+                "public_html_async; "
+                f"network={report.network_status.value}: {report.network_message}; "
+                f"parser={report.parser_status.value}: {report.parser_message}"
+            ),
             latency_ms=max(0, int((perf_counter() - started) * 1000)),
+        )
+
+    async def check_health_components(
+        self,
+        *,
+        cancellation_token: CollectorCancellationToken | None = None,
+    ) -> EisHealthReport:
+        """Run one read-only search probe and report network/parser health separately."""
+
+        url, _ = build_eis_search_url(
+            TenderSearchQuery(page=1, page_size=10, extra={"incremental": False}),
+            self.config,
+        )
+        try:
+            response = await self._get(
+                url,
+                cancellation_token=cancellation_token,
+                raise_for_status=False,
+            )
+        except EisAccessBlockedError as exc:
+            return EisHealthReport(
+                network_status=ProviderHealthStatus.DEGRADED,
+                parser_status=ProviderHealthStatus.DEGRADED,
+                network_message=str(exc),
+                parser_message="access protection page was not parsed",
+            )
+        except TenderProviderError as exc:
+            return EisHealthReport(
+                network_status=ProviderHealthStatus.UNAVAILABLE,
+                parser_status=ProviderHealthStatus.UNKNOWN,
+                network_message=str(exc),
+                parser_message="parser probe was not run",
+            )
+        if response.status_code != 200:
+            if response.status_code == 403:
+                return EisHealthReport(
+                    network_status=ProviderHealthStatus.DEGRADED,
+                    parser_status=ProviderHealthStatus.DEGRADED,
+                    network_message="HTTP 403 access protection",
+                    parser_message="access protection page was not parsed",
+                )
+            return EisHealthReport(
+                network_status=ProviderHealthStatus.UNAVAILABLE,
+                parser_status=ProviderHealthStatus.UNKNOWN,
+                network_message=f"HTTP {response.status_code}",
+                parser_message="parser probe was not run",
+            )
+        try:
+            parsed = self.parser.parse_search(response.text())
+        except TenderProviderError as exc:
+            return EisHealthReport(
+                network_status=ProviderHealthStatus.AVAILABLE,
+                parser_status=ProviderHealthStatus.DEGRADED,
+                network_message="public search page returned HTTP 200",
+                parser_message=str(exc),
+            )
+        return EisHealthReport(
+            network_status=ProviderHealthStatus.AVAILABLE,
+            parser_status=ProviderHealthStatus.AVAILABLE,
+            network_message="public search page returned HTTP 200",
+            parser_message="search page contract is valid",
+            diagnostics=parsed.diagnostics,
         )
 
     def validate_configuration(self) -> tuple[str, ...]:
@@ -261,9 +341,10 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         cancellation_token: CollectorCancellationToken | None,
         raise_for_status: bool = True,
     ):
+        safe_url = validate_eis_url(url, base_url=self.config.base_url)
         try:
             return await self.http_client.get(
-                url,
+                safe_url,
                 provider_id=self.descriptor.id,
                 headers={
                     "User-Agent": self.config.user_agent,
@@ -280,9 +361,9 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         except AsyncHttpError as exc:
             detail = str(exc)
             if exc.status_code == 403:
-                detail = (
-                    "ЕИС отклонила публичный запрос (HTTP 403). "
-                    "Автоматический обход защиты не выполняется."
+                raise EisAccessBlockedError(
+                    "ЕИС отклонила публичный запрос (HTTP 403); "
+                    "автоматический обход защиты не выполняется"
                 )
             elif "timeout" in detail.casefold():
                 detail = f"истёк сетевой тайм-аут ЕИС после {exc.attempts} попыток: {detail}"
