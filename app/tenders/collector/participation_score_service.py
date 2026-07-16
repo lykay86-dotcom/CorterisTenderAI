@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.tenders.business_profile import BusinessCapabilityProjection
 from app.tenders.collector.participation_score import (
     CorterisCompanyProfile,
     CorterisParticipationRanker,
@@ -107,22 +108,27 @@ class CorterisParticipationScoreService:
         capability = (
             self.capability_repository.load() if self.capability_repository is not None else None
         )
+        business_profile = (
+            BusinessCapabilityProjection.from_capability(capability)
+            if capability is not None
+            else None
+        )
         if ranker is None:
             ranker = (
                 CorterisParticipationRanker(
-                    CorterisCompanyProfile.from_capability(capability),
+                    CorterisCompanyProfile.from_business_profile(business_profile),
                     classifier=(
                         CorterisTenderClassifier(self.matching_catalog_repository.load_profile())
                         if self.matching_catalog_repository is not None
                         else None
                     ),
                 )
-                if capability is not None
+                if business_profile is not None
                 else CorterisParticipationRanker()
             )
         stop_engine = self.stop_factor_engine
-        if stop_engine is None and capability is not None:
-            stop_engine = StopFactorEngine(capability)
+        if stop_engine is None and business_profile is not None:
+            stop_engine = StopFactorEngine(business_profile)
         stop_assessment = (
             stop_engine.evaluate(normalized, tender, analysis=analysis)
             if stop_engine is not None

@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.ai.provider import AIProvider
     from app.core.ai.orchestrator import TenderAiOrchestrator
+    from app.tenders.collector.company_capability import (
+        CompanyCapabilityProfileRepository,
+    )
     from app.tenders.collector.participation_score_service import (
         CorterisParticipationScoreService,
     )
@@ -68,6 +71,7 @@ class TenderSearchRuntime:
     ai_orchestrator: "TenderAiOrchestrator | None" = None
     full_analysis_service: "TenderFullAnalysisService | None" = None
     matching_catalog_repository: MatchingCatalogRepository | None = None
+    capability_repository: "CompanyCapabilityProfileRepository | None" = None
     commercial_estimate_repository: CommercialEstimateRepository | None = None
     aggregator_discovery_repository: "AggregatorDiscoveryRepository | None" = None
 
@@ -224,6 +228,7 @@ def create_tender_search_runtime(
         ai_orchestrator=ai_orchestrator,
         full_analysis_service=full_analysis_service,
         matching_catalog_repository=matching_catalog_repository,
+        capability_repository=capability_repository,
         commercial_estimate_repository=commercial_estimate_repository,
         aggregator_discovery_repository=aggregator_discovery_repository,
     )

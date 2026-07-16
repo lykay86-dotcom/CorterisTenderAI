@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.tenders.business_profile import BusinessCapabilityProjection
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.collector_service import CollectorService
 from app.tenders.collector.company_capability import (
@@ -118,6 +119,7 @@ def create_default_collector_service(
     capability = CompanyCapabilityProfileRepository(
         data_path / "company_capability_profile.json"
     ).load()
+    business_profile = BusinessCapabilityProjection.from_capability(capability)
     matching_profile = MatchingCatalogRepository(
         data_path / "tender_registry.sqlite3"
     ).load_profile()
@@ -125,10 +127,10 @@ def create_default_collector_service(
         engine,
         repository,
         ranker=CorterisParticipationRanker(
-            CorterisCompanyProfile.from_capability(capability),
+            CorterisCompanyProfile.from_business_profile(business_profile),
             classifier=CorterisTenderClassifier(matching_profile),
         ),
-        stop_factor_engine=StopFactorEngine(capability),
+        stop_factor_engine=StopFactorEngine(business_profile),
     )
 
 

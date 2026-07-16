@@ -813,13 +813,17 @@ class TenderSearchUiController(QObject):
         parent = self.parent()
         parent_widget = parent if isinstance(parent, QWidget) else None
         if self._company_capability_dialog is None:
-            self._company_capability_dialog = CompanyCapabilityDialog(
-                CompanyCapabilityProfileRepository(
+            repository = self.runtime.capability_repository
+            if repository is None:
+                repository = CompanyCapabilityProfileRepository(
                     self.data_directory / "company_capability_profile.json"
-                ),
+                )
+            self._company_capability_dialog = CompanyCapabilityDialog(
+                repository,
                 parent=parent_widget,
             )
-        self._company_capability_dialog.load_profile()
+        else:
+            self._company_capability_dialog.load_profile()
         self._company_capability_dialog.open()
         self._company_capability_dialog.raise_()
         self._company_capability_dialog.activateWindow()

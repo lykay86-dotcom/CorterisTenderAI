@@ -21,7 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.tenders.business_profile import BusinessCapabilityProjection
 from app.tenders.collector.company_capability import (
+    CompanyCapabilityLoadResult,
+    CompanyCapabilityLoadStatus,
     CompanyCapabilityProfile,
     CompanyCapabilityProfileRepository,
 )
@@ -68,6 +71,7 @@ class CompanyCapabilityDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.repository = repository
+        self.load_result: CompanyCapabilityLoadResult
         self.text_fields: dict[str, QLineEdit] = {}
         self.money_fields: dict[str, QLineEdit] = {}
         self.setWindowTitle("Corteris Tender AI — возможности компании")
@@ -88,42 +92,57 @@ class CompanyCapabilityDialog(QDialog):
         form = QFormLayout(content)
 
         self.company_name = QLineEdit(content)
+        self.company_name.textChanged.connect(self._invalidate_confirmation)
         form.addRow("Компания", self.company_name)
         for name, label in _TEXT_FIELDS.items():
             edit = QLineEdit(content)
             edit.setPlaceholderText("Значения через ;")
+            edit.textChanged.connect(self._invalidate_confirmation)
             self.text_fields[name] = edit
             form.addRow(label, edit)
 
         self.crew_count = QSpinBox(content)
         self.crew_count.setRange(-1, 10000)
         self.crew_count.setSpecialValueText("Не указано")
+        self.crew_count.valueChanged.connect(self._invalidate_confirmation)
         form.addRow("Количество монтажных бригад", self.crew_count)
 
         for name, label in _MONEY_FIELDS.items():
             edit = QLineEdit(content)
             edit.setPlaceholderText("Не указано")
+            edit.textChanged.connect(self._invalidate_confirmation)
             self.money_fields[name] = edit
             form.addRow(label, edit)
+
+        self.base_currency = QLineEdit(content)
+        self.base_currency.setMaxLength(3)
+        self.base_currency.setPlaceholderText("RUB")
+        self.base_currency.textChanged.connect(self._invalidate_confirmation)
+        form.addRow("Базовая валюта (ISO 4217)", self.base_currency)
 
         self.payment_days = QSpinBox(content)
         self.payment_days.setRange(-1, 3650)
         self.payment_days.setSpecialValueText("Не указано")
+        self.payment_days.valueChanged.connect(self._invalidate_confirmation)
         form.addRow("Допустимый срок оплаты, дней", self.payment_days)
         self.deferment_days = QSpinBox(content)
         self.deferment_days.setRange(-1, 3650)
         self.deferment_days.setSpecialValueText("Не указано")
+        self.deferment_days.valueChanged.connect(self._invalidate_confirmation)
         form.addRow("Максимальная отсрочка, дней", self.deferment_days)
 
         self.designers = QComboBox(content)
         self.designers.addItem("Не указано", None)
         self.designers.addItem("Есть", True)
         self.designers.addItem("Нет", False)
+        self.designers.currentIndexChanged.connect(self._invalidate_confirmation)
         form.addRow("Проектировщики", self.designers)
 
         self.evidence_note = QLineEdit(content)
+        self.evidence_note.textChanged.connect(self._invalidate_confirmation)
         form.addRow("Основание подтверждения", self.evidence_note)
         self.confirmed_by = QLineEdit(content)
+        self.confirmed_by.textChanged.connect(self._invalidate_confirmation)
         form.addRow("Подтвердил", self.confirmed_by)
         self.confirmation = QCheckBox(
             "Подтверждаю, что сохранённые сведения проверены",
@@ -148,7 +167,8 @@ class CompanyCapabilityDialog(QDialog):
         self.load_profile()
 
     def load_profile(self) -> None:
-        profile = self.repository.load()
+        self.load_result = self.repository.load_result()
+        profile = self.load_result.profile
         self.company_name.setText(profile.company_name)
         for name, edit in self.text_fields.items():
             edit.setText("; ".join(getattr(profile, name)))
@@ -158,6 +178,7 @@ class CompanyCapabilityDialog(QDialog):
         for name, edit in self.money_fields.items():
             value = getattr(profile, name)
             edit.setText(str(value) if value is not None else "")
+        self.base_currency.setText(profile.base_currency)
         self.payment_days.setValue(
             profile.acceptable_payment_days if profile.acceptable_payment_days is not None else -1
         )
@@ -169,47 +190,87 @@ class CompanyCapabilityDialog(QDialog):
         self.evidence_note.setText(profile.evidence_note)
         self.confirmed_by.setText(profile.confirmed_by)
         self.confirmation.setChecked(profile.is_confirmed)
-        self._show_profile_status(profile)
+        self._show_profile_status(profile, load_result=self.load_result)
 
     def build_profile(self) -> CompanyCapabilityProfile:
         if not self.confirmation.isChecked():
             raise ValueError("Подтвердите достоверность сведений")
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         values: dict[str, object] = {name: edit.text() for name, edit in self.text_fields.items()}
         values.update({name: _decimal_from_edit(edit) for name, edit in self.money_fields.items()})
-        return CompanyCapabilityProfile(
+        draft = CompanyCapabilityProfile(
             company_name=self.company_name.text().strip(),
             installation_crew_count=_int_from_spin(self.crew_count),
             acceptable_payment_days=_int_from_spin(self.payment_days),
             maximum_deferment_days=_int_from_spin(self.deferment_days),
             has_designers=self.designers.currentData(),
-            evidence_note=self.evidence_note.text().strip(),
-            confirmed_by=self.confirmed_by.text().strip(),
-            confirmed_at=now,
-            updated_at=now,
+            base_currency=self.base_currency.text().strip(),
             **values,
+        )
+        return draft.confirm(
+            confirmed_by=self.confirmed_by.text().strip(),
+            confirmed_at=datetime.now(timezone.utc),
+            evidence_note=self.evidence_note.text().strip(),
         )
 
     def save_profile(self) -> None:
         try:
             profile = self.build_profile()
             self.repository.save(profile)
-            stored = self.repository.load()
+            self.load_result = self.repository.load_result()
+            stored = self.load_result.profile
         except Exception as exc:
             QMessageBox.warning(self, "Возможности компании", str(exc))
             return
-        self._show_profile_status(stored)
+        self.confirmation.setChecked(stored.is_confirmed)
+        self._show_profile_status(stored, load_result=self.load_result)
         self.profile_saved.emit(stored)
 
-    def _show_profile_status(self, profile: CompanyCapabilityProfile) -> None:
-        if profile.is_configured and not profile.missing_sections:
-            self.status.setText("Профиль подтверждён и заполнен.")
-        elif profile.is_configured:
+    def _show_profile_status(
+        self,
+        profile: CompanyCapabilityProfile,
+        *,
+        load_result: CompanyCapabilityLoadResult | None = None,
+    ) -> None:
+        result = load_result
+        if result is not None and result.status is CompanyCapabilityLoadStatus.CORRUPT:
             self.status.setText(
-                "Профиль подтверждён. Не заполнено: " + ", ".join(profile.missing_sections) + "."
+                "Файл профиля повреждён. Исходный файл сохранён без изменений; "
+                "восстановите корректную копию перед сохранением."
+            )
+            return
+        if result is not None and result.status is CompanyCapabilityLoadStatus.UNSUPPORTED_FUTURE:
+            version = (
+                str(result.source_schema_version)
+                if result.source_schema_version is not None
+                else "неизвестна"
+            )
+            self.status.setText(
+                "Версия файла профиля "
+                f"({version}) новее поддерживаемой. Файл сохранён без изменений."
+            )
+            return
+
+        projection = BusinessCapabilityProjection.from_capability(profile)
+        prefix = ""
+        if result is not None and result.status is CompanyCapabilityLoadStatus.MIGRATED_V1:
+            prefix = (
+                "Профиль schema v1 безопасно загружен в памяти; "
+                "явное сохранение обновит его до schema v2. "
+            )
+        if projection.is_configured and not projection.missing_sections:
+            message = "Профиль подтверждён и заполнен."
+        elif projection.is_configured:
+            message = (
+                "Профиль подтверждён. Не заполнено: " + ", ".join(projection.missing_sections) + "."
             )
         else:
-            self.status.setText("Недостаточно данных о возможностях компании.")
+            message = "Недостаточно данных о возможностях компании."
+        self.status.setText(prefix + message)
+
+    def _invalidate_confirmation(self, *_args: object) -> None:
+        self.confirmation.setChecked(False)
+        if hasattr(self, "status"):
+            self.status.setText("Изменения требуют нового явного подтверждения.")
 
 
 def _int_from_spin(spin: QSpinBox) -> int | None:
