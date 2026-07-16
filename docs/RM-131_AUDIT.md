@@ -299,3 +299,70 @@ RM-131 public boundary:
 There was no application assertion failure, network call, Qt failure, Windows Temp error or unrelated
 baseline regression. Ruff check passed and Ruff format reported all seven new files formatted.
 Production implementation is unblocked by the audit/test ordering gate.
+
+## 16. Feature acceptance evidence
+
+Implementation is fixed in three scoped production/regression commits:
+
+- `83f4c0a` — canonical descriptor identity, schema-v2 typed load, strict endpoint validation and
+  deterministic split-v1 migration inside the existing repository;
+- `b7398bd` — one immutable settings snapshot across manager/session/factory and existing provider,
+  unified, Collector, scheduler and legacy handoff UI;
+- `a27b44b` — corrupt/future pre-runtime blocking, conflict/alias/byte-preservation/security guards and
+  public typed exports.
+
+The existing owners remain singular: one `CollectorProviderManager`, one canonical
+`<data>/collector_provider_settings.json`, one existing async factory/session, one provider manager
+dialog and one scheduler/controller path. `commercial_provider_settings.json` is read only as split-v1
+migration input and is never deleted or written by the manager. Health JSON, C19 SQLite verification,
+keyring/environment credential boundaries and legacy `UserSettingsStore.platforms` remain separate.
+
+Accepted behavior:
+
+- schema v2 preserves the boolean `providers` map and adds only aware UTC `updated_at` plus strict
+  non-secret `configuration`;
+- missing/current/migrated/corrupt/future are typed; corrupt/future bytes are preserved and block UI
+  mutation, factory construction and Collector runtime before network creation;
+- first split-v1 mutation creates byte-exact timestamped backups of both existing sources, atomically
+  replaces only the canonical file, cleans temp on failure and does not repeat migration;
+- general enablement wins over legacy commercial enablement with a bounded conflict warning;
+- only audited aliases map to canonical IDs; profile/schedule files remain byte-identical and generic
+  `commercial` is rejected;
+- environment overrides are runtime-only, visible as read-only origin and absent from persistence;
+- public/display snapshot contains no credentials or masked secret fragments;
+- persisted manager state is passed through `CollectorRunSession` to the existing factory, removing
+  the former UI/run commercial settings divergence;
+- save refreshes manager, unified panel, Collector dialog and scheduler dialog; legacy manual
+  connection testing is explicitly marked compatibility and links to the canonical manager;
+- EIS/MOS adapters, commercial honest-placeholder behavior, cancellation/partial collection,
+  health/C19 state, RM-130 profile schema and deterministic decision/critical-stop semantics remain
+  unchanged.
+
+Exact local Windows/Python 3.12.7 results on 17 July 2026:
+
+| Check | Exact result |
+|---|---|
+| Focused seven RM-131 modules | `30 passed in 4.37s` |
+| Neighbor provider/UI/factory/session/scheduler/legacy contour | `76 passed in 12.01s` |
+| Full pytest | `1686 passed in 63.19s (0:01:03)` |
+| Repository secret scan | `Repository secret scan passed.` |
+| Ruff check | `All checks passed!` |
+| Ruff format | `562 files already formatted` |
+| Mypy | `Success: no issues found in 20 source files` |
+| Offline credential smoke | `2 passed in 4.58s` |
+| Migration/schema smoke | `5 passed in 2.92s` |
+| Public import smoke | `DashboardController` |
+| Headless composition smoke | `1 passed in 0.18s` |
+| Release/build smoke | `6 passed in 3.15s` |
+| Dependency audit | `No known vulnerabilities found`; editable project skipped |
+| Diff/status | `git diff --check` success; tracked worktree clean |
+
+The first workflow-shaped pytest smoke attempt reached no application code and reported two setup
+errors because global `%LOCALAPPDATA%\Temp\pytest-of-сooocorteris` is inaccessible (`WinError 5`).
+The exact same tests passed with repository-local ignored basetemp as permitted by the handoff. The
+first sandboxed dependency audit was blocked by cache/socket permissions (`WinError 10013`); the exact
+command passed with approved external/cache access and no intervening code or dependency change.
+
+**FEATURE IMPLEMENTATION READY FOR PR/CI.** RM-131 remains `IN PROGRESS`. It must not be marked
+`DONE`, and RM-132 must not start, until the feature PR is merged, the exact merge-SHA Windows Quality
+Gate succeeds on Python 3.12 and 3.13, and a separate docs-only closeout is merged.

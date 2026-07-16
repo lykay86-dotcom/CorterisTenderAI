@@ -783,6 +783,14 @@ RM-125 соответствует Definition of Done; следующим акт�
   - Baseline Windows/Python 3.12.7: provider/UI/factory/session/scheduler/legacy contour
     `41 passed in 9.41s`, full pytest `1656 passed in 80.26s`; post-closeout GitHub run
     `29535586550` успешен на Python 3.12/3.13.
+  - Audit-first sequence соблюдена: docs-only `243ab56`, expected-red `4c13913` (`7 errors in
+    4.49s` только по отсутствующим RM-131 boundaries), implementation/regression `83f4c0a`,
+    `b7398bd`, `a27b44b`.
+  - Feature acceptance Windows/Python 3.12.7: focused `30 passed in 4.37s`, neighbor
+    `76 passed in 12.01s`, full pytest `1686 passed in 63.19s`; secret scan, Ruff check/format
+    (`562 files`), mypy, offline/migration/import/composition/build smoke, dependency audit и
+    diff/status checks успешны. RM-131 остаётся `IN PROGRESS` до feature merge, exact-SHA Windows
+    gate 3.12/3.13 и отдельного docs-only closeout.
 - [ ] RM-132 — Безопасный ввод API и credentials.
 - [ ] RM-133 — Ручное добавление площадки.
 - [ ] RM-134 — Выбор протокола.
