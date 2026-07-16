@@ -1,5 +1,36 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-130 завершён, RM-131 активирован
+
+- Audit `docs/RM-130_AUDIT.md` и implementation plan зафиксированы docs-only commit `09d60cc` до
+  application changes; expected-red characterization — commit `f206c0d`.
+- Existing `TenderSearchProfileRepository` повышен до schema v2 в прежнем
+  `<data_directory>/search_profiles.json`; immutable typed load fail-closed различает
+  missing/current/migrated-v1/corrupt/future и не уничтожает original.
+- Первая explicit mutation valid v1 создаёт byte-for-byte backup и atomic replace; corrupt/future
+  source не перезаписывается, replace failure сохраняет original и очищает temp.
+- Canonical built-in ID membership является единственным источником built-in identity; custom
+  profiles, disabled state, IDs и deterministic order сохраняются при load/migration/restore.
+- `SAVED_PROFILE` и `KEYWORD_OVERRIDE` фиксируют существующую RM-128 семантику; transient text
+  заменяет только keywords текущего запуска и не изменяет model/repository bytes.
+- Profile price editor использует exact Decimal-safe boundary без float; explicit currency и
+  aware-or-unknown timestamps сохраняются без guessed timezone.
+- Один repository/path/dialog/editor/unified panel/Collector worker owner сохранён; legacy sync
+  runner, async Collector, scheduler profile-ID behavior и RM-129 business projection не заменены.
+- DB/schema/migrations, dependencies, provider settings/credentials, normalization/ranking,
+  score/recommendation/critical stop-factor, AI и RM-131+ production scope не изменены.
+- Локальная acceptance: focused `82 passed in 9.68s`, neighbor `64 passed in 6.33s`, full pytest
+  `1656 passed in 60.73s`; secret scan, Ruff/format (`554 files`), mypy, workflow smokes,
+  dependency audit и diff-check успешны.
+- Feature PR #66 (`feat(rm-130): add safe saved search profile schema v2`) слит в `main` коммитом
+  `3a4d530` (`3a4d53067b7b0f8eaf0b5969c139284c9d5ed987`).
+- PR Quality Gate run `29533900495` успешен: Python 3.12 — `1656 passed in 101.17s`, Python 3.13 —
+  `1656 passed in 150.85s`.
+- Exact merge-SHA run `29534568925` успешен: Python 3.12 — `1656 passed in 141.74s`,
+  Python 3.13 — `1656 passed in 66.21s`; все обязательные jobs завершились `success`.
+- RM-130 переведён в `DONE`; RM-131 назначен единственным `IN PROGRESS` для audit-first
+  консолидации existing provider settings/catalog. RM-132–RM-200 остаются `PLANNED`.
+
 ## 2026-07-16 — RM-129 завершён, RM-130 активирован
 
 - Audit `docs/RM-129_AUDIT.md` и implementation plan зафиксированы docs-only commit `ddb8427` до
