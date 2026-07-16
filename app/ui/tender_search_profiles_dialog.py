@@ -27,6 +27,8 @@ from PySide6.QtWidgets import (
 
 from app.tenders.search_profile_repository import (
     BuiltinSearchProfileError,
+    SearchProfileCatalogLoadStatus,
+    SearchProfileCatalogMutationError,
     SearchProfileNotFoundError,
     TenderSearchProfileRepository,
 )
@@ -57,6 +59,8 @@ class TenderSearchProfilesPanel(QWidget):
         self._theme = ThemeName(theme)
         self._draft_is_new = False
         self._search_busy = False
+        self._catalog_mutation_blocked = False
+        self._catalog_status_message = ""
 
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 16, 18, 16)
@@ -251,7 +255,13 @@ class TenderSearchProfilesPanel(QWidget):
         *,
         select_id: str | None = None,
     ) -> None:
-        profiles = self.repository.list_profiles()
+        result = self.repository.load_result()
+        profiles = result.profiles
+        self._catalog_mutation_blocked = result.status in {
+            SearchProfileCatalogLoadStatus.CORRUPT,
+            SearchProfileCatalogLoadStatus.UNSUPPORTED_FUTURE,
+        }
+        self._catalog_status_message = self._catalog_message(result.status)
         preferred_id = (
             select_id or self.selected_profile_id() or (profiles[0].id if profiles else None)
         )
@@ -284,6 +294,11 @@ class TenderSearchProfilesPanel(QWidget):
             self.editor.clear_editor()
         self._draft_is_new = False
         self._update_actions()
+        if self._catalog_status_message:
+            self._set_status(
+                self._catalog_status_message,
+                error=self._catalog_mutation_blocked,
+            )
 
     @staticmethod
     def _profile_item_text(
@@ -319,7 +334,13 @@ class TenderSearchProfilesPanel(QWidget):
             return
 
         self.editor.load_profile(profile)
-        self._set_status("")
+        if self._catalog_status_message:
+            self._set_status(
+                self._catalog_status_message,
+                error=self._catalog_mutation_blocked,
+            )
+        else:
+            self._set_status("")
         self._update_actions()
 
     def _create_copy(self) -> None:
@@ -378,7 +399,7 @@ class TenderSearchProfilesPanel(QWidget):
                 profile,
                 replace_existing=not self._draft_is_new,
             )
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, SearchProfileCatalogMutationError) as exc:
             message = str(exc)
             self.editor.show_validation_error(message)
             self._set_status(message, error=True)
@@ -410,6 +431,9 @@ class TenderSearchProfilesPanel(QWidget):
                 error=True,
             )
             return
+        except SearchProfileCatalogMutationError as exc:
+            self._set_status(exc.public_message, error=True)
+            return
 
         self._refresh_profiles()
         self._set_status(f"Профиль «{removed.name}» удалён.")
@@ -420,10 +444,14 @@ class TenderSearchProfilesPanel(QWidget):
         if profile is None or self._draft_is_new:
             return
 
-        updated = self.repository.set_enabled(
-            profile.id,
-            not profile.enabled,
-        )
+        try:
+            updated = self.repository.set_enabled(
+                profile.id,
+                not profile.enabled,
+            )
+        except SearchProfileCatalogMutationError as exc:
+            self._set_status(exc.public_message, error=True)
+            return
         self._refresh_profiles(select_id=updated.id)
         self._set_status(
             (f"Профиль «{updated.name}» " + ("включён." if updated.enabled else "отключён."))
@@ -431,7 +459,11 @@ class TenderSearchProfilesPanel(QWidget):
 
     def _restore_builtins(self) -> None:
         selected_id = self.selected_profile_id()
-        self.repository.restore_builtin_profiles()
+        try:
+            self.repository.restore_builtin_profiles()
+        except SearchProfileCatalogMutationError as exc:
+            self._set_status(exc.public_message, error=True)
+            return
         self._refresh_profiles(select_id=selected_id)
         self._set_status(("Стандартные профили восстановлены. Пользовательские профили сохранены."))
 
@@ -467,7 +499,7 @@ class TenderSearchProfilesPanel(QWidget):
         profile = self.selected_profile()
         has_profile = profile is not None
 
-        interactive = not self._search_busy
+        interactive = not self._search_busy and not self._catalog_mutation_blocked
         self.restore_button.setEnabled(interactive)
         self.create_button.setEnabled(has_profile and interactive)
         self.save_button.setEnabled(self.editor.profile is not None and interactive)
@@ -488,6 +520,22 @@ class TenderSearchProfilesPanel(QWidget):
             )
         else:
             self.toggle_button.setText("Отключить профиль")
+
+    @staticmethod
+    def _catalog_message(status: SearchProfileCatalogLoadStatus) -> str:
+        if status is SearchProfileCatalogLoadStatus.MIGRATED_V1:
+            return (
+                "Каталог загружен из schema v1. Первая правка создаст резервную "
+                "копию и сохранит schema v2."
+            )
+        if status is SearchProfileCatalogLoadStatus.CORRUPT:
+            return (
+                "Каталог профилей повреждён. Исходный файл сохранён без изменений; "
+                "изменение и запуск заблокированы."
+            )
+        if status is SearchProfileCatalogLoadStatus.UNSUPPORTED_FUTURE:
+            return "Версия каталога новее поддерживаемой. Изменение и запуск заблокированы."
+        return ""
 
     def _set_status(
         self,

@@ -9,6 +9,7 @@ import pytest
 from app.tenders.corteris_filter import TenderDirection
 from app.tenders.search_profile_repository import (
     BuiltinSearchProfileError,
+    SearchProfileCatalogLoadStatus,
     SearchProfileNotFoundError,
     TenderSearchProfileRepository,
 )
@@ -39,7 +40,7 @@ def test_repository_initializes_builtin_catalog(tmp_path) -> None:
     assert profiles[0].id == "all-corteris"
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert len(payload["profiles"]) == 7
 
 
@@ -85,17 +86,20 @@ def test_disabled_profiles_can_be_hidden(tmp_path) -> None:
     assert not repository.get("ops").enabled
 
 
-def test_corrupt_catalog_is_quarantined_and_rebuilt(
+def test_corrupt_catalog_is_quarantined_without_rewriting_original(
     tmp_path,
 ) -> None:
     path = tmp_path / "search_profiles.json"
-    path.write_text("{not-json", encoding="utf-8")
+    original = b"{not-json"
+    path.write_bytes(original)
     repository = TenderSearchProfileRepository(path)
 
     profiles = repository.initialize()
+    result = repository.load_result()
 
-    assert len(profiles) == 7
-    assert path.is_file()
+    assert profiles == ()
+    assert result.status is SearchProfileCatalogLoadStatus.CORRUPT
+    assert path.read_bytes() == original
     assert list(tmp_path.glob("search_profiles.corrupt-*.json"))
 
 

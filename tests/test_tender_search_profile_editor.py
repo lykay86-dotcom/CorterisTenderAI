@@ -42,8 +42,8 @@ def test_editor_parses_regions_prices_and_extra_laws() -> None:
     editor.load_profile(profile)
 
     editor.regions_edit.setPlainText("Москва\nМосковская область, Москва")
-    editor.min_price_spin.setValue(150_000)
-    editor.max_price_spin.setValue(5_000_000)
+    editor.min_price_spin.setText("150000")
+    editor.max_price_spin.setText("5000000")
     editor.additional_laws_edit.setText("615-ПП, 223-ФЗ")
     editor.provider_ids_edit.setText("eis, rts_tender, eis")
 

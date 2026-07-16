@@ -5,10 +5,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import date
+from enum import StrEnum
 
 from app.tenders.collector.provider_control import ProviderDisplayState
 from app.tenders.provider_base import TenderSearchQuery
-from app.tenders.search_profiles import TenderSearchProfile
+from app.tenders.search_profiles import (
+    SearchProfileRuntimeQueryPolicy,
+    TenderSearchProfile,
+)
 
 
 class UnifiedTenderSearchValidationError(ValueError):
@@ -18,6 +22,13 @@ class UnifiedTenderSearchValidationError(ValueError):
         normalized = " ".join(str(public_message).split())
         super().__init__(normalized[:300])
         self.public_message = normalized[:300]
+
+
+class SearchProfileExecutionMode(StrEnum):
+    """Auditable interpretation of transient runtime query text."""
+
+    SAVED_PROFILE = "saved_profile"
+    KEYWORD_OVERRIDE = "keyword_override"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +47,7 @@ class ResolvedUnifiedTenderSearch:
     profile: TenderSearchProfile
     query: TenderSearchQuery
     provider_ids: tuple[str, ...]
+    execution_mode: SearchProfileExecutionMode
 
 
 def resolve_unified_tender_search(
@@ -78,13 +90,22 @@ def resolve_unified_tender_search(
 
     query = profile.to_search_query(today=today)
     query_text = " ".join(str(request.query_text).split())
+    if profile.runtime_query_policy is not (
+        SearchProfileRuntimeQueryPolicy.REPLACE_KEYWORDS_IF_PRESENT
+    ):
+        raise UnifiedTenderSearchValidationError(
+            "Политика текста запроса выбранного профиля не поддерживается."
+        )
+    execution_mode = SearchProfileExecutionMode.SAVED_PROFILE
     if query_text:
         query = replace(query, keywords=(query_text,))
+        execution_mode = SearchProfileExecutionMode.KEYWORD_OVERRIDE
 
     return ResolvedUnifiedTenderSearch(
         profile=profile,
         query=query,
         provider_ids=normalized_provider_ids,
+        execution_mode=execution_mode,
     )
 
 
@@ -102,6 +123,7 @@ def _normalize_provider_ids(provider_ids: Iterable[object]) -> tuple[str, ...]:
 
 __all__ = [
     "ResolvedUnifiedTenderSearch",
+    "SearchProfileExecutionMode",
     "UnifiedTenderSearchRequest",
     "UnifiedTenderSearchValidationError",
     "resolve_unified_tender_search",
