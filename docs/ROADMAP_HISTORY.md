@@ -1,5 +1,27 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-16 — RM-126.1 завершён, RM-127 активирован
+
+- Feature PR #58 (`feat(rm-126.1): harden EIS parser stage 1`) слит в `main` коммитом `b6369c8`
+  (`b6369c85791b9c06a97f03a1fbb2504c88a1dea7`).
+- Post-merge Quality Gate run `29460395144` завершился статусом `SUCCESS`: Python 3.12 —
+  `1524 passed in 95.38s`, Python 3.13 — `1524 passed in 71.31s`.
+- На обеих версиях прошли Ruff check/format (`537 files`), mypy (20 файлов), repository secret scan,
+  offline/migration/import/composition/build smoke tests и dependency audit.
+- Audit `docs/EIS_PARSER_STAGE_1_AUDIT.md` и architecture plan были зафиксированы commit `955ec6a`
+  до production changes; implementation commit `ca3e6c2` сохранил единую Collector/DI цепочку.
+- `get_tender()` открывает detail-page; 44-ФЗ и 223-ФЗ разделены детерминированным router; mandatory
+  fields и HTML drift проверяются fail-closed; добавлены parser versions, diagnostics, separate
+  network/parser health, allowed hosts, opt-in sanitized snapshots, fixtures и read-only live canary.
+- Новый Collector, HTTP client, tender model, persistence root, DB schema/migration, scoring или
+  analysis workflow не добавлены; deterministic decision и critical stop-factor priority не изменены.
+- Локальная приёмка: EIS/Collector target `69 passed in 6.35s`, full `1524 passed in 54.24s`,
+  repository secret scan, Ruff, mypy, smoke tests, dependency audit и diff-check успешны.
+- Live canary не запускался автоматически против внешней ЕИС; сетевой запуск остаётся явной
+  operator action и не входит в offline CI.
+- Общий RM-126, включая поздний подэтап RM-126.1, переведён в `DONE`; RM-127 назначен единственным
+  `IN PROGRESS`, RM-128–RM-200 остаются `PLANNED`.
+
 ## 2026-07-16 — RM-126 переоткрыт для технического подэтапа RM-126.1
 
 - После завершения audit/closeout RM-126 владелец проекта предоставил и явно подтвердил позднее
