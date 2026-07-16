@@ -9,10 +9,17 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from app.ui.modern_main_window import ModernMainWindow
+from app.ui.tender_search_ui_controller import TenderSearchUiController
 from app.ui.tender_unified_search_panel import TenderUnifiedSearchPanel
 from app.ui.widgets.topbar import TopBar
 from tests.test_rm127_modern_main_window_composition import _window
 from tests.test_rm127_tender_workspace_contract import _page
+from tests.test_tender_collector_ui_controller import (
+    CapturingThreadPool,
+    FakeCollectorSession,
+    FakeProviderManager,
+    _runtime,
+)
 
 
 def _app() -> QApplication:
@@ -64,3 +71,40 @@ def test_topbar_emits_one_string() -> None:
     topbar.search.returnPressed.emit()
 
     assert requested == ["камеры"]
+
+
+def test_topbar_uses_the_installed_controller_collector_path(tmp_path, monkeypatch) -> None:
+    app = _app()
+    monkeypatch.setattr(
+        "app.ui.pages.business_workflow_page.SystemHealthMonitor.request_refresh",
+        lambda _self: False,
+    )
+    window = _window(monkeypatch)
+    session = FakeCollectorSession()
+    pool = CapturingThreadPool()
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=_runtime(tmp_path),
+        provider_manager=FakeProviderManager(),
+        collector_session=session,
+        thread_pool=pool,
+        parent=window,
+    )
+    controller.install_on_tender_workspace(window.tender_workspace_page)
+    window.tender_workspace_page.catalog_query.setText("прайс остаётся")
+
+    window._global_search("  камеры   IP  ")
+
+    assert len(pool.runnables) == 1
+    worker = pool.runnables[0]
+    assert worker.query.keywords == ("камеры IP",)
+    assert worker.provider_ids == ("eis",)
+    assert session.calls == []
+    assert window.tender_workspace_page.catalog_query.text() == "прайс остаётся"
+
+    window._global_search("   ")
+    assert len(pool.runnables) == 1
+
+    window.close()
+    window.deleteLater()
+    app.processEvents()
