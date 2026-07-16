@@ -41,8 +41,9 @@ def _profile(*, sro: bool = False) -> CompanyCapabilityProfile:
         working_capital="10000000",
         equipment=("камеры",),
         suppliers=("поставщик",),
-        confirmed_at="2026-07-12T09:00:00+00:00",
+    ).confirm(
         confirmed_by="user",
+        confirmed_at=datetime(2026, 7, 12, 9, 0, tzinfo=timezone.utc),
     )
 
 
@@ -156,7 +157,10 @@ def test_high_score_cannot_override_structured_block() -> None:
 
 
 def test_security_above_confirmed_limit_is_blocked() -> None:
-    profile = replace(_profile(), max_contract_security="500000")
+    profile = replace(_profile(), max_contract_security="500000").confirm(
+        confirmed_by="user",
+        confirmed_at=datetime(2026, 7, 12, 9, 0, tzinfo=timezone.utc),
+    )
     tender = make_tender(
         title="Монтаж видеонаблюдения",
         amount="10000000",

@@ -55,8 +55,11 @@ from app.tenders.collector.currency_store import (
     parse_cbr_daily_xml,
 )
 from app.tenders.collector.company_capability import (
+    CompanyCapabilityLoadResult,
+    CompanyCapabilityLoadStatus,
     CompanyCapabilityProfile,
     CompanyCapabilityProfileRepository,
+    migrate_company_capability_v1,
 )
 from app.tenders.collector.models import (
     CollectionPersistenceSummary,
@@ -129,6 +132,8 @@ __all__ = [
     "CollectionRunRecord",
     "CollectionRunStatus",
     "CollectorCheckpoint",
+    "CompanyCapabilityLoadResult",
+    "CompanyCapabilityLoadStatus",
     "CompanyCapabilityProfile",
     "CompanyCapabilityProfileRepository",
     "CollectorRunResult",
@@ -160,6 +165,7 @@ __all__ = [
     "normalize_digits",
     "normalize_identifier",
     "normalize_text",
+    "migrate_company_capability_v1",
     "query_to_payload",
     "stable_hash",
     "stable_json",

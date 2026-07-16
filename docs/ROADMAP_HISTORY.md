@@ -1,5 +1,31 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-16 — RM-129: feature acceptance подготовлена
+
+- Audit `docs/RM-129_AUDIT.md` и implementation plan зафиксированы docs-only commit `ddb8427` до
+  production changes; expected-red characterization — commit `3331131`.
+- Существующий `CompanyCapabilityProfileRepository` повышен до schema v2 в том же JSON path;
+  v1 мигрируется только in memory, typed load различает missing/current/migrated/corrupt/future,
+  invalid/future original не перезаписывается.
+- Content-bound confirmation version 1 exact-связывает все decision facts с deterministic SHA-256;
+  explicit `base_currency` нормализуется, money остаётся decimal strings, timestamps — aware UTC.
+- Pure frozen `BusinessCapabilityProjection` отделяет facts от Corteris completeness/scoring policy и
+  fail-closed скрывает неподтверждённые capability facts.
+- Manual recalculation и automatic Collector строят одну projection для existing ranker и
+  `StopFactorEngine`; v1/v2 golden components/explanations/recommendation/stop/final-decision guards
+  совпадают, critical block остаётся абсолютным.
+- Existing runtime/controller/dialog используют один repository instance; UI вызывает domain
+  confirmation, требует новое подтверждение после edit и показывает migrated/corrupt/future status без
+  auto-save.
+- Matching catalog/`canonical_term`, saved search profiles, DB/migrations, provider/network,
+  dependencies, AI и `ParticipationDecisionService` production code не изменены.
+- Локальная acceptance на feature HEAD `a99252b`: focused `76 passed in 5.25s`, neighbor
+  `38 passed in 6.85s`, adjacent summary/full-analysis `51 passed in 3.53s`, full pytest
+  `1623 passed in 70.35s`; secret scan, Ruff/format (`549 files`), mypy, workflow smokes,
+  dependency audit и diff-check успешны.
+- Это feature evidence, не closeout: RM-129 остаётся `IN PROGRESS` до feature PR/merge, exact-SHA
+  Windows Quality Gate 3.12/3.13 и отдельного docs-only closeout. RM-130 остаётся `PLANNED`.
+
 ## 2026-07-16 — RM-128 завершён, RM-129 активирован
 
 - Audit `docs/RM-128_AUDIT.md` и implementation plan зафиксированы docs-only commit `39605d0` до
