@@ -74,7 +74,16 @@ def test_current_v3_roundtrip_is_deterministic_and_does_not_repeat_backup(tmp_pa
     path = tmp_path / "collector_provider_settings.json"
     repository = ProviderEnablementRepository(path)
     first = _registration(f"manual_{'c' * 32}")
-    second = _registration(f"manual_{'a' * 32}")
+    now = datetime(2026, 7, 17, 9, 30, tzinfo=timezone.utc)
+    second = ManualProviderRegistration(
+        provider_id=f"manual_{'a' * 32}",
+        display_name="Другая площадка",
+        homepage_url="https://other.example.test",
+        endpoint_url="https://api.other.example.test/v1",
+        lifecycle_state=ManualProviderLifecycle.PROTOCOL_REQUIRED,
+        created_at=now,
+        updated_at=now,
+    )
 
     repository.register_manual_provider(first)
     repository.register_manual_provider(second)

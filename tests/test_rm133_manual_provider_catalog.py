@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime, timezone
 
 import pytest
@@ -67,7 +68,7 @@ def test_manual_registration_appears_once_with_no_runtime_capabilities() -> None
     assert manual.health_check_available is False
     assert manual.descriptor.source is TenderSource.CUSTOM
     assert manual.descriptor.enabled_by_default is False
-    assert not any(vars(manual.descriptor.capabilities).values())
+    assert not any(asdict(manual.descriptor.capabilities).values())
 
 
 def test_loading_order_is_deterministic() -> None:
@@ -106,3 +107,16 @@ def test_loading_order_is_deterministic() -> None:
 def test_ambiguous_name_or_endpoint_catalog_fails_closed(registrations) -> None:
     with pytest.raises(ValueError, match="manual provider conflict"):
         resolved_provider_catalog(registrations)
+
+
+def test_manual_display_name_cannot_shadow_builtin_provider() -> None:
+    with pytest.raises(ValueError, match="manual provider conflict"):
+        resolved_provider_catalog(
+            (
+                _registration(
+                    f"manual_{'6' * 32}",
+                    name="  еис закупки  ",
+                    endpoint="https://custom.example.test/api",
+                ),
+            )
+        )

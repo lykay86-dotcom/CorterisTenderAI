@@ -30,6 +30,10 @@ from app.tenders.collector.provider_control import (
     ProviderDisplayState,
     ProviderUiState,
 )
+from app.tenders.collector.manual_provider_registration import (
+    ManualProviderDraft,
+    ManualProviderRegistration,
+)
 from app.tenders.collector.provider_settings import (
     ProviderConfiguration,
     ProviderSettingOrigin,
@@ -44,6 +48,8 @@ class TenderProviderManagerDialog(QDialog):
     provider_check_requested = Signal(str)
     provider_configuration_requested = Signal(str)
     provider_credentials_requested = Signal(str)
+    manual_provider_add_requested = Signal()
+    manual_provider_edit_requested = Signal(str)
     check_all_requested = Signal()
 
     def __init__(
@@ -146,6 +152,20 @@ class TenderProviderManagerDialog(QDialog):
         root.addWidget(details_frame)
 
         actions = QHBoxLayout()
+        self.add_manual_provider_button = QPushButton(
+            "Добавить площадку вручную",
+            self,
+        )
+        self.add_manual_provider_button.setObjectName("AddManualProviderButton")
+        self.add_manual_provider_button.clicked.connect(self.manual_provider_add_requested.emit)
+        self.edit_manual_provider_button = QPushButton(
+            "Изменить регистрацию",
+            self,
+        )
+        self.edit_manual_provider_button.setObjectName("EditManualProviderButton")
+        self.edit_manual_provider_button.clicked.connect(
+            lambda: self.manual_provider_edit_requested.emit(self.selected_provider_id())
+        )
         self.configure_button = QPushButton("Настроить API", self)
         self.configure_button.setObjectName("ConfigureProviderButton")
         self.configure_button.clicked.connect(
@@ -166,6 +186,8 @@ class TenderProviderManagerDialog(QDialog):
             "Обновить состояния",
             self,
         )
+        actions.addWidget(self.add_manual_provider_button)
+        actions.addWidget(self.edit_manual_provider_button)
         actions.addWidget(self.configure_button)
         actions.addWidget(self.credentials_button)
         actions.addWidget(self.check_all_button)
@@ -301,7 +323,11 @@ class TenderProviderManagerDialog(QDialog):
 
         button = QPushButton("Проверить", self.table)
         button.setObjectName(f"checkProvider_{state.provider_id}")
-        button.setEnabled(state.enabled and state.provider_id not in self._checking)
+        button.setEnabled(
+            state.enabled
+            and state.health_check_available
+            and state.provider_id not in self._checking
+        )
         button.clicked.connect(
             lambda _checked=False, provider_id=state.provider_id: (
                 self.provider_check_requested.emit(provider_id)
@@ -332,6 +358,7 @@ class TenderProviderManagerDialog(QDialog):
             self.details.clear()
             self.configure_button.setEnabled(False)
             self.credentials_button.setEnabled(False)
+            self.edit_manual_provider_button.setEnabled(False)
             return
 
         self.configure_button.setEnabled(
@@ -339,9 +366,13 @@ class TenderProviderManagerDialog(QDialog):
             and state.configuration_editable
         )
         self.credentials_button.setEnabled(
-            state.provider_id == "mos_supplier"
-            or state.implementation_status == "commercial_access_pending"
+            state.credential_available
+            and (
+                state.provider_id == "mos_supplier"
+                or state.implementation_status == "commercial_access_pending"
+            )
         )
+        self.edit_manual_provider_button.setEnabled(state.registration_only)
 
         latency = f"{state.latency_ms} мс" if state.latency_ms is not None else "не измерена"
         configuration = "<br>".join(_escape_html(item) for item in state.configuration_details)
@@ -480,6 +511,122 @@ class TenderProviderManagerDialog(QDialog):
         )
 
 
+class ManualProviderRegistrationDialog(QDialog):
+    """Presentation-only editor for inert manual provider metadata."""
+
+    def __init__(
+        self,
+        registration: ManualProviderRegistration | None = None,
+        *,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._accepted_once = False
+        self.setWindowTitle(
+            "Изменить регистрацию площадки"
+            if registration is not None
+            else "Добавить площадку вручную"
+        )
+        self.setModal(True)
+        self.setObjectName("ManualProviderRegistrationDialog")
+
+        root = QVBoxLayout(self)
+        notice = QLabel(
+            "Сохраняются только декларативные metadata. "
+            "Для запуска потребуется отдельный выбор протокола.",
+            self,
+        )
+        notice.setObjectName("ManualProviderRegistrationNotice")
+        notice.setWordWrap(True)
+        root.addWidget(notice)
+
+        form = QFormLayout()
+        self.display_name_edit = QLineEdit(self)
+        self.display_name_edit.setObjectName("ManualProviderDisplayName")
+        self.display_name_edit.setAccessibleName("Название площадки")
+        self.display_name_edit.setMaxLength(160)
+        self.display_name_edit.setPlaceholderText("Название площадки")
+        form.addRow("Название площадки", self.display_name_edit)
+
+        self.homepage_url_edit = QLineEdit(self)
+        self.homepage_url_edit.setObjectName("ManualProviderHomepageUrl")
+        self.homepage_url_edit.setAccessibleName("Официальный сайт площадки")
+        self.homepage_url_edit.setMaxLength(2048)
+        self.homepage_url_edit.setPlaceholderText("https://example.ru")
+        form.addRow("Официальный сайт", self.homepage_url_edit)
+
+        self.endpoint_url_edit = QLineEdit(self)
+        self.endpoint_url_edit.setObjectName("ManualProviderEndpointUrl")
+        self.endpoint_url_edit.setAccessibleName("Endpoint metadata")
+        self.endpoint_url_edit.setMaxLength(2048)
+        self.endpoint_url_edit.setPlaceholderText("Необязательно")
+        form.addRow("Endpoint metadata", self.endpoint_url_edit)
+        root.addLayout(form)
+
+        if registration is not None:
+            self.display_name_edit.setText(registration.display_name)
+            self.homepage_url_edit.setText(registration.homepage_url)
+            self.endpoint_url_edit.setText(registration.endpoint_url)
+
+        self.validation_label = QLabel("", self)
+        self.validation_label.setObjectName("ManualProviderValidationMessage")
+        self.validation_label.setWordWrap(True)
+        root.addWidget(self.validation_label)
+
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+            self,
+        )
+        self.save_button = self.buttons.button(QDialogButtonBox.StandardButton.Save)
+        self.save_button.setText("Сохранить")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
+        self.buttons.accepted.connect(self._accept_valid)
+        self.buttons.rejected.connect(self.reject)
+        root.addWidget(self.buttons)
+
+        for editor in (
+            self.display_name_edit,
+            self.homepage_url_edit,
+            self.endpoint_url_edit,
+        ):
+            editor.textChanged.connect(self._refresh_validation)
+        self._refresh_validation()
+
+    def draft(self) -> ManualProviderDraft:
+        return ManualProviderDraft(
+            display_name=self.display_name_edit.text(),
+            homepage_url=self.homepage_url_edit.text(),
+            endpoint_url=self.endpoint_url_edit.text(),
+        )
+
+    def _refresh_validation(self) -> None:
+        if self._accepted_once:
+            self.save_button.setEnabled(False)
+            return
+        try:
+            self.draft()
+        except (TypeError, ValueError):
+            self.save_button.setEnabled(False)
+            self.validation_label.setText(
+                "Укажите безопасные название и HTTP(S) адрес без credentials/query/fragment."
+            )
+            return
+        self.validation_label.clear()
+        self.save_button.setEnabled(True)
+
+    def _accept_valid(self) -> None:
+        if self._accepted_once:
+            return
+        try:
+            self.draft()
+        except (TypeError, ValueError):
+            self._refresh_validation()
+            return
+        self._accepted_once = True
+        self.save_button.setEnabled(False)
+        self.accept()
+
+
 class TenderProviderConfigurationDialog(QDialog):
     """Presentation-only editor for known non-secret provider fields."""
 
@@ -584,6 +731,7 @@ def _origin_label(origin: ProviderSettingOrigin) -> str:
 
 
 __all__ = [
+    "ManualProviderRegistrationDialog",
     "TenderProviderConfigurationDialog",
     "TenderProviderManagerDialog",
 ]

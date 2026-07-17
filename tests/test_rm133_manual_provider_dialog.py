@@ -10,10 +10,12 @@ from PySide6.QtWidgets import QApplication, QComboBox, QLineEdit, QPushButton
 
 from app.tenders.collector.manual_provider_registration import ManualProviderDraft
 from app.tenders.collector.provider_control import CollectorProviderManager
+from app.tenders.search_runtime import create_tender_search_runtime
 from app.ui.tender_provider_manager_dialog import (
     ManualProviderRegistrationDialog,
     TenderProviderManagerDialog,
 )
+from app.ui.tender_search_ui_controller import TenderSearchUiController
 
 
 def _app() -> QApplication:
@@ -118,3 +120,31 @@ def test_manual_edit_signal_preserves_selected_id(tmp_path) -> None:
     dialog.edit_manual_provider_button.click()
 
     assert requested == [created.provider_id]
+
+
+def test_saved_profile_and_scheduler_entry_reject_manual_id_before_worker(tmp_path) -> None:
+    app = _app()
+    manager = CollectorProviderManager(
+        tmp_path,
+        manual_provider_id_factory=lambda: f"manual_{'6' * 32}",
+    )
+    created = manager.register_manual_provider(
+        ManualProviderDraft("Площадка", "https://example.test")
+    )
+    runtime = create_tender_search_runtime(tmp_path)
+
+    class _ThreadPoolTripwire:
+        def start(self, _runnable) -> None:
+            raise AssertionError("collector worker must not start")
+
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=runtime,
+        provider_manager=manager,
+        thread_pool=_ThreadPoolTripwire(),
+    )
+    profile = runtime.repository.list_profiles(include_disabled=False)[0]
+
+    assert controller.try_start_collector(profile.id, (created.provider_id,)) is False
+    assert controller._collector_worker is None
+    app.processEvents()

@@ -73,6 +73,7 @@ def test_registration_and_snapshot_perform_zero_network_or_dns(tmp_path, monkeyp
 
     assert result.status is ManualProviderCommandStatus.CREATED
     assert manager.settings_snapshot().get(result.provider_id).enabled is False
+    assert not (tmp_path / "tender_registry.sqlite3").exists()
 
 
 def test_enabled_true_json_tampering_does_not_make_manual_registration_runnable(tmp_path) -> None:
