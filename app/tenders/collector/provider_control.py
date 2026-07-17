@@ -9,6 +9,7 @@ from enum import StrEnum
 import json
 from pathlib import Path
 from threading import RLock
+from uuid import uuid4
 
 from app.tenders.collector.async_provider_factory import (
     create_default_async_providers,
@@ -22,8 +23,25 @@ from app.tenders.collector.provider_settings import (
     ProviderSettingOrigin,
     ProviderSettingsRecord,
     ProviderSettingsLoadStatus,
+    ProviderSettingsMutationError,
     ProviderSettingsSnapshot,
     create_provider_settings_snapshot,
+)
+from app.tenders.collector.manual_provider_registration import (
+    ManualProviderCommandResult,
+    ManualProviderCommandStatus,
+    ManualProviderConflictError,
+    ManualProviderDraft,
+    ManualProviderErrorCategory,
+    ManualProviderExecutionError,
+    ManualProviderLifecycle,
+    ManualProviderRegistration,
+    create_manual_provider_registration,
+)
+from app.tenders.collector.provider_definitions import (
+    ProviderCatalogEntry,
+    ProviderCatalogOrigin,
+    resolved_provider_catalog,
 )
 from app.tenders.provider_base import (
     ProviderDescriptor,
@@ -199,6 +217,15 @@ class ProviderDisplayState:
     configuration_editable: bool = True
     settings_status: ProviderSettingsLoadStatus = ProviderSettingsLoadStatus.MISSING
     credential_state: CredentialState | None = None
+    origin: ProviderCatalogOrigin = ProviderCatalogOrigin.BUILTIN
+    lifecycle: ManualProviderLifecycle | None = None
+    registration_only: bool = False
+    runnable: bool = True
+    factory_available: bool = True
+    protocol_configured: bool = True
+    credential_available: bool = True
+    health_check_available: bool = True
+    manual_registration: ManualProviderRegistration | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not self.provider_id.strip():
@@ -210,12 +237,15 @@ class _ProviderDefinitionView:
     descriptor: ProviderDescriptor
     connection_mode: str
     configuration_details: tuple[str, ...]
+    catalog_entry: ProviderCatalogEntry | None = None
 
 
 HealthChecker = Callable[
     [tuple[str, ...]],
     Awaitable[Mapping[str, ProviderHealth]],
 ]
+ManualProviderIdFactory = Callable[[], str]
+ManualProviderClock = Callable[[], datetime]
 
 
 class CollectorProviderManager:
@@ -231,6 +261,8 @@ class CollectorProviderManager:
         health_checker: HealthChecker | None = None,
         credential_service: ProviderCredentialService | None = None,
         vertical_verification_repository: (VerticalSourceVerificationRepository | None) = None,
+        manual_provider_id_factory: ManualProviderIdFactory | None = None,
+        manual_provider_clock: ManualProviderClock | None = None,
     ) -> None:
         self.data_directory = Path(data_directory).expanduser()
         self.data_directory.mkdir(parents=True, exist_ok=True)
@@ -253,6 +285,10 @@ class CollectorProviderManager:
             environment=self.environment
         )
         self._credential_states: dict[tuple[str, str], CredentialStateResult] = {}
+        self._manual_provider_id_factory = manual_provider_id_factory or (
+            lambda: f"manual_{uuid4().hex}"
+        )
+        self._manual_provider_clock = manual_provider_clock or (lambda: datetime.now(timezone.utc))
         self.vertical_verification_repository = (
             vertical_verification_repository
             or VerticalSourceVerificationRepository(self.data_directory / "tender_registry.sqlite3")
@@ -284,12 +320,24 @@ class CollectorProviderManager:
     def resolve_provider_ids(self, provider_ids: Iterable[str]) -> tuple[str, ...]:
         return self.settings_snapshot().resolve_provider_ids(tuple(provider_ids))
 
+    def assert_runnable_provider_ids(
+        self,
+        provider_ids: Iterable[str],
+    ) -> tuple[str, ...]:
+        return self.settings_snapshot().assert_runnable_provider_ids(tuple(provider_ids))
+
     def set_enabled(
         self,
         provider_id: str,
         enabled: bool,
     ) -> ProviderDisplayState:
         normalized = self.resolve_provider_ids((provider_id,))[0]
+        try:
+            self.settings_snapshot().get_manual(normalized)
+        except KeyError:
+            pass
+        else:
+            raise ManualProviderExecutionError()
         definitions = {
             item.descriptor.id.casefold(): item
             for item in self._definitions(self.settings_snapshot())
@@ -323,6 +371,160 @@ class CollectorProviderManager:
             raise PermissionError("Provider configuration is overridden by environment")
         self.settings_repository.set_configuration(normalized, configuration)
         return next(item for item in self.states() if item.provider_id == normalized)
+
+    def register_manual_provider(
+        self,
+        draft: ManualProviderDraft,
+    ) -> ManualProviderCommandResult:
+        provider_id = "unknown"
+        try:
+            provider_id = str(self._manual_provider_id_factory()).strip().casefold()
+            timestamp = self._manual_provider_clock()
+            registration = create_manual_provider_registration(
+                draft,
+                provider_id=provider_id,
+                timestamp=timestamp,
+            )
+            self.settings_repository.register_manual_provider(registration)
+        except ManualProviderConflictError as exc:
+            return _manual_command_result(
+                provider_id,
+                ManualProviderCommandStatus.DUPLICATE,
+                exc.category,
+                "Площадка с такими данными уже зарегистрирована.",
+                self._safe_manual_timestamp(),
+            )
+        except ProviderSettingsMutationError:
+            status = self.settings_repository.load_result().status
+            return _manual_command_result(
+                provider_id,
+                (
+                    ManualProviderCommandStatus.UNSUPPORTED_SCHEMA
+                    if status is ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE
+                    else ManualProviderCommandStatus.PERSISTENCE_UNAVAILABLE
+                ),
+                (
+                    ManualProviderErrorCategory.UNSUPPORTED_SCHEMA
+                    if status is ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE
+                    else ManualProviderErrorCategory.PERSISTENCE_UNAVAILABLE
+                ),
+                "Регистрация недоступна: проверьте файл настроек.",
+                self._safe_manual_timestamp(),
+            )
+        except (TypeError, ValueError, AttributeError):
+            return _manual_command_result(
+                "unknown",
+                ManualProviderCommandStatus.INVALID_INPUT,
+                ManualProviderErrorCategory.INVALID_INPUT,
+                "Данные площадки отклонены безопасной валидацией.",
+                self._safe_manual_timestamp(),
+            )
+        except OSError:
+            return _manual_command_result(
+                provider_id,
+                ManualProviderCommandStatus.PERSISTENCE_UNAVAILABLE,
+                ManualProviderErrorCategory.PERSISTENCE_UNAVAILABLE,
+                "Не удалось сохранить регистрацию площадки.",
+                self._safe_manual_timestamp(),
+            )
+        except Exception:
+            return _manual_command_result(
+                provider_id,
+                ManualProviderCommandStatus.OPERATION_FAILED_SAFE,
+                ManualProviderErrorCategory.OPERATION_FAILED,
+                "Операция регистрации не выполнена.",
+                self._safe_manual_timestamp(),
+            )
+        return _manual_command_result(
+            registration.provider_id,
+            ManualProviderCommandStatus.CREATED,
+            ManualProviderErrorCategory.NONE,
+            "Площадка зарегистрирована; требуется выбор протокола.",
+            registration.updated_at,
+        )
+
+    def update_manual_provider(
+        self,
+        provider_id: str,
+        draft: ManualProviderDraft,
+    ) -> ManualProviderCommandResult:
+        normalized = str(provider_id).strip().casefold()
+        try:
+            current = self.settings_snapshot().get_manual(normalized)
+            validated = ManualProviderDraft(
+                display_name=draft.display_name,
+                homepage_url=draft.homepage_url,
+                endpoint_url=draft.endpoint_url,
+            )
+            updated = ManualProviderRegistration(
+                provider_id=current.provider_id,
+                display_name=validated.display_name,
+                homepage_url=validated.homepage_url,
+                endpoint_url=validated.endpoint_url,
+                lifecycle_state=current.lifecycle_state,
+                created_at=current.created_at,
+                updated_at=self._manual_provider_clock(),
+            )
+            self.settings_repository.update_manual_provider(updated)
+        except ManualProviderConflictError as exc:
+            return _manual_command_result(
+                normalized,
+                ManualProviderCommandStatus.DUPLICATE,
+                exc.category,
+                "Площадка с такими данными уже зарегистрирована.",
+                self._safe_manual_timestamp(),
+            )
+        except KeyError:
+            return _manual_command_result(
+                "unknown",
+                ManualProviderCommandStatus.CONFLICT,
+                ManualProviderErrorCategory.IDENTITY_COLLISION,
+                "Регистрация площадки не найдена.",
+                self._safe_manual_timestamp(),
+            )
+        except (TypeError, ValueError, AttributeError):
+            return _manual_command_result(
+                normalized or "unknown",
+                ManualProviderCommandStatus.INVALID_INPUT,
+                ManualProviderErrorCategory.INVALID_INPUT,
+                "Данные площадки отклонены безопасной валидацией.",
+                self._safe_manual_timestamp(),
+            )
+        except ProviderSettingsMutationError:
+            return _manual_command_result(
+                normalized or "unknown",
+                ManualProviderCommandStatus.PERSISTENCE_UNAVAILABLE,
+                ManualProviderErrorCategory.PERSISTENCE_UNAVAILABLE,
+                "Изменение регистрации недоступно.",
+                self._safe_manual_timestamp(),
+            )
+        except OSError:
+            return _manual_command_result(
+                normalized or "unknown",
+                ManualProviderCommandStatus.PERSISTENCE_UNAVAILABLE,
+                ManualProviderErrorCategory.PERSISTENCE_UNAVAILABLE,
+                "Не удалось сохранить изменения площадки.",
+                self._safe_manual_timestamp(),
+            )
+        except Exception:
+            return _manual_command_result(
+                normalized or "unknown",
+                ManualProviderCommandStatus.OPERATION_FAILED_SAFE,
+                ManualProviderErrorCategory.OPERATION_FAILED,
+                "Операция изменения не выполнена.",
+                self._safe_manual_timestamp(),
+            )
+        return _manual_command_result(
+            updated.provider_id,
+            ManualProviderCommandStatus.UPDATED,
+            ManualProviderErrorCategory.NONE,
+            "Данные площадки обновлены; требуется выбор протокола.",
+            updated.updated_at,
+        )
+
+    def _safe_manual_timestamp(self) -> datetime:
+        value = self._manual_provider_clock()
+        return value if value.utcoffset() is not None else datetime.now(timezone.utc)
 
     def credential_state(
         self,
@@ -394,6 +596,8 @@ class CollectorProviderManager:
         unknown = [provider_id for provider_id in normalized_ids if provider_id not in known]
         if unknown:
             raise KeyError(", ".join(unknown))
+        if any(known[provider_id].registration_only for provider_id in normalized_ids):
+            raise ManualProviderExecutionError()
 
         selected = tuple(
             provider_id for provider_id in normalized_ids if known[provider_id].enabled
@@ -464,6 +668,10 @@ class CollectorProviderManager:
         self,
         snapshot: ProviderSettingsSnapshot,
     ) -> tuple[_ProviderDefinitionView, ...]:
+        catalog = {
+            item.descriptor.id.casefold(): item
+            for item in resolved_provider_catalog(snapshot.manual_registrations)
+        }
         mos_credential_state = self._credential_states.get(("mos_supplier", "api_key"))
         result = [
             _ProviderDefinitionView(
@@ -474,6 +682,7 @@ class CollectorProviderManager:
                     "Резервный режим, не официальный API.",
                     "CAPTCHA и ограничения сайта не обходятся.",
                 ),
+                catalog_entry=catalog["eis"],
             ),
             _ProviderDefinitionView(
                 descriptor=(AsyncMosSupplierTenderProvider.descriptor),
@@ -486,6 +695,7 @@ class CollectorProviderManager:
                     ),
                     "Официальный API Портала поставщиков.",
                 ),
+                catalog_entry=catalog["mos_supplier"],
             ),
         ]
 
@@ -505,6 +715,20 @@ class CollectorProviderManager:
                             else "Проверенный API endpoint не задан."
                         ),
                     ),
+                    catalog_entry=catalog[definition.provider_id.casefold()],
+                )
+            )
+        for registration in snapshot.manual_registrations:
+            entry = catalog[registration.provider_id]
+            result.append(
+                _ProviderDefinitionView(
+                    descriptor=entry.descriptor,
+                    connection_mode="manual_protocol_required",
+                    configuration_details=(
+                        "Регистрация сохранена без протокола и адаптера.",
+                        "Для продолжения требуется отдельный этап выбора протокола.",
+                    ),
+                    catalog_entry=entry,
                 )
             )
         return tuple(
@@ -522,10 +746,15 @@ class CollectorProviderManager:
         settings_status: ProviderSettingsLoadStatus,
     ) -> ProviderDisplayState:
         descriptor = definition.descriptor
+        catalog_entry = definition.catalog_entry
         enabled = bool(settings.enabled)
         details = definition.configuration_details
 
-        if settings_status is ProviderSettingsLoadStatus.CORRUPT:
+        if catalog_entry is not None and catalog_entry.registration_only:
+            enabled = False
+            ui_state = ProviderUiState.NOT_CONFIGURED
+            status_text = "Требуется выбор протокола"
+        elif settings_status is ProviderSettingsLoadStatus.CORRUPT:
             ui_state = ProviderUiState.ERROR
             status_text = "Файл настроек повреждён; запуск заблокирован"
         elif settings_status is ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE:
@@ -562,7 +791,8 @@ class CollectorProviderManager:
             enabled_origin=settings.enabled_origin,
             configuration_origin=settings.configuration_origin,
             enabled_editable=(
-                settings.enabled_origin is not ProviderSettingOrigin.ENVIRONMENT
+                not (catalog_entry is not None and catalog_entry.registration_only)
+                and settings.enabled_origin is not ProviderSettingOrigin.ENVIRONMENT
                 and settings_status
                 not in {
                     ProviderSettingsLoadStatus.CORRUPT,
@@ -582,6 +812,29 @@ class CollectorProviderManager:
                 self._credential_states.get((descriptor.id.casefold(), "api_key")).state
                 if (descriptor.id.casefold(), "api_key") in self._credential_states
                 else None
+            ),
+            origin=(
+                catalog_entry.origin if catalog_entry is not None else ProviderCatalogOrigin.BUILTIN
+            ),
+            lifecycle=(catalog_entry.lifecycle if catalog_entry is not None else None),
+            registration_only=(
+                catalog_entry.registration_only if catalog_entry is not None else False
+            ),
+            runnable=(catalog_entry.runnable if catalog_entry is not None else True),
+            factory_available=(
+                catalog_entry.factory_available if catalog_entry is not None else True
+            ),
+            protocol_configured=(
+                catalog_entry.protocol_configured if catalog_entry is not None else True
+            ),
+            credential_available=(
+                catalog_entry.credential_available if catalog_entry is not None else False
+            ),
+            health_check_available=(
+                catalog_entry.health_check_available if catalog_entry is not None else True
+            ),
+            manual_registration=(
+                catalog_entry.manual_registration if catalog_entry is not None else None
             ),
         )
 
@@ -672,6 +925,7 @@ def _connection_mode_label(value: str) -> str:
         "public_html_async": ("Публичный HTML · резервный режим"),
         "official_api_bearer": ("Официальный API · Bearer"),
         "commercial_access_pending": ("API-доступ ожидает подтверждения"),
+        "manual_protocol_required": "Ручная регистрация · протокол не выбран",
     }.get(value, value or "Не указан")
 
 
@@ -685,6 +939,23 @@ def _commercial_configuration_message(configuration: ProviderConfiguration) -> s
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _manual_command_result(
+    provider_id: str,
+    status: ManualProviderCommandStatus,
+    error_category: ManualProviderErrorCategory,
+    message: str,
+    observed_at: datetime,
+) -> ManualProviderCommandResult:
+    return ManualProviderCommandResult(
+        provider_id=provider_id if provider_id.startswith("manual_") else "unknown",
+        status=status,
+        lifecycle=ManualProviderLifecycle.PROTOCOL_REQUIRED,
+        error_category=error_category,
+        message=message,
+        observed_at=observed_at,
+    )
 
 
 __all__ = [

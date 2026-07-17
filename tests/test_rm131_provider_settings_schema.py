@@ -1,4 +1,4 @@
-"""RM-131 schema-v2 contract for canonical non-secret provider settings."""
+"""RM-131 non-secret settings contract retained by current schema v3."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def test_current_schema_roundtrips_only_allowed_non_secret_fields(tmp_path) -> N
         access_confirmed=True,
         api_base_url="https://api.example.test/v1",
     )
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == ProviderEnablementRepository.SCHEMA_VERSION == 3
     assert payload["providers"] == {"b2b_center": True}
     assert payload["configuration"] == {
         "b2b_center": {
@@ -57,6 +57,7 @@ def test_current_schema_roundtrips_only_allowed_non_secret_fields(tmp_path) -> N
             "api_base_url": "https://api.example.test/v1",
         }
     }
+    assert payload["manual_registrations"] == {}
     assert datetime.fromisoformat(payload["updated_at"]).utcoffset() is not None
 
 

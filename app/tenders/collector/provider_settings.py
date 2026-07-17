@@ -17,7 +17,15 @@ from app.tenders.collector.provider_definitions import (
     canonical_provider_definitions,
     canonical_provider_id,
     provider_aliases,
-    resolve_provider_ids,
+)
+from app.tenders.collector.manual_provider_registration import (
+    ManualProviderConflictError,
+    ManualProviderErrorCategory,
+    ManualProviderExecutionError,
+    ManualProviderLifecycle,
+    ManualProviderRegistration,
+    manual_display_name_key,
+    validate_manual_registration_uniqueness,
 )
 from app.tenders.provider_base import ProviderDescriptor
 
@@ -25,6 +33,7 @@ from app.tenders.provider_base import ProviderDescriptor
 class ProviderSettingsLoadStatus(StrEnum):
     MISSING = "missing"
     CURRENT = "current"
+    MIGRATED_V2 = "migrated_v2"
     MIGRATED_SPLIT_V1 = "migrated_split_v1"
     CORRUPT = "corrupt"
     UNSUPPORTED_FUTURE = "unsupported_future"
@@ -90,6 +99,7 @@ class ProviderSettingsLoadResult:
     status: ProviderSettingsLoadStatus
     source_schema_version: int | None
     warnings: tuple[str, ...] = ()
+    manual_registrations: tuple[ManualProviderRegistration, ...] = ()
 
     def get(self, provider_id: str) -> ProviderSettingsRecord:
         normalized = _canonical_or_normalized(provider_id)
@@ -104,12 +114,26 @@ class ProviderSettingsSnapshot:
     providers: tuple[ProviderSettingsRecord, ...]
     status: ProviderSettingsLoadStatus
     warnings: tuple[str, ...] = ()
+    manual_registrations: tuple[ManualProviderRegistration, ...] = ()
 
     def get(self, provider_id: str) -> ProviderSettingsRecord:
-        canonical = canonical_provider_id(provider_id)
+        normalized = str(provider_id).strip().casefold()
+        try:
+            canonical = canonical_provider_id(normalized)
+        except KeyError:
+            if normalized not in {item.provider_id for item in self.manual_registrations}:
+                raise
+            canonical = normalized
         for provider in self.providers:
             if provider.provider_id == canonical:
                 return provider
+        raise KeyError(provider_id)
+
+    def get_manual(self, provider_id: str) -> ManualProviderRegistration:
+        normalized = str(provider_id).strip().casefold()
+        for registration in self.manual_registrations:
+            if registration.provider_id == normalized:
+                return registration
         raise KeyError(provider_id)
 
     @property
@@ -124,7 +148,28 @@ class ProviderSettingsSnapshot:
     def resolve_provider_ids(self, provider_ids: object) -> tuple[str, ...]:
         if not isinstance(provider_ids, (list, tuple, set, frozenset)):
             raise TypeError("provider_ids must be an iterable selection")
-        return resolve_provider_ids(provider_ids)
+        manual_ids = {item.provider_id for item in self.manual_registrations}
+        resolved: list[str] = []
+        seen: set[str] = set()
+        for value in provider_ids:
+            normalized = str(value).strip().casefold()
+            try:
+                canonical = canonical_provider_id(normalized)
+            except KeyError:
+                if normalized not in manual_ids:
+                    raise KeyError(value) from None
+                canonical = normalized
+            if canonical not in seen:
+                seen.add(canonical)
+                resolved.append(canonical)
+        return tuple(resolved)
+
+    def assert_runnable_provider_ids(self, provider_ids: object) -> tuple[str, ...]:
+        resolved = self.resolve_provider_ids(provider_ids)
+        manual_ids = {item.provider_id for item in self.manual_registrations}
+        if any(provider_id in manual_ids for provider_id in resolved):
+            raise ManualProviderExecutionError()
+        return resolved
 
     def public_payload(self) -> dict[str, object]:
         return {
@@ -140,6 +185,15 @@ class ProviderSettingsSnapshot:
                     "configuration_editable": item.configuration_editable,
                 }
                 for item in self.providers
+            ],
+            "manual_registrations": [
+                {
+                    "provider_id": item.provider_id,
+                    "lifecycle_state": item.lifecycle_state.value,
+                    "enabled": False,
+                    "registration_only": True,
+                }
+                for item in self.manual_registrations
             ],
             "warnings": list(self.warnings),
         }
@@ -244,17 +298,29 @@ def create_provider_settings_snapshot(
                 configuration_editable=configuration_editable,
             )
         )
+    for registration in loaded.manual_registrations:
+        resolved.append(
+            ProviderSettingsRecord(
+                provider_id=registration.provider_id,
+                enabled=False,
+                configuration=ProviderConfiguration(),
+                enabled_origin=ProviderSettingOrigin.PERSISTED,
+                configuration_origin=ProviderSettingOrigin.PERSISTED,
+                configuration_editable=False,
+            )
+        )
     return ProviderSettingsSnapshot(
         providers=tuple(resolved),
         status=loaded.status,
         warnings=tuple(warnings),
+        manual_registrations=loaded.manual_registrations,
     )
 
 
 class ProviderEnablementRepository:
-    """Own schema-v2 source settings and read split-v1 state compatibly."""
+    """Own schema-v3 source settings and read v1/v2 state compatibly."""
 
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     def __init__(
         self,
@@ -289,7 +355,10 @@ class ProviderEnablementRepository:
                 raise TypeError("provider enablement must be boolean")
             normalized[_canonical_or_normalized(str(provider_id))] = enabled
 
-        def mutation(records: dict[str, ProviderSettingsRecord]) -> None:
+        def mutation(
+            records: dict[str, ProviderSettingsRecord],
+            _registrations: dict[str, ManualProviderRegistration],
+        ) -> None:
             configurations = {
                 provider_id: record.configuration for provider_id, record in records.items()
             }
@@ -308,7 +377,10 @@ class ProviderEnablementRepository:
         if not isinstance(enabled, bool):
             raise TypeError("enabled must be a boolean")
 
-        def mutation(records: dict[str, ProviderSettingsRecord]) -> None:
+        def mutation(
+            records: dict[str, ProviderSettingsRecord],
+            _registrations: dict[str, ManualProviderRegistration],
+        ) -> None:
             previous = records.get(normalized, ProviderSettingsRecord(normalized))
             records[normalized] = replace(
                 previous,
@@ -328,7 +400,10 @@ class ProviderEnablementRepository:
         if not isinstance(configuration, ProviderConfiguration):
             raise TypeError("configuration must be ProviderConfiguration")
 
-        def mutation(records: dict[str, ProviderSettingsRecord]) -> None:
+        def mutation(
+            records: dict[str, ProviderSettingsRecord],
+            _registrations: dict[str, ManualProviderRegistration],
+        ) -> None:
             previous = records.get(normalized, ProviderSettingsRecord(normalized))
             records[normalized] = replace(
                 previous,
@@ -339,8 +414,62 @@ class ProviderEnablementRepository:
         self._mutate(mutation)
         return self.load_result().get(normalized)
 
+    def register_manual_provider(
+        self,
+        registration: ManualProviderRegistration,
+    ) -> ManualProviderRegistration:
+        if not isinstance(registration, ManualProviderRegistration):
+            raise TypeError("registration must be ManualProviderRegistration")
+
+        def mutation(
+            records: dict[str, ProviderSettingsRecord],
+            registrations: dict[str, ManualProviderRegistration],
+        ) -> None:
+            if registration.provider_id in registrations or registration.provider_id in records:
+                raise ManualProviderConflictError(ManualProviderErrorCategory.IDENTITY_COLLISION)
+            candidate = tuple(registrations.values()) + (registration,)
+            validate_manual_registration_uniqueness(candidate)
+            _validate_manual_against_builtin_catalog(candidate)
+            registrations[registration.provider_id] = registration
+
+        self._mutate(mutation)
+        return registration
+
+    def update_manual_provider(
+        self,
+        registration: ManualProviderRegistration,
+    ) -> ManualProviderRegistration:
+        if not isinstance(registration, ManualProviderRegistration):
+            raise TypeError("registration must be ManualProviderRegistration")
+
+        def mutation(
+            _records: dict[str, ProviderSettingsRecord],
+            registrations: dict[str, ManualProviderRegistration],
+        ) -> None:
+            if registration.provider_id not in registrations:
+                raise KeyError(registration.provider_id)
+            candidate = tuple(
+                registration if item.provider_id == registration.provider_id else item
+                for item in registrations.values()
+            )
+            validate_manual_registration_uniqueness(candidate)
+            _validate_manual_against_builtin_catalog(candidate)
+            registrations[registration.provider_id] = registration
+
+        self._mutate(mutation)
+        return registration
+
     def is_enabled(self, descriptor: ProviderDescriptor) -> bool:
-        values = self.load()
+        result = self.load_result()
+        if descriptor.id.strip().casefold() in {
+            item.provider_id for item in result.manual_registrations
+        }:
+            return False
+        values = {
+            record.provider_id: record.enabled
+            for record in result.records
+            if record.enabled is not None
+        }
         return values.get(descriptor.id.strip().casefold(), descriptor.enabled_by_default)
 
     def _load_result_unlocked(self) -> ProviderSettingsLoadResult:
@@ -364,7 +493,7 @@ class ProviderEnablementRepository:
             )
         if version == self.SCHEMA_VERSION:
             try:
-                records = _decode_current(payload)
+                records, registrations = _decode_current(payload)
             except (ValueError, TypeError) as exc:
                 return ProviderSettingsLoadResult(
                     records=(),
@@ -375,6 +504,22 @@ class ProviderEnablementRepository:
             return ProviderSettingsLoadResult(
                 records=records,
                 status=ProviderSettingsLoadStatus.CURRENT,
+                source_schema_version=version,
+                manual_registrations=registrations,
+            )
+        if version == 2:
+            try:
+                records = _decode_v2(payload)
+            except (ValueError, TypeError) as exc:
+                return ProviderSettingsLoadResult(
+                    records=(),
+                    status=ProviderSettingsLoadStatus.CORRUPT,
+                    source_schema_version=version,
+                    warnings=(f"Canonical provider settings are corrupt: {type(exc).__name__}",),
+                )
+            return ProviderSettingsLoadResult(
+                records=records,
+                status=ProviderSettingsLoadStatus.MIGRATED_V2,
                 source_schema_version=version,
             )
         if version != 1:
@@ -478,10 +623,16 @@ class ProviderEnablementRepository:
                     f"Provider settings mutation blocked: {result.status.value}"
                 )
             records = {record.provider_id: record for record in result.records}
-            callback(records)
+            registrations = {
+                registration.provider_id: registration
+                for registration in result.manual_registrations
+            }
+            callback(records, registrations)
             if result.status is ProviderSettingsLoadStatus.MIGRATED_SPLIT_V1:
                 self._backup_v1_sources()
-            self._write_current(records.values())
+            elif result.status is ProviderSettingsLoadStatus.MIGRATED_V2:
+                self._backup_previous_source(2)
+            self._write_current(records.values(), registrations.values())
 
     def _backup_v1_sources(self) -> None:
         existing = (self.path, self.legacy_settings_path)
@@ -496,8 +647,20 @@ class ProviderEnablementRepository:
             with backup.open("xb") as handle:
                 handle.write(source.read_bytes())
 
-    def _write_current(self, records: Any) -> None:
+    def _backup_previous_source(self, version: int) -> None:
+        if not self.path.is_file():
+            return
+        previous = tuple(self.path.parent.glob(f"{self.path.name}.v{version}-*.bak"))
+        if previous:
+            return
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        backup = self.path.with_name(f"{self.path.name}.v{version}-{timestamp}.bak")
+        with backup.open("xb") as handle:
+            handle.write(self.path.read_bytes())
+
+    def _write_current(self, records: Any, registrations: Any = ()) -> None:
         ordered = tuple(sorted(records, key=lambda item: item.provider_id))
+        ordered_registrations = tuple(sorted(registrations, key=lambda item: item.provider_id))
         payload = {
             "schema_version": self.SCHEMA_VERSION,
             "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -513,6 +676,10 @@ class ProviderEnablementRepository:
                 }
                 for record in ordered
                 if record.configuration != ProviderConfiguration()
+            },
+            "manual_registrations": {
+                registration.provider_id: registration.persisted_payload()
+                for registration in ordered_registrations
             },
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -541,7 +708,74 @@ def _schema_version(payload: Mapping[str, object]) -> int:
     return value
 
 
-def _decode_current(payload: Mapping[str, object]) -> tuple[ProviderSettingsRecord, ...]:
+def _decode_current(
+    payload: Mapping[str, object],
+) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
+    records = _decode_provider_records(payload)
+    raw_registrations = payload.get("manual_registrations", {})
+    if not isinstance(raw_registrations, dict):
+        raise TypeError("manual_registrations must be an object")
+    registrations: list[ManualProviderRegistration] = []
+    seen_ids: set[str] = set()
+    for raw_id, raw_value in sorted(
+        raw_registrations.items(), key=lambda item: str(item[0]).casefold()
+    ):
+        provider_id = str(raw_id)
+        if provider_id in seen_ids:
+            raise ValueError("manual provider ids must be unique")
+        seen_ids.add(provider_id)
+        if not isinstance(raw_value, dict):
+            raise TypeError("manual registration must be an object")
+        unknown = set(raw_value) - {
+            "display_name",
+            "homepage_url",
+            "endpoint_url",
+            "lifecycle_state",
+            "created_at",
+            "updated_at",
+        }
+        if unknown:
+            raise ValueError("manual registration has unsupported fields")
+        display_name = raw_value.get("display_name")
+        homepage_url = raw_value.get("homepage_url")
+        endpoint_url = raw_value.get("endpoint_url", "")
+        lifecycle = raw_value.get("lifecycle_state")
+        created_at = raw_value.get("created_at")
+        updated_at = raw_value.get("updated_at")
+        if not all(
+            isinstance(value, str)
+            for value in (
+                display_name,
+                homepage_url,
+                endpoint_url,
+                lifecycle,
+                created_at,
+                updated_at,
+            )
+        ):
+            raise TypeError("manual registration fields must be strings")
+        registrations.append(
+            ManualProviderRegistration(
+                provider_id=provider_id,
+                display_name=display_name,
+                homepage_url=homepage_url,
+                endpoint_url=endpoint_url,
+                lifecycle_state=ManualProviderLifecycle(lifecycle),
+                created_at=_parse_aware_datetime(created_at),
+                updated_at=_parse_aware_datetime(updated_at),
+            )
+        )
+    result = tuple(registrations)
+    validate_manual_registration_uniqueness(result)
+    _validate_manual_against_builtin_catalog(result)
+    return records, result
+
+
+def _decode_v2(payload: Mapping[str, object]) -> tuple[ProviderSettingsRecord, ...]:
+    return _decode_provider_records(payload)
+
+
+def _decode_provider_records(payload: Mapping[str, object]) -> tuple[ProviderSettingsRecord, ...]:
     raw_updated_at = payload.get("updated_at")
     if not isinstance(raw_updated_at, str) or not raw_updated_at.strip():
         raise TypeError("updated_at must be an aware timestamp")
@@ -585,6 +819,30 @@ def _decode_current(payload: Mapping[str, object]) -> tuple[ProviderSettingsReco
         )
         for provider_id in sorted(ids)
     )
+
+
+def _parse_aware_datetime(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError("manual registration timestamp must be ISO 8601") from None
+    if parsed.utcoffset() is None:
+        raise ValueError("manual registration timestamp must be timezone-aware")
+    return parsed
+
+
+def _validate_manual_against_builtin_catalog(
+    registrations: tuple[ManualProviderRegistration, ...],
+) -> None:
+    definitions = canonical_provider_definitions()
+    builtin_ids = {item.id.casefold() for item in definitions}
+    aliases = set(provider_aliases())
+    builtin_name_keys = {manual_display_name_key(item.display_name) for item in definitions}
+    for registration in registrations:
+        if registration.provider_id in builtin_ids or registration.provider_id in aliases:
+            raise ManualProviderConflictError(ManualProviderErrorCategory.IDENTITY_COLLISION)
+        if registration.display_name_key in builtin_name_keys:
+            raise ManualProviderConflictError(ManualProviderErrorCategory.DUPLICATE_NAME)
 
 
 def _decode_v1_general(

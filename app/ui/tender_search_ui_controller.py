@@ -38,6 +38,10 @@ from app.tenders.collector.provider_control import (
     CollectorProviderManager,
     ProviderDisplayState,
 )
+from app.tenders.collector.manual_provider_registration import (
+    ManualProviderCommandStatus,
+    ManualProviderExecutionError,
+)
 from app.tenders.provider_credentials import CredentialErrorCategory
 from app.tenders.collector.run_session import CollectorRunSession
 from app.tenders.collector.store import CollectorStateRepository
@@ -101,6 +105,7 @@ from app.ui.tender_participation_score_dialog import (
     TenderParticipationScoreDialog,
 )
 from app.ui.tender_provider_manager_dialog import (
+    ManualProviderRegistrationDialog,
     TenderProviderConfigurationDialog,
     TenderProviderManagerDialog,
 )
@@ -989,6 +994,19 @@ class TenderSearchUiController(QObject):
                     dict.fromkeys(item.strip().casefold() for item in requested_provider_ids)
                 )
             )
+            runnable_resolver = getattr(
+                self.provider_manager,
+                "assert_runnable_provider_ids",
+                None,
+            )
+            if callable(runnable_resolver):
+                selected = runnable_resolver(selected)
+        except ManualProviderExecutionError:
+            if self._collector_dialog is not None:
+                self._collector_dialog.set_error(
+                    "Источник требует выбора протокола и пока недоступен для запуска."
+                )
+            return False
         except (KeyError, TypeError, ValueError):
             if self._collector_dialog is not None:
                 self._collector_dialog.set_error("Выбран неизвестный источник.")
@@ -1140,6 +1158,8 @@ class TenderSearchUiController(QObject):
             self._provider_dialog.provider_credentials_requested.connect(
                 self.configure_provider_credentials
             )
+            self._provider_dialog.manual_provider_add_requested.connect(self.add_manual_provider)
+            self._provider_dialog.manual_provider_edit_requested.connect(self.edit_manual_provider)
             self._provider_dialog.check_all_requested.connect(self.check_all_provider_connections)
             self._provider_dialog.refresh_button.clicked.connect(self.refresh_provider_states)
 
@@ -1164,6 +1184,68 @@ class TenderSearchUiController(QObject):
                 preserve_selection=True,
             )
         self.scheduler_ui_controller.refresh_schedule_dialog()
+
+    @Slot()
+    def add_manual_provider(self) -> None:
+        editor = ManualProviderRegistrationDialog(parent=self._provider_dialog)
+        if editor.exec() != ManualProviderRegistrationDialog.DialogCode.Accepted:
+            return
+        try:
+            draft = editor.draft()
+        except (TypeError, ValueError):
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Данные площадки отклонены безопасной валидацией.",
+                    error=True,
+                )
+            return
+        result = self.provider_manager.register_manual_provider(draft)
+        if result.status is not ManualProviderCommandStatus.CREATED:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(result.message, error=True)
+            return
+        self.refresh_provider_states()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_status(result.message)
+
+    @Slot(str)
+    def edit_manual_provider(self, provider_id: str) -> None:
+        normalized = provider_id.strip().casefold()
+        state = next(
+            (
+                item
+                for item in self.provider_manager.states()
+                if item.provider_id == normalized and item.registration_only
+            ),
+            None,
+        )
+        if state is None or state.manual_registration is None:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status("Регистрация площадки не найдена.", error=True)
+            return
+        editor = ManualProviderRegistrationDialog(
+            state.manual_registration,
+            parent=self._provider_dialog,
+        )
+        if editor.exec() != ManualProviderRegistrationDialog.DialogCode.Accepted:
+            return
+        try:
+            draft = editor.draft()
+        except (TypeError, ValueError):
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Данные площадки отклонены безопасной валидацией.",
+                    error=True,
+                )
+            return
+        result = self.provider_manager.update_manual_provider(normalized, draft)
+        if result.status is not ManualProviderCommandStatus.UPDATED:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(result.message, error=True)
+            return
+        self.refresh_provider_states()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_status(result.message)
 
     @Slot(str)
     def configure_provider(self, provider_id: str) -> None:

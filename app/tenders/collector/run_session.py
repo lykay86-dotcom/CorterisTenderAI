@@ -84,6 +84,8 @@ class CollectorRunSession:
             raise ProviderSettingsMutationError(
                 f"Provider settings are unavailable: {settings_snapshot.status.value}"
             )
+        if provider_ids is not None:
+            provider_ids = settings_snapshot.assert_runnable_provider_ids(tuple(provider_ids))
         runtime = self.runtime_factory()
         try:
             service = self.service_factory(
