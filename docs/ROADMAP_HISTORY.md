@@ -1,5 +1,31 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-132 завершён, RM-133 активирован
+
+- Audit и plan зафиксированы docs-only commit `25b2eed` до application changes;
+  expected-red contract — `131f9a8`, только семь ошибок отсутствующих RM-132
+  boundaries.
+- Единственный keyring owner `app.security.secrets` сохранён; storage-free typed
+  `ProviderCredentialService` не создаёт vault, persistence, encryption или schema.
+- MOS и восемь commercial providers используют один explicit
+  save/replace/delete contract; UI не делает readback, не prefill и не показывает
+  masked fragments.
+- Ordinary manager state/composition остаётся no-keyring/no-network; environment override
+  runtime-only и не копируется в protected store.
+- Legacy manual-platform UI больше не создаёт/читает/удаляет произвольные
+  `platform:<name>` credentials; прежние unknown entries не изменялись.
+- Локальная acceptance: focused `21 passed in 3.52s`, neighbor `110 passed in 8.59s`,
+  full pytest `1707 passed in 64.89s`; secret scan, Ruff/format (`570 files`), mypy,
+  workflow smokes, dependency audit и diff-check успешны.
+- Feature PR #70 слит в `main` merge commit
+  `1ae9c36605043e35333dffc60a6077c16fbd19f4`.
+- PR run `29565942602` и exact merge-SHA run `29567132554` успешны на Python 3.12/3.13;
+  полный pytest везде дал `1707 passed`, все обязательные jobs — `success`.
+- Неблокирующее official-actions annotation о Node.js 20/24 не повлияло на gate и
+  остаётся отдельной CI maintenance задачей.
+- RM-132 переведён в `DONE`; RM-133 назначен единственным `IN PROGRESS`.
+  RM-134–RM-200 остаются `PLANNED`; decision/scoring/AI semantics не изменены.
+
 ## 2026-07-17 — RM-131 завершён, RM-132 активирован
 
 - Audit `docs/RM-131_AUDIT.md` и implementation plan зафиксированы docs-only commit `243ab56` до
