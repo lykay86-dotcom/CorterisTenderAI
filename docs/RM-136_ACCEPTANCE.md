@@ -8,9 +8,8 @@ Baseline / RM-135 docs-closeout SHA:
 Feature commit:
 `0d270a8b58ed2489811648443ee69d4ccab39959`.
 
-Статус: **feature acceptance пройден; ожидаются PR, green CI, явный merge и exact
-merge-SHA gate.** Canonical `STATUS/ROADMAP/HISTORY` намеренно не переводятся в `DONE` до этих
-шагов.
+Статус: **feature acceptance, PR merge и exact merge-SHA gate пройдены; RM-136 закрывается
+отдельным docs-only closeout.**
 
 ## 1. Реализованный контракт
 
@@ -88,5 +87,19 @@ formatting; новых warnings нет.
 
 ## 5. Release boundary
 
-Feature branch готова к публикации и PR. RM-136 остаётся `IN PROGRESS` до green CI на feature PR,
-явного merge, exact merge-SHA quality gate и отдельного docs-only closeout. RM-137 не начат.
+Feature PR #78 слит в `main` merge commit
+`d84288ab74553e500ad9eaf9f51a091404490551`.
+
+PR Quality Gate run `29606049619` успешен:
+
+- Python 3.12 — `1859 passed, 2 warnings in 142.75s`;
+- Python 3.13 — `1859 passed, 2 warnings in 87.96s`.
+
+Exact merge-SHA Quality Gate run `29606492310` успешен:
+
+- Python 3.12 — `1859 passed, 2 warnings in 93.95s`;
+- Python 3.13 — `1859 passed, 2 warnings in 103.55s`.
+
+Все обязательные jobs завершились `success`. Неблокирующее official-actions annotation о
+Node.js 20/24 не повлияло на gate. RM-136 соответствует Definition of Done и переводится в
+`DONE` этим docs-only closeout; RM-137 становится единственным `IN PROGRESS`, RM-138+ не начаты.

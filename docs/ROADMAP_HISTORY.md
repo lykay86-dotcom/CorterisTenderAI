@@ -1,5 +1,36 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-136 завершён, RM-137 активирован
+
+- Audit/plan зафиксированы commit `f4bb93a` до application changes; expected-red contract —
+  `31da549`, только 12 collection errors отсутствующих RM-136 modules/symbols.
+- Existing health evidence повышен до schema v2, provider settings — до schema v6;
+  in-memory migration, byte-exact backup, atomic replace, stale compare-and-replace,
+  revision-aware binding и bounded history сохранены.
+- Explicit manual-provider health check использует bounded HTTP/RSS/FTP/FTPS transport,
+  all-answer DNS classification, global-address allow policy, pinned TLS, redirect/unsafe-target
+  rejection, runtime-only credential resolution и existing RM-135 parser/mapping preview.
+- Current `PASSED/HEALTHY` evidence с code-owned TTL 15 минут требуется для explicit enablement
+  и каждого admission; success не включает provider автоматически, binding mutations
+  инвалидируют evidence, plaintext FTP остаётся degraded и не принимает credentials.
+- Local acceptance на feature HEAD `fcf68ae3df340a62b4ce07e2e088a8a63a8dad5b`:
+  focused `36 passed in 4.34s`, full pytest `1859 passed, 2 warnings in 70.14s`; secret scan,
+  Ruff/format (`606 files`), required и owner-contour mypy, workflow smokes, dependency audit
+  и diff-check успешны.
+- Feature PR #78 (`feat(rm-136): add safe manual provider health check`) слит в `main`
+  merge commit `d84288ab74553e500ad9eaf9f51a091404490551`.
+- PR Quality Gate run `29606049619` успешен: Python 3.12 —
+  `1859 passed, 2 warnings in 142.75s`, Python 3.13 —
+  `1859 passed, 2 warnings in 87.96s`.
+- Exact merge-SHA run `29606492310` успешен: Python 3.12 —
+  `1859 passed, 2 warnings in 93.95s`, Python 3.13 —
+  `1859 passed, 2 warnings in 103.55s`; все обязательные jobs завершились `success`.
+- Неблокирующее official-actions annotation о Node.js 20/24 не повлияло на gate и остаётся
+  отдельной CI maintenance задачей.
+- Deterministic decision/scoring/critical stop-factor, built-in provider flow, legacy bytes
+  и credential boundary сохранены. RM-136 переведён в `DONE`; RM-137 назначен единственным
+  `IN PROGRESS`. RM-138–RM-200 остаются `PLANNED`.
+
 ## 2026-07-17 — RM-135 завершён, RM-136 активирован
 
 - Audit/plan зафиксированы commit `b0f1048` до application changes; expected-red contract —

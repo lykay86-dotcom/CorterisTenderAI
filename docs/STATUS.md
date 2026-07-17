@@ -4,54 +4,55 @@
 
 ## Активный этап
 
-**RM-136 — тест подключения**
+**RM-137 — отраслево-независимая нормализация**
 
 Статус: `IN PROGRESS`
 
-RM-135 завершён после audit-first реализации, feature merge и успешного exact
-merge-SHA Windows Quality Gate. RM-136 — единственный активный этап;
-RM-137–RM-200 остаются `PLANNED` и не выполняются параллельно.
+RM-136 завершён после audit-first реализации, feature merge и успешного exact
+merge-SHA Windows Quality Gate. RM-137 — единственный активный этап;
+RM-138–RM-200 остаются `PLANNED` и не выполняются параллельно.
 
 ## Завершённый этап
 
-**RM-135 — безопасный конструктор адаптера**
+**RM-136 — тест подключения**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- audit/plan зафиксированы commit `b0f1048`, expected-red contract — `e7b9121`;
-- существующий `ProviderEnablementRepository` повышен до schema v5 с in-memory v4 migration,
-  byte-exact backup, atomic replace, monotonic revisions и bounded rollback history;
-- immutable `ManualAdapterSpec` v1, static API/RSS/FTP/FTPS compiler и bounded offline
-  JSON/XML/RSS/Atom/CSV preview добавлены без второго store/catalog/factory/Collector;
-- manual adapter соответствует `AsyncTenderProvider`, но остаётся disabled, unverified,
-  non-runnable и `CONNECTION_TEST_REQUIRED`; live methods fail closed;
-- network, DNS, TLS handshake, credential resolution, connection test и live health не добавлены;
-- локально: focused `27 passed`, neighbor `205 passed, 2 warnings`, full pytest
-  `1823 passed, 2 warnings`; все workflow-equivalent gates успешны;
-- feature PR #76 слит в `main` merge commit
-  `306b20977b6c23956488dc471da63af17f197e25`;
-- PR Quality Gate run `29584304208` успешен на Python 3.12/3.13;
-- exact merge-SHA run `29586643112` успешен: Python 3.12 rerun —
-  `1823 passed, 2 warnings in 86.41s`, Python 3.13 —
-  `1823 passed, 2 warnings in 88.19s`; первый Python 3.12 attempt завершился native
-  Windows access violation без test assertion, failed-only rerun прошёл без изменений;
-- deterministic decision logic, legacy bytes, credential boundary и runtime admission guards
-  сохранены; RM-136 получает только explicit connection-test/health scope.
+- audit/plan зафиксированы commit `f4bb93a`, expected-red contract — `31da549`;
+- existing health evidence повышен до schema v2, provider settings — до schema v6;
+  migration, byte-exact backup, atomic replace и revision-aware binding сохранены;
+- explicit manual-provider health check использует bounded HTTP/RSS/FTP/FTPS transport,
+  all-answer DNS classification, pinned TLS, redirect/unsafe-target rejection и runtime-only
+  credential resolution;
+- current `PASSED/HEALTHY` evidence с TTL 15 минут требуется и для explicit enablement,
+  и для каждого admission; health success не включает provider автоматически;
+- локально: focused `36 passed`, full pytest `1859 passed, 2 warnings`; secret scan,
+  Ruff/format, mypy, workflow smokes, dependency audit и diff-check успешны;
+- feature PR #78 слит в `main` merge commit
+  `d84288ab74553e500ad9eaf9f51a091404490551`;
+- PR Quality Gate run `29606049619` успешен: Python 3.12 —
+  `1859 passed, 2 warnings in 142.75s`, Python 3.13 —
+  `1859 passed, 2 warnings in 87.96s`;
+- exact merge-SHA run `29606492310` успешен: Python 3.12 —
+  `1859 passed, 2 warnings in 93.95s`, Python 3.13 —
+  `1859 passed, 2 warnings in 103.55s`; все обязательные jobs завершились `success`;
+- deterministic decision/scoring/critical stop-factor, built-in provider flow, legacy bytes
+  и credential boundary сохранены; RM-137 получает только normalization scope.
 
 ## Ранее завершённый этап
 
-**RM-134 — выбор протокола**
+**RM-135 — безопасный конструктор адаптера**
 
 Статус: `DONE`
 
-- Feature PR #74 слит в `main` коммитом `7ef0378`.
-- Exact merge-SHA Quality Gate run `29578571237` успешен на Python 3.12/3.13.
-- Closed protocol selection и non-runnable lifecycle сохранены.
+- Feature PR #76 слит в `main` коммитом `306b209`.
+- Exact merge-SHA Quality Gate run `29586643112` успешен на Python 3.12/3.13.
+- Manual adapter contract, non-runnable lifecycle и deterministic boundaries сохранены.
 
 ## Текущее действие
 
-Начать RM-136 с отдельного audit-first пакета и канонического entry gate.
-Не начинать RM-137+ и не разрешать production admission manual provider без отдельно
-утверждённых connection verification, SSRF/DNS, redirect, TLS и FTP/FTPS transport решений.
+Начать RM-137 с отдельного audit-first пакета и канонического entry gate.
+Не начинать RM-138+ и не изменять deterministic decision/scoring/critical stop-factor priority
+до отдельно утверждённого normalization contract.
