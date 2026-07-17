@@ -30,6 +30,7 @@ from app.tenders.collector.manual_provider_registration import (
 )
 from app.tenders.collector.manual_provider_protocol import (
     ManualProviderAuthenticationKind,
+    ManualProviderFtpsMode,
     ManualProviderPayloadFormat,
     ManualProviderProtocolFamily,
     ManualProviderProtocolSelection,
@@ -41,6 +42,7 @@ from app.tenders.provider_base import ProviderDescriptor
 class ProviderSettingsLoadStatus(StrEnum):
     MISSING = "missing"
     CURRENT = "current"
+    MIGRATED_V5 = "migrated_v5"
     MIGRATED_V4 = "migrated_v4"
     MIGRATED_V3 = "migrated_v3"
     MIGRATED_V2 = "migrated_v2"
@@ -129,6 +131,7 @@ class ProviderSettingsSnapshot:
     status: ProviderSettingsLoadStatus
     warnings: tuple[str, ...] = ()
     manual_registrations: tuple[ManualProviderRegistration, ...] = ()
+    verified_manual_provider_ids: frozenset[str] = frozenset()
 
     def get(self, provider_id: str) -> ProviderSettingsRecord:
         normalized = str(provider_id).strip().casefold()
@@ -157,7 +160,16 @@ class ProviderSettingsSnapshot:
             ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
         }:
             return ()
-        return tuple(item.provider_id for item in self.providers if item.enabled)
+        manual_ids = {item.provider_id for item in self.manual_registrations}
+        return tuple(
+            item.provider_id
+            for item in self.providers
+            if item.enabled
+            and (
+                item.provider_id not in manual_ids
+                or item.provider_id in self.verified_manual_provider_ids
+            )
+        )
 
     def resolve_provider_ids(self, provider_ids: object) -> tuple[str, ...]:
         if not isinstance(provider_ids, (list, tuple, set, frozenset)):
@@ -183,7 +195,19 @@ class ProviderSettingsSnapshot:
         manual_ids = {item.provider_id for item in self.manual_registrations}
         for provider_id in resolved:
             if provider_id in manual_ids:
-                raise ManualProviderExecutionError(self.get_manual(provider_id).lifecycle_state)
+                registration = self.get_manual(provider_id)
+                if (
+                    registration.lifecycle_state
+                    is not ManualProviderLifecycle.CONNECTION_TEST_REQUIRED
+                ):
+                    raise ManualProviderExecutionError(registration.lifecycle_state)
+                if (
+                    not self.get(provider_id).enabled
+                    or provider_id not in self.verified_manual_provider_ids
+                ):
+                    raise ManualProviderExecutionError(
+                        ManualProviderLifecycle.CONNECTION_TEST_REQUIRED
+                    )
         return resolved
 
     def public_payload(self) -> dict[str, object]:
@@ -205,7 +229,8 @@ class ProviderSettingsSnapshot:
                 {
                     "provider_id": item.provider_id,
                     "lifecycle_state": item.lifecycle_state.value,
-                    "enabled": False,
+                    "enabled": self.get(item.provider_id).enabled,
+                    "verified": item.provider_id in self.verified_manual_provider_ids,
                     "registration_only": True,
                     **(
                         {"protocol_selection": item.protocol_selection.public_payload()}
@@ -338,9 +363,9 @@ def create_provider_settings_snapshot(
 
 
 class ProviderEnablementRepository:
-    """Own schema-v5 source settings and read v1/v2/v3/v4 state compatibly."""
+    """Own schema-v6 source settings and read v1-v5 state compatibly."""
 
-    SCHEMA_VERSION = 5
+    SCHEMA_VERSION = 6
 
     def __init__(
         self,
@@ -558,6 +583,22 @@ class ProviderEnablementRepository:
                 source_schema_version=version,
                 manual_registrations=registrations,
             )
+        if version == 5:
+            try:
+                records, registrations = _decode_v5(payload)
+            except (ValueError, TypeError) as exc:
+                return ProviderSettingsLoadResult(
+                    records=(),
+                    status=ProviderSettingsLoadStatus.CORRUPT,
+                    source_schema_version=version,
+                    warnings=(f"Canonical provider settings are corrupt: {type(exc).__name__}",),
+                )
+            return ProviderSettingsLoadResult(
+                records=records,
+                status=ProviderSettingsLoadStatus.MIGRATED_V5,
+                source_schema_version=version,
+                manual_registrations=registrations,
+            )
         if version == 4:
             try:
                 records, registrations = _decode_v4(payload)
@@ -725,6 +766,8 @@ class ProviderEnablementRepository:
                 self._backup_previous_source(3)
             elif result.status is ProviderSettingsLoadStatus.MIGRATED_V4:
                 self._backup_previous_source(4)
+            elif result.status is ProviderSettingsLoadStatus.MIGRATED_V5:
+                self._backup_previous_source(5)
             self._write_current(records.values(), registrations.values())
 
     def _backup_v1_sources(self) -> None:
@@ -806,7 +849,22 @@ def _decode_current(
 ) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
     records = _decode_provider_records(payload)
     return records, _decode_manual_registrations(
-        payload, allow_protocol_selection=True, allow_adapter_spec=True
+        payload,
+        allow_protocol_selection=True,
+        allow_adapter_spec=True,
+        legacy_protocol_selection=False,
+    )
+
+
+def _decode_v5(
+    payload: Mapping[str, object],
+) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
+    records = _decode_provider_records(payload)
+    return records, _decode_manual_registrations(
+        payload,
+        allow_protocol_selection=True,
+        allow_adapter_spec=True,
+        legacy_protocol_selection=True,
     )
 
 
@@ -815,7 +873,10 @@ def _decode_v4(
 ) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
     records = _decode_provider_records(payload)
     return records, _decode_manual_registrations(
-        payload, allow_protocol_selection=True, allow_adapter_spec=False
+        payload,
+        allow_protocol_selection=True,
+        allow_adapter_spec=False,
+        legacy_protocol_selection=True,
     )
 
 
@@ -824,7 +885,10 @@ def _decode_v3(
 ) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
     records = _decode_provider_records(payload)
     return records, _decode_manual_registrations(
-        payload, allow_protocol_selection=False, allow_adapter_spec=False
+        payload,
+        allow_protocol_selection=False,
+        allow_adapter_spec=False,
+        legacy_protocol_selection=True,
     )
 
 
@@ -833,6 +897,7 @@ def _decode_manual_registrations(
     *,
     allow_protocol_selection: bool,
     allow_adapter_spec: bool,
+    legacy_protocol_selection: bool,
 ) -> tuple[ManualProviderRegistration, ...]:
     raw_registrations = payload.get("manual_registrations", {})
     if not isinstance(raw_registrations, dict):
@@ -882,7 +947,9 @@ def _decode_manual_registrations(
         ):
             raise TypeError("manual registration fields must be strings")
         selection = (
-            _decode_protocol_selection(raw_selection)
+            _decode_protocol_selection(
+                raw_selection, legacy_missing_ftps_mode=legacy_protocol_selection
+            )
             if allow_protocol_selection and raw_selection is not None
             else None
         )
@@ -918,7 +985,11 @@ def _decode_manual_registrations(
     return result
 
 
-def _decode_protocol_selection(value: object) -> ManualProviderProtocolSelection:
+def _decode_protocol_selection(
+    value: object,
+    *,
+    legacy_missing_ftps_mode: bool,
+) -> ManualProviderProtocolSelection:
     if not isinstance(value, dict):
         raise TypeError("manual protocol selection must be an object")
     allowed = {
@@ -929,6 +1000,7 @@ def _decode_protocol_selection(value: object) -> ManualProviderProtocolSelection
         "tls_policy",
         "selected_at",
         "updated_at",
+        "ftps_mode",
     }
     if set(value) - allowed:
         raise ValueError("manual protocol selection has unsupported fields")
@@ -939,6 +1011,9 @@ def _decode_protocol_selection(value: object) -> ManualProviderProtocolSelection
     tls_policy = value.get("tls_policy")
     selected_at = value.get("selected_at")
     updated_at = value.get("updated_at")
+    raw_ftps_mode = value.get("ftps_mode")
+    if not legacy_missing_ftps_mode and "ftps_mode" not in value:
+        raise ValueError("manual protocol FTPS mode is required")
     if (
         not isinstance(family, str)
         or not isinstance(endpoint_url, str)
@@ -947,6 +1022,7 @@ def _decode_protocol_selection(value: object) -> ManualProviderProtocolSelection
         or not isinstance(selected_at, str)
         or not isinstance(updated_at, str)
         or (payload_format is not None and not isinstance(payload_format, str))
+        or (raw_ftps_mode is not None and not isinstance(raw_ftps_mode, str))
     ):
         raise TypeError("manual protocol selection fields have invalid types")
     selected_family = ManualProviderProtocolFamily(family)
@@ -959,6 +1035,15 @@ def _decode_protocol_selection(value: object) -> ManualProviderProtocolSelection
             ManualProviderPayloadFormat(payload_format) if payload_format is not None else None
         ),
         authentication_kind=ManualProviderAuthenticationKind(authentication_kind),
+        ftps_mode=(
+            ManualProviderFtpsMode(raw_ftps_mode)
+            if raw_ftps_mode is not None
+            else (
+                ManualProviderFtpsMode.IMPLICIT
+                if selected_family is ManualProviderProtocolFamily.FTPS
+                else None
+            )
+        ),
         selected_at=_parse_aware_datetime(selected_at),
         updated_at=_parse_aware_datetime(updated_at),
     )

@@ -16,12 +16,12 @@ from app.tenders.collector.network_runtime import (
     create_collector_network_runtime,
 )
 from app.tenders.collector.progress import CollectorProgressCallback
+from app.tenders.collector.provider_control import CollectorProviderManager
 from app.tenders.collector.provider_settings import (
     ProviderEnablementRepository,
     ProviderSettingsLoadStatus,
     ProviderSettingsMutationError,
     ProviderSettingsSnapshot,
-    create_provider_settings_snapshot,
 )
 from app.tenders.provider_base import TenderSearchQuery
 
@@ -65,7 +65,7 @@ class CollectorRunSession:
         self.provider_settings_snapshot_factory = (
             provider_settings_snapshot_factory
             if provider_settings_snapshot_factory is not None
-            else lambda: create_provider_settings_snapshot(self.provider_settings_repository)
+            else lambda: CollectorProviderManager(self.data_directory).settings_snapshot()
         )
 
     async def run(

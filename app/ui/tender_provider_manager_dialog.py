@@ -39,6 +39,7 @@ from app.tenders.collector.manual_provider_registration import (
 )
 from app.tenders.collector.manual_provider_protocol import (
     ManualProviderAuthenticationKind,
+    ManualProviderFtpsMode,
     ManualProviderPayloadFormat,
     ManualProviderProtocolDraft,
     ManualProviderProtocolFamily,
@@ -292,8 +293,19 @@ class TenderProviderManagerDialog(QDialog):
         for provider_id, button in self._check_buttons.items():
             active = provider_id in self._checking
             state = self._state_by_id(provider_id)
-            button.setEnabled(not active and state is not None and state.enabled)
-            button.setText("Проверка…" if active else "Проверить")
+            button.setEnabled(
+                not active
+                and state is not None
+                and (state.enabled or state.registration_only)
+                and state.health_check_available
+            )
+            button.setText(
+                "Проверка…"
+                if active
+                else "Проверить подключение"
+                if state is not None and state.registration_only
+                else "Проверить"
+            )
         self._update_check_all_state()
 
     def selected_provider_id(self) -> str:
@@ -359,10 +371,13 @@ class TenderProviderManagerDialog(QDialog):
         error_item.setToolTip(state.last_error)
         self.table.setItem(row, 5, error_item)
 
-        button = QPushButton("Проверить", self.table)
+        button = QPushButton(
+            "Проверить подключение" if state.registration_only else "Проверить",
+            self.table,
+        )
         button.setObjectName(f"checkProvider_{state.provider_id}")
         button.setEnabled(
-            state.enabled
+            (state.enabled or state.registration_only)
             and state.health_check_available
             and state.provider_id not in self._checking
         )
@@ -728,6 +743,14 @@ class ManualProviderProtocolDialog(QDialog):
         self.authentication_combo.setObjectName("ManualProviderAuthenticationKind")
         self.authentication_combo.setAccessibleName("Требование аутентификации")
         form.addRow("Аутентификация", self.authentication_combo)
+
+        self.ftps_mode_combo = QComboBox(self)
+        self.ftps_mode_combo.setObjectName("ManualProviderFtpsMode")
+        self.ftps_mode_combo.setAccessibleName("Режим FTPS")
+        self.ftps_mode_combo.addItem("Implicit TLS (990)", ManualProviderFtpsMode.IMPLICIT)
+        self.ftps_mode_combo.addItem("Explicit AUTH TLS (21)", ManualProviderFtpsMode.EXPLICIT)
+        self.ftps_mode_label = QLabel("Режим FTPS", self)
+        form.addRow(self.ftps_mode_label, self.ftps_mode_combo)
         root.addLayout(form)
 
         self.warning_label = QLabel("", self)
@@ -774,11 +797,15 @@ class ManualProviderProtocolDialog(QDialog):
             auth_index = self.authentication_combo.findData(selected.authentication_kind)
             if auth_index >= 0:
                 self.authentication_combo.setCurrentIndex(auth_index)
+            mode_index = self.ftps_mode_combo.findData(selected.ftps_mode)
+            if mode_index >= 0:
+                self.ftps_mode_combo.setCurrentIndex(mode_index)
 
         self.family_combo.currentIndexChanged.connect(self._refresh_policy_controls)
         self.endpoint_edit.textChanged.connect(self._refresh_validation)
         self.payload_combo.currentIndexChanged.connect(self._refresh_validation)
         self.authentication_combo.currentIndexChanged.connect(self._refresh_validation)
+        self.ftps_mode_combo.currentIndexChanged.connect(self._refresh_validation)
         self._refresh_validation()
 
     @property
@@ -789,12 +816,18 @@ class ManualProviderProtocolDialog(QDialog):
         raw_family = self.family_combo.currentData()
         raw_payload = self.payload_combo.currentData()
         raw_authentication = self.authentication_combo.currentData()
+        raw_ftps_mode = self.ftps_mode_combo.currentData()
         try:
             family = ManualProviderProtocolFamily(str(raw_family))
             payload = (
                 ManualProviderPayloadFormat(str(raw_payload)) if raw_payload is not None else None
             )
             authentication = ManualProviderAuthenticationKind(str(raw_authentication))
+            ftps_mode = (
+                ManualProviderFtpsMode(str(raw_ftps_mode))
+                if family is ManualProviderProtocolFamily.FTPS
+                else None
+            )
         except (TypeError, ValueError):
             raise ValueError("manual provider protocol selection is invalid")
         return ManualProviderProtocolDraft(
@@ -802,6 +835,7 @@ class ManualProviderProtocolDialog(QDialog):
             endpoint_url=self.endpoint_edit.text(),
             payload_format=payload,
             authentication_kind=authentication,
+            ftps_mode=ftps_mode,
         )
 
     def _refresh_policy_controls(self) -> None:
@@ -812,6 +846,9 @@ class ManualProviderProtocolDialog(QDialog):
             return
         self.endpoint_edit.setPlaceholderText(policy.endpoint_placeholder)
         self.warning_label.setText(policy.warning)
+        ftps_visible = policy.family is ManualProviderProtocolFamily.FTPS
+        self.ftps_mode_combo.setVisible(ftps_visible)
+        self.ftps_mode_label.setVisible(ftps_visible)
 
         previous_payload = self.payload_combo.currentData()
         self.payload_combo.blockSignals(True)

@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 import json
 from pathlib import Path
 from threading import RLock
+import time
 from uuid import uuid4
 
 from app.tenders.collector.async_provider_factory import (
     create_default_async_providers,
 )
+from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.network_runtime import (
     create_collector_network_runtime,
 )
@@ -40,6 +42,7 @@ from app.tenders.collector.manual_provider_registration import (
     create_manual_provider_registration,
 )
 from app.tenders.collector.manual_provider_protocol import (
+    ManualProviderAuthenticationKind,
     ManualProviderProtocolCommandResult,
     ManualProviderProtocolCommandStatus,
     ManualProviderProtocolDraft,
@@ -62,6 +65,29 @@ from app.tenders.collector.manual_adapter import (
     create_manual_adapter_spec,
     preview_manual_adapter,
 )
+from app.tenders.collector.manual_provider_health import (
+    HealthCheckBinding,
+    ManualHealthAdmissionState,
+    ManualHealthCheckCommand,
+    ManualHealthCheckResult,
+    ManualHealthEvidence,
+    ManualHealthOutcome,
+    ManualHealthReasonCode,
+    ManualHealthState,
+    ManualProviderHealthService,
+    build_health_check_binding,
+    evaluate_manual_provider_admission,
+    evaluate_manual_probe_payload,
+)
+from app.tenders.collector.manual_probe_transport import (
+    ManualProbeCredentials,
+    ManualProbeTransportError,
+    ManualProbeTransportReason,
+    ManualProviderProbeTransport,
+    PinnedFtpsProbePort,
+    PinnedHttpsProbePort,
+    SystemManualProbeResolver,
+)
 from app.tenders.collector.provider_definitions import (
     ProviderCatalogEntry,
     ProviderCatalogOrigin,
@@ -73,6 +99,7 @@ from app.tenders.provider_base import (
     ProviderHealthStatus,
 )
 from app.tenders.provider_credentials import (
+    CredentialCommandStatus,
     CredentialCommandResult,
     CredentialState,
     CredentialStateResult,
@@ -119,10 +146,26 @@ class ProviderCheckRecord:
             raise ValueError("latency_ms must be non-negative")
 
 
+class ProviderCheckLoadStatus(StrEnum):
+    MISSING = "missing"
+    CURRENT = "current"
+    MIGRATED_V1 = "migrated_v1"
+    CORRUPT = "corrupt"
+    UNSUPPORTED_FUTURE = "unsupported_future"
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderCheckLoadResult:
+    records: Mapping[str, ProviderCheckRecord]
+    manual_evidence: Mapping[str, ManualHealthEvidence]
+    status: ProviderCheckLoadStatus
+    source_schema_version: int | None
+
+
 class ProviderCheckRepository:
     """Persist only public provider diagnostics, never secrets."""
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path).expanduser()
@@ -130,13 +173,8 @@ class ProviderCheckRepository:
 
     def load(self) -> dict[str, ProviderCheckRecord]:
         with self._lock:
-            if not self.path.is_file():
-                return {}
-            try:
-                payload = json.loads(self.path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError, TypeError):
-                return {}
-            if not isinstance(payload, dict):
+            payload = self._read_payload()
+            if payload is None:
                 return {}
             raw_records = payload.get("providers", {})
             if not isinstance(raw_records, dict):
@@ -162,36 +200,43 @@ class ProviderCheckRepository:
                 )
             return result
 
+    def load_result(self) -> ProviderCheckLoadResult:
+        with self._lock:
+            if not self.path.is_file():
+                return ProviderCheckLoadResult({}, {}, ProviderCheckLoadStatus.MISSING, None)
+            try:
+                payload = json.loads(self.path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, TypeError):
+                return ProviderCheckLoadResult({}, {}, ProviderCheckLoadStatus.CORRUPT, None)
+            if not isinstance(payload, dict):
+                return ProviderCheckLoadResult({}, {}, ProviderCheckLoadStatus.CORRUPT, None)
+            version = payload.get("schema_version", 1)
+            if not isinstance(version, int) or isinstance(version, bool):
+                return ProviderCheckLoadResult({}, {}, ProviderCheckLoadStatus.CORRUPT, None)
+            if version > self.SCHEMA_VERSION:
+                return ProviderCheckLoadResult(
+                    {}, {}, ProviderCheckLoadStatus.UNSUPPORTED_FUTURE, version
+                )
+            if version not in {1, self.SCHEMA_VERSION}:
+                return ProviderCheckLoadResult({}, {}, ProviderCheckLoadStatus.CORRUPT, version)
+            return ProviderCheckLoadResult(
+                self.load(),
+                self._load_manual_evidence_unlocked(),
+                (
+                    ProviderCheckLoadStatus.CURRENT
+                    if version == self.SCHEMA_VERSION
+                    else ProviderCheckLoadStatus.MIGRATED_V1
+                ),
+                version,
+            )
+
     def save(
         self,
         records: Mapping[str, ProviderCheckRecord],
     ) -> None:
         with self._lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "schema_version": self.SCHEMA_VERSION,
-                "providers": {
-                    provider_id: {
-                        "status": record.status.value,
-                        "checked_at": record.checked_at,
-                        "last_success_at": (record.last_success_at),
-                        "message": record.message,
-                        "last_error": record.last_error,
-                        "latency_ms": record.latency_ms,
-                    }
-                    for provider_id, record in sorted(records.items())
-                },
-            }
-            temporary = self.path.with_suffix(self.path.suffix + ".tmp")
-            temporary.write_text(
-                json.dumps(
-                    payload,
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-            temporary.replace(self.path)
+            evidence = self._load_manual_evidence_unlocked()
+            self._write(records, evidence)
 
     def update(
         self,
@@ -217,6 +262,167 @@ class ProviderCheckRepository:
         records[provider_id] = record
         self.save(records)
         return record
+
+    def manual_evidence(self, provider_id: str) -> ManualHealthEvidence | None:
+        normalized = str(provider_id).strip().casefold()
+        with self._lock:
+            return self._load_manual_evidence_unlocked().get(normalized)
+
+    def save_manual_evidence(
+        self,
+        evidence: ManualHealthEvidence,
+        *,
+        expected_check_id: str | None = None,
+    ) -> bool:
+        if not isinstance(evidence, ManualHealthEvidence):
+            raise TypeError("evidence must be ManualHealthEvidence")
+        with self._lock:
+            current = self._load_manual_evidence_unlocked()
+            previous = current.get(evidence.binding.provider_id)
+            if expected_check_id is not None and (
+                previous is None or previous.check_id != expected_check_id
+            ):
+                return False
+            current[evidence.binding.provider_id] = evidence
+            self._write(self.load(), current)
+            return True
+
+    def invalidate_manual_evidence(self, provider_id: str) -> bool:
+        normalized = str(provider_id).strip().casefold()
+        with self._lock:
+            current = self._load_manual_evidence_unlocked()
+            if current.pop(normalized, None) is None:
+                return False
+            self._write(self.load(), current)
+            return True
+
+    def _read_payload(self) -> dict[str, object] | None:
+        if not self.path.is_file():
+            return None
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        version = payload.get("schema_version", 1)
+        if (
+            not isinstance(version, int)
+            or isinstance(version, bool)
+            or version > self.SCHEMA_VERSION
+        ):
+            return None
+        return payload
+
+    def _load_manual_evidence_unlocked(self) -> dict[str, ManualHealthEvidence]:
+        payload = self._read_payload()
+        if payload is None or payload.get("schema_version", 1) != self.SCHEMA_VERSION:
+            return {}
+        raw_evidence = payload.get("manual_evidence", {})
+        if not isinstance(raw_evidence, dict):
+            return {}
+        result: dict[str, ManualHealthEvidence] = {}
+        for provider_id, raw in raw_evidence.items():
+            try:
+                evidence = _decode_manual_health_evidence(raw)
+            except (KeyError, TypeError, ValueError):
+                continue
+            normalized = str(provider_id).strip().casefold()
+            if normalized == evidence.binding.provider_id:
+                result[normalized] = evidence
+        return result
+
+    def _write(
+        self,
+        records: Mapping[str, ProviderCheckRecord],
+        evidence: Mapping[str, ManualHealthEvidence],
+    ) -> None:
+        self._backup_v1_if_needed()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": self.SCHEMA_VERSION,
+            "providers": {
+                provider_id: {
+                    "status": record.status.value,
+                    "checked_at": record.checked_at,
+                    "last_success_at": record.last_success_at,
+                    "message": record.message,
+                    "last_error": record.last_error,
+                    "latency_ms": record.latency_ms,
+                }
+                for provider_id, record in sorted(records.items())
+            },
+            "manual_evidence": {
+                provider_id: item.public_payload() for provider_id, item in sorted(evidence.items())
+            },
+        }
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
+        try:
+            temporary.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            temporary.replace(self.path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _backup_v1_if_needed(self) -> None:
+        payload = self._read_payload()
+        if payload is None or payload.get("schema_version", 1) != 1:
+            return
+        if tuple(self.path.parent.glob(f"{self.path.name}.v1-*.bak")):
+            return
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        backup = self.path.with_name(f"{self.path.name}.v1-{stamp}.bak")
+        with backup.open("xb") as handle:
+            handle.write(self.path.read_bytes())
+
+
+def _decode_manual_health_evidence(value: object) -> ManualHealthEvidence:
+    if not isinstance(value, dict):
+        raise TypeError("manual health evidence must be an object")
+    if set(value) != {
+        "check_id",
+        "binding",
+        "outcome",
+        "health",
+        "checked_at",
+        "valid_until",
+    }:
+        raise ValueError("manual health evidence fields are invalid")
+    raw_binding = value["binding"]
+    if not isinstance(raw_binding, dict) or set(raw_binding) != {
+        "provider_id",
+        "protocol_fingerprint",
+        "adapter_spec_version",
+        "adapter_revision",
+        "adapter_fingerprint",
+        "credential_marker",
+        "target_policy_version",
+        "transport_policy_version",
+        "contract_version",
+    }:
+        raise ValueError("manual health binding fields are invalid")
+    binding = HealthCheckBinding(
+        provider_id=str(raw_binding["provider_id"]),
+        protocol_fingerprint=str(raw_binding["protocol_fingerprint"]),
+        adapter_spec_version=int(raw_binding["adapter_spec_version"]),
+        adapter_revision=int(raw_binding["adapter_revision"]),
+        adapter_fingerprint=str(raw_binding["adapter_fingerprint"]),
+        credential_marker=str(raw_binding["credential_marker"]),
+        target_policy_version=str(raw_binding["target_policy_version"]),
+        transport_policy_version=str(raw_binding["transport_policy_version"]),
+        contract_version=int(raw_binding["contract_version"]),
+    )
+    checked_at = datetime.fromisoformat(str(value["checked_at"]).replace("Z", "+00:00"))
+    valid_until = datetime.fromisoformat(str(value["valid_until"]).replace("Z", "+00:00"))
+    return ManualHealthEvidence(
+        check_id=str(value["check_id"]),
+        binding=binding,
+        outcome=ManualHealthOutcome(str(value["outcome"])),
+        health=ManualHealthState(str(value["health"])),
+        checked_at=checked_at,
+        valid_until=valid_until,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -273,6 +479,13 @@ ManualProviderIdFactory = Callable[[], str]
 ManualProviderClock = Callable[[], datetime]
 
 
+@dataclass(frozen=True, slots=True)
+class _PreparedManualHealthCheck:
+    registration: ManualProviderRegistration
+    binding: HealthCheckBinding
+    credentials: ManualProbeCredentials = field(repr=False)
+
+
 class CollectorProviderManager:
     """Manage source switches and perform explicit background health checks."""
 
@@ -288,6 +501,8 @@ class CollectorProviderManager:
         vertical_verification_repository: (VerticalSourceVerificationRepository | None) = None,
         manual_provider_id_factory: ManualProviderIdFactory | None = None,
         manual_provider_clock: ManualProviderClock | None = None,
+        manual_health_service: ManualProviderHealthService | None = None,
+        manual_probe_transport: ManualProviderProbeTransport | None = None,
     ) -> None:
         self.data_directory = Path(data_directory).expanduser()
         self.data_directory.mkdir(parents=True, exist_ok=True)
@@ -314,6 +529,17 @@ class CollectorProviderManager:
             lambda: f"manual_{uuid4().hex}"
         )
         self._manual_provider_clock = manual_provider_clock or (lambda: datetime.now(timezone.utc))
+        self.manual_probe_transport = manual_probe_transport or ManualProviderProbeTransport(
+            resolver=SystemManualProbeResolver(),
+            http=PinnedHttpsProbePort(),
+            ftp=PinnedFtpsProbePort(),
+        )
+        self.manual_health_service = manual_health_service or ManualProviderHealthService(
+            prepare=self._prepare_manual_health_check,
+            probe=self._execute_manual_health_check,
+            persist=lambda _result: None,
+            utc_now=self._safe_manual_timestamp,
+        )
         self.vertical_verification_repository = (
             vertical_verification_repository
             or VerticalSourceVerificationRepository(self.data_directory / "tender_registry.sqlite3")
@@ -329,6 +555,9 @@ class CollectorProviderManager:
                 records.get(definition.descriptor.id.casefold()),
                 snapshot.get(definition.descriptor.id),
                 snapshot.status,
+                manual_verified=(
+                    definition.descriptor.id.casefold() in snapshot.verified_manual_provider_ids
+                ),
             )
             for definition in definitions
         )
@@ -337,9 +566,37 @@ class CollectorProviderManager:
         return self.settings_snapshot().enabled_provider_ids
 
     def settings_snapshot(self) -> ProviderSettingsSnapshot:
-        return create_provider_settings_snapshot(
+        snapshot = create_provider_settings_snapshot(
             self.settings_repository,
             environment=self.environment,
+        )
+        verified: set[str] = set()
+        now = self._safe_manual_timestamp()
+        for registration in snapshot.manual_registrations:
+            try:
+                binding = self._manual_health_binding(registration)
+            except (RuntimeError, TypeError, ValueError):
+                continue
+            evidence = self.check_repository.manual_evidence(registration.provider_id)
+            admission = evaluate_manual_provider_admission(True, evidence, binding, now)
+            if admission.state is ManualHealthAdmissionState.READY:
+                verified.add(registration.provider_id)
+        persisted = {
+            item.provider_id: item for item in self.settings_repository.load_result().records
+        }
+        providers = tuple(
+            replace(
+                item,
+                enabled=bool(persisted[item.provider_id].enabled),
+            )
+            if item.provider_id in verified and item.provider_id in persisted
+            else item
+            for item in snapshot.providers
+        )
+        return replace(
+            snapshot,
+            providers=providers,
+            verified_manual_provider_ids=frozenset(verified),
         )
 
     def resolve_provider_ids(self, provider_ids: Iterable[str]) -> tuple[str, ...]:
@@ -357,19 +614,24 @@ class CollectorProviderManager:
         enabled: bool,
     ) -> ProviderDisplayState:
         normalized = self.resolve_provider_ids((provider_id,))[0]
+        snapshot = self.settings_snapshot()
         try:
-            manual_registration = self.settings_snapshot().get_manual(normalized)
+            snapshot.get_manual(normalized)
         except KeyError:
             pass
         else:
-            raise ManualProviderExecutionError(manual_registration.lifecycle_state)
+            registration = snapshot.get_manual(normalized)
+            if registration.lifecycle_state is not ManualProviderLifecycle.CONNECTION_TEST_REQUIRED:
+                raise ManualProviderExecutionError(registration.lifecycle_state)
+            if enabled and normalized not in snapshot.verified_manual_provider_ids:
+                raise ManualProviderExecutionError(ManualProviderLifecycle.CONNECTION_TEST_REQUIRED)
         definitions = {
             item.descriptor.id.casefold(): item
             for item in self._definitions(self.settings_snapshot())
         }
         if normalized not in definitions:
             raise KeyError(provider_id)
-        current = self.settings_snapshot().get(normalized)
+        current = snapshot.get(normalized)
         if current.enabled_origin is ProviderSettingOrigin.ENVIRONMENT:
             raise PermissionError("Provider enablement is overridden by environment")
 
@@ -497,6 +759,7 @@ class CollectorProviderManager:
                 updated,
                 expected_updated_at=current.updated_at,
             )
+            self.check_repository.invalidate_manual_evidence(updated.provider_id)
         except ManualProviderConflictError as exc:
             return _manual_command_result(
                 normalized,
@@ -571,6 +834,15 @@ class CollectorProviderManager:
 
     def manual_adapter_spec(self, provider_id: str) -> ManualAdapterSpec | None:
         return self.settings_snapshot().get_manual(provider_id).adapter_spec
+
+    def manual_health_binding(self, provider_id: str) -> HealthCheckBinding:
+        """Build the current non-secret admission binding without network I/O."""
+
+        registration = create_provider_settings_snapshot(
+            self.settings_repository,
+            environment=self.environment,
+        ).get_manual(provider_id)
+        return self._manual_health_binding(registration)
 
     def compile_manual_provider_adapter(
         self,
@@ -653,6 +925,7 @@ class CollectorProviderManager:
                 updated,
                 expected_updated_at=expected_updated_at,
             )
+            self.check_repository.invalidate_manual_evidence(updated.provider_id)
         except ProviderSettingsStaleWriteError:
             return _manual_adapter_command_result(
                 normalized,
@@ -743,6 +1016,7 @@ class CollectorProviderManager:
                 updated,
                 expected_updated_at=expected_updated_at,
             )
+            self.check_repository.invalidate_manual_evidence(updated.provider_id)
         except ProviderSettingsStaleWriteError:
             return _manual_adapter_command_result(
                 normalized,
@@ -869,6 +1143,7 @@ class CollectorProviderManager:
                 endpoint_url=draft.endpoint_url,
                 payload_format=draft.payload_format,
                 authentication_kind=draft.authentication_kind,
+                ftps_mode=draft.ftps_mode,
             )
             timestamp = self._next_manual_timestamp(current.updated_at)
             selection = create_manual_provider_protocol_selection(
@@ -894,6 +1169,7 @@ class CollectorProviderManager:
                 updated,
                 expected_updated_at=expected_updated_at,
             )
+            self.check_repository.invalidate_manual_evidence(updated.provider_id)
             status = (
                 ManualProviderProtocolCommandStatus.CHANGED
                 if current.protocol_selection is not None
@@ -990,6 +1266,7 @@ class CollectorProviderManager:
                 updated,
                 expected_updated_at=expected_updated_at,
             )
+            self.check_repository.invalidate_manual_evidence(updated.provider_id)
         except ProviderSettingsStaleWriteError:
             return _manual_protocol_command_result(
                 normalized,
@@ -1078,6 +1355,131 @@ class CollectorProviderManager:
         value = self._manual_provider_clock()
         return value if value.utcoffset() is not None else datetime.now(timezone.utc)
 
+    def _manual_health_binding(
+        self,
+        registration: ManualProviderRegistration,
+    ) -> HealthCheckBinding:
+        selection = registration.protocol_selection
+        spec = registration.adapter_spec
+        if selection is None or spec is None:
+            raise ValueError("manual provider is not configured")
+        compiled = compile_manual_adapter(registration, spec)
+        if compiled.status is not AdapterCompileStatus.VALID or compiled.adapter is None:
+            raise ValueError("manual provider adapter is invalid")
+        secret_names = {
+            ManualProviderAuthenticationKind.NONE: (),
+            ManualProviderAuthenticationKind.API_KEY: ("api_key",),
+            ManualProviderAuthenticationKind.USERNAME_PASSWORD: ("username", "password"),
+        }[selection.authentication_kind]
+        marker = self.credential_service.credential_marker(
+            registration.provider_id,
+            secret_names,
+        )
+        return build_health_check_binding(
+            provider_id=registration.provider_id,
+            protocol_payload=selection.persisted_payload(),
+            adapter_spec_version=spec.spec_version,
+            adapter_revision=spec.revision,
+            adapter_fingerprint=spec.fingerprint,
+            credential_marker=marker,
+        )
+
+    def _prepare_manual_health_check(self, provider_id: str) -> _PreparedManualHealthCheck:
+        snapshot = create_provider_settings_snapshot(
+            self.settings_repository,
+            environment=self.environment,
+        )
+        registration = snapshot.get_manual(provider_id)
+        binding = self._manual_health_binding(registration)
+        selection = registration.protocol_selection
+        if selection is None:
+            raise ValueError("manual provider protocol is required")
+        credentials = ManualProbeCredentials()
+        if selection.authentication_kind is ManualProviderAuthenticationKind.API_KEY:
+            secret = self.credential_service.resolve_runtime_secret(provider_id, "api_key")
+            credentials = ManualProbeCredentials(api_key=secret.value)
+        elif selection.authentication_kind is ManualProviderAuthenticationKind.USERNAME_PASSWORD:
+            username = self.credential_service.resolve_runtime_secret(provider_id, "username")
+            password = self.credential_service.resolve_runtime_secret(provider_id, "password")
+            credentials = ManualProbeCredentials(
+                username=username.value,
+                password=password.value,
+            )
+        return _PreparedManualHealthCheck(registration, binding, credentials)
+
+    async def _execute_manual_health_check(
+        self,
+        prepared: _PreparedManualHealthCheck,
+        cancellation_token: CollectorCancellationToken,
+    ) -> ManualHealthCheckResult:
+        started_at = self._safe_manual_timestamp()
+        started_monotonic = time.monotonic()
+        registration = prepared.registration
+        selection = registration.protocol_selection
+        spec = registration.adapter_spec
+        if selection is None or spec is None:
+            raise ValueError("manual provider is not configured")
+        try:
+            if selection.family.value in {"api", "rss"}:
+                if selection.payload_format is None:
+                    raise ValueError("manual provider payload format is required")
+                payload = await self.manual_probe_transport.probe_http(
+                    selection.endpoint_url,
+                    selection.family,
+                    selection.payload_format,
+                    cancellation_token,
+                    prepared.credentials,
+                )
+            else:
+                payload = await self.manual_probe_transport.probe_ftp(
+                    selection.endpoint_url,
+                    selection.family,
+                    spec.source.filename_suffix,
+                    cancellation_token,
+                    ftps_mode=selection.ftps_mode,
+                    credentials=prepared.credentials,
+                )
+            compatibility = evaluate_manual_probe_payload(spec, payload)
+            if selection.family.value == "ftp":
+                outcome = ManualHealthOutcome.DEGRADED
+                health = ManualHealthState.DEGRADED
+                reason = ManualHealthReasonCode.PLAINTEXT_TRANSPORT
+            elif compatibility.health is ManualHealthState.HEALTHY:
+                outcome = ManualHealthOutcome.PASSED
+            elif compatibility.health is ManualHealthState.DEGRADED:
+                outcome = ManualHealthOutcome.DEGRADED
+            else:
+                outcome = ManualHealthOutcome.FAILED
+            health = compatibility.health
+            reason = compatibility.reason_code
+        except ManualProbeTransportError as exc:
+            if exc.reason is ManualProbeTransportReason.TARGET_BLOCKED:
+                outcome = ManualHealthOutcome.BLOCKED
+                health = ManualHealthState.UNKNOWN
+                reason = ManualHealthReasonCode.TARGET_BLOCKED
+            elif exc.reason is ManualProbeTransportReason.DNS_BLOCKED:
+                outcome = ManualHealthOutcome.BLOCKED
+                health = ManualHealthState.UNKNOWN
+                reason = ManualHealthReasonCode.DNS_BLOCKED
+            else:
+                outcome = ManualHealthOutcome.FAILED
+                health = ManualHealthState.UNHEALTHY
+                reason = ManualHealthReasonCode.PROTOCOL_ERROR
+        finished_at = self._safe_manual_timestamp()
+        if finished_at < started_at:
+            finished_at = started_at
+        return ManualHealthCheckResult(
+            check_id=uuid4().hex,
+            binding=prepared.binding,
+            outcome=outcome,
+            health=health,
+            reason_code=reason,
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_ms=max(0, int((time.monotonic() - started_monotonic) * 1000)),
+            stages=(),
+        )
+
     def credential_state(
         self,
         provider_id: str,
@@ -1102,6 +1504,11 @@ class CollectorProviderManager:
             replace=replace,
         )
         self._remember_credential_command(result)
+        if result.provider_id != "unknown" and result.status in {
+            CredentialCommandStatus.SAVED,
+            CredentialCommandStatus.REPLACED,
+        }:
+            self.check_repository.invalidate_manual_evidence(result.provider_id)
         return result
 
     def delete_credential(
@@ -1111,6 +1518,8 @@ class CollectorProviderManager:
     ) -> CredentialCommandResult:
         result = self.credential_service.delete_secret(provider_id, secret_name)
         self._remember_credential_command(result)
+        if result.provider_id != "unknown" and result.status is CredentialCommandStatus.DELETED:
+            self.check_repository.invalidate_manual_evidence(result.provider_id)
         return result
 
     def _remember_credential_command(self, result: CredentialCommandResult) -> None:
@@ -1137,9 +1546,36 @@ class CollectorProviderManager:
                 return item
         raise KeyError(provider_id)
 
+    async def test_manual_provider_connection(
+        self,
+        provider_id: str,
+        *,
+        cancellation_token: CollectorCancellationToken | None = None,
+    ) -> ManualHealthCheckResult:
+        normalized = self.resolve_provider_ids((provider_id,))[0]
+        registration = self.settings_snapshot().get_manual(normalized)
+        if registration.adapter_spec is None or registration.protocol_selection is None:
+            raise ManualProviderExecutionError(registration.lifecycle_state)
+        if self.manual_health_service is None:
+            raise ManualProviderExecutionError(ManualProviderLifecycle.CONNECTION_TEST_REQUIRED)
+        result = await self.manual_health_service.test_connection(
+            ManualHealthCheckCommand(
+                normalized,
+                cancellation_token=(cancellation_token or CollectorCancellationToken()),
+            )
+        )
+        if result.creates_evidence:
+            current = self.settings_snapshot().get_manual(normalized)
+            binding = self._manual_health_binding(current)
+            if result.binding == binding:
+                self.check_repository.save_manual_evidence(ManualHealthEvidence.from_result(result))
+        return result
+
     async def check_providers(
         self,
         provider_ids: Iterable[str],
+        *,
+        cancellation_token: CollectorCancellationToken | None = None,
     ) -> tuple[ProviderDisplayState, ...]:
         normalized_ids = tuple(
             dict.fromkeys(item.strip().casefold() for item in provider_ids if item.strip())
@@ -1148,21 +1584,19 @@ class CollectorProviderManager:
         unknown = [provider_id for provider_id in normalized_ids if provider_id not in known]
         if unknown:
             raise KeyError(", ".join(unknown))
-        manual_state = next(
-            (
-                known[provider_id]
-                for provider_id in normalized_ids
-                if known[provider_id].registration_only
-            ),
-            None,
+        manual_ids = tuple(
+            provider_id for provider_id in normalized_ids if known[provider_id].registration_only
         )
-        if manual_state is not None:
-            raise ManualProviderExecutionError(
-                manual_state.lifecycle or ManualProviderLifecycle.PROTOCOL_REQUIRED
+        for provider_id in manual_ids:
+            await self.test_manual_provider_connection(
+                provider_id,
+                cancellation_token=cancellation_token,
             )
 
         selected = tuple(
-            provider_id for provider_id in normalized_ids if known[provider_id].enabled
+            provider_id
+            for provider_id in normalized_ids
+            if provider_id not in manual_ids and known[provider_id].enabled
         )
         if not selected:
             return self.states()
@@ -1327,25 +1761,35 @@ class CollectorProviderManager:
         record: ProviderCheckRecord | None,
         settings: ProviderSettingsRecord,
         settings_status: ProviderSettingsLoadStatus,
+        *,
+        manual_verified: bool = False,
     ) -> ProviderDisplayState:
         descriptor = definition.descriptor
         catalog_entry = definition.catalog_entry
         enabled = bool(settings.enabled)
         details = definition.configuration_details
         credential_result = self._credential_states.get((descriptor.id.casefold(), "api_key"))
+        manual_evidence = (
+            self.check_repository.manual_evidence(descriptor.id)
+            if catalog_entry is not None and catalog_entry.registration_only
+            else None
+        )
 
         if catalog_entry is not None and catalog_entry.registration_only:
-            enabled = False
-            ui_state = ProviderUiState.NOT_CONFIGURED
-            status_text = (
-                "Адаптер настроен — требуется проверка подключения"
-                if catalog_entry.adapter_compiled
-                else (
-                    "Протокол выбран — требуется создание адаптера"
-                    if catalog_entry.protocol_configured
-                    else "Требуется выбор протокола"
+            if manual_verified:
+                ui_state = ProviderUiState.WORKING if enabled else ProviderUiState.UNVERIFIED
+                status_text = "Проверено" if enabled else "Готов к включению"
+            else:
+                ui_state = ProviderUiState.NOT_CONFIGURED
+                status_text = (
+                    "Адаптер настроен — требуется проверка подключения"
+                    if catalog_entry.adapter_compiled
+                    else (
+                        "Протокол выбран — требуется создание адаптера"
+                        if catalog_entry.protocol_configured
+                        else "Требуется выбор протокола"
+                    )
                 )
-            )
         elif settings_status is ProviderSettingsLoadStatus.CORRUPT:
             ui_state = ProviderUiState.ERROR
             status_text = "Файл настроек повреждён; запуск заблокирован"
@@ -1374,8 +1818,20 @@ class CollectorProviderManager:
             connection_mode=_connection_mode_label(definition.connection_mode),
             implementation_status=(descriptor.implementation_status),
             homepage_url=descriptor.homepage_url,
-            last_checked_at=(record.checked_at if record else ""),
-            last_success_at=(record.last_success_at if record else ""),
+            last_checked_at=(
+                manual_evidence.checked_at.isoformat(timespec="seconds")
+                if manual_evidence is not None
+                else record.checked_at
+                if record
+                else ""
+            ),
+            last_success_at=(
+                manual_evidence.checked_at.isoformat(timespec="seconds")
+                if manual_evidence is not None and manual_verified
+                else record.last_success_at
+                if record
+                else ""
+            ),
             last_error=(record.last_error if record else ""),
             latency_ms=(record.latency_ms if record else None),
             configuration_details=details,
@@ -1383,7 +1839,7 @@ class CollectorProviderManager:
             enabled_origin=settings.enabled_origin,
             configuration_origin=settings.configuration_origin,
             enabled_editable=(
-                not (catalog_entry is not None and catalog_entry.registration_only)
+                (catalog_entry is None or not catalog_entry.registration_only or manual_verified)
                 and settings.enabled_origin is not ProviderSettingOrigin.ENVIRONMENT
                 and settings_status
                 not in {
@@ -1408,7 +1864,13 @@ class CollectorProviderManager:
             registration_only=(
                 catalog_entry.registration_only if catalog_entry is not None else False
             ),
-            runnable=(catalog_entry.runnable if catalog_entry is not None else True),
+            runnable=(
+                enabled and manual_verified
+                if catalog_entry is not None and catalog_entry.registration_only
+                else catalog_entry.runnable
+                if catalog_entry is not None
+                else True
+            ),
             factory_available=(
                 catalog_entry.factory_available if catalog_entry is not None else True
             ),
@@ -1419,10 +1881,24 @@ class CollectorProviderManager:
                 catalog_entry.adapter_compiled if catalog_entry is not None else True
             ),
             credential_available=(
-                catalog_entry.credential_available if catalog_entry is not None else False
+                (
+                    catalog_entry.manual_registration is not None
+                    and catalog_entry.manual_registration.protocol_selection is not None
+                    and catalog_entry.manual_registration.adapter_spec is not None
+                    and catalog_entry.manual_registration.protocol_selection.authentication_kind
+                    is not ManualProviderAuthenticationKind.NONE
+                )
+                if catalog_entry is not None and catalog_entry.registration_only
+                else catalog_entry.credential_available
+                if catalog_entry is not None
+                else False
             ),
             health_check_available=(
-                catalog_entry.health_check_available if catalog_entry is not None else True
+                catalog_entry.adapter_compiled
+                if catalog_entry is not None and catalog_entry.registration_only
+                else catalog_entry.health_check_available
+                if catalog_entry is not None
+                else True
             ),
             manual_registration=(
                 catalog_entry.manual_registration if catalog_entry is not None else None
@@ -1593,6 +2069,8 @@ def _manual_adapter_command_result(
 __all__ = [
     "CollectorProviderManager",
     "ProviderCheckRecord",
+    "ProviderCheckLoadResult",
+    "ProviderCheckLoadStatus",
     "ProviderCheckRepository",
     "ProviderDisplayState",
     "ProviderUiState",

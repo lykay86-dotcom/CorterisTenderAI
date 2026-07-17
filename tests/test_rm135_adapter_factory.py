@@ -148,7 +148,7 @@ def test_manager_save_noop_revision_rollback_and_admission_are_separate(tmp_path
     assert state.factory_available is True
     assert state.runnable is False
     assert state.enabled is False
-    assert state.health_check_available is False
+    assert state.health_check_available is True
 
     cleared = manager.clear_manual_adapter_spec(
         PROVIDER_ID,
