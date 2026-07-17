@@ -29,7 +29,10 @@ from app.tenders.search_profile_repository import (
     TenderSearchProfileRepository,
 )
 from app.tenders.search_runtime import TenderSearchRuntime
-from app.ui.tender_search_ui_controller import TenderSearchUiController
+from app.ui.tender_search_ui_controller import (
+    TenderSearchUiController,
+    _CollectorRunWorker,
+)
 
 
 def _app() -> QApplication:
@@ -120,6 +123,12 @@ class FakeCollectorSession:
                 )
             )
         return _result()
+
+
+class FailingCollectorSession:
+    async def run(self, query, **kwargs):
+        del query, kwargs
+        raise RuntimeError("token=ui-secret https://private.example/path?q=secret")
 
 
 def _runtime(tmp_path) -> TenderSearchRuntime:
@@ -277,3 +286,20 @@ def test_partial_failure_and_invalid_result_are_not_reported_as_success(tmp_path
     controller._on_collector_succeeded(object())
     assert controller._collector_worker is None
     assert "неподдерживаемый результат" in panel.status_label.text().casefold()
+
+
+def test_collector_worker_emits_only_safe_typed_failure() -> None:
+    _app()
+    worker = _CollectorRunWorker(FailingCollectorSession(), object(), ("eis",))
+    failures: list[tuple[str, str]] = []
+    worker.signals.failed.connect(lambda code, message: failures.append((code, message)))
+
+    worker.run()
+
+    assert failures == [
+        (
+            "provider_internal_error",
+            "Источник завершил поиск с безопасно скрытой ошибкой.",
+        )
+    ]
+    assert "ui-secret" not in failures[0][1]

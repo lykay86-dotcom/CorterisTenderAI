@@ -88,6 +88,7 @@ class CollectorService:
             CollectorProgressEvent(
                 phase=CollectorProgressPhase.PREPARING,
                 total_providers=len(requested),
+                progress_percent=3,
                 message="Подготовка запуска коллектора…",
             ),
         )
@@ -119,6 +120,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.NORMALIZING,
                     total_providers=len(batch.outcomes),
+                    progress_percent=76,
                     raw_count=len(batch.raw_items),
                     message=("Нормализация данных, полученных от источников…"),
                 ),
@@ -147,6 +149,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.DEDUPLICATING,
                     total_providers=len(batch.outcomes),
+                    progress_percent=80,
                     raw_count=(
                         len(normalized)
                         if batch.deduplication is None
@@ -162,6 +165,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.VERIFYING,
                     total_providers=len(batch.outcomes),
+                    progress_percent=86,
                     raw_count=deduplicated.raw_count,
                     merged_count=deduplicated.merged_count,
                     duplicate_count=deduplicated.duplicate_count,
@@ -179,6 +183,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.CHECKING_FRESHNESS,
                     total_providers=len(batch.outcomes),
+                    progress_percent=89,
                     raw_count=verified_deduplication.raw_count,
                     merged_count=verified_deduplication.merged_count,
                     duplicate_count=(verified_deduplication.duplicate_count),
@@ -195,6 +200,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.RANKING,
                     total_providers=len(batch.outcomes),
+                    progress_percent=92,
                     raw_count=verified_deduplication.raw_count,
                     merged_count=verified_deduplication.merged_count,
                     duplicate_count=(verified_deduplication.duplicate_count),
@@ -228,6 +234,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.SAVING,
                     total_providers=len(batch.outcomes),
+                    progress_percent=95,
                     raw_count=verified_deduplication.raw_count,
                     merged_count=verified_deduplication.merged_count,
                     duplicate_count=(verified_deduplication.duplicate_count),
@@ -304,6 +311,7 @@ class CollectorService:
                 CollectorProgressEvent(
                     phase=final_phase,
                     total_providers=len(batch.outcomes),
+                    progress_percent=100,
                     raw_count=verified_deduplication.raw_count,
                     merged_count=persistence.merged_count,
                     duplicate_count=persistence.duplicate_count,
@@ -333,6 +341,7 @@ class CollectorService:
                 progress_callback,
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.FAILED,
+                    progress_percent=100,
                     message=failure.message,
                 ),
             )

@@ -29,6 +29,7 @@ def test_dialog_displays_verification_phase() -> None:
             raw_count=5,
             merged_count=4,
             duplicate_count=1,
+            progress_percent=86,
             message=("Проверка критичных полей и происхождения данных…"),
         )
     )
@@ -48,6 +49,7 @@ def test_dialog_displays_freshness_phase() -> None:
             raw_count=5,
             merged_count=4,
             duplicate_count=1,
+            progress_percent=89,
             message="Нормализация сроков и расчёт повторной проверки…",
         )
     )

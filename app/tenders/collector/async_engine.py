@@ -317,6 +317,7 @@ class _SearchLifecycle:
                 raw_count=self.deduplication.raw_count,
                 merged_count=self.deduplication.merged_count,
                 duplicate_count=self.deduplication.duplicate_count,
+                progress_percent=min(70, 5 + round(snapshot.percent * 0.65)),
                 message=message,
                 snapshot=snapshot,
             )

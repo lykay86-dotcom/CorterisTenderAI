@@ -173,6 +173,7 @@ class CollectorProgressEvent:
     stale_count: int = 0
     due_soon_count: int = 0
     expired_count: int = 0
+    progress_percent: int | None = None
     snapshot: ParallelSearchSnapshot | None = None
 
     def __post_init__(self) -> None:
@@ -192,6 +193,8 @@ class CollectorProgressEvent:
         )
         if any(value < 0 for value in integer_fields):
             raise ValueError("Progress counters must be non-negative")
+        if self.progress_percent is not None and not 0 <= self.progress_percent <= 100:
+            raise ValueError("Progress percent must be between 0 and 100")
 
 
 CollectorProgressCallback = Callable[
