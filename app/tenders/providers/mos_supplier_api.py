@@ -209,7 +209,7 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
             )
         return (
             "Настроен официальный API Портала поставщиков.",
-            f"Токен: {self.config.masked_token}.",
+            "Credential настроен: да.",
             "Работоспособность следует подтвердить кнопкой проверки "
             "подключения или scripts/check_mos_supplier_api.py.",
         )

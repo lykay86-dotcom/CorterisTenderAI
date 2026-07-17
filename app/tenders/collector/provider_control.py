@@ -30,6 +30,12 @@ from app.tenders.provider_base import (
     ProviderHealth,
     ProviderHealthStatus,
 )
+from app.tenders.provider_credentials import (
+    CredentialCommandResult,
+    CredentialState,
+    CredentialStateResult,
+    ProviderCredentialService,
+)
 from app.tenders.providers.commercial_catalog import (
     CommercialProviderSettingsRepository,
     default_commercial_provider_definitions,
@@ -192,6 +198,7 @@ class ProviderDisplayState:
     enabled_editable: bool = True
     configuration_editable: bool = True
     settings_status: ProviderSettingsLoadStatus = ProviderSettingsLoadStatus.MISSING
+    credential_state: CredentialState | None = None
 
     def __post_init__(self) -> None:
         if not self.provider_id.strip():
@@ -222,6 +229,7 @@ class CollectorProviderManager:
         enablement_repository: ProviderEnablementRepository | None = None,
         check_repository: ProviderCheckRepository | None = None,
         health_checker: HealthChecker | None = None,
+        credential_service: ProviderCredentialService | None = None,
         vertical_verification_repository: (VerticalSourceVerificationRepository | None) = None,
     ) -> None:
         self.data_directory = Path(data_directory).expanduser()
@@ -241,6 +249,10 @@ class CollectorProviderManager:
             self.data_directory / "commercial_provider_settings.json"
         )
         self._health_checker = health_checker
+        self.credential_service = credential_service or ProviderCredentialService(
+            environment=self.environment
+        )
+        self._credential_states: dict[tuple[str, str], CredentialStateResult] = {}
         self.vertical_verification_repository = (
             vertical_verification_repository
             or VerticalSourceVerificationRepository(self.data_directory / "tender_registry.sqlite3")
@@ -311,6 +323,54 @@ class CollectorProviderManager:
             raise PermissionError("Provider configuration is overridden by environment")
         self.settings_repository.set_configuration(normalized, configuration)
         return next(item for item in self.states() if item.provider_id == normalized)
+
+    def credential_state(
+        self,
+        provider_id: str,
+        secret_name: str = "api_key",
+    ) -> CredentialStateResult:
+        result = self.credential_service.has_secret(provider_id, secret_name)
+        self._credential_states[(result.provider_id, result.secret_name)] = result
+        return result
+
+    def save_credential(
+        self,
+        provider_id: str,
+        secret_name: str,
+        value: str,
+        *,
+        replace: bool = False,
+    ) -> CredentialCommandResult:
+        result = self.credential_service.save_secret(
+            provider_id,
+            secret_name,
+            value,
+            replace=replace,
+        )
+        self._remember_credential_command(result)
+        return result
+
+    def delete_credential(
+        self,
+        provider_id: str,
+        secret_name: str = "api_key",
+    ) -> CredentialCommandResult:
+        result = self.credential_service.delete_secret(provider_id, secret_name)
+        self._remember_credential_command(result)
+        return result
+
+    def _remember_credential_command(self, result: CredentialCommandResult) -> None:
+        if result.provider_id == "unknown":
+            return
+        self._credential_states[(result.provider_id, result.secret_name)] = CredentialStateResult(
+            provider_id=result.provider_id,
+            secret_name=result.secret_name,
+            state=result.state,
+            message=result.message,
+            observed_at=result.observed_at,
+            protected_store_configured=(result.state is CredentialState.CONFIGURED),
+            environment_override=(result.state is CredentialState.ENVIRONMENT_OVERRIDE),
+        )
 
     async def check_provider(
         self,
@@ -404,7 +464,7 @@ class CollectorProviderManager:
         self,
         snapshot: ProviderSettingsSnapshot,
     ) -> tuple[_ProviderDefinitionView, ...]:
-        mos_config = MosSupplierApiConfig.from_environment(self.environment)
+        mos_credential_state = self._credential_states.get(("mos_supplier", "api_key"))
         result = [
             _ProviderDefinitionView(
                 descriptor=AsyncEisTenderProvider.descriptor,
@@ -420,9 +480,9 @@ class CollectorProviderManager:
                 connection_mode="official_api_bearer",
                 configuration_details=(
                     (
-                        "Bearer-токен настроен."
-                        if mos_config.configured
-                        else ("Требуется CORTERIS_MOS_API_KEY.")
+                        mos_credential_state.message
+                        if mos_credential_state is not None
+                        else "Состояние credential не запрашивалось."
                     ),
                     "Официальный API Портала поставщиков.",
                 ),
@@ -518,6 +578,11 @@ class CollectorProviderManager:
                 }
             ),
             settings_status=settings_status,
+            credential_state=(
+                self._credential_states.get((descriptor.id.casefold(), "api_key")).state
+                if (descriptor.id.casefold(), "api_key") in self._credential_states
+                else None
+            ),
         )
 
     def _initial_state(
@@ -532,12 +597,24 @@ class CollectorProviderManager:
                 "Не проверен · резервный HTML-режим",
             )
         if provider_id == "mos_supplier":
-            config = MosSupplierApiConfig.from_environment(self.environment)
-            if not config.configured:
+            credential = self._credential_states.get((provider_id, "api_key"))
+            if credential is None:
+                if self.environment is not None:
+                    return (
+                        ProviderUiState.NOT_CONFIGURED,
+                        "Credential не задан в hermetic environment",
+                    )
                 return (
-                    ProviderUiState.NOT_CONFIGURED,
-                    "Требуется bearer-токен",
+                    ProviderUiState.UNKNOWN,
+                    "Credential не проверялся",
                 )
+            if credential.state is CredentialState.NOT_CONFIGURED:
+                return (ProviderUiState.NOT_CONFIGURED, credential.message)
+            if credential.state in {
+                CredentialState.BACKEND_UNAVAILABLE,
+                CredentialState.INVALID_REQUEST,
+            }:
+                return (ProviderUiState.ERROR, credential.message)
             return (
                 ProviderUiState.UNKNOWN,
                 "Настроен, подключение не проверено",
