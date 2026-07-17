@@ -6,6 +6,7 @@ Base SHA: `d576f862aab13fa68ea752e479df5c518ff6af42`
 Feature PR: `#84`
 Feature merge SHA: `593ed39c7b81efc8a67e36eef47ceadbbbaf46ca`
 Exact-merge Windows gate: `29619998396` (`success`)
+Documentation closeout PR: `#85`
 
 ## Outcome
 
@@ -188,6 +189,8 @@ state. Native production EIS and Moscow providers remain cancellable async HTTP 
   vulnerabilities.
 - Exact Python 3.13 job: `1892 passed, 2 warnings in 82.24s`; dependency audit reported no known
   vulnerabilities.
+- Documentation closeout PR: `#85`
+  (`https://github.com/lykay86-dotcom/CorterisTenderAI/pull/85`).
 - Canonical closeout changes RM-138 from `IN PROGRESS` to `DONE`, makes RM-139 the only active
   stage, and leaves RM-140–RM-200 `PLANNED`.
 
