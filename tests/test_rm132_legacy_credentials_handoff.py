@@ -47,6 +47,7 @@ def test_legacy_secret_input_is_disabled_and_never_prefilled(tmp_path, monkeypat
             "app.config.user_settings", fromlist=["UserSettingsStore"]
         ).UserSettingsStore(tmp_path / "user_settings.json"),
     )
+    monkeypatch.setattr(TenderWorkspacePage, "refresh", lambda _self: None)
     page = TenderWorkspacePage(
         ai_provider_selection_service=AiProviderSelectionService(
             ConfigManager(tmp_path / "config.json"),

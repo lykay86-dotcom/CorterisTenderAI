@@ -88,7 +88,8 @@ def test_readiness_progresses_without_marking_provider_available() -> None:
 
     assert settings.state == CommercialProviderState.READY_FOR_VERIFICATION
     assert not settings.is_working
-    assert settings.masked_api_key == "secr…3456"
+    assert not hasattr(settings, "masked_api_key")
+    assert "masked_api_key" not in settings.public_payload()
     assert "secret-value-123456" not in repr(settings)
     assert "secret-value-123456" not in json.dumps(
         settings.public_payload(),

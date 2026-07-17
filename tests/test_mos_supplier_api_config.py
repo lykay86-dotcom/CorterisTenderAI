@@ -15,7 +15,7 @@ def test_config_reads_token_and_endpoint_overrides() -> None:
     assert config.configured
     assert config.search_url == "https://example.test/search"
     assert config.get_url == "https://example.test/get"
-    assert config.masked_token == "secr…alue"
+    assert not hasattr(config, "masked_token")
     assert "secret-token-value" not in repr(config)
 
 
@@ -24,7 +24,7 @@ def test_empty_token_is_not_configured() -> None:
 
     assert not config.configured
     assert config.get_url == ("https://api.zakupki.mos.ru/api/v2/auction/public/Get")
-    assert config.masked_token == ""
+    assert not hasattr(config, "masked_token")
 
 
 def test_explicit_environment_never_reads_host_credential_store(monkeypatch) -> None:
