@@ -1,7 +1,7 @@
 # RM-134 — аудит выбора протокола
 
-Дата аудита: 17 июля 2026 года  
-Audit baseline: `38be7babdd0532ef88a1fbeff0acaed75737ea24` (`origin/main`)  
+Дата аудита: 17 июля 2026 года
+Audit baseline: `38be7babdd0532ef88a1fbeff0acaed75737ea24` (`origin/main`)
 Статус: audit завершён до изменения application-кода.
 
 ## 1. Entry gate

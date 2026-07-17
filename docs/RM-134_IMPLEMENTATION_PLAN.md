@@ -1,6 +1,6 @@
 # RM-134 — implementation plan выбора протокола
 
-Дата: 17 июля 2026 года  
+Дата: 17 июля 2026 года
 Audit baseline: `38be7babdd0532ef88a1fbeff0acaed75737ea24`
 
 План зафиксирован после `docs/RM-134_PROTOCOL_SELECTION_AUDIT.md` и до изменения

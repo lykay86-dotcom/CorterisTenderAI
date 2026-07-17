@@ -1,8 +1,8 @@
 # RM-134 — acceptance evidence выбора протокола
 
-Дата локальной приёмки: 17 июля 2026 года  
-Audit baseline: `38be7babdd0532ef88a1fbeff0acaed75737ea24`  
-Ветка: `feat/rm-134-provider-protocol-selection`  
+Дата локальной приёмки: 17 июля 2026 года
+Audit baseline: `38be7babdd0532ef88a1fbeff0acaed75737ea24`
+Ветка: `feat/rm-134-provider-protocol-selection`
 Статус: local acceptance passed; feature PR/merge evidence pending.
 
 ## 1. Audit-first evidence
