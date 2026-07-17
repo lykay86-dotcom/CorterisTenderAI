@@ -162,7 +162,11 @@ class _DomParser(HTMLParser):
         self.root = _Node("document")
         self._stack = [self.root]
 
-    def handle_starttag(self, tag: str, attrs) -> None:
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
         node = _Node(
             tag=tag.casefold(),
             attrs={str(key).casefold(): str(value or "") for key, value in attrs},
@@ -172,7 +176,11 @@ class _DomParser(HTMLParser):
         if node.tag not in self.VOID_TAGS:
             self._stack.append(node)
 
-    def handle_startendtag(self, tag: str, attrs) -> None:
+    def handle_startendtag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
         self.handle_starttag(tag, attrs)
         if self._stack[-1].tag == tag.casefold():
             self._stack.pop()
@@ -926,7 +934,17 @@ def _parse_money(value: str) -> TenderMoney | None:
         return None
     if amount < 0:
         return None
-    currency = "RUB" if any(token in cleaned for token in ("₽", "руб")) else "RUB"
+    folded = cleaned.casefold()
+    if any(token in folded for token in ("₽", "руб", "rur", "rub")):
+        currency = "RUB"
+    elif any(token in folded for token in ("$", "usd")):
+        currency = "USD"
+    elif any(token in folded for token in ("€", "eur")):
+        currency = "EUR"
+    elif any(token in folded for token in ("¥", "cny")):
+        currency = "CNY"
+    else:
+        return None
     return TenderMoney(amount=amount, currency=currency)
 
 
@@ -1035,7 +1053,7 @@ def _looks_like_money(value: str) -> bool:
     return bool(re.search(r"\d[\d\s]*(?:[.,]\d{2})?\s*(?:₽|руб)", value, re.I))
 
 
-def _format_number(value: Decimal | int | float) -> str:
+def _format_number(value: Decimal | int | float | str) -> str:
     rendered = format(Decimal(str(value)), "f")
     if "." in rendered:
         rendered = rendered.rstrip("0").rstrip(".")
