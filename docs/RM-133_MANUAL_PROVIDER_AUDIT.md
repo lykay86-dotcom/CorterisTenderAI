@@ -257,3 +257,19 @@ registration contract, upgrading the existing provider settings repository to sc
 registrations through the existing manager/dialog and enforcing registration-only state before
 runtime creation. No second owner, network behavior, credential path, SQLite migration or RM-134+
 functionality is required.
+
+## 16. Feature acceptance evidence
+
+После expected-red commit `d3f8906` production implementation зафиксирована commit `3931d7b`.
+Existing repository/manager/session/factory/dialog/controller owners сохранены; schema v3, manual
+catalog projection, typed commands, UI и pre-runtime guards соответствуют audit decisions.
+
+Exact local results: focused `51 passed in 4.31s`, neighbor
+`160 passed, 2 warnings in 12.65s`, full pytest
+`1758 passed, 2 warnings in 66.57s`; secret scan, Ruff check/format (`578 files`), mypy
+(20 source files), offline/database/import/composition/build smoke, dependency audit и diff check
+успешны. Полная evidence/rollback matrix находится в
+`docs/RM-133_MANUAL_PROVIDER_ACCEPTANCE.md`.
+
+**FEATURE IMPLEMENTATION READY FOR PR/CI.** RM-133 остаётся `IN PROGRESS`; RM-134 не начинается до
+feature merge, exact merge-SHA Windows gate и отдельного merged docs-only closeout.
