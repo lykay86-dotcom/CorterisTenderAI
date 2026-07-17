@@ -46,10 +46,14 @@ class MosSupplierApiConfig:
 
         env = environment if environment is not None else os.environ
         defaults = cls()
-        api_token = str(env.get(defaults.token_environment_variable, "")).strip()
-        if not api_token and (environment is None or secret_loader is not None):
+        raw_token = env.get(defaults.token_environment_variable, "")
+        api_token = raw_token if isinstance(raw_token, str) else ""
+        if not _credential_configured(api_token) and (
+            environment is None or secret_loader is not None
+        ):
             loader = secret_loader or _load_keyring_secret_safely
-            api_token = str(loader(MOS_SUPPLIER_KEYRING_SECRET) or "").strip()
+            loaded = loader(MOS_SUPPLIER_KEYRING_SECRET)
+            api_token = loaded if isinstance(loaded, str) else ""
         return cls(
             api_token=api_token,
             search_url=str(
@@ -68,16 +72,7 @@ class MosSupplierApiConfig:
 
     @property
     def configured(self) -> bool:
-        return bool(self.api_token.strip())
-
-    @property
-    def masked_token(self) -> str:
-        token = self.api_token.strip()
-        if not token:
-            return ""
-        if len(token) <= 8:
-            return "*" * len(token)
-        return f"{token[:4]}…{token[-4:]}"
+        return _credential_configured(self.api_token)
 
 
 def _load_keyring_secret_safely(name: str) -> str | None:
@@ -86,6 +81,14 @@ def _load_keyring_secret_safely(name: str) -> str | None:
         return load_secret(name)
     except Exception:
         return None
+
+
+def _credential_configured(value: str) -> bool:
+    return (
+        bool(value)
+        and bool(value.strip())
+        and not any(ord(character) < 32 or ord(character) == 127 for character in value)
+    )
 
 
 __all__ = [

@@ -103,21 +103,12 @@ class CommercialProviderResolvedSettings:
     api_key: str = field(default="", repr=False, compare=False)
 
     @property
-    def masked_api_key(self) -> str:
-        value = self.api_key.strip()
-        if not value:
-            return ""
-        if len(value) <= 8:
-            return "*" * len(value)
-        return f"{value[:4]}…{value[-4:]}"
-
-    @property
     def state(self) -> CommercialProviderState:
         if not self.enabled:
             return CommercialProviderState.DISABLED
         if not self.access_confirmed:
             return CommercialProviderState.CONTRACT_REQUIRED
-        if not self.api_key.strip():
+        if not _credential_configured(self.api_key):
             return CommercialProviderState.CREDENTIALS_REQUIRED
         if not self.api_base_url.strip():
             return CommercialProviderState.ENDPOINT_REQUIRED
@@ -163,8 +154,7 @@ class CommercialProviderResolvedSettings:
             "enabled": self.enabled,
             "access_confirmed": self.access_confirmed,
             "api_base_url": _public_endpoint(self.api_base_url),
-            "api_key_configured": bool(self.api_key.strip()),
-            "masked_api_key": self.masked_api_key,
+            "api_key_configured": _credential_configured(self.api_key),
             "implementation_status": self.definition.implementation_status,
             "working": self.is_working,
         }
@@ -195,8 +185,9 @@ class CommercialSecretResolver:
         environment_variable: str,
         keyring_name: str,
     ) -> str:
-        from_environment = str(self.environment.get(environment_variable, "")).strip()
-        if from_environment:
+        raw_environment = self.environment.get(environment_variable)
+        from_environment = raw_environment if isinstance(raw_environment, str) else ""
+        if _credential_configured(from_environment):
             return from_environment
 
         loader = self._keyring_loader
@@ -205,11 +196,12 @@ class CommercialSecretResolver:
             return ""
         try:
             self.last_error = ""
-            return str(loader(keyring_name) or "").strip()
-        except Exception as exc:
+            loaded = loader(keyring_name)
+            return loaded if isinstance(loaded, str) and _credential_configured(loaded) else ""
+        except Exception:
             # A broken keyring backend must not prevent application startup.
             # Keep a non-secret diagnostic instead of silently discarding it.
-            self.last_error = f"{type(exc).__name__}: {exc}"
+            self.last_error = "protected_store_unavailable"
             return ""
 
 
@@ -490,6 +482,14 @@ def _environment_bool(
     if normalized in {"0", "false", "no", "off", "нет", ""}:
         return False
     return default
+
+
+def _credential_configured(value: str) -> bool:
+    return (
+        bool(value)
+        and bool(value.strip())
+        and not any(ord(character) < 32 or ord(character) == 127 for character in value)
+    )
 
 
 def _normalize_api_base_url(value: str) -> str:

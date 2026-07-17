@@ -38,11 +38,7 @@ from app.tenders.collector.provider_control import (
     CollectorProviderManager,
     ProviderDisplayState,
 )
-from app.tenders.providers.mos_supplier_config import (
-    MOS_SUPPLIER_KEYRING_SECRET,
-    MosSupplierApiConfig,
-)
-from app.security.secrets import load_secret, save_secret
+from app.tenders.provider_credentials import CredentialErrorCategory
 from app.tenders.collector.run_session import CollectorRunSession
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.verification_review import (
@@ -108,7 +104,10 @@ from app.ui.tender_provider_manager_dialog import (
     TenderProviderConfigurationDialog,
     TenderProviderManagerDialog,
 )
-from app.ui.provider_credentials_dialog import ProviderCredentialsDialog
+from app.ui.provider_credentials_dialog import (
+    CredentialDialogOperation,
+    ProviderCredentialsDialog,
+)
 from app.ui.tender_registry_dialog import TenderRegistryDialog
 from app.ui.tender_verification_dialog import TenderVerificationDialog
 from app.ui.tender_requirement_analysis_dialog import (
@@ -1138,6 +1137,9 @@ class TenderSearchUiController(QObject):
             self._provider_dialog.provider_enabled_changed.connect(self.set_provider_enabled)
             self._provider_dialog.provider_check_requested.connect(self.check_provider_connection)
             self._provider_dialog.provider_configuration_requested.connect(self.configure_provider)
+            self._provider_dialog.provider_credentials_requested.connect(
+                self.configure_provider_credentials
+            )
             self._provider_dialog.check_all_requested.connect(self.check_all_provider_connections)
             self._provider_dialog.refresh_button.clicked.connect(self.refresh_provider_states)
 
@@ -1227,47 +1229,58 @@ class TenderSearchUiController(QObject):
 
     @Slot(str)
     def configure_provider_credentials(self, provider_id: str) -> None:
-        if provider_id.strip().casefold() != "mos_supplier":
-            if self._provider_dialog is not None:
-                self._provider_dialog.set_status(
-                    "Настройка API пока доступна для Портала поставщиков."
-                )
-            return
-
+        normalized = provider_id.strip().casefold()
         state = next(
-            (item for item in self.provider_manager.states() if item.provider_id == "mos_supplier"),
+            (item for item in self.provider_manager.states() if item.provider_id == normalized),
             None,
         )
+        if state is None or not (
+            normalized == "mos_supplier"
+            or state.implementation_status == "commercial_access_pending"
+        ):
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status("Для источника нет управляемого credential.")
+            return
+
+        safe_state = self.provider_manager.credential_state(normalized, "api_key")
         parent = self._provider_dialog
         dialog = ProviderCredentialsDialog(
-            "mos_supplier",
-            state.display_name if state is not None else "Портал поставщиков",
-            configured=MosSupplierApiConfig.from_environment().configured,
+            normalized,
+            state.display_name,
+            state=safe_state,
             parent=parent,
         )
         if dialog.exec() != ProviderCredentialsDialog.DialogCode.Accepted:
             return
         try:
-            save_secret(MOS_SUPPLIER_KEYRING_SECRET, dialog.token)
-            saved_token = load_secret(MOS_SUPPLIER_KEYRING_SECRET)
-        except Exception as exc:
-            if self._provider_dialog is not None:
-                self._provider_dialog.set_status(
-                    f"Не удалось сохранить API-ключ: {type(exc).__name__}",
-                    error=True,
+            if dialog.operation is CredentialDialogOperation.DELETE:
+                result = self.provider_manager.delete_credential(normalized, "api_key")
+            elif dialog.operation in {
+                CredentialDialogOperation.SAVE,
+                CredentialDialogOperation.REPLACE,
+            }:
+                result = self.provider_manager.save_credential(
+                    normalized,
+                    "api_key",
+                    dialog.take_value(),
+                    replace=(dialog.operation is CredentialDialogOperation.REPLACE),
                 )
-            return
-        if saved_token != dialog.token:
+            else:
+                return
+        except Exception:
             if self._provider_dialog is not None:
                 self._provider_dialog.set_status(
-                    "Хранилище Windows не подтвердило сохранение API-ключа.",
+                    "Операция credential не выполнена.",
                     error=True,
                 )
             return
 
         self.refresh_provider_states()
         if self._provider_dialog is not None:
-            self._provider_dialog.set_status("API-ключ сохранён в защищённом хранилище Windows.")
+            self._provider_dialog.set_status(
+                result.message,
+                error=result.error_category is not CredentialErrorCategory.NONE,
+            )
 
     @Slot(str)
     def check_provider_connection(
