@@ -3,8 +3,10 @@
 Date: 2026-07-18
 Feature branch: `feat/rm-138-parallel-search`
 Base SHA: `d576f862aab13fa68ea752e479df5c518ff6af42`
-Feature merge SHA: pending feature PR
-Exact-merge Windows gate: pending feature merge
+Feature PR: `#84`
+Feature merge SHA: `593ed39c7b81efc8a67e36eef47ceadbbbaf46ca`
+Exact-merge Windows gate: `29619998396` (`success`)
+Documentation closeout PR: `#85`
 
 ## Outcome
 
@@ -18,8 +20,9 @@ The synchronous `TenderSearchEngine` import, constructor, `search(...)` signatur
 contract remain compatible. No provider registry/model, normalizer, deduplicator, repository,
 database, score owner, recommendation owner, or retry loop was added.
 
-RM-138 remains `IN PROGRESS` until the feature PR is merged, the Quality Gate succeeds against the
-actual merge SHA on Python 3.12 and 3.13, and a separate documentation closeout PR is merged.
+Feature PR #84 is merged and the Quality Gate succeeded against the actual merge SHA on Python
+3.12 and 3.13. This separate documentation closeout marks RM-138 `DONE` and activates RM-139 as the
+only `IN PROGRESS` stage.
 
 ## Environment
 
@@ -172,13 +175,31 @@ cancellation prompt, prevents new dispatch, publishes one terminal state, and re
 result. A private legacy thread may still finish later; it cannot change returned, persisted, or UI
 state. Native production EIS and Moscow providers remain cancellable async HTTP implementations.
 
-## Pending merge evidence
+## Merge evidence
 
-The closeout update must replace the pending fields at the top with:
+- Feature PR: `#84` (`https://github.com/lykay86-dotcom/CorterisTenderAI/pull/84`).
+- Feature merge SHA: `593ed39c7b81efc8a67e36eef47ceadbbbaf46ca`.
+- PR Quality Gate run `29619784410`: Python 3.12 —
+  `1892 passed, 2 warnings in 94.36s`; Python 3.13 —
+  `1892 passed, 2 warnings in 111.15s`; both jobs `success`.
+- Exact-merge push run `29619998396`
+  (`https://github.com/lykay86-dotcom/CorterisTenderAI/actions/runs/29619998396`) has event `push`,
+  `headSha=593ed39c7b81efc8a67e36eef47ceadbbbaf46ca`, and conclusion `success`.
+- Exact Python 3.12 job: `1892 passed, 2 warnings in 102.67s`; dependency audit reported no known
+  vulnerabilities.
+- Exact Python 3.13 job: `1892 passed, 2 warnings in 82.24s`; dependency audit reported no known
+  vulnerabilities.
+- Documentation closeout PR: `#85`
+  (`https://github.com/lykay86-dotcom/CorterisTenderAI/pull/85`).
+- Canonical closeout changes RM-138 from `IN PROGRESS` to `DONE`, makes RM-139 the only active
+  stage, and leaves RM-140–RM-200 `PLANNED`.
 
-- feature PR number and actual merge SHA;
-- exact-merge Quality Gate workflow run id and URL;
-- Python 3.12 and 3.13 job conclusions and exact test totals;
-- closeout PR number and merge SHA;
-- canonical status transition from RM-138 `IN PROGRESS` to `DONE`, with RM-139 as the only active
-  roadmap stage.
+## Closeout validation
+
+The separate docs-only closeout branch was created from the exact feature merge SHA. After the
+canonical status transition, repository secret scan, Ruff check/format, mypy, diff-check, and the
+full headless suite passed again:
+
+```text
+1892 passed, 2 warnings in 161.61s (0:02:41)
+```
