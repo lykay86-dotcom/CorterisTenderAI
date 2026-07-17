@@ -222,3 +222,21 @@ provider catalog/settings owner, automatic connection check or decision/AI seman
 owned by `CollectorProviderManager`, and adapting existing UI/runtime seams. Production changes remain
 blocked until this audit and `docs/RM-132_IMPLEMENTATION_PLAN.md` are committed separately, followed by
 expected-red evidence.
+
+## 14. Expected-red evidence
+
+After docs-only audit commit `25b2eed`, seven RM-132 test modules were added without production
+changes and run with the exact focused command from the implementation plan.
+
+Accepted result: collection failure, `7 errors in 3.90s`. Six modules failed only because
+`app.tenders.provider_credentials` does not yet exist; the legacy handoff module failed only because
+the new `LEGACY_PLATFORM_CREDENTIAL_NOTICE` boundary does not yet exist. Ruff check passed for all
+seven files.
+
+An initial red run also reported a test-only typo in the existing ConfigManager import path. That typo
+was corrected before accepting evidence; the repeated run above contains only missing RM-132
+symbols/behavior. There was no application assertion failure, network call, host keyring read, Qt
+failure or unrelated baseline regression.
+
+Production implementation is unblocked by the audit/test ordering gate. RM-132 remains
+`IN PROGRESS`; RM-133+ production scope remains blocked.
