@@ -46,6 +46,7 @@ from app.tenders.collector.manual_provider_registration import (
 from app.tenders.collector.manual_provider_protocol import (
     ManualProviderProtocolCommandStatus,
 )
+from app.tenders.collector.manual_adapter import ManualAdapterCommandStatus
 from app.tenders.provider_credentials import CredentialErrorCategory
 from app.tenders.collector.run_session import CollectorRunSession
 from app.tenders.collector.store import CollectorStateRepository
@@ -109,6 +110,7 @@ from app.ui.tender_participation_score_dialog import (
     TenderParticipationScoreDialog,
 )
 from app.ui.tender_provider_manager_dialog import (
+    ManualAdapterWizardDialog,
     ManualProviderProtocolDialog,
     ManualProviderProtocolDialogOperation,
     ManualProviderRegistrationDialog,
@@ -1169,6 +1171,9 @@ class TenderSearchUiController(QObject):
             self._provider_dialog.manual_provider_protocol_requested.connect(
                 self.configure_manual_provider_protocol
             )
+            self._provider_dialog.manual_adapter_requested.connect(
+                self.configure_manual_provider_adapter
+            )
             self._provider_dialog.check_all_requested.connect(self.check_all_provider_connections)
             self._provider_dialog.refresh_button.clicked.connect(self.refresh_provider_states)
 
@@ -1352,6 +1357,65 @@ class TenderSearchUiController(QObject):
                 ManualProviderProtocolCommandStatus.CHANGED,
             }
 
+        if not success:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(result.message, error=True)
+            return
+        self.refresh_provider_states()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_status(result.message)
+
+    @Slot(str)
+    def configure_manual_provider_adapter(self, provider_id: str) -> None:
+        normalized = provider_id.strip().casefold()
+        state = next(
+            (
+                item
+                for item in self.provider_manager.states()
+                if item.provider_id == normalized and item.registration_only
+            ),
+            None,
+        )
+        if (
+            state is None
+            or state.manual_registration is None
+            or state.manual_registration.protocol_selection is None
+        ):
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Сначала выберите протокол ручной площадки.", error=True
+                )
+            return
+        editor = ManualAdapterWizardDialog(
+            state.manual_registration,
+            preview_command=lambda spec, sample: (
+                self.provider_manager.preview_manual_provider_adapter(
+                    normalized,
+                    spec,
+                    sample,
+                )
+            ),
+            parent=self._provider_dialog,
+        )
+        if editor.exec() != ManualAdapterWizardDialog.DialogCode.Accepted:
+            return
+        try:
+            spec = editor.specification()
+        except (TypeError, ValueError):
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Спецификация адаптера отклонена безопасной проверкой.", error=True
+                )
+            return
+        result = self.provider_manager.save_manual_adapter_spec(
+            normalized,
+            spec,
+            expected_updated_at=editor.expected_updated_at,
+        )
+        success = result.status in {
+            ManualAdapterCommandStatus.SAVED,
+            ManualAdapterCommandStatus.UNCHANGED,
+        }
         if not success:
             if self._provider_dialog is not None:
                 self._provider_dialog.set_status(result.message, error=True)

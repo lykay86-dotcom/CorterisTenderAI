@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Iterable
+from typing import Callable, Iterable
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -48,6 +49,16 @@ from app.tenders.collector.provider_settings import (
     ProviderConfiguration,
     ProviderSettingOrigin,
 )
+from app.tenders.collector.manual_adapter import (
+    ManualAdapterDataFormat,
+    ManualAdapterPreviewResult,
+    ManualAdapterSpec,
+    RecordSelectorSpec,
+    SourceRequestSpec,
+    create_manual_adapter_spec,
+    parse_field_mapping_lines,
+    parse_restricted_path,
+)
 from app.ui.theme.colors import ThemeName, get_palette
 
 
@@ -61,6 +72,7 @@ class TenderProviderManagerDialog(QDialog):
     manual_provider_add_requested = Signal()
     manual_provider_edit_requested = Signal(str)
     manual_provider_protocol_requested = Signal(str)
+    manual_adapter_requested = Signal(str)
     check_all_requested = Signal()
 
     def __init__(
@@ -185,6 +197,11 @@ class TenderProviderManagerDialog(QDialog):
         self.manual_provider_protocol_button.clicked.connect(
             lambda: self.manual_provider_protocol_requested.emit(self.selected_provider_id())
         )
+        self.manual_adapter_button = QPushButton("Настроить адаптер", self)
+        self.manual_adapter_button.setObjectName("ConfigureManualAdapterButton")
+        self.manual_adapter_button.clicked.connect(
+            lambda: self.manual_adapter_requested.emit(self.selected_provider_id())
+        )
         self.configure_button = QPushButton("Настроить API", self)
         self.configure_button.setObjectName("ConfigureProviderButton")
         self.configure_button.clicked.connect(
@@ -208,6 +225,7 @@ class TenderProviderManagerDialog(QDialog):
         actions.addWidget(self.add_manual_provider_button)
         actions.addWidget(self.edit_manual_provider_button)
         actions.addWidget(self.manual_provider_protocol_button)
+        actions.addWidget(self.manual_adapter_button)
         actions.addWidget(self.configure_button)
         actions.addWidget(self.credentials_button)
         actions.addWidget(self.check_all_button)
@@ -380,6 +398,7 @@ class TenderProviderManagerDialog(QDialog):
             self.credentials_button.setEnabled(False)
             self.edit_manual_provider_button.setEnabled(False)
             self.manual_provider_protocol_button.setEnabled(False)
+            self.manual_adapter_button.setEnabled(False)
             return
 
         self.configure_button.setEnabled(
@@ -395,6 +414,7 @@ class TenderProviderManagerDialog(QDialog):
         )
         self.edit_manual_provider_button.setEnabled(state.registration_only)
         self.manual_provider_protocol_button.setEnabled(state.registration_only)
+        self.manual_adapter_button.setEnabled(state.registration_only and state.protocol_configured)
 
         latency = f"{state.latency_ms} мс" if state.latency_ms is not None else "не измерена"
         configuration = "<br>".join(_escape_html(item) for item in state.configuration_details)
@@ -862,6 +882,225 @@ class ManualProviderProtocolDialog(QDialog):
         self.accept()
 
 
+class ManualAdapterWizardDialog(QDialog):
+    """Restricted declarative adapter editor with explicit offline preview."""
+
+    SUCCESS_MESSAGE = "Адаптер настроен. Требуется проверка подключения."
+
+    def __init__(
+        self,
+        registration: ManualProviderRegistration | None = None,
+        *,
+        preview_command: (
+            Callable[[ManualAdapterSpec, str], ManualAdapterPreviewResult] | None
+        ) = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._registration = registration
+        self._preview_command = preview_command
+        self._accepted_once = False
+        self.setWindowTitle("Безопасный мастер адаптера")
+        self.setModal(True)
+        self.setObjectName("ManualAdapterWizardDialog")
+        root = QVBoxLayout(self)
+
+        source_name = registration.display_name if registration is not None else "Тестовый источник"
+        protocol = registration.protocol_selection if registration is not None else None
+        self.source_notice = QLabel(
+            f"Источник: {source_name}. Протокол: {protocol.family.value.upper() if protocol else 'не выбран'}.",
+            self,
+        )
+        self.source_notice.setWordWrap(True)
+        root.addWidget(self.source_notice)
+
+        form = QFormLayout()
+        self.format_combo = QComboBox(self)
+        self.format_combo.setAccessibleName("Формат входных данных")
+        formats_by_protocol = {
+            ManualProviderProtocolFamily.API: (
+                ManualAdapterDataFormat.JSON,
+                ManualAdapterDataFormat.XML,
+            ),
+            ManualProviderProtocolFamily.RSS: (
+                ManualAdapterDataFormat.RSS,
+                ManualAdapterDataFormat.ATOM,
+            ),
+            ManualProviderProtocolFamily.FTP: (
+                ManualAdapterDataFormat.JSON,
+                ManualAdapterDataFormat.XML,
+                ManualAdapterDataFormat.CSV,
+            ),
+            ManualProviderProtocolFamily.FTPS: (
+                ManualAdapterDataFormat.JSON,
+                ManualAdapterDataFormat.XML,
+                ManualAdapterDataFormat.CSV,
+            ),
+        }
+        allowed_formats = (
+            formats_by_protocol[protocol.family]
+            if protocol is not None
+            else tuple(ManualAdapterDataFormat)
+        )
+        for data_format in allowed_formats:
+            self.format_combo.addItem(data_format.value.upper(), data_format)
+        form.addRow("Формат", self.format_combo)
+
+        self.filename_suffix_edit = QLineEdit(self)
+        self.filename_suffix_edit.setPlaceholderText(".json (обязательно для FTP/FTPS)")
+        self.filename_suffix_edit.setAccessibleName("Суффикс имени файла")
+        form.addRow("Суффикс файла", self.filename_suffix_edit)
+
+        self.record_selector_edit = QLineEdit(self)
+        self.record_selector_edit.setPlaceholderText("items или rss.channel.item")
+        self.record_selector_edit.setAccessibleName("Путь к записям")
+        form.addRow("Путь к записям", self.record_selector_edit)
+        root.addLayout(form)
+
+        mapping_help = QLabel(
+            "Сопоставление: одна строка target=source.path. Добавьте ! после target для обязательного поля.",
+            self,
+        )
+        mapping_help.setWordWrap(True)
+        root.addWidget(mapping_help)
+        self.mapping_edit = QPlainTextEdit(self)
+        self.mapping_edit.setAccessibleName("Сопоставление канонических полей")
+        self.mapping_edit.setPlaceholderText("!title=name\nexternal_id=id\nprice.amount=price")
+        self.mapping_edit.setMaximumBlockCount(64)
+        root.addWidget(self.mapping_edit)
+
+        self.preview_notice = QLabel(
+            "Offline sample — подключение не проверено. Сеть и credentials не используются.",
+            self,
+        )
+        self.preview_notice.setWordWrap(True)
+        root.addWidget(self.preview_notice)
+        self.sample_edit = QPlainTextEdit(self)
+        self.sample_edit.setAccessibleName("Локальный sample")
+        self.sample_edit.setPlaceholderText("Вставьте ограниченный локальный sample")
+        root.addWidget(self.sample_edit)
+        self.preview_button = QPushButton("Проверить offline sample", self)
+        self.preview_button.clicked.connect(self._run_offline_preview)
+        root.addWidget(self.preview_button)
+
+        self.validation_label = QLabel("", self)
+        self.validation_label.setWordWrap(True)
+        root.addWidget(self.validation_label)
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+            self,
+        )
+        self.save_button = self.buttons.button(QDialogButtonBox.StandardButton.Save)
+        self.save_button.setText("Сохранить адаптер")
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
+        self.buttons.accepted.connect(self._accept_valid)
+        self.buttons.rejected.connect(self.reject)
+        root.addWidget(self.buttons)
+
+        if registration is not None and registration.adapter_spec is not None:
+            self._load_spec(registration.adapter_spec)
+        for widget in (
+            self.filename_suffix_edit,
+            self.record_selector_edit,
+            self.mapping_edit,
+        ):
+            widget.textChanged.connect(self._refresh_validation)
+        self.format_combo.currentIndexChanged.connect(self._refresh_validation)
+        self._refresh_validation()
+
+    @classmethod
+    def empty_for_test(cls) -> "ManualAdapterWizardDialog":
+        return cls()
+
+    @property
+    def expected_updated_at(self) -> datetime:
+        if self._registration is None:
+            raise ValueError("manual registration is required")
+        return self._registration.updated_at
+
+    def specification(self, *, timestamp: datetime | None = None) -> ManualAdapterSpec:
+        registration = self._registration
+        if registration is None or registration.protocol_selection is None:
+            raise ValueError("manual protocol is required")
+        current = registration.adapter_spec
+        return create_manual_adapter_spec(
+            provider_id=registration.provider_id,
+            protocol_family=registration.protocol_selection.family,
+            source=SourceRequestSpec(
+                data_format=ManualAdapterDataFormat(str(self.format_combo.currentData())),
+                filename_suffix=self.filename_suffix_edit.text(),
+            ),
+            record_selector=RecordSelectorSpec(
+                parse_restricted_path(self.record_selector_edit.text())
+            ),
+            field_mappings=parse_field_mapping_lines(self.mapping_edit.toPlainText()),
+            limits=current.limits if current is not None else None,
+            revision=registration.next_adapter_revision,
+            timestamp=timestamp or datetime.now(timezone.utc),
+            created_at=(
+                current.created_at
+                if current is not None
+                else (
+                    registration.adapter_spec_history[-1].created_at
+                    if registration.adapter_spec_history
+                    else None
+                )
+            ),
+        )
+
+    def _load_spec(self, spec: ManualAdapterSpec) -> None:
+        index = self.format_combo.findData(spec.source.data_format)
+        if index >= 0:
+            self.format_combo.setCurrentIndex(index)
+        self.filename_suffix_edit.setText(spec.source.filename_suffix)
+        self.record_selector_edit.setText(".".join(spec.record_selector.path))
+        self.mapping_edit.setPlainText(
+            "\n".join(
+                f"{'!' if item.required else ''}{item.target_field.value}={'.'.join(item.source_path)}"
+                for item in spec.field_mappings
+            )
+        )
+
+    def _run_offline_preview(self) -> None:
+        if self._preview_command is None:
+            self.validation_label.setText("Offline preview недоступен без application command.")
+            return
+        try:
+            result = self._preview_command(self.specification(), self.sample_edit.toPlainText())
+        except (TypeError, ValueError):
+            self.validation_label.setText("Исправьте спецификацию перед offline preview.")
+            return
+        if result.has_errors:
+            self.validation_label.setText("Offline preview отклонён: проверьте mapping и sample.")
+        else:
+            self.validation_label.setText(
+                f"Offline preview: записей {len(result.records)}. Подключение не проверено."
+            )
+
+    def _refresh_validation(self) -> None:
+        if self._accepted_once:
+            self.save_button.setEnabled(False)
+            return
+        try:
+            self.specification()
+        except (TypeError, ValueError):
+            self.save_button.setEnabled(False)
+            self.validation_label.setText("Заполните поддерживаемый формат, selector и mapping.")
+            return
+        self.save_button.setEnabled(True)
+        self.validation_label.setText("Спецификация валидна; подключение останется непроверенным.")
+
+    def _accept_valid(self) -> None:
+        try:
+            self.specification()
+        except (TypeError, ValueError):
+            self._refresh_validation()
+            return
+        self._accepted_once = True
+        self.save_button.setEnabled(False)
+        self.accept()
+
+
 class TenderProviderConfigurationDialog(QDialog):
     """Presentation-only editor for known non-secret provider fields."""
 
@@ -966,6 +1205,7 @@ def _origin_label(origin: ProviderSettingOrigin) -> str:
 
 
 __all__ = [
+    "ManualAdapterWizardDialog",
     "ManualProviderProtocolDialog",
     "ManualProviderProtocolDialogOperation",
     "ManualProviderRegistrationDialog",
