@@ -1,0 +1,158 @@
+"""Typed, safe public failures for Collector search execution."""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from enum import StrEnum
+
+from app.tenders.collector.async_http import (
+    AsyncHttpError,
+    AsyncHttpResponseTooLargeError,
+    AsyncHttpStatusError,
+    AsyncHttpTransportError,
+)
+from app.tenders.collector.cancellation import CollectorCancelledError
+from app.tenders.provider_base import ProviderCapabilityError, ProviderNotConfiguredError
+
+
+class SearchErrorCategory(StrEnum):
+    NONE = "none"
+    CONFIGURATION = "configuration"
+    AUTHENTICATION = "authentication"
+    AUTHORIZATION = "authorization"
+    RATE_LIMIT = "rate_limit"
+    TIMEOUT = "timeout"
+    NETWORK = "network"
+    REMOTE_SERVICE = "remote_service"
+    CANCELLED = "cancelled"
+    PROTOCOL = "protocol"
+    INTERNAL = "internal"
+
+
+@dataclass(frozen=True, slots=True)
+class SearchFailure:
+    category: SearchErrorCategory
+    code: str
+    message: str
+    attempts: int = 1
+    retryable: bool = False
+    http_status: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.category is SearchErrorCategory.NONE:
+            raise ValueError("SearchFailure category must describe a failure")
+        if not self.code.strip() or not self.message.strip():
+            raise ValueError("SearchFailure code and message are required")
+        if self.attempts < 1:
+            raise ValueError("SearchFailure attempts must be positive")
+        if self.http_status is not None and not 100 <= self.http_status <= 599:
+            raise ValueError("SearchFailure HTTP status is invalid")
+
+
+def classify_search_error(error: BaseException) -> SearchFailure:
+    """Convert an exception to a stable public value without using its text."""
+
+    if isinstance(error, (CollectorCancelledError, asyncio.CancelledError)):
+        return SearchFailure(
+            SearchErrorCategory.CANCELLED,
+            "search_cancelled",
+            "Операция поиска отменена.",
+        )
+    if isinstance(error, ProviderNotConfiguredError):
+        return SearchFailure(
+            SearchErrorCategory.CONFIGURATION,
+            "provider_not_configured",
+            "Источник не настроен.",
+        )
+    if isinstance(error, ProviderCapabilityError):
+        return SearchFailure(
+            SearchErrorCategory.PROTOCOL,
+            "provider_search_unsupported",
+            "Источник не поддерживает поиск.",
+        )
+    if isinstance(error, (TimeoutError, asyncio.TimeoutError)):
+        return SearchFailure(
+            SearchErrorCategory.TIMEOUT,
+            "provider_timeout",
+            "Источник не завершил поиск за отведённое время.",
+            retryable=True,
+        )
+    if isinstance(error, AsyncHttpResponseTooLargeError):
+        return _http_failure(
+            error,
+            SearchErrorCategory.PROTOCOL,
+            "remote_response_too_large",
+            "Ответ источника превышает допустимый размер.",
+        )
+    if isinstance(error, AsyncHttpStatusError):
+        status = error.status_code
+        if status == 401:
+            values = (
+                SearchErrorCategory.AUTHENTICATION,
+                "provider_authentication_failed",
+                "Источник отклонил данные аутентификации.",
+            )
+        elif status == 403:
+            values = (
+                SearchErrorCategory.AUTHORIZATION,
+                "provider_access_forbidden",
+                "Источник запретил доступ к операции.",
+            )
+        elif status == 429:
+            values = (
+                SearchErrorCategory.RATE_LIMIT,
+                "provider_rate_limited",
+                "Источник временно ограничил частоту запросов.",
+            )
+        elif status is not None and status >= 500:
+            values = (
+                SearchErrorCategory.REMOTE_SERVICE,
+                "provider_service_unavailable",
+                "Сервис источника временно недоступен.",
+            )
+        else:
+            values = (
+                SearchErrorCategory.PROTOCOL,
+                "provider_http_error",
+                "Источник вернул неподдерживаемый ответ.",
+            )
+        return _http_failure(error, *values)
+    if isinstance(error, AsyncHttpTransportError):
+        return _http_failure(
+            error,
+            SearchErrorCategory.NETWORK,
+            "provider_network_error",
+            "Не удалось безопасно получить ответ источника.",
+        )
+    if isinstance(error, AsyncHttpError):
+        return _http_failure(
+            error,
+            SearchErrorCategory.REMOTE_SERVICE,
+            "provider_remote_error",
+            "Источник завершил операцию с ошибкой.",
+        )
+    return SearchFailure(
+        SearchErrorCategory.INTERNAL,
+        "provider_internal_error",
+        "Источник завершил поиск с безопасно скрытой ошибкой.",
+    )
+
+
+def _http_failure(
+    error: AsyncHttpError,
+    category: SearchErrorCategory,
+    code: str,
+    message: str,
+) -> SearchFailure:
+    return SearchFailure(
+        category=category,
+        code=code,
+        message=message,
+        attempts=max(1, int(error.attempts)),
+        retryable=bool(error.transient),
+        http_status=error.status_code,
+    )
+
+
+__all__ = ["SearchErrorCategory", "SearchFailure", "classify_search_error"]

@@ -21,6 +21,10 @@ from app.tenders.collector.progress import (
     CollectorProgressPhase,
     emit_collector_progress,
 )
+from app.tenders.collector.search_errors import (
+    SearchErrorCategory,
+    classify_search_error,
+)
 from app.tenders.provider_base import (
     ProviderCapabilityError,
     ProviderNotConfiguredError,
@@ -51,6 +55,11 @@ class AsyncProviderSearchOutcome:
     warnings: tuple[str, ...] = ()
     error_type: str = ""
     error_message: str = ""
+    error_category: SearchErrorCategory = SearchErrorCategory.NONE
+    error_code: str = ""
+    attempt_count: int = 1
+    retryable: bool = False
+    http_status: int | None = None
 
     @property
     def successful(self) -> bool:
@@ -408,7 +417,6 @@ class AsyncProviderSearchEngine:
                 AsyncProviderSearchStatus.CANCELLED,
                 elapsed_ms,
                 exc,
-                message=(cancellation_token.reason or "Операция отменена пользователем."),
             )
         except Exception as exc:
             elapsed_ms = round((perf_counter() - started) * 1000)
@@ -435,6 +443,7 @@ class AsyncProviderSearchEngine:
         *,
         message: str = "",
     ) -> _Execution:
+        failure = classify_search_error(error)
         return _Execution(
             provider=provider,
             result=None,
@@ -444,7 +453,12 @@ class AsyncProviderSearchEngine:
                 status=status,
                 elapsed_ms=elapsed_ms,
                 error_type=type(error).__name__,
-                error_message=message or str(error),
+                error_message=message or failure.message,
+                error_category=failure.category,
+                error_code=failure.code,
+                attempt_count=failure.attempts,
+                retryable=failure.retryable,
+                http_status=failure.http_status,
             ),
         )
 
@@ -453,17 +467,11 @@ class AsyncProviderSearchEngine:
         provider: AsyncTenderProvider,
         reason: str,
     ) -> _Execution:
-        return _Execution(
-            provider=provider,
-            result=None,
-            outcome=AsyncProviderSearchOutcome(
-                provider_id=provider.descriptor.id,
-                display_name=provider.descriptor.display_name,
-                status=AsyncProviderSearchStatus.CANCELLED,
-                elapsed_ms=0,
-                error_type="CollectorCancelledError",
-                error_message=(reason or "Операция отменена пользователем."),
-            ),
+        return AsyncProviderSearchEngine._failure_execution(
+            provider,
+            AsyncProviderSearchStatus.CANCELLED,
+            0,
+            CollectorCancelledError(reason),
         )
 
     @staticmethod
