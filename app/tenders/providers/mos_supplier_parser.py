@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import json
 from typing import Mapping, Sequence
@@ -479,30 +479,25 @@ def _classification_codes(record: Mapping[str, object]) -> tuple[str, ...]:
 
 
 def _status_from_text(value: str) -> TenderStatus:
-    normalized = value.casefold().replace("ё", "е")
-    if any(item in normalized for item in ("отмен", "снят")):
-        return TenderStatus.CANCELLED
-    if any(item in normalized for item in ("заверш", "состоял", "итог", "заключен")):
-        return TenderStatus.COMPLETED
-    if any(
-        item in normalized
-        for item in (
-            "прием предлож",
-            "прием заяв",
-            "подача предлож",
-            "торги",
-            "опубликован",
-            "актив",
-        )
-    ):
-        return TenderStatus.ACCEPTING_APPLICATIONS
-    if any(item in normalized for item in ("рассмотр", "подведение")):
-        return TenderStatus.REVIEW
-    if any(item in normalized for item in ("подача заверш", "закрыт")):
-        return TenderStatus.APPLICATIONS_CLOSED
-    if normalized:
-        return TenderStatus.PUBLISHED
-    return TenderStatus.UNKNOWN
+    normalized = " ".join(value.casefold().replace("ё", "е").split())
+    aliases = {
+        "отменена": TenderStatus.CANCELLED,
+        "отменено": TenderStatus.CANCELLED,
+        "снята с публикации": TenderStatus.CANCELLED,
+        "завершена": TenderStatus.COMPLETED,
+        "завершено": TenderStatus.COMPLETED,
+        "итоги подведены": TenderStatus.COMPLETED,
+        "прием предложений": TenderStatus.ACCEPTING_APPLICATIONS,
+        "прием заявок": TenderStatus.ACCEPTING_APPLICATIONS,
+        "подача предложений": TenderStatus.ACCEPTING_APPLICATIONS,
+        "рассмотрение предложений": TenderStatus.REVIEW,
+        "подведение итогов": TenderStatus.REVIEW,
+        "прием предложений завершен": TenderStatus.APPLICATIONS_CLOSED,
+        "прием заявок завершен": TenderStatus.APPLICATIONS_CLOSED,
+        "опубликована": TenderStatus.PUBLISHED,
+        "опубликовано": TenderStatus.PUBLISHED,
+    }
+    return aliases.get(normalized, TenderStatus.UNKNOWN)
 
 
 def _path_value(mapping: Mapping[str, object], path: str) -> object:
@@ -605,12 +600,7 @@ def _parse_datetime(value: object) -> datetime | None:
     if isinstance(value, datetime):
         return _ensure_timezone(value)
     if isinstance(value, date):
-        return datetime(
-            value.year,
-            value.month,
-            value.day,
-            tzinfo=timezone.utc,
-        )
+        return None
     if isinstance(value, (int, float)):
         number = float(value)
         if number > 10_000_000_000:
@@ -633,18 +623,23 @@ def _parse_datetime(value: object) -> datetime | None:
     for fmt in (
         "%d.%m.%Y %H:%M:%S",
         "%d.%m.%Y %H:%M",
-        "%d.%m.%Y",
         "%Y-%m-%d %H:%M:%S",
     ):
         try:
-            return datetime.strptime(rendered, fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(rendered, fmt).replace(
+                tzinfo=timezone(timedelta(hours=3), name="MSK")
+            )
         except ValueError:
             continue
     return None
 
 
 def _ensure_timezone(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return (
+        value
+        if value.tzinfo is not None
+        else value.replace(tzinfo=timezone(timedelta(hours=3), name="MSK"))
+    )
 
 
 def _int_value(mapping: Mapping[str, object], *paths: str) -> int | None:
@@ -655,7 +650,7 @@ def _int_value(mapping: Mapping[str, object], *paths: str) -> int | None:
         if value in (None, ""):
             continue
         try:
-            return int(value)
+            return int(str(value))
         except (TypeError, ValueError):
             continue
     return None

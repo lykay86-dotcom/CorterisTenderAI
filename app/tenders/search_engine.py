@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from time import perf_counter
-from typing import Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
 
 from app.tenders.models import (
     TenderCustomer,
@@ -21,6 +21,9 @@ from app.tenders.models import (
     TenderStatus,
     UnifiedTender,
 )
+
+if TYPE_CHECKING:
+    from app.tenders.collector.normalizer import TenderNormalizer
 from app.tenders.provider_base import (
     ProviderCapabilityError,
     ProviderNotConfiguredError,
@@ -118,6 +121,7 @@ class TenderSearchEngine:
         *,
         max_workers: int = 6,
         timeout_seconds: float = 30.0,
+        normalizer: TenderNormalizer | None = None,
     ) -> None:
         if max_workers < 1:
             raise ValueError("max_workers must be at least 1")
@@ -127,6 +131,11 @@ class TenderSearchEngine:
         self.registry = registry
         self.max_workers = int(max_workers)
         self.timeout_seconds = float(timeout_seconds)
+        if normalizer is None:
+            from app.tenders.collector.normalizer import TenderNormalizer
+
+            normalizer = TenderNormalizer()
+        self.normalizer = normalizer
 
     def search(
         self,
@@ -153,7 +162,9 @@ class TenderSearchEngine:
         for execution in executions:
             outcomes.append(execution.outcome)
             if execution.result is not None:
-                raw_items.extend(execution.result.items)
+                raw_items.extend(
+                    item.tender for item in self.normalizer.normalize_many(execution.result.items)
+                )
 
         merged_items = self._deduplicate(
             raw_items,

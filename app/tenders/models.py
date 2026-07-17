@@ -92,6 +92,7 @@ class TenderMoney:
             normalize_money_amount(
                 self.amount,
                 field_name="TenderMoney.amount",
+                allow_float=False,
             ),
         )
         object.__setattr__(
@@ -112,6 +113,7 @@ class TenderMoney:
             amount=normalize_money_amount(
                 value,
                 field_name="tender amount",
+                allow_float=False,
             ),
             currency=currency,
             includes_vat=includes_vat,
@@ -122,17 +124,39 @@ def normalize_money_amount(
     value: Decimal | int | float | str,
     *,
     field_name: str = "amount",
+    allow_float: bool = True,
 ) -> Decimal:
     """Return an exact, finite and non-negative monetary amount."""
 
+    if isinstance(value, bool):
+        raise TypeError(f"{field_name} must not be boolean")
+    if isinstance(value, float) and not allow_float:
+        raise TypeError(f"{field_name} must not use float")
+    rendered: str
+    if isinstance(value, str):
+        rendered = value.strip().replace("\u00a0", "").replace(" ", "")
+        if "e" in rendered.casefold():
+            raise ValueError(f"Invalid {field_name}: scientific notation is not supported")
+        if rendered.count(",") > 1 or rendered.count(".") > 1:
+            raise ValueError(f"Invalid {field_name}: ambiguous decimal separators")
+        if "," in rendered and "." in rendered:
+            raise ValueError(f"Invalid {field_name}: ambiguous decimal separators")
+        rendered = rendered.replace(",", ".")
+    else:
+        rendered = str(value)
     try:
-        amount = Decimal(str(value))
+        amount = Decimal(rendered)
     except (InvalidOperation, ValueError) as exc:
         raise ValueError(f"Invalid {field_name}: {value!r}") from exc
     if not amount.is_finite():
         raise ValueError(f"{field_name} must be finite")
     if amount < 0:
         raise ValueError(f"{field_name} must be non-negative")
+    digits = len(amount.as_tuple().digits)
+    exponent = amount.as_tuple().exponent
+    scale = max(0, -exponent) if isinstance(exponent, int) else 0
+    if digits > 38 or scale > 28:
+        raise ValueError(f"{field_name} exceeds supported precision")
     return amount
 
 
@@ -269,8 +293,16 @@ def _datetimes_are_comparable(first: datetime, second: datetime) -> bool:
 
 
 def _validate_http_url(value: str, *, field_name: str) -> None:
-    parsed = urlparse(value.strip())
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    rendered = value.strip()
+    parsed = urlparse(rendered)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or any(ord(character) < 32 or ord(character) == 127 for character in rendered)
+    ):
         raise ValueError(f"{field_name} must be an absolute HTTP(S) URL")
 
 
