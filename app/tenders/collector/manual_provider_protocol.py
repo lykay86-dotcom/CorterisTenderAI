@@ -6,7 +6,7 @@ Endpoint validation is syntactic and policy-based; it never claims reachability.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import StrEnum
 import ipaddress
@@ -50,6 +50,11 @@ class ManualProviderAuthenticationKind(StrEnum):
 class ManualProviderTlsPolicy(StrEnum):
     REQUIRED = "required"
     PLAINTEXT_WARNING = "plaintext_warning"
+
+
+class ManualProviderFtpsMode(StrEnum):
+    IMPLICIT = "implicit"
+    EXPLICIT = "explicit"
 
 
 class ManualProviderProtocolCommandStatus(StrEnum):
@@ -176,9 +181,18 @@ class ManualProviderProtocolDraft:
     endpoint_url: str = field(repr=False)
     payload_format: ManualProviderPayloadFormat | None = None
     authentication_kind: ManualProviderAuthenticationKind = ManualProviderAuthenticationKind.NONE
+    ftps_mode: ManualProviderFtpsMode | None = None
 
     def __post_init__(self) -> None:
         policy = manual_provider_protocol_policy(self.family)
+        mode = self.ftps_mode
+        if self.family is ManualProviderProtocolFamily.FTPS:
+            mode = mode or ManualProviderFtpsMode.IMPLICIT
+            if not isinstance(mode, ManualProviderFtpsMode):
+                raise ValueError("manual provider protocol selection is invalid")
+            policy = _ftps_policy(policy, mode)
+        elif mode is not None:
+            raise ValueError("manual provider protocol selection is invalid")
         if self.payload_format not in policy.allowed_payload_formats:
             if self.payload_format is not None or policy.allowed_payload_formats:
                 raise ValueError("manual provider protocol selection is invalid")
@@ -189,6 +203,7 @@ class ManualProviderProtocolDraft:
             "endpoint_url",
             normalize_manual_protocol_endpoint(self.endpoint_url, policy=policy),
         )
+        object.__setattr__(self, "ftps_mode", mode)
 
     @classmethod
     def unvalidated(
@@ -198,12 +213,14 @@ class ManualProviderProtocolDraft:
         endpoint_url: object,
         payload_format: object = None,
         authentication_kind: object = ManualProviderAuthenticationKind.NONE,
+        ftps_mode: object = None,
     ) -> "ManualProviderProtocolDraft":
         value = object.__new__(cls)
         object.__setattr__(value, "family", family)
         object.__setattr__(value, "endpoint_url", endpoint_url)
         object.__setattr__(value, "payload_format", payload_format)
         object.__setattr__(value, "authentication_kind", authentication_kind)
+        object.__setattr__(value, "ftps_mode", ftps_mode)
         return value
 
 
@@ -213,6 +230,7 @@ class ManualProviderProtocolSelection:
     endpoint_url: str = field(repr=False)
     payload_format: ManualProviderPayloadFormat | None = None
     authentication_kind: ManualProviderAuthenticationKind = ManualProviderAuthenticationKind.NONE
+    ftps_mode: ManualProviderFtpsMode | None = None
     selected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -222,12 +240,14 @@ class ManualProviderProtocolSelection:
             endpoint_url=self.endpoint_url,
             payload_format=self.payload_format,
             authentication_kind=self.authentication_kind,
+            ftps_mode=self.ftps_mode,
         )
         _validate_aware_timestamp(self.selected_at)
         _validate_aware_timestamp(self.updated_at)
         if self.updated_at < self.selected_at:
             raise ValueError("manual provider protocol selection timestamp is invalid")
         object.__setattr__(self, "endpoint_url", validated.endpoint_url)
+        object.__setattr__(self, "ftps_mode", validated.ftps_mode)
 
     def public_payload(self) -> dict[str, object]:
         return {
@@ -235,6 +255,7 @@ class ManualProviderProtocolSelection:
             "payload_format": self.payload_format.value if self.payload_format else None,
             "authentication_kind": self.authentication_kind.value,
             "tls_policy": manual_provider_protocol_policy(self.family).tls_policy.value,
+            "ftps_mode": self.ftps_mode.value if self.ftps_mode else None,
             "selected_at": self.selected_at.astimezone(timezone.utc).isoformat(
                 timespec="microseconds"
             ),
@@ -277,12 +298,14 @@ def create_manual_provider_protocol_selection(
         endpoint_url=draft.endpoint_url,
         payload_format=draft.payload_format,
         authentication_kind=draft.authentication_kind,
+        ftps_mode=draft.ftps_mode,
     )
     return ManualProviderProtocolSelection(
         family=validated.family,
         endpoint_url=validated.endpoint_url,
         payload_format=validated.payload_format,
         authentication_kind=validated.authentication_kind,
+        ftps_mode=validated.ftps_mode,
         selected_at=selected_at or timestamp,
         updated_at=timestamp,
     )
@@ -367,6 +390,13 @@ def _validate_ftp_path(path: str) -> None:
         raise ValueError("manual provider protocol selection is invalid")
 
 
+def _ftps_policy(
+    policy: ManualProviderProtocolPolicy,
+    mode: ManualProviderFtpsMode,
+) -> ManualProviderProtocolPolicy:
+    return replace(policy, default_port=(21 if mode is ManualProviderFtpsMode.EXPLICIT else 990))
+
+
 def _forbidden_character(character: str) -> bool:
     return unicodedata.category(character) in {"Cc", "Cf", "Cs"}
 
@@ -379,6 +409,7 @@ def _validate_aware_timestamp(value: object) -> None:
 __all__ = [
     "ManualProviderAuthenticationKind",
     "ManualProviderPayloadFormat",
+    "ManualProviderFtpsMode",
     "ManualProviderProtocolDraft",
     "ManualProviderProtocolCommandResult",
     "ManualProviderProtocolCommandStatus",

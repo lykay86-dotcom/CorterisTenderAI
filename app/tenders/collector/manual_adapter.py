@@ -18,7 +18,7 @@ from io import StringIO
 import json
 import re
 from types import MappingProxyType
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, NoReturn, Protocol
 from urllib.parse import urlsplit, urlunsplit
 from xml.etree import ElementTree
 
@@ -610,10 +610,20 @@ def preview_manual_adapter(
     return ManualAdapterPreviewResult(tuple(records), tuple(diagnostics))
 
 
+class ManualAdapterHealthProbe(Protocol):
+    async def check_health(
+        self,
+        registration: ManualProviderRegistration,
+        spec: ManualAdapterSpec,
+        cancellation_token: CollectorCancellationToken,
+    ) -> ProviderHealth: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ManualAdapterDependencies:
     transport: object | None = field(default=None, repr=False, compare=False)
     credential_resolver: object | None = field(default=None, repr=False, compare=False)
+    health_probe: ManualAdapterHealthProbe | None = field(default=None, repr=False, compare=False)
 
 
 class ManualAdapterLiveOperationError(ProviderCapabilityError):
@@ -632,6 +642,7 @@ class CompiledManualTenderProvider(AsyncTenderProvider):
         spec: ManualAdapterSpec,
         dependencies: ManualAdapterDependencies,
     ) -> None:
+        self._registration = registration
         self.spec = spec
         self.spec_revision = spec.revision
         self.spec_fingerprint = spec.fingerprint
@@ -677,7 +688,12 @@ class CompiledManualTenderProvider(AsyncTenderProvider):
         *,
         cancellation_token: CollectorCancellationToken | None = None,
     ) -> ProviderHealth:
-        self._deny(cancellation_token)
+        token = cancellation_token or CollectorCancellationToken()
+        token.throw_if_cancelled()
+        probe = self._dependencies.health_probe
+        if probe is None:
+            self._deny(token)
+        return await probe.check_health(self._registration, self.spec, token)
 
     def validate_configuration(self) -> tuple[str, ...]:
         return (AdapterDiagnosticCode.CONNECTION_TEST_REQUIRED.value,)
@@ -949,6 +965,7 @@ __all__ = [
     "ManualAdapterCommandResult",
     "ManualAdapterCommandStatus",
     "ManualAdapterDependencies",
+    "ManualAdapterHealthProbe",
     "ManualAdapterLiveOperationError",
     "ManualAdapterPreviewRecord",
     "ManualAdapterPreviewResult",

@@ -49,7 +49,7 @@ def test_current_schema_roundtrips_only_allowed_non_secret_fields(tmp_path) -> N
         access_confirmed=True,
         api_base_url="https://api.example.test/v1",
     )
-    assert payload["schema_version"] == ProviderEnablementRepository.SCHEMA_VERSION == 5
+    assert payload["schema_version"] == ProviderEnablementRepository.SCHEMA_VERSION == 6
     assert payload["providers"] == {"b2b_center": True}
     assert payload["configuration"] == {
         "b2b_center": {

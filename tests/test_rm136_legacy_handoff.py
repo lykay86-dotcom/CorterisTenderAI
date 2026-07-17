@@ -23,7 +23,6 @@ def test_v5_ftps_migrates_in_memory_to_implicit_and_first_write_backs_up(tmp_pat
         "configuration": {},
         "manual_registrations": {
             MANUAL_ID: {
-                "provider_id": MANUAL_ID,
                 "display_name": "FTPS",
                 "homepage_url": "https://example.test",
                 "endpoint_url": "",
@@ -33,7 +32,9 @@ def test_v5_ftps_migrates_in_memory_to_implicit_and_first_write_backs_up(tmp_pat
                     "endpoint_url": "ftps://source.example.test/incoming",
                     "payload_format": None,
                     "authentication_kind": "username_password",
+                    "tls_policy": "required",
                     "selected_at": timestamp,
+                    "updated_at": timestamp,
                 },
                 "adapter_spec": None,
                 "adapter_spec_history": [],

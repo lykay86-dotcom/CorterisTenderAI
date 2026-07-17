@@ -3,7 +3,15 @@
 from dataclasses import asdict
 from pathlib import Path
 
-from app.tenders.collector.manual_provider_health import HealthCheckBinding
+import pytest
+
+from app.tenders.collector.manual_provider_health import (
+    HealthCheckBinding,
+    ManualHealthReasonCode,
+    ManualHealthStage,
+    ManualHealthStageResult,
+    ManualHealthState,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,3 +35,13 @@ def test_binding_serialization_contains_no_endpoint_or_secret_value() -> None:
     )
     assert sentinel not in repr(asdict(binding))
     assert "endpoint" not in repr(asdict(binding)).casefold()
+
+
+def test_stage_message_cannot_echo_raw_transport_text() -> None:
+    with pytest.raises(ValueError):
+        ManualHealthStageResult(
+            ManualHealthStage.CONNECT,
+            ManualHealthState.UNHEALTHY,
+            ManualHealthReasonCode.CONNECT_FAILED,
+            "RM136_RAW_TRANSPORT_SENTINEL",
+        )

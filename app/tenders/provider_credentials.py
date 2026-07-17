@@ -7,10 +7,12 @@ stored values remain behind :mod:`app.security.secrets` and runtime adapters.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import os
+import hashlib
+import json
 from threading import RLock
 from typing import Protocol
 
@@ -19,6 +21,7 @@ from app.security.secrets import (
     SecretOperationError,
     delete_secret as delete_keyring_secret,
     has_secret as has_keyring_secret,
+    load_secret as load_keyring_secret,
     save_secret as save_keyring_secret,
 )
 from app.tenders.collector.provider_definitions import canonical_provider_id
@@ -63,25 +66,48 @@ class CredentialDescriptor:
     provider_id: str
     secret_name: str
     keyring_name: str
-    environment_variable: str
+    environment_variable: str | None
 
     def __post_init__(self) -> None:
-        values = (
-            self.provider_id,
-            self.secret_name,
-            self.keyring_name,
-            self.environment_variable,
-        )
+        values = (self.provider_id, self.secret_name, self.keyring_name)
         if any(not isinstance(value, str) or not value.strip() for value in values):
+            raise ValueError("credential descriptor values must not be empty")
+        if self.environment_variable is not None and (
+            not isinstance(self.environment_variable, str) or not self.environment_variable.strip()
+        ):
             raise ValueError("credential descriptor values must not be empty")
         object.__setattr__(self, "provider_id", self.provider_id.strip().casefold())
         object.__setattr__(self, "secret_name", self.secret_name.strip().casefold())
         object.__setattr__(self, "keyring_name", self.keyring_name.strip())
-        object.__setattr__(
-            self,
-            "environment_variable",
-            self.environment_variable.strip(),
+        if self.environment_variable is not None:
+            object.__setattr__(self, "environment_variable", self.environment_variable.strip())
+
+    @property
+    def environment_name(self) -> str | None:
+        return self.environment_variable
+
+    @property
+    def fingerprint(self) -> str:
+        payload = json.dumps(
+            {
+                "version": 1,
+                "provider_id": self.provider_id,
+                "secret_name": self.secret_name,
+                "keyring_name": self.keyring_name,
+                "environment_variable": self.environment_variable,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
         )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeCredentialSecret:
+    provider_id: str
+    secret_name: str
+    value: str = field(repr=False)
+    descriptor_fingerprint: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +139,8 @@ class CredentialBackend(Protocol):
 
     def delete(self, name: str) -> None: ...
 
+    def get(self, name: str) -> str | None: ...
+
 
 class KeyringCredentialBackend:
     """Thin application adapter over the existing protected-store owner."""
@@ -125,6 +153,9 @@ class KeyringCredentialBackend:
 
     def delete(self, name: str) -> None:
         delete_keyring_secret(name)
+
+    def get(self, name: str) -> str | None:
+        return load_keyring_secret(name)
 
 
 def provider_credential_descriptors() -> tuple[CredentialDescriptor, ...]:
@@ -149,6 +180,28 @@ def provider_credential_descriptors() -> tuple[CredentialDescriptor, ...]:
     )
     _validate_descriptors(descriptors)
     return tuple(descriptors)
+
+
+def manual_credential_descriptors(
+    provider_id: str,
+    secret_names: Sequence[str],
+) -> tuple[CredentialDescriptor, ...]:
+    normalized = _manual_provider_id(provider_id)
+    result: list[CredentialDescriptor] = []
+    for value in secret_names:
+        secret_name = str(value).strip().casefold()
+        if secret_name not in {"api_key", "username", "password"}:
+            raise ValueError("manual credential kind is invalid")
+        result.append(
+            CredentialDescriptor(
+                normalized,
+                secret_name,
+                f"collector.{normalized}.{secret_name}",
+                None,
+            )
+        )
+    _validate_descriptors(result)
+    return tuple(result)
 
 
 class ProviderCredentialService:
@@ -288,19 +341,86 @@ class ProviderCredentialService:
             ),
         )
 
+    def resolve_runtime_secret(
+        self,
+        provider_id: str,
+        secret_name: str,
+    ) -> RuntimeCredentialSecret:
+        descriptor = self._resolve(provider_id, secret_name)
+        if descriptor is None:
+            raise ValueError("credential request is invalid")
+        environment_value = (
+            self._environment.get(descriptor.environment_variable)
+            if descriptor.environment_variable is not None
+            else None
+        )
+        if _valid_secret_value(environment_value, self.MAX_SECRET_LENGTH):
+            value = environment_value
+        else:
+            getter = getattr(self._backend, "get", None)
+            if getter is None:
+                raise RuntimeError("credential runtime resolution is unavailable")
+            value = getter(descriptor.keyring_name)
+        if not _valid_secret_value(value, self.MAX_SECRET_LENGTH):
+            raise RuntimeError("credential is not configured")
+        assert isinstance(value, str)
+        return RuntimeCredentialSecret(
+            descriptor.provider_id,
+            descriptor.secret_name,
+            value,
+            descriptor.fingerprint,
+        )
+
+    def credential_marker(
+        self,
+        provider_id: str,
+        secret_names: Sequence[str],
+    ) -> str:
+        markers: list[dict[str, object]] = []
+        for secret_name in secret_names:
+            descriptor = self._resolve(provider_id, secret_name)
+            if descriptor is None:
+                raise ValueError("credential request is invalid")
+            state = self.has_secret(descriptor.provider_id, descriptor.secret_name)
+            markers.append(
+                {
+                    "descriptor": descriptor.fingerprint,
+                    "state": state.state.value,
+                    "protected_store": state.protected_store_configured,
+                    "environment": state.environment_override,
+                }
+            )
+        payload = json.dumps(markers, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
     def _resolve(
         self,
         provider_id: str,
         secret_name: str,
     ) -> CredentialDescriptor | None:
         try:
-            canonical = canonical_provider_id(provider_id)
+            normalized_provider = str(provider_id).strip().casefold()
+            canonical = (
+                _manual_provider_id(normalized_provider)
+                if normalized_provider.startswith("manual_")
+                else canonical_provider_id(normalized_provider)
+            )
         except (KeyError, TypeError, ValueError):
             return None
         normalized_name = str(secret_name).strip().casefold()
-        return self._descriptors.get((canonical, normalized_name))
+        descriptor = self._descriptors.get((canonical, normalized_name))
+        if (
+            descriptor is None
+            and canonical.startswith("manual_")
+            and normalized_name in {"api_key", "username", "password"}
+        ):
+            descriptor = manual_credential_descriptors(canonical, (normalized_name,))[0]
+            self._descriptors[(canonical, normalized_name)] = descriptor
+        return descriptor
 
     def _environment_override(self, descriptor: CredentialDescriptor) -> bool:
+        if descriptor.environment_variable is None:
+            return False
         value = self._environment.get(descriptor.environment_variable)
         return _valid_secret_value(value, self.MAX_SECRET_LENGTH)
 
@@ -308,7 +428,11 @@ class ProviderCredentialService:
 def _validate_descriptors(descriptors: Sequence[CredentialDescriptor]) -> None:
     identities = [(item.provider_id, item.secret_name) for item in descriptors]
     keyring_names = [item.keyring_name.casefold() for item in descriptors]
-    environment_names = [item.environment_variable.casefold() for item in descriptors]
+    environment_names = [
+        item.environment_variable.casefold()
+        for item in descriptors
+        if item.environment_variable is not None
+    ]
     if len(identities) != len(set(identities)):
         raise ValueError("credential descriptor identities must be unique")
     if len(keyring_names) != len(set(keyring_names)):
@@ -321,6 +445,17 @@ def _valid_secret_value(value: object, maximum: int) -> bool:
     if not isinstance(value, str) or not value or not value.strip() or len(value) > maximum:
         return False
     return not any(ord(character) < 32 or ord(character) == 127 for character in value)
+
+
+def _manual_provider_id(value: object) -> str:
+    normalized = str(value).strip().casefold()
+    if (
+        len(normalized) != 39
+        or not normalized.startswith("manual_")
+        or any(character not in "0123456789abcdef" for character in normalized[7:])
+    ):
+        raise ValueError("manual provider id is invalid")
+    return normalized
 
 
 def _invalid_state() -> CredentialStateResult:
@@ -441,5 +576,7 @@ __all__ = [
     "CredentialStateResult",
     "KeyringCredentialBackend",
     "ProviderCredentialService",
+    "RuntimeCredentialSecret",
+    "manual_credential_descriptors",
     "provider_credential_descriptors",
 ]

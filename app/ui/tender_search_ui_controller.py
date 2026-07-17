@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 from typing import Protocol
+from urllib.parse import urlsplit
 
 from PySide6.QtCore import (
     QObject,
@@ -403,6 +404,12 @@ class _CollectorRunWorker(QRunnable):
         self.signals.succeeded.emit(result)
 
 
+def safe_manual_health_error_message(_error: BaseException) -> str:
+    """Return a fixed UI message without exception type, target or payload text."""
+
+    return "Проверка подключения завершилась безопасной ошибкой."
+
+
 class _ProviderCheckWorkerSignals(QObject):
     succeeded = Signal(object)
     failed = Signal(str, str)
@@ -417,20 +424,37 @@ class _ProviderCheckWorker(QRunnable):
         super().__init__()
         self.manager = manager
         self.provider_ids = provider_ids
+        self.cancellation_token = CollectorCancellationToken()
         self.signals = _ProviderCheckWorkerSignals()
         self.setAutoDelete(True)
 
     @Slot()
     def run(self) -> None:
         try:
-            states = asyncio.run(self.manager.check_providers(self.provider_ids))
+            visible = {item.provider_id: item for item in self.manager.states()}
+            has_manual = any(
+                visible.get(provider_id) is not None and visible[provider_id].registration_only
+                for provider_id in self.provider_ids
+            )
+            operation = (
+                self.manager.check_providers(
+                    self.provider_ids,
+                    cancellation_token=self.cancellation_token,
+                )
+                if has_manual
+                else self.manager.check_providers(self.provider_ids)
+            )
+            states = asyncio.run(operation)
         except Exception as exc:
             self.signals.failed.emit(
-                type(exc).__name__,
-                str(exc),
+                "ProviderHealthCheckError",
+                safe_manual_health_error_message(exc),
             )
             return
         self.signals.succeeded.emit(states)
+
+    def cancel(self) -> bool:
+        return self.cancellation_token.cancel()
 
 
 class TenderSearchUiController(QObject):
@@ -1508,6 +1532,37 @@ class TenderSearchUiController(QObject):
         self,
         provider_id: str,
     ) -> None:
+        state = next(
+            (
+                item
+                for item in self.provider_manager.states()
+                if item.provider_id == provider_id.strip().casefold()
+            ),
+            None,
+        )
+        if state is not None and state.registration_only:
+            registration = state.manual_registration
+            selection = registration.protocol_selection if registration is not None else None
+            if selection is None or not state.adapter_compiled:
+                if self._provider_dialog is not None:
+                    self._provider_dialog.set_status(
+                        "Сначала настройте протокол и адаптер.", error=True
+                    )
+                return
+            hostname = urlsplit(selection.endpoint_url).hostname or "неизвестный host"
+            answer = QMessageBox.question(
+                self._provider_dialog,
+                "Проверка подключения",
+                (
+                    f"Выполнить сетевую проверку «{state.display_name}»?\n"
+                    f"Протокол: {selection.family.value.upper()}\n"
+                    f"Host: {hostname}"
+                ),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer is not QMessageBox.StandardButton.Yes:
+                return
         self._start_provider_checks((provider_id,))
 
     @Slot()
@@ -2516,4 +2571,4 @@ class TenderSearchUiController(QObject):
         return toolbar
 
 
-__all__ = ["TenderSearchUiController"]
+__all__ = ["TenderSearchUiController", "safe_manual_health_error_message"]
