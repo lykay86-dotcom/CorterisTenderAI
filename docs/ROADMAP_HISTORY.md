@@ -1,5 +1,40 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-131 завершён, RM-132 активирован
+
+- Audit `docs/RM-131_AUDIT.md` и implementation plan зафиксированы docs-only commit `243ab56` до
+  application changes; expected-red characterization — commit `4c13913` (`7 errors in 4.49s` только
+  по отсутствующим RM-131 boundaries).
+- Existing `ProviderEnablementRepository` повышен до единственного schema-v2 owner в прежнем
+  `<data_directory>/collector_provider_settings.json`; typed load различает
+  missing/current/migrated-split-v1/corrupt/future и fail closed сохраняет invalid original.
+- Split-v1 migration детерминированно объединяет general и legacy commercial settings при первой
+  explicit mutation, создаёт byte-for-byte backups, использует atomic replace, очищает temp при
+  ошибке и сохраняет legacy source для rollback.
+- Pure canonical provider definitions и только явные aliases разделяются manager, profiles,
+  scheduler, session и factory; generic `commercial` отклоняется, profile/schedule bytes не
+  переписываются ради canonicalization.
+- Один immutable resolved snapshot устранил divergence между UI и фактическим Collector run;
+  environment overrides runtime-only и read-only, credential/keyring values не сохраняются и не
+  выводятся.
+- Existing provider manager dialog, unified panel, Collector dialog, scheduler и legacy manual
+  compatibility handoff адаптированы без второго settings owner, catalog, factory или search engine.
+- Health JSON, C19 SQLite verification, credentials, DB/schema/migrations, normalization/ranking,
+  score/recommendation/critical stop-factor и AI contracts не изменены.
+- Локальная acceptance: focused `30 passed in 4.37s`, neighbor `76 passed in 12.01s`, full pytest
+  `1686 passed in 63.19s`; secret scan, Ruff/format (`562 files`), mypy, workflow smokes,
+  dependency audit и diff-check успешны.
+- Feature PR #68 (`feat(rm-131): consolidate provider settings`) слит в `main` коммитом `bbfd8e3`
+  (`bbfd8e3b858a29f07d7b55fde5fdb5a80a1d9cf2`).
+- PR Quality Gate run `29538903447` успешен: Python 3.12 — `1686 passed in 90.24s`, Python 3.13 —
+  `1686 passed in 101.46s`.
+- Exact merge-SHA run `29562019173` успешен: Python 3.12 — `1686 passed in 105.77s`, Python 3.13 —
+  `1686 passed in 69.02s`; все обязательные jobs завершились `success`.
+- Неблокирующее предупреждение official actions о принудительном Node.js 24 не повлияло на gate и
+  остаётся отдельной CI maintenance задачей.
+- RM-131 переведён в `DONE`; RM-132 назначен единственным `IN PROGRESS` для audit-first hardening
+  existing credential input/resolution. RM-133–RM-200 остаются `PLANNED`.
+
 ## 2026-07-17 — RM-130 завершён, RM-131 активирован
 
 - Audit `docs/RM-130_AUDIT.md` и implementation plan зафиксированы docs-only commit `09d60cc` до

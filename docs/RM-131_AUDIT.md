@@ -366,3 +366,29 @@ command passed with approved external/cache access and no intervening code or de
 **FEATURE IMPLEMENTATION READY FOR PR/CI.** RM-131 remains `IN PROGRESS`. It must not be marked
 `DONE`, and RM-132 must not start, until the feature PR is merged, the exact merge-SHA Windows Quality
 Gate succeeds on Python 3.12 and 3.13, and a separate docs-only closeout is merged.
+
+## 17. Merge and exact-SHA closeout evidence
+
+Feature PR #68 (`feat(rm-131): consolidate provider settings`) passed Quality Gate run
+`29538903447` on feature HEAD `259685ef4ee00d73196b703b06a95c0717dfbff7`:
+
+- Python 3.12 — `1686 passed in 90.24s`;
+- Python 3.13 — `1686 passed in 101.46s`;
+- both jobs passed secret scan, Ruff check/format (`562 files`), mypy (20 source files), all required
+  offline/migration/import/composition/build smoke tests and dependency audit.
+
+PR #68 was merged into `main` as `bbfd8e3b858a29f07d7b55fde5fdb5a80a1d9cf2`. Exact merge-SHA
+Quality Gate run `29562019173` completed successfully:
+
+- Python 3.12 — `1686 passed in 105.77s`;
+- Python 3.13 — `1686 passed in 69.02s`;
+- every required job and step completed with `success`; the official-actions Node.js 24 warning is
+  non-blocking CI maintenance evidence and did not affect acceptance.
+
+The merge contains only the audited RM-131 provider-settings scope. It does not introduce a second
+settings owner, persist credentials, change DB/schema/migrations, health/C19 state,
+normalization/ranking, deterministic score/recommendation, critical stop-factor priority or AI
+contracts.
+
+**ACCEPTED FOR DOCS-ONLY CLOSEOUT.** RM-131 satisfies the Definition of Done and may be marked
+`DONE`; RM-132 becomes the sole `IN PROGRESS` stage while RM-133–RM-200 remain `PLANNED`.
