@@ -3,7 +3,7 @@
 Дата локальной приёмки: 17 июля 2026 года
 Audit baseline: `38be7babdd0532ef88a1fbeff0acaed75737ea24`
 Ветка: `feat/rm-134-provider-protocol-selection`
-Статус: local acceptance passed; feature PR/merge evidence pending.
+Статус: feature acceptance passed; docs-only closeout prepared.
 
 ## 1. Audit-first evidence
 
@@ -130,15 +130,30 @@ Warnings — существующие openpyxl extension warnings в
 - pip-audit: editable package skipped; `No known vulnerabilities found`
 - `git diff --check`: passed.
 
-## 7. Definition of Done status
+## 7. GitHub evidence
+
+- Feature PR: #74, `feat(rm-134): add safe provider protocol selection`.
+- Feature head: `9162beb2e3e046b343d33c8d95aced25c2e66d05`.
+- Merge commit: `7ef0378315f9ef76046a651d1211f3da191b7719`.
+- PR Quality Gate run `29577913214`:
+  - Python 3.12: `1796 passed, 2 warnings in 113.76s`;
+  - Python 3.13: `1796 passed, 2 warnings in 87.91s`;
+  - all required steps passed.
+- Exact merge-SHA Quality Gate run `29578571237` на `7ef0378`:
+  - Python 3.12 rerun: `1796 passed, 2 warnings in 84.87s`;
+  - Python 3.13: `1796 passed, 2 warnings in 124.47s`;
+  - final run conclusion and both matrix jobs: `success`.
+
+Первый exact Python 3.12 attempt завершился native Windows heap abort `0xc0000374`
+примерно на 52% pytest без test assertion. Тот же SHA уже проходил PR Python 3.12,
+exact Python 3.13 и два локальных full runs. Failed-only rerun выполнен без code/doc
+изменений и завершился успешно; evidence сохранено в том же run `29578571237`.
+
+## 8. Definition of Done status
 
 Локальные scope, tests, security, quality и documentation requirements выполнены.
 Deterministic decision logic не менялась. RM-135 adapter work не начиналась.
 
-Для полного closeout ещё обязательны:
-
-1. feature commit/PR;
-2. successful PR Quality Gate на Python 3.12/3.13;
-3. merge в `main` только после явного подтверждения;
-4. successful exact merge-SHA Quality Gate;
-5. docs-only closeout с canonical status/roadmap/history update и последующим exact gate.
+Feature commit/PR, подтверждённый merge и exact merge-SHA Quality Gate выполнены.
+Canonical status/roadmap/history обновлены этим отдельным docs-only closeout. После его
+merge остаётся проверить exact docs merge-SHA gate до начала application-кода RM-135.
