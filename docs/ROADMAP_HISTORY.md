@@ -1,5 +1,33 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-133 завершён, RM-134 активирован
+
+- Audit и plan зафиксированы docs-only commit `31e1456` до application changes;
+  expected-red contract — `d3f8906`, только семь ошибок отсутствующей RM-133 boundary.
+- Existing `ProviderEnablementRepository` и `collector_provider_settings.json` повышены до
+  schema v3 с in-memory v2 migration, byte-exact backup и atomic replace; второй store/catalog,
+  SQLite migration и legacy auto-import не создавались.
+- Ручные регистрации получили stable `manual_<uuid>` identity, строгую inert URL validation и
+  lifecycle `PROTOCOL_REQUIRED`; endpoint скрыт из public/error/log surfaces.
+- Manager, resolved catalog, existing dialog, profiles/controller/scheduler/session/factory
+  сохраняют единую execution chain и блокируют manual ID до network/runtime construction.
+- Credentials, protocol/adapter, connection test, DNS/live network, normalization/ranking,
+  score/recommendation/critical stop-factor и AI semantics не изменены.
+- Локальная acceptance: focused `51 passed in 4.31s`, neighbor
+  `160 passed, 2 warnings in 12.65s`, full pytest `1758 passed, 2 warnings in 66.57s`;
+  secret scan, Ruff/format (`578 files`), mypy, workflow smokes, dependency audit и diff-check успешны.
+- Feature PR #72 (`feat(rm-133): add safe manual provider registration`) слит в `main` коммитом
+  `c067b5e` (`c067b5ecbc24428906dd006abe1e0ee6eef48e12`).
+- PR Quality Gate run `29572356676` успешен: Python 3.12 —
+  `1758 passed, 2 warnings in 93.74s`, Python 3.13 —
+  `1758 passed, 2 warnings in 63.88s`.
+- Exact merge-SHA run `29573356516` успешен: Python 3.12 —
+  `1758 passed, 2 warnings in 104.98s`, Python 3.13 —
+  `1758 passed, 2 warnings in 174.96s`; все обязательные jobs — `success`.
+- Неблокирующее official-actions annotation о Node.js 20/24 не повлияло на gate.
+- RM-133 переведён в `DONE`; RM-134 назначен единственным `IN PROGRESS`.
+  RM-135–RM-200 остаются `PLANNED`.
+
 ## 2026-07-17 — RM-132 завершён, RM-133 активирован
 
 - Audit и plan зафиксированы docs-only commit `25b2eed` до application changes;
