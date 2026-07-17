@@ -40,7 +40,6 @@ from app.estimates.workspace import EstimateRow, totals
 from app.document_generation.generator import DocumentGenerator
 from app.catalog.price_catalog import PriceCatalog
 from app.config.user_settings import UserSettingsStore, PlatformConnection
-from app.security.secrets import save_secret, load_secret, delete_secret
 from app.connectors.manual import ManualConnectorTester
 from app.services.readiness import check_application
 from app.connectors.eis import EISConnector
@@ -85,6 +84,10 @@ TEMPLATE_NAMES = [
 LEGACY_PLATFORM_COMPATIBILITY_NOTICE = (
     "Ручные подключения API/RSS/FTP сохранены только для совместимости и явной проверки соединения. "
     "Они не используются Corteris Tender Collector как источники поиска."
+)
+LEGACY_PLATFORM_CREDENTIAL_NOTICE = (
+    "Этот legacy-раздел не управляет credentials. "
+    "Используйте канонический менеджер источников тендеров."
 )
 LEGACY_PLATFORM_PROVIDER_ACTION_TEXT = "Открыть канонические источники тендеров"
 
@@ -640,6 +643,10 @@ class TenderWorkspacePage(QWidget):
         compatibility_notice.setObjectName("LegacyPlatformCompatibilityNotice")
         compatibility_notice.setWordWrap(True)
         layout.addWidget(compatibility_notice)
+        credential_notice = QLabel(LEGACY_PLATFORM_CREDENTIAL_NOTICE, w)
+        credential_notice.setObjectName("LegacyPlatformCredentialNotice")
+        credential_notice.setWordWrap(True)
+        layout.addWidget(credential_notice)
         canonical_sources = QPushButton(LEGACY_PLATFORM_PROVIDER_ACTION_TEXT, w)
         canonical_sources.setObjectName("OpenCanonicalTenderProviders")
         canonical_sources.clicked.connect(self.canonical_provider_settings_requested.emit)
@@ -655,7 +662,8 @@ class TenderWorkspacePage(QWidget):
         self.platform_user.setPlaceholderText("Логин")
         self.platform_secret = QLineEdit()
         self.platform_secret.setEchoMode(QLineEdit.Password)
-        self.platform_secret.setPlaceholderText("Ключ/пароль")
+        self.platform_secret.setPlaceholderText("Credentials управляются в каноническом менеджере")
+        self.platform_secret.setEnabled(False)
         for x in [
             self.platform_name,
             self.platform_protocol,
@@ -1034,8 +1042,7 @@ class TenderWorkspacePage(QWidget):
             self.prefs.platforms.append(x)
         else:
             self.prefs.platforms[idx] = x
-        if self.platform_secret.text().strip():
-            save_secret(f"platform:{name}", self.platform_secret.text().strip())
+        self.platform_secret.clear()
         self.store.save(self.prefs)
         self.refresh_platforms()
 
@@ -1045,7 +1052,6 @@ class TenderWorkspacePage(QWidget):
             return
         n = self.platform_table.item(r, 0).text()
         self.prefs.platforms = [x for x in self.prefs.platforms if x.name != n]
-        delete_secret(f"platform:{n}")
         self.store.save(self.prefs)
         self.refresh_platforms()
 
@@ -1061,15 +1067,11 @@ class TenderWorkspacePage(QWidget):
         if r < 0:
             return
         x = self.prefs.platforms[r]
-        result = ManualConnectorTester.test(
-            x,
-            password=load_secret(f"platform:{x.name}") or "",
-            api_key=load_secret(f"platform:{x.name}") or "",
-        )
+        result = ManualConnectorTester.test(x)
         self.platform_table.setItem(
             r,
             5,
-            QTableWidgetItem("Доступно" if result.get("ok") else result.get("error", "Ошибка")),
+            QTableWidgetItem("Доступно" if result.get("ok") else "Ошибка проверки соединения"),
         )
 
     def refresh_platforms(self):
@@ -1257,4 +1259,8 @@ class MainWindow(QMainWindow):
         return getattr(page, name)
 
 
-__all__ = ["MainWindow", "TenderWorkspacePage"]
+__all__ = [
+    "LEGACY_PLATFORM_CREDENTIAL_NOTICE",
+    "MainWindow",
+    "TenderWorkspacePage",
+]

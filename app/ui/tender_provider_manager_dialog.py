@@ -43,6 +43,7 @@ class TenderProviderManagerDialog(QDialog):
     provider_enabled_changed = Signal(str, bool)
     provider_check_requested = Signal(str)
     provider_configuration_requested = Signal(str)
+    provider_credentials_requested = Signal(str)
     check_all_requested = Signal()
 
     def __init__(
@@ -150,6 +151,11 @@ class TenderProviderManagerDialog(QDialog):
         self.configure_button.clicked.connect(
             lambda: self.provider_configuration_requested.emit(self.selected_provider_id())
         )
+        self.credentials_button = QPushButton("Управлять credential", self)
+        self.credentials_button.setObjectName("ManageProviderCredentialButton")
+        self.credentials_button.clicked.connect(
+            lambda: self.provider_credentials_requested.emit(self.selected_provider_id())
+        )
         self.check_all_button = QPushButton(
             "Проверить все включённые",
             self,
@@ -161,6 +167,7 @@ class TenderProviderManagerDialog(QDialog):
             self,
         )
         actions.addWidget(self.configure_button)
+        actions.addWidget(self.credentials_button)
         actions.addWidget(self.check_all_button)
         actions.addWidget(self.refresh_button)
         actions.addStretch(1)
@@ -324,14 +331,16 @@ class TenderProviderManagerDialog(QDialog):
         if state is None:
             self.details.clear()
             self.configure_button.setEnabled(False)
+            self.credentials_button.setEnabled(False)
             return
 
         self.configure_button.setEnabled(
+            state.implementation_status == "commercial_access_pending"
+            and state.configuration_editable
+        )
+        self.credentials_button.setEnabled(
             state.provider_id == "mos_supplier"
-            or (
-                state.implementation_status == "commercial_access_pending"
-                and state.configuration_editable
-            )
+            or state.implementation_status == "commercial_access_pending"
         )
 
         latency = f"{state.latency_ms} мс" if state.latency_ms is not None else "не измерена"
@@ -346,6 +355,7 @@ class TenderProviderManagerDialog(QDialog):
                 f"{_escape_html(state.implementation_status)}<br>"
                 f"Источник настройки: "
                 f"{_escape_html(_origin_label(state.configuration_origin))}<br>"
+                f"Credential: {_escape_html(state.credential_state.value if state.credential_state else 'не запрашивался')}<br>"
                 f"Последняя проверка: "
                 f"{_format_timestamp(state.last_checked_at)}<br>"
                 f"Последний успех: "
