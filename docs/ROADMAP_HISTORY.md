@@ -1,5 +1,29 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-137 завершён, RM-138 активирован
+
+- Audit/plan зафиксированы commit `32a1257` до application changes; expected-red contract —
+  `209acd7`, одна collection error отсутствующих RM-137 symbols.
+- Existing `UnifiedTender`, `TenderNormalizer`, Collector/repository/dedup/verification и DI paths
+  переиспользованы; pure normalization contract v1 добавил strict Decimal, aware UTC dates,
+  safe URLs, stable collections, bounded diagnostics/provenance и versioned semantic fingerprint.
+- Collector, legacy provider-result path и offline manual mappings используют одну boundary;
+  manual/commercial live admission остаётся fail-closed. Новый model/repository/DB/search engine
+  не добавлен; Collector schema 14, Registry schema 1 и legacy payload readers сохранены.
+- RM-107 score/recommendation/hard-exclusion и critical stop-factor priority не изменены.
+- Локальная acceptance: focused `20 passed in 5.13s`, full pytest
+  `1879 passed, 2 warnings in 98.80s`; secret scan, Ruff/format (`608 files`), mypy, workflow
+  smokes, dependency audit и diff-check успешны.
+- Feature PR #81 слит merge commit `e38c8c13f0ec822fde76bdbc6319a18a05fd500b`.
+- PR Quality Gate run `29614656151` успешен: Python 3.12 —
+  `1879 passed, 2 warnings in 147.32s`, Python 3.13 —
+  `1879 passed, 2 warnings in 96.35s`.
+- Exact merge-SHA run `29615080804` успешен: Python 3.12 —
+  `1879 passed, 2 warnings in 105.98s`, Python 3.13 —
+  `1879 passed, 2 warnings in 94.45s`; все обязательные jobs завершились `success`.
+- RM-137 переведён в `DONE`; RM-138 назначен единственным `IN PROGRESS`.
+  RM-139–RM-200 остаются `PLANNED`.
+
 ## 2026-07-17 — RM-136 завершён, RM-137 активирован
 
 - Audit/plan зафиксированы commit `f4bb93a` до application changes; expected-red contract —

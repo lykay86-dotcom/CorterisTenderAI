@@ -85,8 +85,15 @@
 - Core normalizer commit: `c40aa4d`.
 - Provider routing commit: `1b6fd59`.
 - Decimal compatibility commit: `c184c2f`.
-- Feature PR / PR gate / merge SHA / exact merge-SHA gate: pending.
-- Docs-only closeout: запрещён до успешного exact merge-SHA Windows gate.
+- Feature PR #81 проверен на HEAD `71aae4e33dd0f0c3995bf6ffcacea2af52e52d28`.
+- PR Quality Gate run `29614656151`: Python 3.12 —
+  `1879 passed, 2 warnings in 147.32s`, Python 3.13 —
+  `1879 passed, 2 warnings in 96.35s`; оба jobs — `success`.
+- Feature merge SHA: `e38c8c13f0ec822fde76bdbc6319a18a05fd500b`.
+- Exact merge-SHA Windows run `29615080804`: Python 3.12 —
+  `1879 passed, 2 warnings in 105.98s`, Python 3.13 —
+  `1879 passed, 2 warnings in 94.45s`; оба jobs — `success`.
+- Docs-only closeout: ветка `docs/rm-137-completion`, разрешена после успешного exact-SHA gate.
 
 ## Rollback
 
