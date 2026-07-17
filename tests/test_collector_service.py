@@ -120,6 +120,8 @@ def test_service_marks_run_failed_on_pipeline_exception(tmp_path) -> None:
             row = connection.execute("SELECT * FROM collector_runs").fetchone()
         assert row is not None
         assert row["status"] == CollectionRunStatus.FAILED.value
-        assert row["error_type"] == "RuntimeError"
+        assert row["error_type"] == "provider_internal_error"
+        assert row["error_message"] == "Источник завершил поиск с безопасно скрытой ошибкой."
+        assert "collector failed" not in row["error_message"]
 
     asyncio.run(scenario())

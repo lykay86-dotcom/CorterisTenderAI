@@ -396,12 +396,19 @@ class CollectorStateRepository:
         completed_at: str | None = None,
         elapsed_ms: int = 0,
         error: BaseException | None = None,
+        error_code: str = "",
+        error_message: str = "",
     ) -> None:
         self.initialize()
         outcomes = tuple(provider_outcomes)
         successful = sum(bool(getattr(outcome, "successful", False)) for outcome in outcomes)
         failed = len(outcomes) - successful
         moment = completed_at or _utc_now()
+        safe_run_code = error_code.strip()
+        safe_run_message = error_message.strip()
+        if error is not None and not safe_run_code:
+            safe_run_code = "collector_internal_error"
+            safe_run_message = "Сбор завершился с безопасно скрытой ошибкой."
 
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -437,8 +444,8 @@ class CollectorStateRepository:
                             int(getattr(outcome, "item_count", 0)),
                             int(getattr(outcome, "elapsed_ms", 0)),
                             stable_json(list(getattr(outcome, "warnings", ()))),
-                            str(getattr(outcome, "error_type", "")),
-                            str(getattr(outcome, "error_message", "")),
+                            _safe_outcome_error(outcome)[0],
+                            _safe_outcome_error(outcome)[1],
                         ),
                     )
 
@@ -462,8 +469,8 @@ class CollectorStateRepository:
                         successful,
                         failed,
                         max(0, int(elapsed_ms)),
-                        type(error).__name__ if error is not None else "",
-                        str(error) if error is not None else "",
+                        safe_run_code,
+                        safe_run_message,
                         run_id,
                     ),
                 )
@@ -2653,6 +2660,16 @@ def _row_to_run(row: sqlite3.Row) -> CollectionRunRecord:
         error_type=str(row["error_type"]),
         error_message=str(row["error_message"]),
     )
+
+
+def _safe_outcome_error(outcome: object) -> tuple[str, str]:
+    if bool(getattr(outcome, "successful", False)):
+        return "", ""
+    code = str(getattr(outcome, "error_code", "")).strip()
+    if not code:
+        return "provider_error", "Источник завершил поиск с безопасно скрытой ошибкой."
+    message = str(getattr(outcome, "error_message", "")).strip()
+    return code, message or "Источник завершил поиск с безопасно скрытой ошибкой."
 
 
 def _enum_value(value: object) -> str:

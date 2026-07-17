@@ -23,6 +23,7 @@ from app.tenders.collector.progress import (
     CollectorProgressPhase,
     emit_collector_progress,
 )
+from app.tenders.collector.search_errors import classify_search_error
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.stop_factor import (
     StopFactorEngine,
@@ -56,8 +57,12 @@ class CollectorService:
     ) -> None:
         self.engine = engine
         self.repository = repository
-        self.normalizer = normalizer or TenderNormalizer()
-        self.deduplicator = deduplicator or TenderDeduplicator(self.normalizer)
+        engine_normalizer = getattr(engine, "normalizer", None)
+        self.normalizer = normalizer or engine_normalizer or TenderNormalizer()
+        engine_deduplicator = getattr(engine, "deduplicator", None)
+        self.deduplicator = (
+            deduplicator or engine_deduplicator or TenderDeduplicator(self.normalizer)
+        )
         self.ranker = ranker or CorterisParticipationRanker()
         self.verifier = verifier or TenderVerificationService(
             normalizer=self.normalizer,
@@ -91,18 +96,22 @@ class CollectorService:
             provider_ids=requested,
         )
         try:
+            engine_kwargs: dict[str, object] = {
+                "provider_ids": provider_ids,
+                "cancellation_token": cancellation_token,
+            }
+            if isinstance(self.engine, AsyncProviderSearchEngine):
+                engine_kwargs["run_id"] = run_id
             if progress_callback is None:
                 batch = await self.engine.search(
                     query,
-                    provider_ids=provider_ids,
-                    cancellation_token=cancellation_token,
+                    **engine_kwargs,
                 )
             else:
+                engine_kwargs["progress_callback"] = progress_callback
                 batch = await self.engine.search(
                     query,
-                    provider_ids=provider_ids,
-                    cancellation_token=cancellation_token,
-                    progress_callback=progress_callback,
+                    **engine_kwargs,
                 )
 
             await emit_collector_progress(
@@ -127,18 +136,26 @@ class CollectorService:
                 )
                 for item in discovery_items
             )
-            normalized = self.normalizer.normalize_many(authoritative_items)
+            normalized = (
+                self.normalizer.normalize_many(authoritative_items)
+                if batch.deduplication is None
+                else ()
+            )
 
             await emit_collector_progress(
                 progress_callback,
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.DEDUPLICATING,
                     total_providers=len(batch.outcomes),
-                    raw_count=len(normalized),
+                    raw_count=(
+                        len(normalized)
+                        if batch.deduplication is None
+                        else batch.deduplication.raw_count
+                    ),
                     message="Поиск и объединение дублей…",
                 ),
             )
-            deduplicated = self.deduplicator.deduplicate(normalized)
+            deduplicated = batch.deduplication or self.deduplicator.deduplicate(normalized)
 
             await emit_collector_progress(
                 progress_callback,
@@ -305,16 +322,18 @@ class CollectorService:
             )
             return result
         except Exception as exc:
+            failure = classify_search_error(exc)
             self.repository.complete_run(
                 run_id,
                 status=CollectionRunStatus.FAILED,
-                error=exc,
+                error_code=failure.code,
+                error_message=failure.message,
             )
             await emit_collector_progress(
                 progress_callback,
                 CollectorProgressEvent(
                     phase=CollectorProgressPhase.FAILED,
-                    message=f"{type(exc).__name__}: {exc}",
+                    message=failure.message,
                 ),
             )
             raise
