@@ -50,6 +50,7 @@ from app.tenders.collector.manual_provider_protocol import (
 from app.tenders.collector.manual_adapter import ManualAdapterCommandStatus
 from app.tenders.provider_credentials import CredentialErrorCategory
 from app.tenders.collector.run_session import CollectorRunSession
+from app.tenders.collector.search_errors import classify_search_error
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.verification_review import (
     TenderVerificationReviewService,
@@ -396,9 +397,10 @@ class _CollectorRunWorker(QRunnable):
         try:
             result = asyncio.run(execute())
         except Exception as exc:
+            failure = classify_search_error(exc)
             self.signals.failed.emit(
-                type(exc).__name__,
-                str(exc),
+                failure.code,
+                failure.message,
             )
             return
         self.signals.succeeded.emit(result)

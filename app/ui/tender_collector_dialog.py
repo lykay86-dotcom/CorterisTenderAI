@@ -64,7 +64,6 @@ class TenderCollectorDialog(QDialog):
         self._profiles: tuple[TenderSearchProfile, ...] = ()
         self._provider_states: tuple[ProviderDisplayState, ...] = ()
         self._provider_rows: dict[str, int] = {}
-        self._completed_providers: set[str] = set()
         self._running = False
 
         self.setWindowTitle("Corteris Tender Collector")
@@ -170,8 +169,13 @@ class TenderCollectorDialog(QDialog):
         )
         self.status_label.setObjectName("CollectorStatus")
         self.status_label.setWordWrap(True)
+        self.partial_results_label = QLabel("", progress_frame)
+        self.partial_results_label.setObjectName("CollectorPartialResults")
+        self.partial_results_label.setWordWrap(True)
+        self.partial_results_label.setVisible(False)
         progress_layout.addWidget(self.progress_bar)
         progress_layout.addWidget(self.status_label)
+        progress_layout.addWidget(self.partial_results_label)
         root.addWidget(progress_frame)
 
         actions = QHBoxLayout()
@@ -294,7 +298,8 @@ class TenderCollectorDialog(QDialog):
         provider_ids: Iterable[str],
     ) -> None:
         selected = {item.strip().casefold() for item in provider_ids if item.strip()}
-        self._completed_providers.clear()
+        self.partial_results_label.clear()
+        self.partial_results_label.setVisible(False)
         self._set_metric_values(0, 0, 0, 0)
         self.progress_bar.setValue(1)
         self.set_status(f"Запуск сбора по профилю «{profile_name}»…")
@@ -332,9 +337,7 @@ class TenderCollectorDialog(QDialog):
         self.set_status("Остановка запрошена. Завершаются активные запросы…")
 
     def apply_progress(self, event: CollectorProgressEvent) -> None:
-        if event.phase == CollectorProgressPhase.PREPARING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 3))
-        elif event.phase == CollectorProgressPhase.PROVIDER_QUEUED:
+        if event.phase == CollectorProgressPhase.PROVIDER_QUEUED:
             self._set_provider_row(
                 event.provider_id,
                 status="В очереди",
@@ -349,7 +352,6 @@ class TenderCollectorDialog(QDialog):
                 color=self._palette().warning,
             )
         elif event.phase == CollectorProgressPhase.PROVIDER_COMPLETED:
-            self._completed_providers.add(event.provider_id)
             self._set_provider_outcome(
                 event.provider_id,
                 event.provider_status,
@@ -357,35 +359,29 @@ class TenderCollectorDialog(QDialog):
                 event.elapsed_ms,
                 event.message,
             )
-            total = max(1, event.total_providers)
-            provider_progress = 5 + round(len(self._completed_providers) / total * 65)
-            self.progress_bar.setValue(max(self.progress_bar.value(), provider_progress))
-        elif event.phase == CollectorProgressPhase.NORMALIZING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 76))
-        elif event.phase == CollectorProgressPhase.DEDUPLICATING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 80))
-        elif event.phase == CollectorProgressPhase.VERIFYING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 86))
-        elif event.phase == CollectorProgressPhase.CHECKING_FRESHNESS:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 89))
-        elif event.phase == CollectorProgressPhase.RANKING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 92))
         elif event.phase == CollectorProgressPhase.SAVING:
-            self.progress_bar.setValue(max(self.progress_bar.value(), 95))
             self.duplicate_value.setText(str(event.duplicate_count))
         elif event.phase in {
             CollectorProgressPhase.COMPLETED,
             CollectorProgressPhase.CANCELLED,
         }:
-            self.progress_bar.setValue(100)
             self._set_metric_values(
                 event.new_count,
                 event.changed_count,
                 event.duplicate_count,
                 event.merged_count,
             )
-        elif event.phase == CollectorProgressPhase.FAILED:
-            self.progress_bar.setValue(100)
+        if event.progress_percent is not None:
+            self.progress_bar.setValue(max(self.progress_bar.value(), event.progress_percent))
+        if event.snapshot is not None and event.snapshot.partial_items:
+            titles = tuple(item.tender.title for item in event.snapshot.partial_items[:3])
+            suffix = "" if len(event.snapshot.partial_items) <= 3 else " …"
+            self.partial_results_label.setText(
+                f"Найдено после нормализации: {len(event.snapshot.partial_items)}. "
+                + "; ".join(titles)
+                + suffix
+            )
+            self.partial_results_label.setVisible(True)
 
         if event.message:
             self.set_status(

@@ -53,7 +53,6 @@ class TenderUnifiedSearchPanel(QFrame):
         self._profiles: tuple[TenderSearchProfile, ...] = ()
         self._provider_states: tuple[ProviderDisplayState, ...] = ()
         self._running = False
-        self._completed_providers: set[str] = set()
 
         self.setObjectName("TenderUnifiedSearchPanel")
         root = QVBoxLayout(self)
@@ -108,6 +107,12 @@ class TenderUnifiedSearchPanel(QFrame):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         root.addWidget(self.progress_bar)
+
+        self.partial_results_label = QLabel("", self)
+        self.partial_results_label.setObjectName("UnifiedTenderSearchPartialResults")
+        self.partial_results_label.setWordWrap(True)
+        self.partial_results_label.setVisible(False)
+        root.addWidget(self.partial_results_label)
 
         self.status_label = QLabel("Выберите профиль и доступные источники.", self)
         self.status_label.setObjectName("UnifiedTenderSearchStatus")
@@ -255,7 +260,8 @@ class TenderUnifiedSearchPanel(QFrame):
         return True
 
     def begin_run(self, profile_name: str, provider_ids: Iterable[str]) -> None:
-        self._completed_providers.clear()
+        self.partial_results_label.clear()
+        self.partial_results_label.setVisible(False)
         self.progress_bar.setValue(1)
         self.set_status(f"Запуск поиска по профилю «{profile_name}»…")
         self.set_running(True)
@@ -275,24 +281,17 @@ class TenderUnifiedSearchPanel(QFrame):
         self.set_status("Остановка запрошена. Завершаются активные запросы…")
 
     def apply_progress(self, event: CollectorProgressEvent) -> None:
-        if event.phase == CollectorProgressPhase.PREPARING:
-            value = 3
-        elif event.phase == CollectorProgressPhase.PROVIDER_COMPLETED:
-            self._completed_providers.add(event.provider_id)
-            value = 5 + round(len(self._completed_providers) / max(1, event.total_providers) * 65)
-        else:
-            value = {
-                CollectorProgressPhase.NORMALIZING: 76,
-                CollectorProgressPhase.DEDUPLICATING: 80,
-                CollectorProgressPhase.VERIFYING: 86,
-                CollectorProgressPhase.CHECKING_FRESHNESS: 89,
-                CollectorProgressPhase.RANKING: 92,
-                CollectorProgressPhase.SAVING: 95,
-                CollectorProgressPhase.COMPLETED: 100,
-                CollectorProgressPhase.CANCELLED: 100,
-                CollectorProgressPhase.FAILED: 100,
-            }.get(event.phase, self.progress_bar.value())
-        self.progress_bar.setValue(max(self.progress_bar.value(), value))
+        if event.progress_percent is not None:
+            self.progress_bar.setValue(max(self.progress_bar.value(), event.progress_percent))
+        if event.snapshot is not None and event.snapshot.partial_items:
+            titles = tuple(item.tender.title for item in event.snapshot.partial_items[:3])
+            suffix = "" if len(event.snapshot.partial_items) <= 3 else " …"
+            self.partial_results_label.setText(
+                f"Найдено после нормализации: {len(event.snapshot.partial_items)}. "
+                + "; ".join(titles)
+                + suffix
+            )
+            self.partial_results_label.setVisible(True)
         if event.message:
             self.set_status(event.message, error=event.phase == CollectorProgressPhase.FAILED)
 

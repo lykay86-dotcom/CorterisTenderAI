@@ -19,9 +19,14 @@ from app.tenders.collector.models import (
     CollectorRunResult,
     DeduplicationResult,
 )
+from app.tenders.collector.normalizer import TenderNormalizer
 from app.tenders.collector.progress import (
     CollectorProgressEvent,
     CollectorProgressPhase,
+    ParallelSearchRunState,
+    ParallelSearchSnapshot,
+    ProviderExecutionSnapshot,
+    ProviderExecutionState,
 )
 from app.tenders.collector.provider_control import (
     ProviderDisplayState,
@@ -29,6 +34,7 @@ from app.tenders.collector.provider_control import (
 )
 from app.tenders.search_profiles import TenderSearchProfile
 from app.ui.tender_collector_dialog import TenderCollectorDialog
+from tests.collector_c3_helpers import make_tender
 
 
 def _app() -> QApplication:
@@ -185,4 +191,43 @@ def test_dialog_renders_unverified_provider_without_crashing() -> None:
 
     assert dialog.provider_table.rowCount() == 1
     assert dialog._provider_ui_color(ProviderUiState.UNVERIFIED)
+    app.processEvents()
+
+
+def test_dialog_uses_engine_percent_and_renders_canonical_partial_items() -> None:
+    app = _app()
+    dialog = TenderCollectorDialog()
+    dialog.begin_run("Тестовый профиль", ("eis",))
+    normalized = TenderNormalizer().normalize(make_tender(external_id="partial-1"))
+    provider = ProviderExecutionSnapshot(
+        provider_id="eis",
+        display_name="ЕИС",
+        state=ProviderExecutionState.SUCCESS,
+        item_count=1,
+    )
+    snapshot = ParallelSearchSnapshot(
+        run_id="run-partial",
+        revision=3,
+        state=ParallelSearchRunState.RUNNING,
+        providers=(provider,),
+        started_at="2026-07-18T10:00:00+00:00",
+        updated_at="2026-07-18T10:00:01+00:00",
+        completed=1,
+        percent=90,
+        partial_items=(normalized,),
+    )
+
+    dialog.apply_progress(
+        CollectorProgressEvent(
+            phase=CollectorProgressPhase.PROVIDER_COMPLETED,
+            provider_id="eis",
+            provider_status="success",
+            progress_percent=42,
+            snapshot=snapshot,
+        )
+    )
+
+    assert dialog.progress_bar.value() == 42
+    assert not dialog.partial_results_label.isHidden()
+    assert normalized.tender.title in dialog.partial_results_label.text()
     app.processEvents()
