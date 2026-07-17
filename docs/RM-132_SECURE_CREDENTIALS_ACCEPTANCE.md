@@ -10,8 +10,9 @@
 - Expected-red commit: `131f9a8` (`test(rm-132): define secure credential input contract`).
 - Implementation commits: `5876bc9` и `f9365ea`.
 - Regression commit: `3b26d15`.
-- Feature PR, merge SHA и CI run IDs заполняются после публикации и merge; до этого RM-132
-  остаётся `IN PROGRESS`.
+- Acceptance commit: `3112021` (`docs(rm-132): record secure credentials acceptance`).
+- Feature PR: #70 (`feat(rm-132): secure API and credential input`).
+- Feature merge SHA: `1ae9c36605043e35333dffc60a6077c16fbd19f4`.
 
 ## 2. Изменённые owners и call sites
 
@@ -67,13 +68,22 @@ Environment: `PYTHONUTF8=1`, `QT_QPA_PLATFORM=offscreen`, repository-local ignor
 
 ## 5. CI и merge evidence
 
-- Feature PR: pending.
-- PR Quality Gate Python 3.12/3.13 run: pending.
-- Feature merge SHA: pending.
-- Exact merge-SHA Quality Gate run: pending.
-- Docs-only closeout PR и final main gate: pending.
-
-Эти пункты обязательны до перевода RM-132 в `DONE` и активации RM-133.
+- PR Quality Gate run `29565942602` успешен: Python 3.12 —
+  `1707 passed, 2 warnings in 186.83s`, Python 3.13 —
+  `1707 passed, 2 warnings in 76.36s`.
+- PR job IDs: Python 3.12 — `87838466168`, Python 3.13 — `87838466211`.
+- PR #70 слит в `main` merge commit
+  `1ae9c36605043e35333dffc60a6077c16fbd19f4`.
+- Exact merge-SHA Quality Gate run `29567132554` успешен: Python 3.12 —
+  `1707 passed, 2 warnings in 121.29s`, Python 3.13 —
+  `1707 passed, 2 warnings in 79.55s`.
+- Exact-SHA job IDs: Python 3.12 — `87842163233`, Python 3.13 — `87842163130`.
+- В обоих runs прошли secret scan, Ruff check/format (`570 files`), mypy
+  (20 файлов), offline/migration/import/composition/build smoke и dependency audit.
+- Неблокирующее GitHub annotation о Node.js 20/24 относится к закреплённым
+  official actions и не повлияло на зелёные jobs.
+- Docs-only closeout branch: `docs/rm-132-completion`; closeout PR и final main gate
+  выполняются после этого evidence commit.
 
 ## 6. Ограничения и rollback
 
