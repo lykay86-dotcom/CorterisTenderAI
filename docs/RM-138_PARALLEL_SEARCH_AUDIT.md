@@ -1,7 +1,7 @@
 # RM-138 Parallel Tender Search Audit
 
-Date: 2026-07-18  
-Baseline: `d576f862aab13fa68ea752e479df5c518ff6af42`  
+Date: 2026-07-18
+Baseline: `d576f862aab13fa68ea752e479df5c518ff6af42`
 Branch: `feat/rm-138-parallel-search`
 
 ## Entry gate

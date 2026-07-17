@@ -1,6 +1,6 @@
 # RM-138 Parallel Search Contract
 
-Contract version: 1  
+Contract version: 1
 Status: implementation target
 
 ## Boundary

@@ -1,9 +1,9 @@
 # RM-138 Acceptance Evidence
 
-Date: 2026-07-18  
-Feature branch: `feat/rm-138-parallel-search`  
-Base SHA: `d576f862aab13fa68ea752e479df5c518ff6af42`  
-Feature merge SHA: pending feature PR  
+Date: 2026-07-18
+Feature branch: `feat/rm-138-parallel-search`
+Base SHA: `d576f862aab13fa68ea752e479df5c518ff6af42`
+Feature merge SHA: pending feature PR
 Exact-merge Windows gate: pending feature merge
 
 ## Outcome
