@@ -3,7 +3,7 @@
 Дата локальной приёмки: 17 июля 2026 года  
 Baseline: `9008f8caee02c09221ab9e2e7da1c130420d0689`  
 Ветка: `feat/rm-135-safe-custom-adapter-builder`  
-Статус: local feature acceptance passed; GitHub CI pending.
+Статус: feature acceptance, merge и exact merge-SHA Quality Gate passed.
 
 ## 1. Audit-first и expected-red evidence
 
@@ -154,9 +154,28 @@ provider behavior не изменялись.
 - Credential input/storage and connection verification are not added. RM-136 must audit SSRF/DNS,
   redirects, TLS and FTP/FTPS transport before any live method can be admitted.
 
-## 8. Definition of Done status
+## 8. GitHub evidence
+
+- Feature head: `4358c5d64380205b87b4b2a70ec1e97df983df74`.
+- Feature PR #76 (`feat(rm-135): add safe custom adapter builder`) слит в `main` merge commit
+  `306b20977b6c23956488dc471da63af17f197e25`.
+- PR Quality Gate run `29584304208` успешен:
+  - Python 3.12: `1823 passed, 2 warnings in 59.52s`;
+  - Python 3.13: `1823 passed, 2 warnings in 88.40s`;
+  - secret scan, Ruff, format, mypy, smokes и dependency audit прошли на обеих версиях.
+- Exact merge-SHA run `29586643112` успешен:
+  - Python 3.12 failed-only rerun: `1823 passed, 2 warnings in 86.41s`;
+  - Python 3.13: `1823 passed, 2 warnings in 88.19s`;
+  - final run conclusion и обе matrix job: `success`.
+
+Первый exact Python 3.12 attempt завершился native Windows `access violation` примерно на 51%
+pytest без test assertion или Python traceback в application-коде. Тот же SHA уже прошёл PR
+Python 3.12, exact Python 3.13 и два локальных full runs. Failed-only rerun выполнен без code/doc
+изменений и завершился успешно; evidence сохранено в run `29586643112`.
+
+## 9. Definition of Done status
 
 Local scope, security, migration, factory, UI, regression and documentation requirements passed.
-Feature commits: `b4f9ba6` and `faca072`. GitHub PR Quality Gate on Python 3.12/3.13, explicit merge,
-exact merge-SHA gate and separate docs-only closeout remain pending. RM-135 stays `IN PROGRESS` and
-RM-136 application work must not start.
+Feature commits `b4f9ba6`/`faca072`, PR merge и exact merge-SHA gate завершены. Этот отдельный
+docs-only closeout обновляет canonical status/roadmap/history, переводит RM-135 в `DONE` и назначает
+RM-136 единственным `IN PROGRESS`. RM-137+ остаются `PLANNED`.

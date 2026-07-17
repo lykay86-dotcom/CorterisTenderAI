@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-135 завершён, RM-136 активирован
+
+- Audit/plan зафиксированы commit `b0f1048` до application changes; expected-red contract —
+  `e7b9121`, только семь collection errors отсутствующих RM-135 domain/UI symbols.
+- Pure `ManualAdapterSpec` v1, static API/RSS/FTP/FTPS compiler и bounded offline
+  JSON/XML/RSS/Atom/CSV preview добавлены внутри existing provider/settings/factory/manager owners;
+  второй store/catalog/factory/Collector, DB migration и dynamic code path не создавались.
+- Provider settings повышены до schema v5 с in-memory v4 migration, byte-exact backup, atomic
+  replace, stale-write rejection, semantic no-op, monotonic revision и bounded rollback history.
+- Compiled manual adapter соответствует existing `AsyncTenderProvider`, но остаётся
+  disabled/unverified/non-runnable; live methods fail closed `connection_test_required`.
+- Network, DNS, TLS handshake, redirects, credential resolution, connection test/live health,
+  FTP/FTPS transport, legacy tester/migration и production admission не реализованы.
+- Local acceptance: focused `27 passed in 3.65s`, neighbor
+  `205 passed, 2 warnings in 13.66s`, full pytest
+  `1823 passed, 2 warnings in 64.15s`; secret scan, Ruff/format (`592 files`), required и
+  changed-contour mypy, workflow smokes, dependency audit и diff-check успешны.
+- Feature PR #76 (`feat(rm-135): add safe custom adapter builder`) слит в `main` коммитом
+  `306b209` (`306b20977b6c23956488dc471da63af17f197e25`).
+- PR Quality Gate run `29584304208` успешен: Python 3.12 —
+  `1823 passed, 2 warnings in 59.52s`, Python 3.13 —
+  `1823 passed, 2 warnings in 88.40s`.
+- Exact merge-SHA run `29586643112` успешен: Python 3.12 rerun —
+  `1823 passed, 2 warnings in 86.41s`, Python 3.13 —
+  `1823 passed, 2 warnings in 88.19s`; первый Python 3.12 attempt завершился transient native
+  Windows access violation без test assertion, failed-only rerun того же SHA прошёл без изменений.
+- Deterministic decision/scoring/critical stop-factor, AI, legacy bytes и credential boundary
+  сохранены. RM-135 переведён в `DONE`; RM-136 назначен единственным `IN PROGRESS`.
+  RM-137–RM-200 остаются `PLANNED`.
+
 ## 2026-07-17 — RM-134 завершён, RM-135 активирован
 
 - Audit/plan зафиксированы commit `5889944` до application changes; expected-red contract —
