@@ -88,6 +88,8 @@ def test_tender_money_rejects_float_and_parses_documented_localized_strings() ->
     assert TenderMoney.from_value("1\u00a0234\u00a0567.89").amount == Decimal("1234567.89")
     with pytest.raises(ValueError):
         TenderMoney.from_value("1e6")
+    with pytest.raises(ValueError, match="precision"):
+        TenderMoney.from_value("0." + "1" * 39)
 
 
 def test_unknown_currency_is_not_guessed_as_rub() -> None:

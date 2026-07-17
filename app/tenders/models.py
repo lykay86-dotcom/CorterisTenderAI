@@ -155,7 +155,7 @@ def normalize_money_amount(
     digits = len(amount.as_tuple().digits)
     exponent = amount.as_tuple().exponent
     scale = max(0, -exponent) if isinstance(exponent, int) else 0
-    if digits > 38 or scale > 18:
+    if digits > 38 or scale > 28:
         raise ValueError(f"{field_name} exceeds supported precision")
     return amount
 
