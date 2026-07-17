@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -22,6 +23,7 @@ class CollectorProgressPhase(StrEnum):
     PROVIDER_QUEUED = "provider_queued"
     PROVIDER_RUNNING = "provider_running"
     PROVIDER_COMPLETED = "provider_completed"
+    SEARCH_TERMINAL = "search_terminal"
     NORMALIZING = "normalizing"
     DEDUPLICATING = "deduplicating"
     VERIFYING = "verifying"
@@ -198,6 +200,77 @@ CollectorProgressCallback = Callable[
 ]
 
 
+class CollectorProgressDispatcher:
+    """Deliver ordered progress without awaiting subscribers in provider work."""
+
+    def __init__(
+        self,
+        callback: CollectorProgressCallback | None,
+        *,
+        max_queue_size: int = 64,
+        shutdown_timeout_seconds: float = 0.2,
+    ) -> None:
+        if max_queue_size < 1:
+            raise ValueError("max_queue_size must be positive")
+        if shutdown_timeout_seconds <= 0:
+            raise ValueError("shutdown_timeout_seconds must be positive")
+        self._callback = callback
+        self._queue: asyncio.Queue[CollectorProgressEvent | None] | None = None
+        self._worker: asyncio.Task[None] | None = None
+        self._max_queue_size = max_queue_size
+        self._shutdown_timeout_seconds = shutdown_timeout_seconds
+        self._closed = False
+
+    async def publish(self, event: CollectorProgressEvent) -> None:
+        if self._callback is None or self._closed:
+            return
+        if self._queue is None:
+            self._queue = asyncio.Queue(maxsize=self._max_queue_size)
+            self._worker = asyncio.create_task(self._deliver())
+        if self._queue.full():
+            try:
+                self._queue.get_nowait()
+                self._queue.task_done()
+            except asyncio.QueueEmpty:
+                pass
+        self._queue.put_nowait(event)
+        await asyncio.sleep(0)
+
+    async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self._queue is None or self._worker is None:
+            return
+        if self._queue.full():
+            try:
+                self._queue.get_nowait()
+                self._queue.task_done()
+            except asyncio.QueueEmpty:
+                pass
+        self._queue.put_nowait(None)
+        try:
+            await asyncio.wait_for(
+                self._worker,
+                timeout=self._shutdown_timeout_seconds,
+            )
+        except TimeoutError:
+            self._worker.cancel()
+            await asyncio.gather(self._worker, return_exceptions=True)
+
+    async def _deliver(self) -> None:
+        if self._queue is None:
+            return
+        while True:
+            event = await self._queue.get()
+            try:
+                if event is None:
+                    return
+                await emit_collector_progress(self._callback, event)
+            finally:
+                self._queue.task_done()
+
+
 async def emit_collector_progress(
     callback: CollectorProgressCallback | None,
     event: CollectorProgressEvent,
@@ -219,6 +292,7 @@ async def emit_collector_progress(
 
 __all__ = [
     "CollectorProgressCallback",
+    "CollectorProgressDispatcher",
     "CollectorProgressEvent",
     "CollectorProgressPhase",
     "ParallelSearchRunState",
