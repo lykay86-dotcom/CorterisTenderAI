@@ -31,8 +31,9 @@
 - RM-134: `DONE`.
 - RM-135: `DONE`.
 - RM-136: `DONE`.
-- RM-137: `IN PROGRESS`.
-- RM-138–RM-200: `PLANNED`.
+- RM-137: `DONE`.
+- RM-138: `IN PROGRESS`.
+- RM-139–RM-200: `PLANNED`.
 
 ## Правила
 1. Нумерация RM-001–RM-200 неизменна.
