@@ -217,6 +217,14 @@ raw input изначально. Manual endpoint исключается из gene
 Expected red принимается только для отсутствующих typed manual model/schema/catalog/manager/UI/
 execution guards. Baseline owners не должны давать unrelated failures.
 
+После docs-only commit `31e1456` семь RM-133 test modules добавлены без production changes и
+запущены exact focused command из implementation plan. Accepted result: collection failure,
+`7 errors in 3.34s`. Каждый error имеет одну причину:
+`ModuleNotFoundError: app.tenders.collector.manual_provider_registration`; application assertions,
+network/DNS/keyring calls, Qt failures и unrelated baseline regressions отсутствуют. Ruff check
+успешен, Ruff format привёл только новые test files к project style. Production implementation
+разблокирован mandatory audit/expected-red ordering gate.
+
 ## 13. Risks and guards
 
 | Risk | Required guard |
