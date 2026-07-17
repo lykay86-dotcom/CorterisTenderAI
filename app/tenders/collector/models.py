@@ -31,6 +31,70 @@ class TenderIdentityAlias:
             raise ValueError("alias strength must be between 0 and 100")
 
 
+class NormalizationDiagnosticSeverity(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class NormalizationDiagnosticCode(StrEnum):
+    MISSING_REQUIRED = "missing_required"
+    MISSING_OPTIONAL = "missing_optional"
+    INVALID_FORMAT = "invalid_format"
+    OUT_OF_RANGE = "out_of_range"
+    UNSUPPORTED_VALUE = "unsupported_value"
+    UNMAPPED_VALUE = "unmapped_value"
+    CONFLICTING_VALUES = "conflicting_values"
+    LOSSY_TRANSFORM_BLOCKED = "lossy_transform_blocked"
+    UNSAFE_URL_REJECTED = "unsafe_url_rejected"
+    NAIVE_DATETIME_REJECTED = "naive_datetime_rejected"
+    AMBIGUOUS_DATETIME_REJECTED = "ambiguous_datetime_rejected"
+    INVALID_MONEY_REJECTED = "invalid_money_rejected"
+    RESOURCE_LIMIT_EXCEEDED = "resource_limit_exceeded"
+
+
+class NormalizationFieldOutcome(StrEnum):
+    DIRECT = "direct"
+    NORMALIZED = "normalized"
+    MISSING = "missing"
+    INVALID = "invalid"
+    CONFLICT = "conflict"
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizationDiagnostic:
+    code: NormalizationDiagnosticCode
+    severity: NormalizationDiagnosticSeverity
+    field: str
+    source_field: str
+    provider_id: str
+    message: str
+    recoverable: bool
+
+    def __post_init__(self) -> None:
+        if not self.field.strip() or not self.provider_id.strip():
+            raise ValueError("normalization diagnostic identity is required")
+        if len(self.message) > 300:
+            raise ValueError("normalization diagnostic message is too long")
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedFieldProvenance:
+    field: str
+    source_field: str
+    provider_id: str
+    transform_id: str
+    outcome: NormalizationFieldOutcome
+    source_record_id: str
+    verified: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.field.strip() or not self.provider_id.strip():
+            raise ValueError("normalization provenance identity is required")
+        if self.verified:
+            raise ValueError("normalization provenance cannot assert verification")
+
+
 @dataclass(frozen=True, slots=True)
 class NormalizedTender:
     tender: UnifiedTender
@@ -43,6 +107,10 @@ class NormalizedTender:
     content_hash: str
     duplicate_hash: str
     completeness_score: int
+    diagnostics: tuple[NormalizationDiagnostic, ...]
+    provenance: tuple[NormalizedFieldProvenance, ...]
+    contract_version: int
+    semantic_fingerprint: str
 
     def __post_init__(self) -> None:
         if not self.canonical_key.strip():
@@ -51,6 +119,10 @@ class NormalizedTender:
             raise ValueError("NormalizedTender.aliases must not be empty")
         if not 0 <= self.completeness_score <= 100:
             raise ValueError("completeness_score must be between 0 and 100")
+        if self.contract_version < 1:
+            raise ValueError("normalization contract version must be positive")
+        if len(self.semantic_fingerprint) != 64:
+            raise ValueError("semantic fingerprint must be a SHA-256 hex digest")
 
     @property
     def alias_keys(self) -> tuple[str, ...]:
@@ -194,6 +266,11 @@ __all__ = [
     "DeduplicationMatchLevel",
     "DeduplicationResult",
     "NormalizedTender",
+    "NormalizationDiagnostic",
+    "NormalizationDiagnosticCode",
+    "NormalizationDiagnosticSeverity",
+    "NormalizationFieldOutcome",
+    "NormalizedFieldProvenance",
     "TenderAliasType",
     "TenderIdentityAlias",
     "TenderObservationStatus",

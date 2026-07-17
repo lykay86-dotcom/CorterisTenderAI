@@ -55,10 +55,10 @@ def test_tender_document_and_url_validation() -> None:
 
 def test_tender_money_normalizes_inputs_without_float_rounding() -> None:
     direct = TenderMoney(amount="9007199254740993.01")  # type: ignore[arg-type]
-    from_float = TenderMoney.from_value(0.1)
 
     assert direct.amount == Decimal("9007199254740993.01")
-    assert from_float.amount == Decimal("0.1")
+    with pytest.raises(TypeError, match="float"):
+        TenderMoney.from_value(0.1)
 
     for invalid in ("NaN", "Infinity", "-0.01"):
         with pytest.raises(ValueError):

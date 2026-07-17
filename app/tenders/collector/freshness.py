@@ -239,6 +239,17 @@ def normalize_application_deadline(
 
     value = tender.application_deadline
     if value is None:
+        invalid_fields = metadata.get("normalization_invalid_fields", ())
+        if isinstance(invalid_fields, (tuple, list)) and "application_deadline" in invalid_fields:
+            return DeadlineNormalization(
+                original_value=original,
+                source_timezone=source_timezone,
+                timezone_status=DeadlineTimezoneStatus.UNKNOWN,
+                deadline_utc="",
+                user_timezone=user_zone_name,
+                deadline_user_local="",
+                seconds_remaining=None,
+            )
         return DeadlineNormalization(
             original_value=original,
             source_timezone=source_timezone,
@@ -300,7 +311,10 @@ def _recheck_policy(
         return 0, "Критичные данные ещё не были подтверждены."
     if verification.unresolved_conflict_count:
         return 0, "Есть нерешённый конфликт критичных данных."
-    if verification.tender.application_deadline is not None and not deadline.timezone_confirmed:
+    if deadline.timezone_status in {
+        DeadlineTimezoneStatus.UNKNOWN,
+        DeadlineTimezoneStatus.INVALID,
+    }:
         return 0, "Часовой пояс срока подачи не подтверждён."
     if _metadata_flag(
         metadata,
