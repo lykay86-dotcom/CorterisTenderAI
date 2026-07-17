@@ -220,8 +220,16 @@ from app.tenders.collector.provider_control import (
     ProviderUiState,
 )
 from app.tenders.collector.provider_settings import (
+    ProviderConfiguration,
     ProviderEnablement,
     ProviderEnablementRepository,
+    ProviderSettingOrigin,
+    ProviderSettingsLoadResult,
+    ProviderSettingsLoadStatus,
+    ProviderSettingsMutationError,
+    ProviderSettingsRecord,
+    ProviderSettingsSnapshot,
+    create_provider_settings_snapshot,
 )
 
 __all__ += [
@@ -230,8 +238,16 @@ __all__ += [
     "ProviderCheckRepository",
     "ProviderDisplayState",
     "ProviderUiState",
+    "ProviderConfiguration",
     "ProviderEnablement",
     "ProviderEnablementRepository",
+    "ProviderSettingOrigin",
+    "ProviderSettingsLoadResult",
+    "ProviderSettingsLoadStatus",
+    "ProviderSettingsMutationError",
+    "ProviderSettingsRecord",
+    "ProviderSettingsSnapshot",
+    "create_provider_settings_snapshot",
 ]
 
 from app.tenders.collector.progress import (

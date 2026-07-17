@@ -286,6 +286,7 @@ class CommercialProviderCatalog:
         definitions: Iterable[CommercialProviderDefinition],
         *,
         repository: CommercialProviderSettingsRepository | None = None,
+        user_settings: Mapping[str, CommercialProviderUserSettings] | None = None,
         secret_resolver: CommercialSecretResolver | None = None,
         environment: Mapping[str, str] | None = None,
     ) -> None:
@@ -295,13 +296,16 @@ class CommercialProviderCatalog:
             raise ValueError("commercial provider ids must be unique")
         self.definitions = ordered
         self.repository = repository
+        if repository is not None and user_settings is not None:
+            raise ValueError("repository and user_settings are mutually exclusive")
+        self.user_settings = dict(user_settings or {})
         self.environment = environment if environment is not None else os.environ
         self.secret_resolver = secret_resolver or CommercialSecretResolver(
             environment=self.environment
         )
 
     def resolve_all(self) -> tuple[CommercialProviderResolvedSettings, ...]:
-        persisted = self.repository.load() if self.repository else {}
+        persisted = self.repository.load() if self.repository else self.user_settings
         return tuple(
             self._resolve(definition, persisted.get(definition.provider_id))
             for definition in self.definitions
@@ -430,6 +434,7 @@ def create_commercial_provider_catalog(
     settings_path: str | Path | None = None,
     environment: Mapping[str, str] | None = None,
     keyring_loader: SecretLoader | None = None,
+    user_settings: Mapping[str, CommercialProviderUserSettings] | None = None,
 ) -> CommercialProviderCatalog:
     repository = (
         CommercialProviderSettingsRepository(settings_path) if settings_path is not None else None
@@ -441,6 +446,7 @@ def create_commercial_provider_catalog(
     return CommercialProviderCatalog(
         default_commercial_provider_definitions(),
         repository=repository,
+        user_settings=user_settings,
         secret_resolver=resolver,
         environment=environment,
     )

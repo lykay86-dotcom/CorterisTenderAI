@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 from app.tenders.business_profile import BusinessCapabilityProjection
@@ -20,6 +21,10 @@ from app.tenders.matching_catalog import MatchingCatalogRepository
 from app.tenders.corteris_filter import CorterisTenderClassifier
 from app.tenders.collector.provider_settings import (
     ProviderEnablementRepository,
+    ProviderSettingsLoadStatus,
+    ProviderSettingsMutationError,
+    ProviderSettingsSnapshot,
+    create_provider_settings_snapshot,
 )
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.providers.commercial_adapter import (
@@ -27,7 +32,9 @@ from app.tenders.providers.commercial_adapter import (
 )
 from app.tenders.providers.commercial_catalog import (
     CommercialProviderCatalog,
+    CommercialProviderUserSettings,
     create_commercial_provider_catalog,
+    default_commercial_provider_definitions,
 )
 from app.tenders.providers.eis_async import AsyncEisTenderProvider
 from app.tenders.providers.mos_supplier_api import (
@@ -44,6 +51,8 @@ def create_default_async_providers(
     include_commercial_catalog: bool = False,
     commercial_catalog: CommercialProviderCatalog | None = None,
     provider_settings_repository: (ProviderEnablementRepository | None) = None,
+    provider_settings_snapshot: ProviderSettingsSnapshot | None = None,
+    environment: Mapping[str, str] | None = None,
     include_disabled: bool = False,
 ):
     """Return implemented providers and optional visible access adapters.
@@ -53,6 +62,14 @@ def create_default_async_providers(
     ``not_configured`` adapters until a real API contract is verified.
     """
 
+    if provider_settings_snapshot is not None and provider_settings_snapshot.status in {
+        ProviderSettingsLoadStatus.CORRUPT,
+        ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
+    }:
+        raise ProviderSettingsMutationError(
+            f"Provider settings are unavailable: {provider_settings_snapshot.status.value}"
+        )
+
     providers = [
         AsyncEisTenderProvider(
             network_runtime.http_client,
@@ -61,13 +78,38 @@ def create_default_async_providers(
         ),
         AsyncMosSupplierTenderProvider(
             network_runtime.http_client,
-            config=(mos_supplier_config or MosSupplierApiConfig.from_environment()),
+            config=(mos_supplier_config or MosSupplierApiConfig.from_environment(environment)),
             network_settings=network_runtime.settings.get("mos_supplier"),
             checkpoint_repository=repository,
         ),
     ]
     if include_commercial_catalog:
-        catalog = commercial_catalog or create_commercial_provider_catalog()
+        catalog = commercial_catalog
+        if catalog is None:
+            user_settings = None
+            if provider_settings_snapshot is not None:
+                user_settings = {
+                    definition.provider_id: CommercialProviderUserSettings(
+                        enabled=bool(
+                            provider_settings_snapshot.get(definition.provider_id).enabled
+                        ),
+                        access_confirmed=(
+                            provider_settings_snapshot.get(
+                                definition.provider_id
+                            ).configuration.access_confirmed
+                        ),
+                        api_base_url=(
+                            provider_settings_snapshot.get(
+                                definition.provider_id
+                            ).configuration.api_base_url
+                        ),
+                    )
+                    for definition in default_commercial_provider_definitions()
+                }
+            catalog = create_commercial_provider_catalog(
+                environment=environment,
+                user_settings=user_settings,
+            )
         providers.extend(
             create_commercial_access_providers(
                 catalog.resolve_all(),
@@ -75,7 +117,13 @@ def create_default_async_providers(
             )
         )
 
-    if provider_settings_repository is not None:
+    if provider_settings_snapshot is not None:
+        providers = [
+            provider
+            for provider in providers
+            if (include_disabled or provider_settings_snapshot.get(provider.descriptor.id).enabled)
+        ]
+    elif provider_settings_repository is not None:
         providers = [
             provider
             for provider in providers
@@ -93,6 +141,8 @@ def create_default_collector_service(
     include_commercial_catalog: bool = False,
     commercial_catalog: CommercialProviderCatalog | None = None,
     provider_settings_repository: (ProviderEnablementRepository | None) = None,
+    provider_settings_snapshot: ProviderSettingsSnapshot | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> CollectorService:
     """Build the first production collector pipeline without network I/O."""
 
@@ -101,7 +151,12 @@ def create_default_collector_service(
     repository = CollectorStateRepository(data_path / "tender_registry.sqlite3")
     repository.initialize()
     source_settings = provider_settings_repository or ProviderEnablementRepository(
-        data_path / "collector_provider_settings.json"
+        data_path / "collector_provider_settings.json",
+        legacy_settings_path=(data_path / "commercial_provider_settings.json"),
+    )
+    settings_snapshot = provider_settings_snapshot or create_provider_settings_snapshot(
+        source_settings,
+        environment=environment,
     )
     providers = create_default_async_providers(
         network_runtime,
@@ -110,6 +165,8 @@ def create_default_collector_service(
         include_commercial_catalog=include_commercial_catalog,
         commercial_catalog=commercial_catalog,
         provider_settings_repository=source_settings,
+        provider_settings_snapshot=settings_snapshot,
+        environment=environment,
     )
     engine = AsyncProviderSearchEngine(
         providers,

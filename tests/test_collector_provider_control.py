@@ -46,7 +46,7 @@ def test_manager_exposes_all_sources_without_network(tmp_path) -> None:
     assert len(states) == 10
 
 
-def test_manager_persists_switch_and_commercial_switch(
+def test_manager_persists_commercial_switch_only_in_canonical_settings(
     tmp_path,
 ) -> None:
     manager = CollectorProviderManager(
@@ -58,8 +58,8 @@ def test_manager_persists_switch_and_commercial_switch(
 
     assert state.enabled
     assert state.ui_state == ProviderUiState.NOT_CONFIGURED
-    commercial = manager.commercial_settings_repository.load()
-    assert commercial["b2b_center"].enabled
+    assert manager.settings_repository.load()["b2b_center"] is True
+    assert not (tmp_path / "commercial_provider_settings.json").exists()
 
 
 def test_health_check_persists_success_and_error(tmp_path) -> None:

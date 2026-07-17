@@ -8,6 +8,7 @@ from datetime import date
 from enum import StrEnum
 
 from app.tenders.collector.provider_control import ProviderDisplayState
+from app.tenders.collector.provider_definitions import canonical_provider_id
 from app.tenders.provider_base import TenderSearchQuery
 from app.tenders.search_profiles import (
     SearchProfileRuntimeQueryPolicy,
@@ -114,6 +115,10 @@ def _normalize_provider_ids(provider_ids: Iterable[object]) -> tuple[str, ...]:
     seen: set[str] = set()
     for item in provider_ids:
         provider_id = str(item).strip().casefold()
+        try:
+            provider_id = canonical_provider_id(provider_id)
+        except KeyError:
+            pass
         if not provider_id or provider_id in seen:
             continue
         seen.add(provider_id)

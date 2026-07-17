@@ -9,12 +9,15 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFormLayout,
     QFrame,
     QHeaderView,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -26,6 +29,10 @@ from PySide6.QtWidgets import (
 from app.tenders.collector.provider_control import (
     ProviderDisplayState,
     ProviderUiState,
+)
+from app.tenders.collector.provider_settings import (
+    ProviderConfiguration,
+    ProviderSettingOrigin,
 )
 from app.ui.theme.colors import ThemeName, get_palette
 
@@ -245,11 +252,10 @@ class TenderProviderManagerDialog(QDialog):
         state: ProviderDisplayState,
     ) -> None:
         enabled_item = QTableWidgetItem()
-        enabled_item.setFlags(
-            Qt.ItemFlag.ItemIsEnabled
-            | Qt.ItemFlag.ItemIsSelectable
-            | Qt.ItemFlag.ItemIsUserCheckable
-        )
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        if state.enabled_editable:
+            flags |= Qt.ItemFlag.ItemIsUserCheckable
+        enabled_item.setFlags(flags)
         enabled_item.setCheckState(
             Qt.CheckState.Checked if state.enabled else Qt.CheckState.Unchecked
         )
@@ -320,7 +326,13 @@ class TenderProviderManagerDialog(QDialog):
             self.configure_button.setEnabled(False)
             return
 
-        self.configure_button.setEnabled(state.provider_id == "mos_supplier")
+        self.configure_button.setEnabled(
+            state.provider_id == "mos_supplier"
+            or (
+                state.implementation_status == "commercial_access_pending"
+                and state.configuration_editable
+            )
+        )
 
         latency = f"{state.latency_ms} мс" if state.latency_ms is not None else "не измерена"
         configuration = "<br>".join(_escape_html(item) for item in state.configuration_details)
@@ -332,6 +344,8 @@ class TenderProviderManagerDialog(QDialog):
                 f"Режим: {_escape_html(state.connection_mode)}<br>"
                 f"Реализация: "
                 f"{_escape_html(state.implementation_status)}<br>"
+                f"Источник настройки: "
+                f"{_escape_html(_origin_label(state.configuration_origin))}<br>"
                 f"Последняя проверка: "
                 f"{_format_timestamp(state.last_checked_at)}<br>"
                 f"Последний успех: "
@@ -456,6 +470,80 @@ class TenderProviderManagerDialog(QDialog):
         )
 
 
+class TenderProviderConfigurationDialog(QDialog):
+    """Presentation-only editor for known non-secret provider fields."""
+
+    def __init__(
+        self,
+        state: ProviderDisplayState,
+        *,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._state = state
+        self.setWindowTitle(f"Настройка источника — {state.display_name}")
+        self.setModal(True)
+        self.setObjectName("TenderProviderConfigurationDialog")
+
+        root = QVBoxLayout(self)
+        self.origin_label = QLabel(
+            f"Источник значения: {_origin_label(state.configuration_origin)}",
+            self,
+        )
+        self.origin_label.setObjectName("ProviderConfigurationOrigin")
+        root.addWidget(self.origin_label)
+
+        form = QFormLayout()
+        self.access_confirmed_checkbox = QCheckBox(
+            "Разрешённый способ API-доступа подтверждён",
+            self,
+        )
+        self.access_confirmed_checkbox.setObjectName("ProviderAccessConfirmed")
+        self.access_confirmed_checkbox.setChecked(state.configuration.access_confirmed)
+        form.addRow("Доступ", self.access_confirmed_checkbox)
+
+        self.api_base_url_edit = QLineEdit(self)
+        self.api_base_url_edit.setObjectName("ProviderApiBaseUrl")
+        self.api_base_url_edit.setPlaceholderText("https://api.example.ru/v1")
+        self.api_base_url_edit.setText(state.configuration.api_base_url)
+        form.addRow("Проверенный API endpoint", self.api_base_url_edit)
+        root.addLayout(form)
+
+        self.validation_label = QLabel("", self)
+        self.validation_label.setObjectName("ProviderConfigurationValidation")
+        self.validation_label.setWordWrap(True)
+        root.addWidget(self.validation_label)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+            self,
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText("Сохранить")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
+        buttons.accepted.connect(self._validate_and_accept)
+        buttons.rejected.connect(self.reject)
+        root.addWidget(buttons)
+
+        editable = state.configuration_editable
+        self.access_confirmed_checkbox.setEnabled(editable)
+        self.api_base_url_edit.setEnabled(editable)
+        buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(editable)
+
+    def configuration(self) -> ProviderConfiguration:
+        return ProviderConfiguration(
+            access_confirmed=self.access_confirmed_checkbox.isChecked(),
+            api_base_url=self.api_base_url_edit.text(),
+        )
+
+    def _validate_and_accept(self) -> None:
+        try:
+            self.configuration()
+        except (TypeError, ValueError) as exc:
+            self.validation_label.setText(str(exc))
+            return
+        self.accept()
+
+
 def _format_timestamp(value: str) -> str:
     if not value:
         return "—"
@@ -476,4 +564,16 @@ def _escape_html(value: str) -> str:
     )
 
 
-__all__ = ["TenderProviderManagerDialog"]
+def _origin_label(origin: ProviderSettingOrigin) -> str:
+    return {
+        ProviderSettingOrigin.DEFAULT: "значение по умолчанию",
+        ProviderSettingOrigin.PERSISTED: "локальные настройки",
+        ProviderSettingOrigin.LEGACY_MIGRATED: "совместимые legacy-настройки",
+        ProviderSettingOrigin.ENVIRONMENT: "переменные окружения (только чтение)",
+    }[origin]
+
+
+__all__ = [
+    "TenderProviderConfigurationDialog",
+    "TenderProviderManagerDialog",
+]
