@@ -18,6 +18,7 @@ from app.tenders.collector.manual_adapter import (
     RecordSelectorSpec,
     SourceRequestSpec,
     create_manual_adapter_spec,
+    parse_field_mapping_lines,
 )
 from app.tenders.collector.manual_provider_protocol import ManualProviderProtocolFamily
 
@@ -79,3 +80,16 @@ def test_resource_caps_can_only_be_tightened() -> None:
     assert limits.max_records == 25
     with pytest.raises(ValueError, match="resource limit"):
         AdapterResourceLimits(max_sample_bytes=100_000_000)
+
+
+def test_declarative_mapping_text_accepts_only_canonical_targets_and_paths() -> None:
+    mappings = parse_field_mapping_lines("!title=record.name\nexternal_id=record.id")
+    assert tuple(item.target_field for item in mappings) == (
+        CanonicalTenderField.TITLE,
+        CanonicalTenderField.EXTERNAL_ID,
+    )
+    assert mappings[0].required is True
+    with pytest.raises(ValueError):
+        parse_field_mapping_lines("title=items[*]")
+    with pytest.raises(ValueError):
+        parse_field_mapping_lines("custom_python=run()")

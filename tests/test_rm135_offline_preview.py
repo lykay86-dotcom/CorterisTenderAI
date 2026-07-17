@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import pytest
+
 from app.tenders.collector.manual_adapter import (
     CanonicalTenderField,
     FieldMappingSpec,
@@ -80,3 +82,51 @@ def test_xml_dtd_is_rejected_without_echoing_payload() -> None:
     assert result.has_errors
     assert sentinel not in repr(result)
     assert sentinel not in " ".join(item.message for item in result.diagnostics)
+
+
+@pytest.mark.parametrize(
+    ("data_format", "selector", "sample"),
+    (
+        (
+            ManualAdapterDataFormat.RSS,
+            ("rss", "channel", "item"),
+            "<rss><channel><item><title>RSS tender</title></item></channel></rss>",
+        ),
+        (
+            ManualAdapterDataFormat.ATOM,
+            ("feed", "entry"),
+            '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Atom tender</title></entry></feed>',
+        ),
+    ),
+)
+def test_feed_preview_supports_rss_and_namespaced_atom(data_format, selector, sample) -> None:
+    spec = create_manual_adapter_spec(
+        provider_id=MANUAL_ID,
+        protocol_family=ManualProviderProtocolFamily.RSS,
+        source=SourceRequestSpec(data_format=data_format),
+        record_selector=RecordSelectorSpec(path=selector),
+        field_mappings=(FieldMappingSpec(CanonicalTenderField.TITLE, ("title",), required=True),),
+        revision=1,
+        timestamp=NOW,
+    )
+
+    result = preview_manual_adapter(spec, sample)
+
+    assert not result.has_errors
+    assert result.records[0].values[CanonicalTenderField.TITLE].endswith("tender")
+
+
+def test_csv_preview_and_record_limit_are_bounded() -> None:
+    spec = create_manual_adapter_spec(
+        provider_id=MANUAL_ID,
+        protocol_family=ManualProviderProtocolFamily.FTP,
+        source=SourceRequestSpec(data_format=ManualAdapterDataFormat.CSV, filename_suffix=".csv"),
+        record_selector=RecordSelectorSpec(path=("records",)),
+        field_mappings=(FieldMappingSpec(CanonicalTenderField.TITLE, ("title",), required=True),),
+        revision=1,
+        timestamp=NOW,
+    )
+    result = preview_manual_adapter(spec, "title\nCSV tender\n")
+
+    assert not result.has_errors
+    assert result.records[0].values[CanonicalTenderField.TITLE] == "CSV tender"

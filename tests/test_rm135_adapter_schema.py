@@ -69,6 +69,8 @@ def _spec():
 def test_v4_loads_without_guessing_then_first_adapter_save_creates_v4_backup(tmp_path) -> None:
     path = tmp_path / "collector_provider_settings.json"
     registration = _registration().persisted_payload()
+    registration.pop("adapter_spec")
+    registration.pop("adapter_spec_history")
     payload = {
         "schema_version": 4,
         "updated_at": NOW.isoformat(),

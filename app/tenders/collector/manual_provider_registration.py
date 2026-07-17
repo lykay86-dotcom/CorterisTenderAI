@@ -1,7 +1,7 @@
-"""Pure registration-only contract for manually declared tender sources.
+"""Canonical registration state for manually declared tender sources.
 
-The metadata in this module is inert. It cannot select a protocol, construct an
-adapter, access credentials or initiate network I/O.
+The persisted metadata is declarative and non-runnable. A validated adapter
+specification may be attached, but it cannot access credentials or initiate I/O.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import unicodedata
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
+from app.tenders.collector.manual_adapter import ManualAdapterSpec
 from app.tenders.collector.manual_provider_protocol import (
     ManualProviderProtocolSelection,
 )
@@ -29,6 +30,7 @@ _MAX_URL_LENGTH = 2048
 class ManualProviderLifecycle(StrEnum):
     PROTOCOL_REQUIRED = "protocol_required"
     ADAPTER_REQUIRED = "adapter_required"
+    CONNECTION_TEST_REQUIRED = "connection_test_required"
 
 
 class ManualProviderCommandStatus(StrEnum):
@@ -53,6 +55,7 @@ class ManualProviderErrorCategory(StrEnum):
     OPERATION_FAILED = "operation_failed"
     PROTOCOL_REQUIRED = "protocol_required"
     ADAPTER_REQUIRED = "adapter_required"
+    CONNECTION_TEST_REQUIRED = "connection_test_required"
 
 
 class ManualProviderConflictError(ValueError):
@@ -71,16 +74,16 @@ class ManualProviderExecutionError(RuntimeError):
         lifecycle: ManualProviderLifecycle = ManualProviderLifecycle.PROTOCOL_REQUIRED,
     ) -> None:
         self.lifecycle = lifecycle
-        self.category = (
-            ManualProviderErrorCategory.PROTOCOL_REQUIRED
-            if lifecycle is ManualProviderLifecycle.PROTOCOL_REQUIRED
-            else ManualProviderErrorCategory.ADAPTER_REQUIRED
-        )
-        super().__init__(
-            "Источник требует выбор протокола."
-            if lifecycle is ManualProviderLifecycle.PROTOCOL_REQUIRED
-            else "Для источника ещё не создан адаптер."
-        )
+        if lifecycle is ManualProviderLifecycle.PROTOCOL_REQUIRED:
+            self.category = ManualProviderErrorCategory.PROTOCOL_REQUIRED
+            message = "Источник требует выбор протокола."
+        elif lifecycle is ManualProviderLifecycle.ADAPTER_REQUIRED:
+            self.category = ManualProviderErrorCategory.ADAPTER_REQUIRED
+            message = "Для источника ещё не создан адаптер."
+        else:
+            self.category = ManualProviderErrorCategory.CONNECTION_TEST_REQUIRED
+            message = "Адаптер требует проверку подключения."
+        super().__init__(message)
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +137,8 @@ class ManualProviderRegistration:
         default=None,
         repr=False,
     )
+    adapter_spec: ManualAdapterSpec | None = field(default=None, repr=False)
+    adapter_spec_history: tuple[ManualAdapterSpec, ...] = field(default=(), repr=False)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -142,13 +147,45 @@ class ManualProviderRegistration:
         if not _MANUAL_ID_PATTERN.fullmatch(normalized_id):
             raise ValueError("manual provider id must use the canonical namespace")
         if self.protocol_selection is None:
-            if self.lifecycle_state is not ManualProviderLifecycle.PROTOCOL_REQUIRED:
+            if (
+                self.lifecycle_state is not ManualProviderLifecycle.PROTOCOL_REQUIRED
+                or self.adapter_spec is not None
+                or self.adapter_spec_history
+            ):
+                raise ValueError("manual provider lifecycle is inconsistent")
+        elif not isinstance(self.protocol_selection, ManualProviderProtocolSelection):
+            raise ValueError("manual provider lifecycle is inconsistent")
+        elif self.adapter_spec is None:
+            if self.lifecycle_state is not ManualProviderLifecycle.ADAPTER_REQUIRED:
                 raise ValueError("manual provider lifecycle is inconsistent")
         elif (
-            not isinstance(self.protocol_selection, ManualProviderProtocolSelection)
-            or self.lifecycle_state is not ManualProviderLifecycle.ADAPTER_REQUIRED
+            not isinstance(self.adapter_spec, ManualAdapterSpec)
+            or self.adapter_spec.provider_id != normalized_id
+            or self.adapter_spec.protocol_family is not self.protocol_selection.family
+            or self.lifecycle_state is not ManualProviderLifecycle.CONNECTION_TEST_REQUIRED
         ):
             raise ValueError("manual provider lifecycle is inconsistent")
+        if len(self.adapter_spec_history) > 5 or any(
+            not isinstance(item, ManualAdapterSpec)
+            or item.provider_id != normalized_id
+            or (
+                self.protocol_selection is not None
+                and item.protocol_family is not self.protocol_selection.family
+            )
+            for item in self.adapter_spec_history
+        ):
+            raise ValueError("manual provider adapter history is invalid")
+        history_revisions = tuple(item.revision for item in self.adapter_spec_history)
+        if (
+            len(history_revisions) != len(set(history_revisions))
+            or history_revisions != tuple(sorted(history_revisions, reverse=True))
+            or (
+                self.adapter_spec is not None
+                and history_revisions
+                and self.adapter_spec.revision <= history_revisions[0]
+            )
+        ):
+            raise ValueError("manual provider adapter history is invalid")
         _validate_aware_timestamp(self.created_at, field_name="created timestamp")
         _validate_aware_timestamp(self.updated_at, field_name="updated timestamp")
         if self.updated_at < self.created_at:
@@ -182,6 +219,13 @@ class ManualProviderRegistration:
     def endpoint_identity(self) -> str:
         return self.endpoint_url
 
+    @property
+    def next_adapter_revision(self) -> int:
+        revisions = tuple(item.revision for item in self.adapter_spec_history)
+        if self.adapter_spec is not None:
+            revisions = (self.adapter_spec.revision, *revisions)
+        return max(revisions, default=0) + 1
+
     def public_payload(self) -> dict[str, object]:
         """Return only metadata safe for generic display/export boundaries."""
 
@@ -195,6 +239,8 @@ class ManualProviderRegistration:
         }
         if self.protocol_selection is not None:
             payload["protocol_selection"] = self.protocol_selection.public_payload()
+        if self.adapter_spec is not None:
+            payload["adapter_spec"] = self.adapter_spec.public_payload()
         return payload
 
     def persisted_payload(self) -> dict[str, object]:
@@ -208,6 +254,12 @@ class ManualProviderRegistration:
                 if self.protocol_selection is not None
                 else None
             ),
+            "adapter_spec": (
+                self.adapter_spec.persisted_payload() if self.adapter_spec is not None else None
+            ),
+            "adapter_spec_history": [
+                item.persisted_payload() for item in self.adapter_spec_history
+            ],
             "created_at": self.created_at.astimezone(timezone.utc).isoformat(
                 timespec="microseconds"
             ),

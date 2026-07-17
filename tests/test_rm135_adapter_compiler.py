@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 import pytest
@@ -102,8 +103,7 @@ def test_static_compiler_dispatches_all_families_without_invoking_dependencies(f
     assert calls == []
 
 
-@pytest.mark.asyncio
-async def test_compiled_adapter_stays_non_runnable_until_rm136() -> None:
+def test_compiled_adapter_stays_non_runnable_until_rm136() -> None:
     registration = _registration(ManualProviderProtocolFamily.API)
     spec = create_manual_adapter_spec(
         provider_id=MANUAL_ID,
@@ -117,4 +117,4 @@ async def test_compiled_adapter_stays_non_runnable_until_rm136() -> None:
     adapter = compile_manual_adapter(registration, spec).adapter
     assert adapter is not None
     with pytest.raises(ManualAdapterLiveOperationError, match="connection_test_required"):
-        await adapter.search(TenderSearchQuery())
+        asyncio.run(adapter.search(TenderSearchQuery()))

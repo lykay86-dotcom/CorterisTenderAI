@@ -50,6 +50,18 @@ from app.tenders.collector.manual_provider_protocol import (
     create_manual_provider_protocol_selection,
     manual_provider_protocol_policies,
 )
+from app.tenders.collector.manual_adapter import (
+    AdapterCompileResult,
+    AdapterCompileStatus,
+    ManualAdapterCommandResult,
+    ManualAdapterCommandStatus,
+    ManualAdapterPreviewResult,
+    ManualAdapterReadiness,
+    ManualAdapterSpec,
+    compile_manual_adapter,
+    create_manual_adapter_spec,
+    preview_manual_adapter,
+)
 from app.tenders.collector.provider_definitions import (
     ProviderCatalogEntry,
     ProviderCatalogOrigin,
@@ -235,6 +247,7 @@ class ProviderDisplayState:
     runnable: bool = True
     factory_available: bool = True
     protocol_configured: bool = True
+    adapter_compiled: bool = True
     credential_available: bool = True
     health_check_available: bool = True
     manual_registration: ManualProviderRegistration | None = field(default=None, repr=False)
@@ -475,6 +488,8 @@ class CollectorProviderManager:
                 endpoint_url=validated.endpoint_url,
                 lifecycle_state=current.lifecycle_state,
                 protocol_selection=current.protocol_selection,
+                adapter_spec=current.adapter_spec,
+                adapter_spec_history=current.adapter_spec_history,
                 created_at=current.created_at,
                 updated_at=self._next_manual_timestamp(current.updated_at),
             )
@@ -554,6 +569,277 @@ class CollectorProviderManager:
     def manual_protocol_policies(self) -> tuple[ManualProviderProtocolPolicy, ...]:
         return manual_provider_protocol_policies()
 
+    def manual_adapter_spec(self, provider_id: str) -> ManualAdapterSpec | None:
+        return self.settings_snapshot().get_manual(provider_id).adapter_spec
+
+    def compile_manual_provider_adapter(
+        self,
+        provider_id: str,
+        spec: ManualAdapterSpec | None = None,
+    ) -> AdapterCompileResult:
+        registration = self.settings_snapshot().get_manual(provider_id)
+        selected = spec or registration.adapter_spec
+        if selected is None:
+            raise ValueError("manual adapter specification is required")
+        return compile_manual_adapter(registration, selected)
+
+    def preview_manual_provider_adapter(
+        self,
+        provider_id: str,
+        spec: ManualAdapterSpec,
+        sample: str | bytes,
+    ) -> ManualAdapterPreviewResult:
+        registration = self.settings_snapshot().get_manual(provider_id)
+        compiled = compile_manual_adapter(registration, spec)
+        if compiled.status is not AdapterCompileStatus.VALID:
+            return ManualAdapterPreviewResult((), compiled.diagnostics)
+        return preview_manual_adapter(spec, sample)
+
+    def save_manual_adapter_spec(
+        self,
+        provider_id: str,
+        spec: ManualAdapterSpec,
+        *,
+        expected_updated_at: datetime,
+    ) -> ManualAdapterCommandResult:
+        normalized = str(provider_id).strip().casefold()
+        try:
+            current = self._manual_mutation_snapshot().get_manual(normalized)
+            if current.updated_at != expected_updated_at:
+                raise ProviderSettingsStaleWriteError(normalized)
+            if (
+                current.adapter_spec is not None
+                and current.adapter_spec.fingerprint == spec.fingerprint
+            ):
+                return _manual_adapter_command_result(
+                    normalized,
+                    ManualAdapterCommandStatus.UNCHANGED,
+                    (),
+                    current.adapter_spec,
+                    "Спецификация адаптера не изменилась.",
+                    current.updated_at,
+                )
+            expected_revision = current.next_adapter_revision
+            if spec.revision != expected_revision:
+                raise ValueError("manual adapter revision is not monotonic")
+            compiled = compile_manual_adapter(current, spec)
+            if compiled.status is not AdapterCompileStatus.VALID:
+                return _manual_adapter_command_result(
+                    normalized,
+                    ManualAdapterCommandStatus.INVALID,
+                    compiled.diagnostics,
+                    spec,
+                    "Спецификация адаптера отклонена безопасной проверкой.",
+                    self._safe_manual_timestamp(),
+                )
+            timestamp = self._next_manual_timestamp(current.updated_at)
+            history = (
+                ((current.adapter_spec,) if current.adapter_spec is not None else ())
+                + current.adapter_spec_history
+            )[:5]
+            updated = ManualProviderRegistration(
+                provider_id=current.provider_id,
+                display_name=current.display_name,
+                homepage_url=current.homepage_url,
+                endpoint_url=current.endpoint_url,
+                lifecycle_state=ManualProviderLifecycle.CONNECTION_TEST_REQUIRED,
+                protocol_selection=current.protocol_selection,
+                adapter_spec=spec,
+                adapter_spec_history=history,
+                created_at=current.created_at,
+                updated_at=timestamp,
+            )
+            self.settings_repository.replace_manual_provider_if_current(
+                updated,
+                expected_updated_at=expected_updated_at,
+            )
+        except ProviderSettingsStaleWriteError:
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.STALE,
+                (),
+                None,
+                "Спецификация была изменена; обновите список и повторите.",
+                self._safe_manual_timestamp(),
+            )
+        except KeyError:
+            return _manual_adapter_command_result(
+                normalized,
+                (
+                    ManualAdapterCommandStatus.UNSUPPORTED_TARGET
+                    if not normalized.startswith("manual_")
+                    else ManualAdapterCommandStatus.NOT_FOUND
+                ),
+                (),
+                None,
+                "Ручная регистрация не найдена.",
+                self._safe_manual_timestamp(),
+            )
+        except (TypeError, ValueError, AttributeError):
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.INVALID,
+                (),
+                None,
+                "Спецификация адаптера отклонена безопасной проверкой.",
+                self._safe_manual_timestamp(),
+            )
+        except (ProviderSettingsMutationError, OSError):
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.PERSISTENCE_UNAVAILABLE,
+                (),
+                None,
+                "Не удалось сохранить спецификацию адаптера.",
+                self._safe_manual_timestamp(),
+            )
+        except Exception:
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.OPERATION_FAILED_SAFE,
+                (),
+                None,
+                "Операция настройки адаптера не выполнена.",
+                self._safe_manual_timestamp(),
+            )
+        return _manual_adapter_command_result(
+            normalized,
+            ManualAdapterCommandStatus.SAVED,
+            (),
+            spec,
+            "Адаптер настроен. Требуется проверка подключения.",
+            updated.updated_at,
+        )
+
+    def clear_manual_adapter_spec(
+        self,
+        provider_id: str,
+        *,
+        expected_updated_at: datetime,
+    ) -> ManualAdapterCommandResult:
+        normalized = str(provider_id).strip().casefold()
+        try:
+            current = self._manual_mutation_snapshot().get_manual(normalized)
+            if current.protocol_selection is None:
+                raise ValueError("manual protocol is required")
+            timestamp = self._next_manual_timestamp(current.updated_at)
+            history = (
+                ((current.adapter_spec,) if current.adapter_spec is not None else ())
+                + current.adapter_spec_history
+            )[:5]
+            updated = ManualProviderRegistration(
+                provider_id=current.provider_id,
+                display_name=current.display_name,
+                homepage_url=current.homepage_url,
+                endpoint_url=current.endpoint_url,
+                lifecycle_state=ManualProviderLifecycle.ADAPTER_REQUIRED,
+                protocol_selection=current.protocol_selection,
+                adapter_spec=None,
+                adapter_spec_history=history,
+                created_at=current.created_at,
+                updated_at=timestamp,
+            )
+            self.settings_repository.replace_manual_provider_if_current(
+                updated,
+                expected_updated_at=expected_updated_at,
+            )
+        except ProviderSettingsStaleWriteError:
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.STALE,
+                (),
+                None,
+                "Спецификация была изменена; обновите список и повторите.",
+                self._safe_manual_timestamp(),
+            )
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.INVALID,
+                (),
+                None,
+                "Сброс адаптера отклонён безопасной проверкой.",
+                self._safe_manual_timestamp(),
+            )
+        except (ProviderSettingsMutationError, OSError):
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.PERSISTENCE_UNAVAILABLE,
+                (),
+                None,
+                "Не удалось сбросить спецификацию адаптера.",
+                self._safe_manual_timestamp(),
+            )
+        return _manual_adapter_command_result(
+            normalized,
+            ManualAdapterCommandStatus.CLEARED,
+            (),
+            None,
+            "Спецификация адаптера сброшена.",
+            updated.updated_at,
+        )
+
+    def rollback_manual_adapter_spec(
+        self,
+        provider_id: str,
+        *,
+        expected_updated_at: datetime,
+        history_revision: int | None = None,
+    ) -> ManualAdapterCommandResult:
+        normalized = str(provider_id).strip().casefold()
+        try:
+            current = self._manual_mutation_snapshot().get_manual(normalized)
+            candidates = current.adapter_spec_history
+            selected = next(
+                (
+                    item
+                    for item in candidates
+                    if history_revision is None or item.revision == history_revision
+                ),
+                None,
+            )
+            if selected is None:
+                raise ValueError("manual adapter rollback revision is unavailable")
+            timestamp = self._next_manual_timestamp(current.updated_at)
+            revision = current.next_adapter_revision
+            replacement = create_manual_adapter_spec(
+                provider_id=selected.provider_id,
+                protocol_family=selected.protocol_family,
+                source=selected.source,
+                record_selector=selected.record_selector,
+                field_mappings=selected.field_mappings,
+                limits=selected.limits,
+                revision=revision,
+                timestamp=timestamp,
+                created_at=selected.created_at,
+            )
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return _manual_adapter_command_result(
+                normalized,
+                ManualAdapterCommandStatus.INVALID,
+                (),
+                None,
+                "Revision для rollback недоступна.",
+                self._safe_manual_timestamp(),
+            )
+        result = self.save_manual_adapter_spec(
+            normalized,
+            replacement,
+            expected_updated_at=expected_updated_at,
+        )
+        if result.status is not ManualAdapterCommandStatus.SAVED:
+            return result
+        return ManualAdapterCommandResult(
+            provider_id=result.provider_id,
+            status=ManualAdapterCommandStatus.ROLLED_BACK,
+            readiness=result.readiness,
+            diagnostics=result.diagnostics,
+            fingerprint=result.fingerprint,
+            revision=result.revision,
+            message="Предыдущая спецификация восстановлена как новая revision. Требуется проверка подключения.",
+            observed_at=result.observed_at,
+        )
+
     def manual_protocol_selection(
         self,
         provider_id: str,
@@ -564,6 +850,8 @@ class CollectorProviderManager:
         registration = self.settings_snapshot().get_manual(provider_id)
         if registration.protocol_selection is None:
             return ("protocol_required", "adapter_required")
+        if registration.adapter_spec is not None:
+            return ("connection_test_required",)
         return registration.protocol_selection.readiness_gaps()
 
     def save_manual_provider_protocol(
@@ -999,9 +1287,13 @@ class CollectorProviderManager:
                 _ProviderDefinitionView(
                     descriptor=entry.descriptor,
                     connection_mode=(
-                        "manual_protocol_selected"
-                        if selected is not None
-                        else "manual_protocol_required"
+                        "manual_adapter_unverified"
+                        if registration.adapter_spec is not None
+                        else (
+                            "manual_protocol_selected"
+                            if selected is not None
+                            else "manual_protocol_required"
+                        )
                     ),
                     configuration_details=(
                         (
@@ -1010,9 +1302,13 @@ class CollectorProviderManager:
                             else "Регистрация сохранена без протокола и адаптера."
                         ),
                         (
-                            "Протокол выбран; для запуска требуется отдельный адаптер."
-                            if selected is not None
-                            else "Для продолжения требуется отдельный этап выбора протокола."
+                            "Адаптер настроен. Требуется проверка подключения."
+                            if registration.adapter_spec is not None
+                            else (
+                                "Протокол выбран; для запуска требуется отдельный адаптер."
+                                if selected is not None
+                                else "Для продолжения требуется отдельный этап выбора протокола."
+                            )
                         ),
                     ),
                     catalog_entry=entry,
@@ -1036,14 +1332,19 @@ class CollectorProviderManager:
         catalog_entry = definition.catalog_entry
         enabled = bool(settings.enabled)
         details = definition.configuration_details
+        credential_result = self._credential_states.get((descriptor.id.casefold(), "api_key"))
 
         if catalog_entry is not None and catalog_entry.registration_only:
             enabled = False
             ui_state = ProviderUiState.NOT_CONFIGURED
             status_text = (
-                "Протокол выбран — требуется создание адаптера"
-                if catalog_entry.protocol_configured
-                else "Требуется выбор протокола"
+                "Адаптер настроен — требуется проверка подключения"
+                if catalog_entry.adapter_compiled
+                else (
+                    "Протокол выбран — требуется создание адаптера"
+                    if catalog_entry.protocol_configured
+                    else "Требуется выбор протокола"
+                )
             )
         elif settings_status is ProviderSettingsLoadStatus.CORRUPT:
             ui_state = ProviderUiState.ERROR
@@ -1099,11 +1400,7 @@ class CollectorProviderManager:
                 }
             ),
             settings_status=settings_status,
-            credential_state=(
-                self._credential_states.get((descriptor.id.casefold(), "api_key")).state
-                if (descriptor.id.casefold(), "api_key") in self._credential_states
-                else None
-            ),
+            credential_state=(credential_result.state if credential_result is not None else None),
             origin=(
                 catalog_entry.origin if catalog_entry is not None else ProviderCatalogOrigin.BUILTIN
             ),
@@ -1117,6 +1414,9 @@ class CollectorProviderManager:
             ),
             protocol_configured=(
                 catalog_entry.protocol_configured if catalog_entry is not None else True
+            ),
+            adapter_compiled=(
+                catalog_entry.adapter_compiled if catalog_entry is not None else True
             ),
             credential_available=(
                 catalog_entry.credential_available if catalog_entry is not None else False
@@ -1218,6 +1518,7 @@ def _connection_mode_label(value: str) -> str:
         "commercial_access_pending": ("API-доступ ожидает подтверждения"),
         "manual_protocol_required": "Ручная регистрация · протокол не выбран",
         "manual_protocol_selected": "Ручная регистрация · протокол выбран",
+        "manual_adapter_unverified": "Ручной адаптер · подключение не проверено",
     }.get(value, value or "Не указан")
 
 
@@ -1264,6 +1565,26 @@ def _manual_protocol_command_result(
         status=status,
         lifecycle=ManualProviderProtocolReadiness(lifecycle.value),
         error_category=error_category,
+        message=message,
+        observed_at=observed_at,
+    )
+
+
+def _manual_adapter_command_result(
+    provider_id: str,
+    status: ManualAdapterCommandStatus,
+    diagnostics: tuple,
+    spec: ManualAdapterSpec | None,
+    message: str,
+    observed_at: datetime,
+) -> ManualAdapterCommandResult:
+    return ManualAdapterCommandResult(
+        provider_id=provider_id if provider_id.startswith("manual_") else "unknown",
+        status=status,
+        readiness=ManualAdapterReadiness.CONNECTION_TEST_REQUIRED,
+        diagnostics=diagnostics,
+        fingerprint=spec.fingerprint if spec is not None else "",
+        revision=spec.revision if spec is not None else None,
         message=message,
         observed_at=observed_at,
     )
