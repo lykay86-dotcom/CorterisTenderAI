@@ -155,7 +155,10 @@ def test_engine_publishes_monotonic_authoritative_snapshots() -> None:
         assert [item.revision for item in snapshots] == list(
             range(snapshots[0].revision, snapshots[-1].revision + 1)
         )
-        assert all(tuple(p.provider_id for p in item.providers) == ("first", "second") for item in snapshots)
+        assert all(
+            tuple(p.provider_id for p in item.providers) == ("first", "second")
+            for item in snapshots
+        )
         assert all(item.completed == sum(p.terminal for p in item.providers) for item in snapshots)
         assert max(item.running for item in snapshots) == 1
         assert [item.percent for item in snapshots] == sorted(item.percent for item in snapshots)
@@ -210,9 +213,7 @@ def test_cancellation_discards_result_from_provider_that_suppresses_task_cancel(
             (_ContractProvider("late", delay=5, ignore_task_cancel=True),),
             provider_timeout_seconds=10,
         )
-        task = asyncio.create_task(
-            engine.search(TenderSearchQuery(), cancellation_token=token)
-        )
+        task = asyncio.create_task(engine.search(TenderSearchQuery(), cancellation_token=token))
         await asyncio.sleep(0.03)
         assert token.cancel("cancelled by contract test")
         assert not token.cancel("second cancellation")
