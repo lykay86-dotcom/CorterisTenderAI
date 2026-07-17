@@ -1,5 +1,39 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-18 — RM-138 завершён, RM-139 активирован
+
+- Audit/contract/plan зафиксированы commit `bd3880d` до application changes;
+  expected-red lifecycle contract — `7360125`.
+- Existing production async Collector coordinator, run-session settings/admission, provider
+  factory, RM-137 normalizer/deduplicator, repository/DB, HTTP retry и DI paths переиспользованы;
+  третий engine, второй retry/model/repository/DB не добавлены.
+- Immutable revisioned snapshots дают exact queued/running/completed states, aware UTC,
+  monotonic provider/overall deadlines, bounded concurrency и engine-owned progress.
+- Cooperative idempotent cancellation ставит terminal boundary до отмены задач, сохраняет
+  accepted partial results и отвергает late completions; legacy blocking-thread limit отражён
+  явно.
+- Canonical partial output использует RM-137 normalization/dedup один раз, не зависит от
+  completion schedule; bounded dispatcher изолирует slow/failing progress subscribers.
+- Safe typed errors проходят через outcomes, persistence и Qt worker без raw exception, URL,
+  credential или response body; UI не блокирует event loop и не вычисляет business progress.
+- Sync `TenderSearchEngine` compatibility, RM-107 score/recommendation/hard-exclusion и critical
+  stop-factor priority сохранены.
+- Локальная acceptance: full pytest `1892 passed, 2 warnings in 125.33s`; secret scan,
+  Ruff/format (`611 files`), mypy, workflow smokes, five-cycle race gate, dependency audit и
+  diff-check успешны.
+- Feature PR #84 слит merge commit `593ed39c7b81efc8a67e36eef47ceadbbbaf46ca`.
+- PR Quality Gate run `29619784410` успешен: Python 3.12 —
+  `1892 passed, 2 warnings in 94.36s`, Python 3.13 —
+  `1892 passed, 2 warnings in 111.15s`.
+- Exact merge-SHA push run `29619998396` на
+  `593ed39c7b81efc8a67e36eef47ceadbbbaf46ca` успешен: Python 3.12 —
+  `1892 passed, 2 warnings in 102.67s`, Python 3.13 —
+  `1892 passed, 2 warnings in 82.24s`; dependency audit и все обязательные jobs — `success`.
+- Неблокирующее official-actions annotation о Node.js 20/24 не повлияло на gate и остаётся
+  отдельной CI maintenance задачей.
+- RM-138 переведён в `DONE`; RM-139 назначен единственным `IN PROGRESS`.
+  RM-140–RM-200 остаются `PLANNED`.
+
 ## 2026-07-17 — RM-137 завершён, RM-138 активирован
 
 - Audit/plan зафиксированы commit `32a1257` до application changes; expected-red contract —
