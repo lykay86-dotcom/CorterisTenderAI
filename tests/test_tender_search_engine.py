@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from time import perf_counter
+from dataclasses import dataclass
+from threading import Barrier
 
 from app.tenders.models import TenderSource
-from app.tenders.provider_base import TenderSearchQuery
+from app.tenders.provider_base import TenderSearchQuery, TenderSearchResult
 from app.tenders.provider_registry import TenderProviderRegistry
 from app.tenders.search_engine import (
     ProviderSearchStatus,
@@ -18,8 +19,20 @@ from tests.tender_search_helpers import (
 )
 
 
+@dataclass
+class _SynchronizedFakeProvider(FakeProvider):
+    start_barrier: Barrier | None = None
+
+    def search(self, query: TenderSearchQuery) -> TenderSearchResult:
+        if self.start_barrier is None:
+            raise RuntimeError("start barrier is required")
+        self.start_barrier.wait(timeout=1)
+        return super().search(query)
+
+
 def test_parallel_search_preserves_registry_order() -> None:
-    slow = FakeProvider(
+    start_barrier = Barrier(2)
+    slow = _SynchronizedFakeProvider(
         descriptor=descriptor(
             "eis",
             TenderSource.EIS,
@@ -34,8 +47,9 @@ def test_parallel_search_preserves_registry_order() -> None:
             ),
         ),
         delay_seconds=0.08,
+        start_barrier=start_barrier,
     )
-    fast = FakeProvider(
+    fast = _SynchronizedFakeProvider(
         descriptor=descriptor(
             "rts_tender",
             TenderSource.RTS_TENDER,
@@ -50,21 +64,20 @@ def test_parallel_search_preserves_registry_order() -> None:
             ),
         ),
         delay_seconds=0.01,
+        start_barrier=start_barrier,
     )
     engine = TenderSearchEngine(
         TenderProviderRegistry((slow, fast)),
         max_workers=2,
-        timeout_seconds=1,
+        timeout_seconds=2,
     )
 
-    started = perf_counter()
     result = engine.search(
         TenderSearchQuery(keywords=("СКУД",)),
         parallel=True,
     )
-    elapsed = perf_counter() - started
 
-    assert elapsed < 0.14
+    assert not start_barrier.broken
     assert [item.title for item in result.items] == [
         "ЕИС",
         "РТС",
