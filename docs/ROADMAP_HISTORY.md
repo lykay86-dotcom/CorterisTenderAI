@@ -1,5 +1,34 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-17 — RM-134 завершён, RM-135 активирован
+
+- Audit/plan зафиксированы commit `5889944` до application changes; expected-red contract —
+  `6610f11`, только две collection errors отсутствующего RM-134 domain module.
+- Existing `ProviderEnablementRepository` и `collector_provider_settings.json` повышены до
+  schema v4 с in-memory v3 migration, byte-exact backup, atomic replace и optimistic
+  compare-and-replace; второй store/catalog и DB migration не создавались.
+- Manual providers получили closed API/RSS/FTP/FTPS policies, strict private-target/path/port
+  validation и lifecycle `ADAPTER_REQUIRED`, но остаются disabled/registration-only/non-runnable.
+- Existing manager/catalog/dialog/controller/session/search/health paths сохраняют одну execution
+  chain и блокируют manual ID до factory/runtime; endpoint скрыт из repr/public/error surfaces.
+- Credentials, adapter/parser, connection test, DNS/live network, legacy migration,
+  normalization/ranking, score/recommendation/critical stop-factor и AI semantics не изменены.
+- Локальная acceptance: focused `38 passed in 4.12s`, neighbor
+  `169 passed, 2 warnings in 14.66s`, full pytest
+  `1796 passed, 2 warnings in 69.63s`; secret scan, Ruff/format (`583 files`), mypy,
+  workflow smokes, dependency audit и diff-check успешны.
+- Feature PR #74 (`feat(rm-134): add safe provider protocol selection`) слит в `main`
+  коммитом `7ef0378` (`7ef0378315f9ef76046a651d1211f3da191b7719`).
+- PR Quality Gate run `29577913214` успешен: Python 3.12 —
+  `1796 passed, 2 warnings in 113.76s`, Python 3.13 —
+  `1796 passed, 2 warnings in 87.91s`.
+- Exact merge-SHA run `29578571237` успешен: Python 3.12 rerun —
+  `1796 passed, 2 warnings in 84.87s`, Python 3.13 —
+  `1796 passed, 2 warnings in 124.47s`; первый Python 3.12 attempt завершился transient native
+  Windows heap abort `0xc0000374`, failed-only rerun на том же SHA прошёл без изменений.
+- RM-134 переведён в `DONE`; RM-135 назначен единственным `IN PROGRESS`.
+  RM-136–RM-200 остаются `PLANNED`.
+
 ## 2026-07-17 — RM-133 завершён, RM-134 активирован
 
 - Audit и plan зафиксированы docs-only commit `31e1456` до application changes;
