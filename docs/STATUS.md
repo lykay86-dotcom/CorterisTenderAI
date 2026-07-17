@@ -4,54 +4,48 @@
 
 ## Активный этап
 
-**RM-133 — ручное добавление площадки**
+**RM-134 — выбор протокола**
 
 Статус: `IN PROGRESS`
 
-RM-132 завершён после audit-first реализации, feature merge и успешного exact
-merge-SHA Windows Quality Gate. RM-133 — единственный активный этап;
-RM-134–RM-200 остаются `PLANNED` и не выполняются параллельно.
+RM-133 завершён после audit-first реализации, feature merge и успешного exact
+merge-SHA Windows Quality Gate. RM-134 — единственный активный этап;
+RM-135–RM-200 остаются `PLANNED` и не выполняются параллельно.
 
 ## Завершённый этап
 
-**RM-132 — безопасный ввод API и credentials**
+**RM-133 — ручное добавление площадки**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- audit/plan зафиксированы docs-only commit `25b2eed`, expected-red contract — `131f9a8`;
-- единый storage-free typed credential contract переиспользует существующий
-  `app.security.secrets` и не создаёт второй vault/persistence/schema;
-- MOS и восемь commercial providers используют explicit save/replace/delete,
-  bounded errors и runtime-only environment override;
-- provider UI не делает readback/prefill/masking, ordinary state/composition не читает
-  keyring и не запускает сеть;
-- legacy manual-platform arbitrary credential CRUD отключён без удаления прежних
-  unknown keyring entries;
-- локально: focused `21 passed in 3.52s`, neighbor `110 passed in 8.59s`, full pytest
-  `1707 passed in 64.89s`; все workflow-equivalent gates успешны;
-- feature PR #70 слит в `main` merge commit
-  `1ae9c36605043e35333dffc60a6077c16fbd19f4`;
-- PR Quality Gate run `29565942602` и exact merge-SHA run `29567132554` успешны
-  на Python 3.12/3.13; full pytest везде — `1707 passed`;
-- secret scan, Ruff check/format (`570 files`), mypy (20 файлов),
-  offline/migration/import/composition/build smoke и dependency audit прошли;
-- DB/schema/migrations, provider network contracts, normalization/ranking,
-  score/recommendation/critical stop-factor и AI semantics не изменены.
+- audit/plan зафиксированы docs-only commit `31e1456`, expected-red contract — `d3f8906`;
+- существующий `ProviderEnablementRepository` и `collector_provider_settings.json`
+  расширены до schema v3 без второго catalog/store и без DB migration;
+- ручные регистрации имеют stable ID и inert состояние `PROTOCOL_REQUIRED`; credentials,
+  protocol/adapter, connection test, DNS и live network не добавлены;
+- локально: focused `51 passed in 4.31s`, neighbor `160 passed, 2 warnings in 12.65s`,
+  full pytest `1758 passed, 2 warnings in 66.57s`; все workflow-equivalent gates успешны;
+- feature PR #72 слит в `main` merge commit
+  `c067b5ecbc24428906dd006abe1e0ee6eef48e12`;
+- PR Quality Gate run `29572356676` и exact merge-SHA run `29573356516` успешны
+  на Python 3.12/3.13; full pytest везде — `1758 passed, 2 warnings`;
+- deterministic decision logic, provider execution до выбора протокола и legacy bytes
+  сохранены; RM-134 получает только следующий protocol-selection scope.
 
 ## Ранее завершённый этап
 
-**RM-131 — настройки площадок**
+**RM-132 — безопасный ввод API и credentials**
 
 Статус: `DONE`
 
-- Feature PR #68 слит в `main` коммитом `bbfd8e3`.
-- Exact merge-SHA Quality Gate run `29562019173` успешен на Python 3.12/3.13.
-- Canonical provider settings schema v2 и deterministic decision contracts сохранены.
+- Feature PR #70 слит в `main` коммитом `1ae9c36`.
+- Exact merge-SHA Quality Gate run `29567132554` успешен на Python 3.12/3.13.
+- Единый credential owner и deterministic decision contracts сохранены.
 
 ## Текущее действие
 
-Начать RM-133 с отдельного audit-first пакета и канонического entry gate.
-Не начинать RM-134+ и не расширять RM-133 до provider protocol/adapter behavior без
+Начать RM-134 с отдельного audit-first пакета и канонического entry gate.
+Не начинать RM-135+ и не расширять RM-134 до executable adapter/connection behavior без
 отдельно утверждённого scope.

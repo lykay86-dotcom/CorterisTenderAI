@@ -9,7 +9,12 @@
 - Audit commit: `31e1456` (`docs(rm-133): audit manual provider registration boundaries`).
 - Expected-red commit: `d3f8906` (`test(rm-133): define manual provider registration contract`).
 - Implementation commit: `3931d7b` (`feat(rm-133): add safe manual provider registration`).
-- Feature PR, PR CI, merge SHA и exact merge-SHA CI заполняются после публикации feature branch.
+- Acceptance evidence commit: `3cbb94a` (`docs(rm-133): record manual provider acceptance evidence`).
+- Feature PR: #72 (`feat(rm-133): add safe manual provider registration`).
+- Feature merge SHA: `c067b5ecbc24428906dd006abe1e0ee6eef48e12`.
+- PR Quality Gate: run `29572356676` на head
+  `3cbb94a7a2e95a992ef4adde12389c6841774542`.
+- Exact merge-SHA Quality Gate: run `29573356516`.
 
 ## 2. Изменённые owners и границы
 
@@ -151,7 +156,26 @@ extensions и совпадают с RM-132 baseline; failures они не скр
 не достиг PyPI из-за `WinError 10013` и недоступного global cache. Exact audit с approved network и
 repository-local cache прошёл без code/dependency changes.
 
-## 9. Scope и rollback
+## 9. Remote acceptance
+
+Feature PR #72 прошёл обязательный Windows Quality Gate до merge:
+
+- Python 3.12: `1758 passed, 2 warnings in 93.74s`;
+- Python 3.13: `1758 passed, 2 warnings in 63.88s`;
+- secret scan, Ruff check/format (`578 files`), mypy (20 файлов), все smoke checks и
+  dependency audit завершились успешно.
+
+PR слит в `main` merge commit `c067b5ecbc24428906dd006abe1e0ee6eef48e12`.
+Exact-SHA push run `29573356516` проверил именно этот commit:
+
+- Python 3.12: `1758 passed, 2 warnings in 104.98s`;
+- Python 3.13: `1758 passed, 2 warnings in 174.96s`;
+- обе обязательные jobs и каждый quality step завершились `success`.
+
+Неблокирующее official-actions annotation о переходе Node.js 20/24 не повлияло на
+результат и остаётся отдельной CI maintenance задачей.
+
+## 10. Scope и rollback
 
 RM-133 не выбирает protocol, не создаёт executable adapter, не проверяет connection/health, не
 управляет credentials и не выполняет live provider I/O. Search normalization/dedup/ranking,
@@ -161,6 +185,6 @@ semantics не изменены.
 Application rollback — scoped revert RM-133 feature commit. Data rollback — восстановление
 byte-exact v2/split-v1 backup. Service/account names keyring, legacy files и SQLite не менялись.
 
-**LOCAL FEATURE ACCEPTANCE PASSED.** RM-133 остаётся `IN PROGRESS` до feature PR merge, успешного
-exact merge-SHA Windows Quality Gate 3.12/3.13 и отдельного merged docs-only closeout. RM-134 не
-активируется этим документом.
+**RM-133 FEATURE ACCEPTANCE PASSED.** Локальная, PR и exact merge-SHA проверки успешны.
+Этим docs-only closeout RM-133 переводится в `DONE`, а RM-134 назначается единственным
+`IN PROGRESS`; RM-135+ остаются `PLANNED`.
