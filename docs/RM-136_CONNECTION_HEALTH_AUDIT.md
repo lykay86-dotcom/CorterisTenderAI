@@ -344,6 +344,18 @@ Before production implementation add focused modules for:
 
 Accepted red may contain only missing RM-136 symbols/behavior and is committed separately.
 
+### Accepted expected-red evidence
+
+После docs-only commit `f4bb93a` добавлены только 12 контрактных test modules из плана. Exact
+focused command завершился ожидаемо: `12 errors during collection in 6.03s`. Все ошибки относятся
+исключительно к отсутствующим RM-136 boundaries:
+
+- modules `manual_provider_health` и `manual_probe_transport`;
+- symbols `ManualProviderFtpsMode`, `manual_credential_descriptors` и
+  `safe_manual_health_error_message`.
+
+Существующий production-код до этого red-run не изменялся; неожиданных import/runtime failures нет.
+
 ## 15. Selected extension points and allowed files
 
 New justified modules:
