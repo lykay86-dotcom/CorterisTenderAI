@@ -118,7 +118,7 @@ def resolved_provider_catalog(
             lifecycle=registration.lifecycle_state,
             registration_only=True,
             runnable=False,
-            protocol_configured=False,
+            protocol_configured=registration.protocol_selection is not None,
             factory_available=False,
             credential_available=False,
             health_check_available=False,

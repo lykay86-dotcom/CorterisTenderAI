@@ -14,6 +14,10 @@ import unicodedata
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
+from app.tenders.collector.manual_provider_protocol import (
+    ManualProviderProtocolSelection,
+)
+
 
 _MANUAL_ID_PATTERN = re.compile(r"manual_[0-9a-f]{32}\Z")
 _MALFORMED_PERCENT = re.compile(r"%(?![0-9A-Fa-f]{2})")
@@ -24,6 +28,7 @@ _MAX_URL_LENGTH = 2048
 
 class ManualProviderLifecycle(StrEnum):
     PROTOCOL_REQUIRED = "protocol_required"
+    ADAPTER_REQUIRED = "adapter_required"
 
 
 class ManualProviderCommandStatus(StrEnum):
@@ -47,6 +52,7 @@ class ManualProviderErrorCategory(StrEnum):
     UNSUPPORTED_SCHEMA = "unsupported_schema"
     OPERATION_FAILED = "operation_failed"
     PROTOCOL_REQUIRED = "protocol_required"
+    ADAPTER_REQUIRED = "adapter_required"
 
 
 class ManualProviderConflictError(ValueError):
@@ -60,10 +66,21 @@ class ManualProviderConflictError(ValueError):
 class ManualProviderExecutionError(RuntimeError):
     """Raised before runtime creation for a registration-only provider."""
 
-    def __init__(self) -> None:
-        self.lifecycle = ManualProviderLifecycle.PROTOCOL_REQUIRED
-        self.category = ManualProviderErrorCategory.PROTOCOL_REQUIRED
-        super().__init__("Источник требует выбор протокола.")
+    def __init__(
+        self,
+        lifecycle: ManualProviderLifecycle = ManualProviderLifecycle.PROTOCOL_REQUIRED,
+    ) -> None:
+        self.lifecycle = lifecycle
+        self.category = (
+            ManualProviderErrorCategory.PROTOCOL_REQUIRED
+            if lifecycle is ManualProviderLifecycle.PROTOCOL_REQUIRED
+            else ManualProviderErrorCategory.ADAPTER_REQUIRED
+        )
+        super().__init__(
+            "Источник требует выбор протокола."
+            if lifecycle is ManualProviderLifecycle.PROTOCOL_REQUIRED
+            else "Для источника ещё не создан адаптер."
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +130,10 @@ class ManualProviderRegistration:
     homepage_url: str
     endpoint_url: str = field(default="", repr=False)
     lifecycle_state: ManualProviderLifecycle = ManualProviderLifecycle.PROTOCOL_REQUIRED
+    protocol_selection: ManualProviderProtocolSelection | None = field(
+        default=None,
+        repr=False,
+    )
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -120,8 +141,14 @@ class ManualProviderRegistration:
         normalized_id = str(self.provider_id).strip()
         if not _MANUAL_ID_PATTERN.fullmatch(normalized_id):
             raise ValueError("manual provider id must use the canonical namespace")
-        if self.lifecycle_state is not ManualProviderLifecycle.PROTOCOL_REQUIRED:
-            raise ValueError("manual provider lifecycle must require a protocol")
+        if self.protocol_selection is None:
+            if self.lifecycle_state is not ManualProviderLifecycle.PROTOCOL_REQUIRED:
+                raise ValueError("manual provider lifecycle is inconsistent")
+        elif (
+            not isinstance(self.protocol_selection, ManualProviderProtocolSelection)
+            or self.lifecycle_state is not ManualProviderLifecycle.ADAPTER_REQUIRED
+        ):
+            raise ValueError("manual provider lifecycle is inconsistent")
         _validate_aware_timestamp(self.created_at, field_name="created timestamp")
         _validate_aware_timestamp(self.updated_at, field_name="updated timestamp")
         if self.updated_at < self.created_at:
@@ -158,7 +185,7 @@ class ManualProviderRegistration:
     def public_payload(self) -> dict[str, object]:
         """Return only metadata safe for generic display/export boundaries."""
 
-        return {
+        payload: dict[str, object] = {
             "provider_id": self.provider_id,
             "display_name": self.display_name,
             "homepage_url": self.homepage_url,
@@ -166,6 +193,9 @@ class ManualProviderRegistration:
             "enabled": False,
             "registration_only": True,
         }
+        if self.protocol_selection is not None:
+            payload["protocol_selection"] = self.protocol_selection.public_payload()
+        return payload
 
     def persisted_payload(self) -> dict[str, object]:
         return {
@@ -173,8 +203,17 @@ class ManualProviderRegistration:
             "homepage_url": self.homepage_url,
             "endpoint_url": self.endpoint_url,
             "lifecycle_state": self.lifecycle_state.value,
-            "created_at": self.created_at.astimezone(timezone.utc).isoformat(timespec="seconds"),
-            "updated_at": self.updated_at.astimezone(timezone.utc).isoformat(timespec="seconds"),
+            "protocol_selection": (
+                self.protocol_selection.persisted_payload()
+                if self.protocol_selection is not None
+                else None
+            ),
+            "created_at": self.created_at.astimezone(timezone.utc).isoformat(
+                timespec="microseconds"
+            ),
+            "updated_at": self.updated_at.astimezone(timezone.utc).isoformat(
+                timespec="microseconds"
+            ),
         }
 
 
@@ -212,6 +251,7 @@ def create_manual_provider_registration(
         homepage_url=validated.homepage_url,
         endpoint_url=validated.endpoint_url,
         lifecycle_state=ManualProviderLifecycle.PROTOCOL_REQUIRED,
+        protocol_selection=None,
         created_at=timestamp,
         updated_at=timestamp,
     )

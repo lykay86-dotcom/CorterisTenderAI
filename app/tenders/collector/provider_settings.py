@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -27,12 +27,20 @@ from app.tenders.collector.manual_provider_registration import (
     manual_display_name_key,
     validate_manual_registration_uniqueness,
 )
+from app.tenders.collector.manual_provider_protocol import (
+    ManualProviderAuthenticationKind,
+    ManualProviderPayloadFormat,
+    ManualProviderProtocolFamily,
+    ManualProviderProtocolSelection,
+    manual_provider_protocol_policy,
+)
 from app.tenders.provider_base import ProviderDescriptor
 
 
 class ProviderSettingsLoadStatus(StrEnum):
     MISSING = "missing"
     CURRENT = "current"
+    MIGRATED_V3 = "migrated_v3"
     MIGRATED_V2 = "migrated_v2"
     MIGRATED_SPLIT_V1 = "migrated_split_v1"
     CORRUPT = "corrupt"
@@ -48,6 +56,10 @@ class ProviderSettingOrigin(StrEnum):
 
 class ProviderSettingsMutationError(RuntimeError):
     """Raised when unsafe persisted state blocks a settings mutation."""
+
+
+class ProviderSettingsStaleWriteError(RuntimeError):
+    """Raised when an optimistic manual-registration revision is stale."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,8 +179,9 @@ class ProviderSettingsSnapshot:
     def assert_runnable_provider_ids(self, provider_ids: object) -> tuple[str, ...]:
         resolved = self.resolve_provider_ids(provider_ids)
         manual_ids = {item.provider_id for item in self.manual_registrations}
-        if any(provider_id in manual_ids for provider_id in resolved):
-            raise ManualProviderExecutionError()
+        for provider_id in resolved:
+            if provider_id in manual_ids:
+                raise ManualProviderExecutionError(self.get_manual(provider_id).lifecycle_state)
         return resolved
 
     def public_payload(self) -> dict[str, object]:
@@ -192,6 +205,11 @@ class ProviderSettingsSnapshot:
                     "lifecycle_state": item.lifecycle_state.value,
                     "enabled": False,
                     "registration_only": True,
+                    **(
+                        {"protocol_selection": item.protocol_selection.public_payload()}
+                        if item.protocol_selection is not None
+                        else {}
+                    ),
                 }
                 for item in self.manual_registrations
             ],
@@ -318,9 +336,9 @@ def create_provider_settings_snapshot(
 
 
 class ProviderEnablementRepository:
-    """Own schema-v3 source settings and read v1/v2 state compatibly."""
+    """Own schema-v4 source settings and read v1/v2/v3 state compatibly."""
 
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
 
     def __init__(
         self,
@@ -459,6 +477,37 @@ class ProviderEnablementRepository:
         self._mutate(mutation)
         return registration
 
+    def replace_manual_provider_if_current(
+        self,
+        registration: ManualProviderRegistration,
+        *,
+        expected_updated_at: datetime,
+    ) -> ManualProviderRegistration:
+        if not isinstance(registration, ManualProviderRegistration):
+            raise TypeError("registration must be ManualProviderRegistration")
+        if not isinstance(expected_updated_at, datetime) or expected_updated_at.utcoffset() is None:
+            raise TypeError("expected_updated_at must be timezone-aware")
+
+        def mutation(
+            _records: dict[str, ProviderSettingsRecord],
+            registrations: dict[str, ManualProviderRegistration],
+        ) -> None:
+            current = registrations.get(registration.provider_id)
+            if current is None:
+                raise KeyError(registration.provider_id)
+            if current.updated_at != expected_updated_at:
+                raise ProviderSettingsStaleWriteError("manual provider revision is stale")
+            candidate = tuple(
+                registration if item.provider_id == registration.provider_id else item
+                for item in registrations.values()
+            )
+            validate_manual_registration_uniqueness(candidate)
+            _validate_manual_against_builtin_catalog(candidate)
+            registrations[registration.provider_id] = registration
+
+        self._mutate(mutation)
+        return registration
+
     def is_enabled(self, descriptor: ProviderDescriptor) -> bool:
         result = self.load_result()
         if descriptor.id.strip().casefold() in {
@@ -504,6 +553,22 @@ class ProviderEnablementRepository:
             return ProviderSettingsLoadResult(
                 records=records,
                 status=ProviderSettingsLoadStatus.CURRENT,
+                source_schema_version=version,
+                manual_registrations=registrations,
+            )
+        if version == 3:
+            try:
+                records, registrations = _decode_v3(payload)
+            except (ValueError, TypeError) as exc:
+                return ProviderSettingsLoadResult(
+                    records=(),
+                    status=ProviderSettingsLoadStatus.CORRUPT,
+                    source_schema_version=version,
+                    warnings=(f"Canonical provider settings are corrupt: {type(exc).__name__}",),
+                )
+            return ProviderSettingsLoadResult(
+                records=records,
+                status=ProviderSettingsLoadStatus.MIGRATED_V3,
                 source_schema_version=version,
                 manual_registrations=registrations,
             )
@@ -612,7 +677,13 @@ class ProviderEnablementRepository:
             )
         return enabled, configurations
 
-    def _mutate(self, callback) -> None:
+    def _mutate(
+        self,
+        callback: Callable[
+            [dict[str, ProviderSettingsRecord], dict[str, ManualProviderRegistration]],
+            None,
+        ],
+    ) -> None:
         with self._lock:
             result = self._load_result_unlocked()
             if result.status in {
@@ -632,6 +703,8 @@ class ProviderEnablementRepository:
                 self._backup_v1_sources()
             elif result.status is ProviderSettingsLoadStatus.MIGRATED_V2:
                 self._backup_previous_source(2)
+            elif result.status is ProviderSettingsLoadStatus.MIGRATED_V3:
+                self._backup_previous_source(3)
             self._write_current(records.values(), registrations.values())
 
     def _backup_v1_sources(self) -> None:
@@ -712,6 +785,21 @@ def _decode_current(
     payload: Mapping[str, object],
 ) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
     records = _decode_provider_records(payload)
+    return records, _decode_manual_registrations(payload, allow_protocol_selection=True)
+
+
+def _decode_v3(
+    payload: Mapping[str, object],
+) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
+    records = _decode_provider_records(payload)
+    return records, _decode_manual_registrations(payload, allow_protocol_selection=False)
+
+
+def _decode_manual_registrations(
+    payload: Mapping[str, object],
+    *,
+    allow_protocol_selection: bool,
+) -> tuple[ManualProviderRegistration, ...]:
     raw_registrations = payload.get("manual_registrations", {})
     if not isinstance(raw_registrations, dict):
         raise TypeError("manual_registrations must be an object")
@@ -726,7 +814,7 @@ def _decode_current(
         seen_ids.add(provider_id)
         if not isinstance(raw_value, dict):
             raise TypeError("manual registration must be an object")
-        unknown = set(raw_value) - {
+        allowed_fields = {
             "display_name",
             "homepage_url",
             "endpoint_url",
@@ -734,6 +822,9 @@ def _decode_current(
             "created_at",
             "updated_at",
         }
+        if allow_protocol_selection:
+            allowed_fields.add("protocol_selection")
+        unknown = set(raw_value) - allowed_fields
         if unknown:
             raise ValueError("manual registration has unsupported fields")
         display_name = raw_value.get("display_name")
@@ -742,18 +833,21 @@ def _decode_current(
         lifecycle = raw_value.get("lifecycle_state")
         created_at = raw_value.get("created_at")
         updated_at = raw_value.get("updated_at")
-        if not all(
-            isinstance(value, str)
-            for value in (
-                display_name,
-                homepage_url,
-                endpoint_url,
-                lifecycle,
-                created_at,
-                updated_at,
-            )
+        raw_selection = raw_value.get("protocol_selection")
+        if (
+            not isinstance(display_name, str)
+            or not isinstance(homepage_url, str)
+            or not isinstance(endpoint_url, str)
+            or not isinstance(lifecycle, str)
+            or not isinstance(created_at, str)
+            or not isinstance(updated_at, str)
         ):
             raise TypeError("manual registration fields must be strings")
+        selection = (
+            _decode_protocol_selection(raw_selection)
+            if allow_protocol_selection and raw_selection is not None
+            else None
+        )
         registrations.append(
             ManualProviderRegistration(
                 provider_id=provider_id,
@@ -761,6 +855,7 @@ def _decode_current(
                 homepage_url=homepage_url,
                 endpoint_url=endpoint_url,
                 lifecycle_state=ManualProviderLifecycle(lifecycle),
+                protocol_selection=selection,
                 created_at=_parse_aware_datetime(created_at),
                 updated_at=_parse_aware_datetime(updated_at),
             )
@@ -768,7 +863,53 @@ def _decode_current(
     result = tuple(registrations)
     validate_manual_registration_uniqueness(result)
     _validate_manual_against_builtin_catalog(result)
-    return records, result
+    return result
+
+
+def _decode_protocol_selection(value: object) -> ManualProviderProtocolSelection:
+    if not isinstance(value, dict):
+        raise TypeError("manual protocol selection must be an object")
+    allowed = {
+        "family",
+        "endpoint_url",
+        "payload_format",
+        "authentication_kind",
+        "tls_policy",
+        "selected_at",
+        "updated_at",
+    }
+    if set(value) - allowed:
+        raise ValueError("manual protocol selection has unsupported fields")
+    family = value.get("family")
+    endpoint_url = value.get("endpoint_url")
+    payload_format = value.get("payload_format")
+    authentication_kind = value.get("authentication_kind")
+    tls_policy = value.get("tls_policy")
+    selected_at = value.get("selected_at")
+    updated_at = value.get("updated_at")
+    if (
+        not isinstance(family, str)
+        or not isinstance(endpoint_url, str)
+        or not isinstance(authentication_kind, str)
+        or not isinstance(tls_policy, str)
+        or not isinstance(selected_at, str)
+        or not isinstance(updated_at, str)
+        or (payload_format is not None and not isinstance(payload_format, str))
+    ):
+        raise TypeError("manual protocol selection fields have invalid types")
+    selected_family = ManualProviderProtocolFamily(family)
+    if tls_policy != manual_provider_protocol_policy(selected_family).tls_policy.value:
+        raise ValueError("manual protocol TLS policy is inconsistent")
+    return ManualProviderProtocolSelection(
+        family=selected_family,
+        endpoint_url=endpoint_url,
+        payload_format=(
+            ManualProviderPayloadFormat(payload_format) if payload_format is not None else None
+        ),
+        authentication_kind=ManualProviderAuthenticationKind(authentication_kind),
+        selected_at=_parse_aware_datetime(selected_at),
+        updated_at=_parse_aware_datetime(updated_at),
+    )
 
 
 def _decode_v2(payload: Mapping[str, object]) -> tuple[ProviderSettingsRecord, ...]:
@@ -865,7 +1006,7 @@ def _decode_v1_general(
 def _canonical_items(
     values: Mapping[object, object],
     warnings: list[str],
-):
+) -> Iterator[tuple[str, object]]:
     aliases = provider_aliases()
     ordered = sorted(
         values.items(),
@@ -941,6 +1082,7 @@ __all__ = [
     "ProviderSettingsLoadResult",
     "ProviderSettingsLoadStatus",
     "ProviderSettingsMutationError",
+    "ProviderSettingsStaleWriteError",
     "ProviderSettingsRecord",
     "ProviderSettingsSnapshot",
     "create_provider_settings_snapshot",

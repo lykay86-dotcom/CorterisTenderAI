@@ -86,10 +86,16 @@ def resolve_unified_tender_search(
             raise UnifiedTenderSearchValidationError(
                 f"Источник «{provider_id}» не найден или его состояние устарело."
             )
-        if state.registration_only or not state.runnable:
+        if state.registration_only:
             raise UnifiedTenderSearchValidationError(
-                "Источник требует выбора протокола и пока недоступен для поиска."
+                (
+                    "Для источника требуется создание адаптера; поиск пока недоступен."
+                    if state.protocol_configured
+                    else "Источник требует выбора протокола и пока недоступен для поиска."
+                )
             )
+        if not state.runnable:
+            raise UnifiedTenderSearchValidationError("Источник пока недоступен для поиска.")
         if not state.enabled:
             raise UnifiedTenderSearchValidationError(f"Источник «{provider_id}» отключён.")
 

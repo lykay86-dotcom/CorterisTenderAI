@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 import json
 from pathlib import Path
@@ -24,6 +24,7 @@ from app.tenders.collector.provider_settings import (
     ProviderSettingsRecord,
     ProviderSettingsLoadStatus,
     ProviderSettingsMutationError,
+    ProviderSettingsStaleWriteError,
     ProviderSettingsSnapshot,
     create_provider_settings_snapshot,
 )
@@ -37,6 +38,17 @@ from app.tenders.collector.manual_provider_registration import (
     ManualProviderLifecycle,
     ManualProviderRegistration,
     create_manual_provider_registration,
+)
+from app.tenders.collector.manual_provider_protocol import (
+    ManualProviderProtocolCommandResult,
+    ManualProviderProtocolCommandStatus,
+    ManualProviderProtocolDraft,
+    ManualProviderProtocolErrorCategory,
+    ManualProviderProtocolPolicy,
+    ManualProviderProtocolReadiness,
+    ManualProviderProtocolSelection,
+    create_manual_provider_protocol_selection,
+    manual_provider_protocol_policies,
 )
 from app.tenders.collector.provider_definitions import (
     ProviderCatalogEntry,
@@ -333,11 +345,11 @@ class CollectorProviderManager:
     ) -> ProviderDisplayState:
         normalized = self.resolve_provider_ids((provider_id,))[0]
         try:
-            self.settings_snapshot().get_manual(normalized)
+            manual_registration = self.settings_snapshot().get_manual(normalized)
         except KeyError:
             pass
         else:
-            raise ManualProviderExecutionError()
+            raise ManualProviderExecutionError(manual_registration.lifecycle_state)
         definitions = {
             item.descriptor.id.casefold(): item
             for item in self._definitions(self.settings_snapshot())
@@ -450,7 +462,7 @@ class CollectorProviderManager:
     ) -> ManualProviderCommandResult:
         normalized = str(provider_id).strip().casefold()
         try:
-            current = self.settings_snapshot().get_manual(normalized)
+            current = self._manual_mutation_snapshot().get_manual(normalized)
             validated = ManualProviderDraft(
                 display_name=draft.display_name,
                 homepage_url=draft.homepage_url,
@@ -462,10 +474,14 @@ class CollectorProviderManager:
                 homepage_url=validated.homepage_url,
                 endpoint_url=validated.endpoint_url,
                 lifecycle_state=current.lifecycle_state,
+                protocol_selection=current.protocol_selection,
                 created_at=current.created_at,
-                updated_at=self._manual_provider_clock(),
+                updated_at=self._next_manual_timestamp(current.updated_at),
             )
-            self.settings_repository.update_manual_provider(updated)
+            self.settings_repository.replace_manual_provider_if_current(
+                updated,
+                expected_updated_at=current.updated_at,
+            )
         except ManualProviderConflictError as exc:
             return _manual_command_result(
                 normalized,
@@ -480,6 +496,14 @@ class CollectorProviderManager:
                 ManualProviderCommandStatus.CONFLICT,
                 ManualProviderErrorCategory.IDENTITY_COLLISION,
                 "Регистрация площадки не найдена.",
+                self._safe_manual_timestamp(),
+            )
+        except ProviderSettingsStaleWriteError:
+            return _manual_command_result(
+                normalized or "unknown",
+                ManualProviderCommandStatus.CONFLICT,
+                ManualProviderErrorCategory.IDENTITY_COLLISION,
+                "Регистрация была изменена; обновите список и повторите.",
                 self._safe_manual_timestamp(),
             )
         except (TypeError, ValueError, AttributeError):
@@ -518,9 +542,249 @@ class CollectorProviderManager:
             updated.provider_id,
             ManualProviderCommandStatus.UPDATED,
             ManualProviderErrorCategory.NONE,
-            "Данные площадки обновлены; требуется выбор протокола.",
+            (
+                "Данные площадки обновлены; требуется создание адаптера."
+                if updated.protocol_selection is not None
+                else "Данные площадки обновлены; требуется выбор протокола."
+            ),
+            updated.updated_at,
+            updated.lifecycle_state,
+        )
+
+    def manual_protocol_policies(self) -> tuple[ManualProviderProtocolPolicy, ...]:
+        return manual_provider_protocol_policies()
+
+    def manual_protocol_selection(
+        self,
+        provider_id: str,
+    ) -> ManualProviderProtocolSelection | None:
+        return self.settings_snapshot().get_manual(provider_id).protocol_selection
+
+    def manual_protocol_readiness_gaps(self, provider_id: str) -> tuple[str, ...]:
+        registration = self.settings_snapshot().get_manual(provider_id)
+        if registration.protocol_selection is None:
+            return ("protocol_required", "adapter_required")
+        return registration.protocol_selection.readiness_gaps()
+
+    def save_manual_provider_protocol(
+        self,
+        provider_id: str,
+        draft: ManualProviderProtocolDraft,
+        *,
+        expected_updated_at: datetime,
+    ) -> ManualProviderProtocolCommandResult:
+        normalized = str(provider_id).strip().casefold()
+        try:
+            current = self._manual_mutation_snapshot().get_manual(normalized)
+            validated = ManualProviderProtocolDraft(
+                family=draft.family,
+                endpoint_url=draft.endpoint_url,
+                payload_format=draft.payload_format,
+                authentication_kind=draft.authentication_kind,
+            )
+            timestamp = self._next_manual_timestamp(current.updated_at)
+            selection = create_manual_provider_protocol_selection(
+                validated,
+                timestamp=timestamp,
+                selected_at=(
+                    current.protocol_selection.selected_at
+                    if current.protocol_selection is not None
+                    else timestamp
+                ),
+            )
+            updated = ManualProviderRegistration(
+                provider_id=current.provider_id,
+                display_name=current.display_name,
+                homepage_url=current.homepage_url,
+                endpoint_url=current.endpoint_url,
+                lifecycle_state=ManualProviderLifecycle.ADAPTER_REQUIRED,
+                protocol_selection=selection,
+                created_at=current.created_at,
+                updated_at=timestamp,
+            )
+            self.settings_repository.replace_manual_provider_if_current(
+                updated,
+                expected_updated_at=expected_updated_at,
+            )
+            status = (
+                ManualProviderProtocolCommandStatus.CHANGED
+                if current.protocol_selection is not None
+                else ManualProviderProtocolCommandStatus.SAVED
+            )
+        except ProviderSettingsStaleWriteError:
+            return _manual_protocol_command_result(
+                normalized,
+                ManualProviderProtocolCommandStatus.STALE,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.STALE_EDIT,
+                "Настройка была изменена; обновите список и повторите.",
+                self._safe_manual_timestamp(),
+            )
+        except KeyError:
+            unsupported_target = not normalized.startswith("manual_")
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                (
+                    ManualProviderProtocolCommandStatus.UNSUPPORTED_TARGET
+                    if unsupported_target
+                    else ManualProviderProtocolCommandStatus.NOT_FOUND
+                ),
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                (
+                    ManualProviderProtocolErrorCategory.UNSUPPORTED_TARGET
+                    if unsupported_target
+                    else ManualProviderProtocolErrorCategory.NOT_FOUND
+                ),
+                (
+                    "Настройка протокола доступна только для ручной регистрации."
+                    if unsupported_target
+                    else "Ручная регистрация не найдена."
+                ),
+                self._safe_manual_timestamp(),
+            )
+        except (TypeError, ValueError, AttributeError):
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                ManualProviderProtocolCommandStatus.INVALID_INPUT,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.INVALID_INPUT,
+                "Настройка протокола отклонена безопасной валидацией.",
+                self._safe_manual_timestamp(),
+            )
+        except (ProviderSettingsMutationError, OSError):
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                ManualProviderProtocolCommandStatus.PERSISTENCE_UNAVAILABLE,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.PERSISTENCE_UNAVAILABLE,
+                "Не удалось сохранить настройку протокола.",
+                self._safe_manual_timestamp(),
+            )
+        except Exception:
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                ManualProviderProtocolCommandStatus.OPERATION_FAILED_SAFE,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.OPERATION_FAILED,
+                "Операция настройки протокола не выполнена.",
+                self._safe_manual_timestamp(),
+            )
+        return _manual_protocol_command_result(
+            normalized,
+            status,
+            ManualProviderLifecycle.ADAPTER_REQUIRED,
+            ManualProviderProtocolErrorCategory.NONE,
+            "Протокол сохранён; требуется создание адаптера.",
             updated.updated_at,
         )
+
+    def clear_manual_provider_protocol(
+        self,
+        provider_id: str,
+        *,
+        expected_updated_at: datetime,
+    ) -> ManualProviderProtocolCommandResult:
+        normalized = str(provider_id).strip().casefold()
+        try:
+            current = self._manual_mutation_snapshot().get_manual(normalized)
+            timestamp = self._next_manual_timestamp(current.updated_at)
+            updated = ManualProviderRegistration(
+                provider_id=current.provider_id,
+                display_name=current.display_name,
+                homepage_url=current.homepage_url,
+                endpoint_url=current.endpoint_url,
+                lifecycle_state=ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                protocol_selection=None,
+                created_at=current.created_at,
+                updated_at=timestamp,
+            )
+            self.settings_repository.replace_manual_provider_if_current(
+                updated,
+                expected_updated_at=expected_updated_at,
+            )
+        except ProviderSettingsStaleWriteError:
+            return _manual_protocol_command_result(
+                normalized,
+                ManualProviderProtocolCommandStatus.STALE,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.STALE_EDIT,
+                "Настройка была изменена; обновите список и повторите.",
+                self._safe_manual_timestamp(),
+            )
+        except KeyError:
+            unsupported_target = not normalized.startswith("manual_")
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                (
+                    ManualProviderProtocolCommandStatus.UNSUPPORTED_TARGET
+                    if unsupported_target
+                    else ManualProviderProtocolCommandStatus.NOT_FOUND
+                ),
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                (
+                    ManualProviderProtocolErrorCategory.UNSUPPORTED_TARGET
+                    if unsupported_target
+                    else ManualProviderProtocolErrorCategory.NOT_FOUND
+                ),
+                (
+                    "Настройка протокола доступна только для ручной регистрации."
+                    if unsupported_target
+                    else "Ручная регистрация не найдена."
+                ),
+                self._safe_manual_timestamp(),
+            )
+        except (TypeError, ValueError, AttributeError):
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                ManualProviderProtocolCommandStatus.INVALID_INPUT,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.INVALID_INPUT,
+                "Сброс протокола отклонён безопасной валидацией.",
+                self._safe_manual_timestamp(),
+            )
+        except (ProviderSettingsMutationError, OSError):
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                ManualProviderProtocolCommandStatus.PERSISTENCE_UNAVAILABLE,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.PERSISTENCE_UNAVAILABLE,
+                "Не удалось сбросить настройку протокола.",
+                self._safe_manual_timestamp(),
+            )
+        except Exception:
+            return _manual_protocol_command_result(
+                normalized or "unknown",
+                ManualProviderProtocolCommandStatus.OPERATION_FAILED_SAFE,
+                ManualProviderLifecycle.PROTOCOL_REQUIRED,
+                ManualProviderProtocolErrorCategory.OPERATION_FAILED,
+                "Операция сброса протокола не выполнена.",
+                self._safe_manual_timestamp(),
+            )
+        return _manual_protocol_command_result(
+            normalized,
+            ManualProviderProtocolCommandStatus.CLEARED,
+            ManualProviderLifecycle.PROTOCOL_REQUIRED,
+            ManualProviderProtocolErrorCategory.NONE,
+            "Выбор протокола сброшен.",
+            updated.updated_at,
+        )
+
+    def _next_manual_timestamp(self, current: datetime) -> datetime:
+        value = self._manual_provider_clock()
+        if value.utcoffset() is None:
+            raise ValueError("manual provider clock must be timezone-aware")
+        return value if value > current else current + timedelta(microseconds=1)
+
+    def _manual_mutation_snapshot(self) -> ProviderSettingsSnapshot:
+        snapshot = self.settings_snapshot()
+        if snapshot.status in {
+            ProviderSettingsLoadStatus.CORRUPT,
+            ProviderSettingsLoadStatus.UNSUPPORTED_FUTURE,
+        }:
+            raise ProviderSettingsMutationError(
+                f"Provider settings mutation blocked: {snapshot.status.value}"
+            )
+        return snapshot
 
     def _safe_manual_timestamp(self) -> datetime:
         value = self._manual_provider_clock()
@@ -596,8 +860,18 @@ class CollectorProviderManager:
         unknown = [provider_id for provider_id in normalized_ids if provider_id not in known]
         if unknown:
             raise KeyError(", ".join(unknown))
-        if any(known[provider_id].registration_only for provider_id in normalized_ids):
-            raise ManualProviderExecutionError()
+        manual_state = next(
+            (
+                known[provider_id]
+                for provider_id in normalized_ids
+                if known[provider_id].registration_only
+            ),
+            None,
+        )
+        if manual_state is not None:
+            raise ManualProviderExecutionError(
+                manual_state.lifecycle or ManualProviderLifecycle.PROTOCOL_REQUIRED
+            )
 
         selected = tuple(
             provider_id for provider_id in normalized_ids if known[provider_id].enabled
@@ -720,13 +994,26 @@ class CollectorProviderManager:
             )
         for registration in snapshot.manual_registrations:
             entry = catalog[registration.provider_id]
+            selected = registration.protocol_selection
             result.append(
                 _ProviderDefinitionView(
                     descriptor=entry.descriptor,
-                    connection_mode="manual_protocol_required",
+                    connection_mode=(
+                        "manual_protocol_selected"
+                        if selected is not None
+                        else "manual_protocol_required"
+                    ),
                     configuration_details=(
-                        "Регистрация сохранена без протокола и адаптера.",
-                        "Для продолжения требуется отдельный этап выбора протокола.",
+                        (
+                            f"Выбрано семейство: {selected.family.value.upper()}."
+                            if selected is not None
+                            else "Регистрация сохранена без протокола и адаптера."
+                        ),
+                        (
+                            "Протокол выбран; для запуска требуется отдельный адаптер."
+                            if selected is not None
+                            else "Для продолжения требуется отдельный этап выбора протокола."
+                        ),
                     ),
                     catalog_entry=entry,
                 )
@@ -753,7 +1040,11 @@ class CollectorProviderManager:
         if catalog_entry is not None and catalog_entry.registration_only:
             enabled = False
             ui_state = ProviderUiState.NOT_CONFIGURED
-            status_text = "Требуется выбор протокола"
+            status_text = (
+                "Протокол выбран — требуется создание адаптера"
+                if catalog_entry.protocol_configured
+                else "Требуется выбор протокола"
+            )
         elif settings_status is ProviderSettingsLoadStatus.CORRUPT:
             ui_state = ProviderUiState.ERROR
             status_text = "Файл настроек повреждён; запуск заблокирован"
@@ -926,6 +1217,7 @@ def _connection_mode_label(value: str) -> str:
         "official_api_bearer": ("Официальный API · Bearer"),
         "commercial_access_pending": ("API-доступ ожидает подтверждения"),
         "manual_protocol_required": "Ручная регистрация · протокол не выбран",
+        "manual_protocol_selected": "Ручная регистрация · протокол выбран",
     }.get(value, value or "Не указан")
 
 
@@ -947,11 +1239,30 @@ def _manual_command_result(
     error_category: ManualProviderErrorCategory,
     message: str,
     observed_at: datetime,
+    lifecycle: ManualProviderLifecycle = ManualProviderLifecycle.PROTOCOL_REQUIRED,
 ) -> ManualProviderCommandResult:
     return ManualProviderCommandResult(
         provider_id=provider_id if provider_id.startswith("manual_") else "unknown",
         status=status,
-        lifecycle=ManualProviderLifecycle.PROTOCOL_REQUIRED,
+        lifecycle=lifecycle,
+        error_category=error_category,
+        message=message,
+        observed_at=observed_at,
+    )
+
+
+def _manual_protocol_command_result(
+    provider_id: str,
+    status: ManualProviderProtocolCommandStatus,
+    lifecycle: ManualProviderLifecycle,
+    error_category: ManualProviderProtocolErrorCategory,
+    message: str,
+    observed_at: datetime,
+) -> ManualProviderProtocolCommandResult:
+    return ManualProviderProtocolCommandResult(
+        provider_id=provider_id if provider_id.startswith("manual_") else "unknown",
+        status=status,
+        lifecycle=ManualProviderProtocolReadiness(lifecycle.value),
         error_category=error_category,
         message=message,
         observed_at=observed_at,

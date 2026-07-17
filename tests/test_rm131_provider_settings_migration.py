@@ -90,7 +90,7 @@ def test_first_split_v1_mutation_backs_up_both_sources_and_is_idempotent(tmp_pat
     assert (
         json.loads(canonical.read_text(encoding="utf-8"))["schema_version"]
         == ProviderEnablementRepository.SCHEMA_VERSION
-        == 3
+        == 4
     )
     assert legacy.read_bytes() == legacy_bytes
     backups = tuple(tmp_path.glob("*.v1-*.bak"))
