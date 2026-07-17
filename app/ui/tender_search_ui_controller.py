@@ -18,6 +18,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
+    QMessageBox,
     QToolBar,
     QWidget,
 )
@@ -41,6 +42,9 @@ from app.tenders.collector.provider_control import (
 from app.tenders.collector.manual_provider_registration import (
     ManualProviderCommandStatus,
     ManualProviderExecutionError,
+)
+from app.tenders.collector.manual_provider_protocol import (
+    ManualProviderProtocolCommandStatus,
 )
 from app.tenders.provider_credentials import CredentialErrorCategory
 from app.tenders.collector.run_session import CollectorRunSession
@@ -105,6 +109,8 @@ from app.ui.tender_participation_score_dialog import (
     TenderParticipationScoreDialog,
 )
 from app.ui.tender_provider_manager_dialog import (
+    ManualProviderProtocolDialog,
+    ManualProviderProtocolDialogOperation,
     ManualProviderRegistrationDialog,
     TenderProviderConfigurationDialog,
     TenderProviderManagerDialog,
@@ -1160,6 +1166,9 @@ class TenderSearchUiController(QObject):
             )
             self._provider_dialog.manual_provider_add_requested.connect(self.add_manual_provider)
             self._provider_dialog.manual_provider_edit_requested.connect(self.edit_manual_provider)
+            self._provider_dialog.manual_provider_protocol_requested.connect(
+                self.configure_manual_provider_protocol
+            )
             self._provider_dialog.check_all_requested.connect(self.check_all_provider_connections)
             self._provider_dialog.refresh_button.clicked.connect(self.refresh_provider_states)
 
@@ -1284,6 +1293,72 @@ class TenderSearchUiController(QObject):
         self.refresh_provider_states()
         if self._provider_dialog is not None:
             self._provider_dialog.set_status("Настройки источника сохранены.")
+
+    @Slot(str)
+    def configure_manual_provider_protocol(self, provider_id: str) -> None:
+        normalized = provider_id.strip().casefold()
+        state = next(
+            (
+                item
+                for item in self.provider_manager.states()
+                if item.provider_id == normalized and item.registration_only
+            ),
+            None,
+        )
+        if state is None or state.manual_registration is None:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status("Ручная регистрация не найдена.", error=True)
+            return
+        editor = ManualProviderProtocolDialog(
+            state.manual_registration,
+            policies=self.provider_manager.manual_protocol_policies(),
+            parent=self._provider_dialog,
+        )
+        if editor.exec() != ManualProviderProtocolDialog.DialogCode.Accepted:
+            return
+
+        if editor.operation is ManualProviderProtocolDialogOperation.CLEAR:
+            answer = QMessageBox.question(
+                self._provider_dialog,
+                "Сброс выбора протокола",
+                "Сбросить выбранный протокол? Площадка снова будет ожидать выбора.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            result = self.provider_manager.clear_manual_provider_protocol(
+                normalized,
+                expected_updated_at=editor.expected_updated_at,
+            )
+            success = result.status is ManualProviderProtocolCommandStatus.CLEARED
+        else:
+            try:
+                draft = editor.draft()
+            except (TypeError, ValueError):
+                if self._provider_dialog is not None:
+                    self._provider_dialog.set_status(
+                        "Настройка протокола отклонена безопасной валидацией.",
+                        error=True,
+                    )
+                return
+            result = self.provider_manager.save_manual_provider_protocol(
+                normalized,
+                draft,
+                expected_updated_at=editor.expected_updated_at,
+            )
+            success = result.status in {
+                ManualProviderProtocolCommandStatus.SAVED,
+                ManualProviderProtocolCommandStatus.CHANGED,
+            }
+
+        if not success:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(result.message, error=True)
+            return
+        self.refresh_provider_states()
+        if self._provider_dialog is not None:
+            self._provider_dialog.set_status(result.message)
 
     @Slot(str, bool)
     def set_provider_enabled(

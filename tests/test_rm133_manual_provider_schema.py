@@ -1,4 +1,4 @@
-"""RM-133 schema-v3 migration and canonical persistence contract."""
+"""RM-133 manual-registration persistence on the current canonical schema."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def _v2_payload() -> dict[str, object]:
     }
 
 
-def test_v2_loads_in_memory_and_first_manual_mutation_writes_v3_with_backup(tmp_path) -> None:
+def test_v2_loads_in_memory_and_first_manual_mutation_writes_current_with_backup(tmp_path) -> None:
     path = tmp_path / "collector_provider_settings.json"
     original = json.dumps(_v2_payload(), ensure_ascii=False, indent=2).encode("utf-8")
     path.write_bytes(original)
@@ -62,7 +62,7 @@ def test_v2_loads_in_memory_and_first_manual_mutation_writes_v3_with_backup(tmp_
     payload = json.loads(path.read_text(encoding="utf-8"))
     backups = tuple(tmp_path.glob("collector_provider_settings.json.v2-*.bak"))
 
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert payload["providers"] == {"b2b_center": True, "eis": False}
     assert payload["configuration"] == _v2_payload()["configuration"]
     assert tuple(payload["manual_registrations"]) == (_registration().provider_id,)
@@ -70,7 +70,7 @@ def test_v2_loads_in_memory_and_first_manual_mutation_writes_v3_with_backup(tmp_
     assert backups[0].read_bytes() == original
 
 
-def test_current_v3_roundtrip_is_deterministic_and_does_not_repeat_backup(tmp_path) -> None:
+def test_current_roundtrip_is_deterministic_and_does_not_repeat_backup(tmp_path) -> None:
     path = tmp_path / "collector_provider_settings.json"
     repository = ProviderEnablementRepository(path)
     first = _registration(f"manual_{'c' * 32}")
@@ -95,7 +95,7 @@ def test_current_v3_roundtrip_is_deterministic_and_does_not_repeat_backup(tmp_pa
         second.provider_id,
         first.provider_id,
     )
-    assert json.loads(first_bytes)["schema_version"] == 3
+    assert json.loads(first_bytes)["schema_version"] == 4
     assert not tuple(tmp_path.glob("collector_provider_settings.json.v3-*.bak"))
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Iterable
 
 from PySide6.QtCore import Qt, Signal
@@ -10,6 +11,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -34,6 +36,14 @@ from app.tenders.collector.manual_provider_registration import (
     ManualProviderDraft,
     ManualProviderRegistration,
 )
+from app.tenders.collector.manual_provider_protocol import (
+    ManualProviderAuthenticationKind,
+    ManualProviderPayloadFormat,
+    ManualProviderProtocolDraft,
+    ManualProviderProtocolFamily,
+    ManualProviderProtocolPolicy,
+    manual_provider_protocol_policies,
+)
 from app.tenders.collector.provider_settings import (
     ProviderConfiguration,
     ProviderSettingOrigin,
@@ -50,6 +60,7 @@ class TenderProviderManagerDialog(QDialog):
     provider_credentials_requested = Signal(str)
     manual_provider_add_requested = Signal()
     manual_provider_edit_requested = Signal(str)
+    manual_provider_protocol_requested = Signal(str)
     check_all_requested = Signal()
 
     def __init__(
@@ -166,6 +177,14 @@ class TenderProviderManagerDialog(QDialog):
         self.edit_manual_provider_button.clicked.connect(
             lambda: self.manual_provider_edit_requested.emit(self.selected_provider_id())
         )
+        self.manual_provider_protocol_button = QPushButton(
+            "Настроить протокол",
+            self,
+        )
+        self.manual_provider_protocol_button.setObjectName("ConfigureManualProviderProtocolButton")
+        self.manual_provider_protocol_button.clicked.connect(
+            lambda: self.manual_provider_protocol_requested.emit(self.selected_provider_id())
+        )
         self.configure_button = QPushButton("Настроить API", self)
         self.configure_button.setObjectName("ConfigureProviderButton")
         self.configure_button.clicked.connect(
@@ -188,6 +207,7 @@ class TenderProviderManagerDialog(QDialog):
         )
         actions.addWidget(self.add_manual_provider_button)
         actions.addWidget(self.edit_manual_provider_button)
+        actions.addWidget(self.manual_provider_protocol_button)
         actions.addWidget(self.configure_button)
         actions.addWidget(self.credentials_button)
         actions.addWidget(self.check_all_button)
@@ -359,6 +379,7 @@ class TenderProviderManagerDialog(QDialog):
             self.configure_button.setEnabled(False)
             self.credentials_button.setEnabled(False)
             self.edit_manual_provider_button.setEnabled(False)
+            self.manual_provider_protocol_button.setEnabled(False)
             return
 
         self.configure_button.setEnabled(
@@ -373,6 +394,7 @@ class TenderProviderManagerDialog(QDialog):
             )
         )
         self.edit_manual_provider_button.setEnabled(state.registration_only)
+        self.manual_provider_protocol_button.setEnabled(state.registration_only)
 
         latency = f"{state.latency_ms} мс" if state.latency_ms is not None else "не измерена"
         configuration = "<br>".join(_escape_html(item) for item in state.configuration_details)
@@ -627,6 +649,219 @@ class ManualProviderRegistrationDialog(QDialog):
         self.accept()
 
 
+class ManualProviderProtocolDialogOperation(StrEnum):
+    SAVE = "save"
+    CLEAR = "clear"
+
+
+class ManualProviderProtocolDialog(QDialog):
+    """Controlled editor for inert, non-secret manual protocol metadata."""
+
+    def __init__(
+        self,
+        registration: ManualProviderRegistration,
+        *,
+        policies: Iterable[ManualProviderProtocolPolicy] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._registration = registration
+        self._policies = tuple(policies or manual_provider_protocol_policies())
+        self._policy_by_family = {item.family: item for item in self._policies}
+        self._accepted_once = False
+        self.operation = ManualProviderProtocolDialogOperation.SAVE
+        self.setWindowTitle(f"Протокол — {registration.display_name}")
+        self.setModal(True)
+        self.setObjectName("ManualProviderProtocolDialog")
+
+        root = QVBoxLayout(self)
+        notice = QLabel(
+            "Выбор сохраняет только декларативные non-secret metadata. "
+            "Соединение не проверяется, а источник останется недоступен для запуска "
+            "до создания отдельного адаптера.",
+            self,
+        )
+        notice.setObjectName("ManualProviderProtocolNotice")
+        notice.setWordWrap(True)
+        root.addWidget(notice)
+
+        form = QFormLayout()
+        self.family_combo = QComboBox(self)
+        self.family_combo.setObjectName("ManualProviderProtocolFamily")
+        self.family_combo.setAccessibleName("Семейство протокола")
+        for policy in self._policies:
+            self.family_combo.addItem(policy.display_name, policy.family)
+        form.addRow("Протокол", self.family_combo)
+
+        self.endpoint_edit = QLineEdit(self)
+        self.endpoint_edit.setObjectName("ManualProviderProtocolEndpoint")
+        self.endpoint_edit.setAccessibleName("Endpoint протокола")
+        self.endpoint_edit.setMaxLength(2048)
+        form.addRow("Endpoint", self.endpoint_edit)
+
+        self.payload_combo = QComboBox(self)
+        self.payload_combo.setObjectName("ManualProviderPayloadFormat")
+        self.payload_combo.setAccessibleName("Формат данных")
+        form.addRow("Формат", self.payload_combo)
+
+        self.authentication_combo = QComboBox(self)
+        self.authentication_combo.setObjectName("ManualProviderAuthenticationKind")
+        self.authentication_combo.setAccessibleName("Требование аутентификации")
+        form.addRow("Аутентификация", self.authentication_combo)
+        root.addLayout(form)
+
+        self.warning_label = QLabel("", self)
+        self.warning_label.setObjectName("ManualProviderProtocolWarning")
+        self.warning_label.setWordWrap(True)
+        root.addWidget(self.warning_label)
+
+        self.validation_label = QLabel("", self)
+        self.validation_label.setObjectName("ManualProviderProtocolValidation")
+        self.validation_label.setWordWrap(True)
+        root.addWidget(self.validation_label)
+
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+            self,
+        )
+        self.save_button = self.buttons.button(QDialogButtonBox.StandardButton.Save)
+        self.save_button.setText(
+            "Изменить" if registration.protocol_selection is not None else "Сохранить"
+        )
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
+        self.clear_button = self.buttons.addButton(
+            "Сбросить выбор",
+            QDialogButtonBox.ButtonRole.DestructiveRole,
+        )
+        self.clear_button.setObjectName("ClearManualProviderProtocolButton")
+        self.clear_button.setEnabled(registration.protocol_selection is not None)
+        self.buttons.accepted.connect(self._accept_valid)
+        self.buttons.rejected.connect(self.reject)
+        self.clear_button.clicked.connect(self._accept_clear)
+        root.addWidget(self.buttons)
+
+        selected = registration.protocol_selection
+        if selected is not None:
+            index = self.family_combo.findData(selected.family)
+            if index >= 0:
+                self.family_combo.setCurrentIndex(index)
+        self._refresh_policy_controls()
+        if selected is not None:
+            self.endpoint_edit.setText(selected.endpoint_url)
+            payload_index = self.payload_combo.findData(selected.payload_format)
+            if payload_index >= 0:
+                self.payload_combo.setCurrentIndex(payload_index)
+            auth_index = self.authentication_combo.findData(selected.authentication_kind)
+            if auth_index >= 0:
+                self.authentication_combo.setCurrentIndex(auth_index)
+
+        self.family_combo.currentIndexChanged.connect(self._refresh_policy_controls)
+        self.endpoint_edit.textChanged.connect(self._refresh_validation)
+        self.payload_combo.currentIndexChanged.connect(self._refresh_validation)
+        self.authentication_combo.currentIndexChanged.connect(self._refresh_validation)
+        self._refresh_validation()
+
+    @property
+    def expected_updated_at(self) -> datetime:
+        return self._registration.updated_at
+
+    def draft(self) -> ManualProviderProtocolDraft:
+        raw_family = self.family_combo.currentData()
+        raw_payload = self.payload_combo.currentData()
+        raw_authentication = self.authentication_combo.currentData()
+        try:
+            family = ManualProviderProtocolFamily(str(raw_family))
+            payload = (
+                ManualProviderPayloadFormat(str(raw_payload)) if raw_payload is not None else None
+            )
+            authentication = ManualProviderAuthenticationKind(str(raw_authentication))
+        except (TypeError, ValueError):
+            raise ValueError("manual provider protocol selection is invalid")
+        return ManualProviderProtocolDraft(
+            family=family,
+            endpoint_url=self.endpoint_edit.text(),
+            payload_format=payload,
+            authentication_kind=authentication,
+        )
+
+    def _refresh_policy_controls(self) -> None:
+        family = self.family_combo.currentData()
+        policy = self._policy_by_family.get(family)
+        if policy is None:
+            self.save_button.setEnabled(False)
+            return
+        self.endpoint_edit.setPlaceholderText(policy.endpoint_placeholder)
+        self.warning_label.setText(policy.warning)
+
+        previous_payload = self.payload_combo.currentData()
+        self.payload_combo.blockSignals(True)
+        self.payload_combo.clear()
+        if policy.allowed_payload_formats:
+            for payload_value in policy.allowed_payload_formats:
+                self.payload_combo.addItem(payload_value.value.upper(), payload_value)
+        else:
+            self.payload_combo.addItem("Не применяется", None)
+        payload_index = self.payload_combo.findData(previous_payload)
+        if payload_index >= 0:
+            self.payload_combo.setCurrentIndex(payload_index)
+        self.payload_combo.setEnabled(bool(policy.allowed_payload_formats))
+        self.payload_combo.blockSignals(False)
+
+        previous_auth = self.authentication_combo.currentData()
+        self.authentication_combo.blockSignals(True)
+        self.authentication_combo.clear()
+        auth_labels = {
+            ManualProviderAuthenticationKind.NONE: "Не требуется",
+            ManualProviderAuthenticationKind.API_KEY: "API key потребуется позже",
+            ManualProviderAuthenticationKind.USERNAME_PASSWORD: (
+                "Username/password потребуются позже"
+            ),
+        }
+        for auth_value in policy.allowed_authentication_kinds:
+            self.authentication_combo.addItem(auth_labels[auth_value], auth_value)
+        auth_index = self.authentication_combo.findData(previous_auth)
+        if auth_index >= 0:
+            self.authentication_combo.setCurrentIndex(auth_index)
+        self.authentication_combo.blockSignals(False)
+        self._refresh_validation()
+
+    def _refresh_validation(self) -> None:
+        if self._accepted_once:
+            self.save_button.setEnabled(False)
+            return
+        try:
+            self.draft()
+        except (TypeError, ValueError):
+            self.save_button.setEnabled(False)
+            self.validation_label.setText(
+                "Проверьте endpoint и параметры, разрешённые выбранным семейством."
+            )
+            return
+        self.validation_label.setText(
+            "Протокол можно сохранить; для запуска всё ещё потребуется адаптер."
+        )
+        self.save_button.setEnabled(True)
+
+    def _accept_valid(self) -> None:
+        if self._accepted_once:
+            return
+        try:
+            self.draft()
+        except (TypeError, ValueError):
+            self._refresh_validation()
+            return
+        self._accepted_once = True
+        self.operation = ManualProviderProtocolDialogOperation.SAVE
+        self.accept()
+
+    def _accept_clear(self) -> None:
+        if self._accepted_once or self._registration.protocol_selection is None:
+            return
+        self._accepted_once = True
+        self.operation = ManualProviderProtocolDialogOperation.CLEAR
+        self.accept()
+
+
 class TenderProviderConfigurationDialog(QDialog):
     """Presentation-only editor for known non-secret provider fields."""
 
@@ -731,6 +966,8 @@ def _origin_label(origin: ProviderSettingOrigin) -> str:
 
 
 __all__ = [
+    "ManualProviderProtocolDialog",
+    "ManualProviderProtocolDialogOperation",
     "ManualProviderRegistrationDialog",
     "TenderProviderConfigurationDialog",
     "TenderProviderManagerDialog",
