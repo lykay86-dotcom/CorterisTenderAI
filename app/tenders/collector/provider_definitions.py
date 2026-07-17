@@ -43,6 +43,7 @@ class ProviderCatalogEntry:
     registration_only: bool = False
     runnable: bool = True
     protocol_configured: bool = True
+    adapter_compiled: bool = True
     factory_available: bool = True
     credential_available: bool = False
     health_check_available: bool = True
@@ -119,7 +120,8 @@ def resolved_provider_catalog(
             registration_only=True,
             runnable=False,
             protocol_configured=registration.protocol_selection is not None,
-            factory_available=False,
+            adapter_compiled=registration.adapter_spec is not None,
+            factory_available=registration.adapter_spec is not None,
             credential_available=False,
             health_check_available=False,
             manual_registration=registration,

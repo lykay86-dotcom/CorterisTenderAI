@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.tenders.business_profile import BusinessCapabilityProjection
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
+from app.tenders.collector.async_provider import AsyncTenderProvider
 from app.tenders.collector.collector_service import CollectorService
 from app.tenders.collector.company_capability import (
     CompanyCapabilityProfileRepository,
@@ -27,6 +28,13 @@ from app.tenders.collector.provider_settings import (
     create_provider_settings_snapshot,
 )
 from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.collector.manual_adapter import (
+    AdapterCompileResult,
+    ManualAdapterDependencies,
+    ManualAdapterSpec,
+    compile_manual_adapter,
+)
+from app.tenders.collector.manual_provider_registration import ManualProviderRegistration
 from app.tenders.providers.commercial_adapter import (
     create_commercial_access_providers,
 )
@@ -54,7 +62,7 @@ def create_default_async_providers(
     provider_settings_snapshot: ProviderSettingsSnapshot | None = None,
     environment: Mapping[str, str] | None = None,
     include_disabled: bool = False,
-):
+) -> tuple[AsyncTenderProvider, ...]:
     """Return implemented providers and optional visible access adapters.
 
     Commercial adapters are excluded by default. When explicitly requested,
@@ -70,7 +78,7 @@ def create_default_async_providers(
             f"Provider settings are unavailable: {provider_settings_snapshot.status.value}"
         )
 
-    providers = [
+    providers: list[AsyncTenderProvider] = [
         AsyncEisTenderProvider(
             network_runtime.http_client,
             network_settings=network_runtime.settings.get("eis"),
@@ -130,6 +138,17 @@ def create_default_async_providers(
             if (include_disabled or provider_settings_repository.is_enabled(provider.descriptor))
         ]
     return tuple(providers)
+
+
+def build_manual_async_provider(
+    registration: ManualProviderRegistration,
+    spec: ManualAdapterSpec,
+    *,
+    dependencies: ManualAdapterDependencies | None = None,
+) -> AdapterCompileResult:
+    """Compile one scoped manual provider without I/O or runtime admission."""
+
+    return compile_manual_adapter(registration, spec, dependencies=dependencies)
 
 
 def create_default_collector_service(
@@ -192,6 +211,7 @@ def create_default_collector_service(
 
 
 __all__ = [
+    "build_manual_async_provider",
     "create_default_async_providers",
     "create_default_collector_service",
 ]

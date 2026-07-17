@@ -18,6 +18,7 @@ from app.tenders.collector.provider_definitions import (
     canonical_provider_id,
     provider_aliases,
 )
+from app.tenders.collector.manual_adapter import decode_manual_adapter_spec
 from app.tenders.collector.manual_provider_registration import (
     ManualProviderConflictError,
     ManualProviderErrorCategory,
@@ -40,6 +41,7 @@ from app.tenders.provider_base import ProviderDescriptor
 class ProviderSettingsLoadStatus(StrEnum):
     MISSING = "missing"
     CURRENT = "current"
+    MIGRATED_V4 = "migrated_v4"
     MIGRATED_V3 = "migrated_v3"
     MIGRATED_V2 = "migrated_v2"
     MIGRATED_SPLIT_V1 = "migrated_split_v1"
@@ -336,9 +338,9 @@ def create_provider_settings_snapshot(
 
 
 class ProviderEnablementRepository:
-    """Own schema-v4 source settings and read v1/v2/v3 state compatibly."""
+    """Own schema-v5 source settings and read v1/v2/v3/v4 state compatibly."""
 
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
 
     def __init__(
         self,
@@ -556,6 +558,22 @@ class ProviderEnablementRepository:
                 source_schema_version=version,
                 manual_registrations=registrations,
             )
+        if version == 4:
+            try:
+                records, registrations = _decode_v4(payload)
+            except (ValueError, TypeError) as exc:
+                return ProviderSettingsLoadResult(
+                    records=(),
+                    status=ProviderSettingsLoadStatus.CORRUPT,
+                    source_schema_version=version,
+                    warnings=(f"Canonical provider settings are corrupt: {type(exc).__name__}",),
+                )
+            return ProviderSettingsLoadResult(
+                records=records,
+                status=ProviderSettingsLoadStatus.MIGRATED_V4,
+                source_schema_version=version,
+                manual_registrations=registrations,
+            )
         if version == 3:
             try:
                 records, registrations = _decode_v3(payload)
@@ -705,6 +723,8 @@ class ProviderEnablementRepository:
                 self._backup_previous_source(2)
             elif result.status is ProviderSettingsLoadStatus.MIGRATED_V3:
                 self._backup_previous_source(3)
+            elif result.status is ProviderSettingsLoadStatus.MIGRATED_V4:
+                self._backup_previous_source(4)
             self._write_current(records.values(), registrations.values())
 
     def _backup_v1_sources(self) -> None:
@@ -785,20 +805,34 @@ def _decode_current(
     payload: Mapping[str, object],
 ) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
     records = _decode_provider_records(payload)
-    return records, _decode_manual_registrations(payload, allow_protocol_selection=True)
+    return records, _decode_manual_registrations(
+        payload, allow_protocol_selection=True, allow_adapter_spec=True
+    )
+
+
+def _decode_v4(
+    payload: Mapping[str, object],
+) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
+    records = _decode_provider_records(payload)
+    return records, _decode_manual_registrations(
+        payload, allow_protocol_selection=True, allow_adapter_spec=False
+    )
 
 
 def _decode_v3(
     payload: Mapping[str, object],
 ) -> tuple[tuple[ProviderSettingsRecord, ...], tuple[ManualProviderRegistration, ...]]:
     records = _decode_provider_records(payload)
-    return records, _decode_manual_registrations(payload, allow_protocol_selection=False)
+    return records, _decode_manual_registrations(
+        payload, allow_protocol_selection=False, allow_adapter_spec=False
+    )
 
 
 def _decode_manual_registrations(
     payload: Mapping[str, object],
     *,
     allow_protocol_selection: bool,
+    allow_adapter_spec: bool,
 ) -> tuple[ManualProviderRegistration, ...]:
     raw_registrations = payload.get("manual_registrations", {})
     if not isinstance(raw_registrations, dict):
@@ -824,6 +858,8 @@ def _decode_manual_registrations(
         }
         if allow_protocol_selection:
             allowed_fields.add("protocol_selection")
+        if allow_adapter_spec:
+            allowed_fields.update({"adapter_spec", "adapter_spec_history"})
         unknown = set(raw_value) - allowed_fields
         if unknown:
             raise ValueError("manual registration has unsupported fields")
@@ -834,6 +870,8 @@ def _decode_manual_registrations(
         created_at = raw_value.get("created_at")
         updated_at = raw_value.get("updated_at")
         raw_selection = raw_value.get("protocol_selection")
+        raw_adapter_spec = raw_value.get("adapter_spec")
+        raw_adapter_history = raw_value.get("adapter_spec_history", [])
         if (
             not isinstance(display_name, str)
             or not isinstance(homepage_url, str)
@@ -848,6 +886,18 @@ def _decode_manual_registrations(
             if allow_protocol_selection and raw_selection is not None
             else None
         )
+        if allow_adapter_spec and not isinstance(raw_adapter_history, list):
+            raise TypeError("manual adapter history must be an array")
+        adapter_spec = (
+            decode_manual_adapter_spec(raw_adapter_spec)
+            if allow_adapter_spec and raw_adapter_spec is not None
+            else None
+        )
+        adapter_history = (
+            tuple(decode_manual_adapter_spec(item) for item in raw_adapter_history)
+            if allow_adapter_spec
+            else ()
+        )
         registrations.append(
             ManualProviderRegistration(
                 provider_id=provider_id,
@@ -856,6 +906,8 @@ def _decode_manual_registrations(
                 endpoint_url=endpoint_url,
                 lifecycle_state=ManualProviderLifecycle(lifecycle),
                 protocol_selection=selection,
+                adapter_spec=adapter_spec,
+                adapter_spec_history=adapter_history,
                 created_at=_parse_aware_datetime(created_at),
                 updated_at=_parse_aware_datetime(updated_at),
             )

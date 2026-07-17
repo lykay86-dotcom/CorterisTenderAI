@@ -155,13 +155,14 @@ def test_run_session_rejects_manual_id_before_runtime_creation(tmp_path) -> None
     assert "api.example" not in str(captured.value)
 
 
-def test_async_factory_source_has_no_dynamic_manual_adapter_path() -> None:
+def test_async_factory_manual_adapter_path_is_static_and_code_owned() -> None:
     source = Path("app/tenders/collector/async_provider_factory.py").read_text(encoding="utf-8")
 
     assert "importlib" not in source
     assert "eval(" not in source
     assert "exec(" not in source
-    assert "ManualProviderRegistration" not in source
+    assert "build_manual_async_provider" in source
+    assert "compile_manual_adapter" in source
 
 
 def test_async_factory_never_constructs_adapter_for_manual_registration(tmp_path) -> None:
