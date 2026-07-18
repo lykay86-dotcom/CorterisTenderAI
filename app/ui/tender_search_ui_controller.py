@@ -157,6 +157,7 @@ class TenderSearchLifecycleState(StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     TIMED_OUT = "timed_out"
+    CLOSED = "closed"
 
     @property
     def terminal(self) -> bool:
@@ -165,6 +166,7 @@ class TenderSearchLifecycleState(StrEnum):
             self.COMPLETED,
             self.FAILED,
             self.TIMED_OUT,
+            self.CLOSED,
         }
 
 
@@ -1860,7 +1862,9 @@ class TenderSearchUiController(QObject):
         message: str = "",
     ) -> bool:
         current = self._lifecycle_snapshot
-        if state is TenderSearchLifecycleState.QUEUED and generation > current.generation:
+        if state is TenderSearchLifecycleState.CLOSED and generation == current.generation:
+            pass
+        elif state is TenderSearchLifecycleState.QUEUED and generation > current.generation:
             pass
         elif generation != current.generation or current.state.terminal:
             return False
@@ -1925,12 +1929,6 @@ class TenderSearchUiController(QObject):
                 generation=collector.generation,
             )
             collector.cancel()
-            self._transition_lifecycle(
-                TenderSearchLifecycleState.CANCELLED,
-                generation=collector.generation,
-                error_code="search_cancelled",
-                message="Операция поиска отменена при закрытии приложения.",
-            )
             self._abandon_if_queued(collector)
 
         provider_check = self._provider_check_worker
@@ -1951,6 +1949,12 @@ class TenderSearchUiController(QObject):
         self._provider_check_worker = None
         self._provider_check_ids = ()
         self._finish_profile_dialog_run(error="Операция поиска отменена.")
+        self._transition_lifecycle(
+            TenderSearchLifecycleState.CLOSED,
+            generation=self._lifecycle_snapshot.generation,
+            error_code=("search_cancelled" if collector is not None else ""),
+            message=("Операция поиска отменена при закрытии приложения." if collector else ""),
+        )
         self._shutdown_complete = True
         return True
 

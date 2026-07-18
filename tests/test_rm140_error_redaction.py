@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import closing
+from dataclasses import replace
 import sqlite3
 
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.health_monitor import ProviderHealthMonitor
 from app.tenders.collector.models import CollectionRunStatus
+from app.tenders.collector.progress import (
+    CollectorProgressEvent,
+    CollectorProgressPhase,
+    emit_collector_progress,
+)
 from app.tenders.collector.store import CollectorStateRepository
-from app.tenders.provider_base import TenderSearchQuery
+from app.tenders.provider_base import TenderSearchQuery, TenderSearchResult
 from tests.test_collector_async_engine import FakeProvider
 
 
@@ -53,6 +59,47 @@ def test_async_outcome_uses_stable_code_in_compatibility_error_type() -> None:
 
     assert outcome.error_type == outcome.error_code == "provider_internal_error"
     assert len(outcome.error_message) <= 300
+
+
+def test_provider_metadata_and_warnings_are_sanitized_before_public_batch() -> None:
+    class UnsafeMetadataProvider(FakeProvider):
+        def __init__(self) -> None:
+            super().__init__("unsafe-metadata", "success")
+            self.descriptor = replace(self.descriptor, display_name=UNSAFE_URL)
+
+        async def search(self, query, *, cancellation_token=None):
+            result = await super().search(query, cancellation_token=cancellation_token)
+            return TenderSearchResult(
+                provider_id=result.provider_id,
+                items=result.items,
+                warnings=(f"Authorization: Bearer {SECRET}; {UNSAFE_URL}",),
+            )
+
+    result = asyncio.run(
+        AsyncProviderSearchEngine((UnsafeMetadataProvider(),)).search(TenderSearchQuery())
+    )
+
+    rendered = repr(result)
+    assert SECRET not in rendered
+    assert "example.test" not in rendered
+    assert result.outcomes[0].display_name == "UNSAFE-METADATA"
+    assert result.results[0].warnings == ("Предупреждение источника безопасно скрыто.",)
+
+
+def test_progress_callback_exception_does_not_reach_log(caplog) -> None:
+    async def callback(event: CollectorProgressEvent) -> None:
+        del event
+        raise RM140_SECRET_SENTINEL(f"{SECRET}: {UNSAFE_URL}")
+
+    asyncio.run(
+        emit_collector_progress(
+            callback,
+            CollectorProgressEvent(phase=CollectorProgressPhase.PROVIDER_RUNNING),
+        )
+    )
+
+    assert SECRET not in caplog.text
+    assert "example.test" not in caplog.text
 
 
 def test_unknown_error_sentinel_never_reaches_collector_history(tmp_path) -> None:

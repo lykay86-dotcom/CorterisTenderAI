@@ -21,6 +21,7 @@ from app.tenders.collector.notifications import (
     CollectorNotificationRepository,
     CollectorNotificationService,
 )
+from app.tenders.collector.search_errors import safe_search_error_fields
 from app.tenders.collector.provider_control import (
     CollectorProviderManager,
 )
@@ -316,16 +317,18 @@ class TenderCollectorSchedulerUiController(QObject):
         self,
         message: str,
     ) -> None:
+        safe_code, safe_message = safe_search_error_fields(message.partition(":")[0])
+        rendered = f"{safe_code}: {safe_message}"
         if self._scheduled_active:
             self.scheduler.mark_finished(
                 "failed",
-                error=message,
+                error=rendered,
             )
             self._scheduled_active = False
         settings, _ = self.scheduler.snapshot()
         self._publish(
             self.notification_service.for_failure(
-                message,
+                rendered,
                 settings,
             )
         )

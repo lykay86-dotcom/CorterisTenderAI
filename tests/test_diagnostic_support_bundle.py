@@ -124,6 +124,7 @@ def test_bundle_redacts_paths_email_and_secrets_from_logs(
             "Contact: user@example.com\n"
             "api_key=top-secret-key\n"
             "Authorization: Bearer abcdefghijklmnop\n"
+            "Authorization: Bearer RM140_SECRET_SENTINEL\n"
         ),
         encoding="utf-8",
     )
@@ -153,6 +154,7 @@ def test_bundle_redacts_paths_email_and_secrets_from_logs(
     assert "user@example.com" not in text
     assert "top-secret-key" not in text
     assert "abcdefghijklmnop" not in text
+    assert "RM140_SECRET_SENTINEL" not in text
     assert "<PRIVATE_PATH>" in text
     assert "<EMAIL>" in text
     assert "<REDACTED>" in text

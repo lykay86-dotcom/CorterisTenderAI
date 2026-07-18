@@ -49,6 +49,19 @@ SAFE_SEARCH_ERROR_MESSAGES = {
     "collector_internal_error": "Сбор завершился с безопасно скрытой ошибкой.",
 }
 
+_SENSITIVE_PUBLIC_MARKERS = (
+    "authorization",
+    "api_key",
+    "apikey",
+    "bearer ",
+    "cookie",
+    "password",
+    "secret",
+    "token",
+    "://",
+)
+_SAFE_PROVIDER_WARNING = "Предупреждение источника безопасно скрыто."
+
 
 @dataclass(frozen=True, slots=True)
 class SearchFailure:
@@ -197,6 +210,42 @@ def safe_search_error_fields(
     return normalized, SAFE_SEARCH_ERROR_MESSAGES[normalized]
 
 
+def safe_provider_display_name(value: str, *, provider_id: str = "") -> str:
+    """Bound a provider label and discard values that resemble secret metadata."""
+
+    normalized = " ".join(str(value).split())
+    if (
+        not normalized
+        or len(normalized) > 200
+        or any(marker in normalized.casefold() for marker in _SENSITIVE_PUBLIC_MARKERS)
+    ):
+        fallback = " ".join(str(provider_id).split())
+        if (
+            not fallback
+            or len(fallback) > 120
+            or any(marker in fallback.casefold() for marker in _SENSITIVE_PUBLIC_MARKERS)
+        ):
+            return "Источник"
+        return fallback.upper()
+    return normalized
+
+
+def safe_provider_warnings(values: tuple[str, ...]) -> tuple[str, ...]:
+    """Keep bounded provider warnings while replacing secret-shaped metadata."""
+
+    result: list[str] = []
+    for value in values[:20]:
+        normalized = " ".join(str(value).split())
+        if not normalized:
+            continue
+        if len(normalized) > 300 or any(
+            marker in normalized.casefold() for marker in _SENSITIVE_PUBLIC_MARKERS
+        ):
+            normalized = _SAFE_PROVIDER_WARNING
+        result.append(normalized)
+    return tuple(result)
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -206,5 +255,7 @@ __all__ = [
     "SearchErrorCategory",
     "SearchFailure",
     "classify_search_error",
+    "safe_provider_display_name",
+    "safe_provider_warnings",
     "safe_search_error_fields",
 ]

@@ -34,6 +34,8 @@ from app.tenders.collector.progress import (
 from app.tenders.collector.search_errors import (
     SearchErrorCategory,
     classify_search_error,
+    safe_provider_display_name,
+    safe_provider_warnings,
 )
 from app.tenders.provider_base import (
     ProviderCapabilityError,
@@ -73,6 +75,12 @@ class AsyncProviderSearchOutcome:
     error_at: str = ""
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "display_name",
+            safe_provider_display_name(self.display_name, provider_id=self.provider_id),
+        )
+        object.__setattr__(self, "warnings", safe_provider_warnings(self.warnings))
         if len(self.error_type) > 120 or len(self.error_code) > 120:
             raise ValueError("provider error code exceeds its public bound")
         if len(self.error_message) > 300:
@@ -592,6 +600,7 @@ class AsyncProviderSearchEngine:
                         query,
                         cancellation_token=cancellation_token,
                     )
+                    result = replace(result, warnings=safe_provider_warnings(result.warnings))
             elapsed_ms = self._elapsed_ms(started)
             self.health_monitor.register_success(
                 provider_id,
@@ -649,7 +658,6 @@ class AsyncProviderSearchEngine:
                 AsyncProviderSearchStatus.TIMED_OUT,
                 elapsed_ms,
                 exc,
-                message=(f"Источник не завершил поиск за {self.provider_timeout_seconds:g} сек."),
             )
         except (CollectorCancelledError, asyncio.CancelledError) as exc:
             elapsed_ms = self._elapsed_ms(started)
@@ -681,8 +689,6 @@ class AsyncProviderSearchEngine:
         status: AsyncProviderSearchStatus,
         elapsed_ms: int,
         error: BaseException,
-        *,
-        message: str = "",
     ) -> _Execution:
         failure = classify_search_error(error)
         return _Execution(
@@ -694,7 +700,7 @@ class AsyncProviderSearchEngine:
                 status=status,
                 elapsed_ms=elapsed_ms,
                 error_type=failure.code,
-                error_message=message or failure.message,
+                error_message=failure.message,
                 error_category=failure.category,
                 error_code=failure.code,
                 attempt_count=failure.attempts,

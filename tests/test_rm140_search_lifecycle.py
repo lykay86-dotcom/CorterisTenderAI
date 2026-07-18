@@ -61,7 +61,7 @@ def test_queued_run_has_one_admission_and_one_terminal_boundary(tmp_path) -> Non
 
     assert controller.shutdown(timeout_ms=50)
     terminal = controller.lifecycle_snapshot
-    assert terminal.state is TenderSearchLifecycleState.CANCELLED
+    assert terminal.state is TenderSearchLifecycleState.CLOSED
     assert terminal.revision > queued.revision
     assert controller.shutdown(timeout_ms=50)
     assert controller.lifecycle_snapshot == terminal
