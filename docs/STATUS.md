@@ -1,54 +1,58 @@
 # Текущее состояние CorterisTenderAI
 
-Обновлено: 18 июля 2026 года.
+Обновлено: 19 июля 2026 года.
 
 ## Активный этап
 
-**RM-143 — новая дизайн-система**
+**RM-144 — новый каркас приложения**
 
 Статус: `IN PROGRESS`
 
-RM-142 завершён feature PR #92, merge commit
-`246734d2f3b700392c6682c7bcfb5d6ab1469ec5` и успешным exact merge-SHA Windows Quality Gate
-run `29659317641`. RM-143 — единственный активный этап; RM-144–RM-200 остаются `PLANNED` и не
-выполняются параллельно. RM-143 начинается отдельным audit-first пакетом без расширения scope в
-RM-144+.
+RM-143 завершён feature PR #94, merge commit
+`c8d111f3db615dd3c21c231bf265bb00093c65bd` и успешным exact merge-SHA Windows Quality Gate
+run `29663124774`. RM-144 — единственный активный этап; RM-145–RM-200 остаются `PLANNED` и не
+выполняются параллельно. RM-144 должен начаться отдельным audit-first пакетом и сохранить
+дизайн-систему RM-143, route/navigation contract RM-142 и существующие business/data owners.
 
 ## Завершённый этап
 
-**RM-142 — новая информационная архитектура**
+**RM-143 — новая дизайн-система**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- создан один immutable typed route registry и один navigation owner на существующем
-  `DashboardLayout`, без второго shell/router/page stack;
-- primary navigation сведена к Dashboard, Tenders и одному Business Workflow; false peer
-  placeholders устранены, mature embedded/modal workflows и legacy aliases сохранены;
-- allowlisted context, bounded in-memory history, back/return, exact tender ID, workflow
-  filters/stable selection и focus-origin restoration покрыты offline tests;
-- локально: secret scan, Ruff/format (`644 files`), mypy, focused (`37 passed`), соседний UI contour
-  (`68 passed`) и full pytest (`1983 passed, 2 warnings`) успешны;
-- feature PR #92 слит в `main` merge commit
-  `246734d2f3b700392c6682c7bcfb5d6ab1469ec5`;
-- финальный PR Quality Gate run `29659175137` и exact merge-SHA run `29659317641` успешны на
-  Python 3.12/3.13; dependency audit и все обязательные jobs завершились `success`;
-- DB/schema/migration, RM-107 scoring/recommendation/critical stop-factor priority и RM-143+
-  application scope не изменены.
+- `app.ui.theme` остаётся единственным owner Corteris Design System v1; immutable tokens,
+  одинаковые dark/light roles и deterministic sRGB contrast policy покрыты тестами;
+- semantic icon registry использует локальные original SVG assets, bounded cache и безопасный
+  fallback; Sidebar/TopBar подключены без изменения route IDs/order/availability/context;
+- button/card/status/data/form contracts и offline component gallery покрывают обе темы,
+  focus/keyboard/loading/disabled/error и lifecycle stability без вычисления business status;
+- exact migration matrix покрывает 45 baseline local-style sites; итоговый guard:
+  `matrix=45`, `styles=43`, `violations=0`, literal colours outside theme — 0;
+- локально: secret scan, Ruff/format (`662 files`), mypy, RM-143 contract (`76 passed`), соседний UI
+  contour (`40 passed`) и full pytest (`2059 passed, 2 warnings`) успешны; dependency audit не
+  обнаружил известных уязвимостей;
+- feature PR #94 на head `1915be92dc0a9e0b9c1edc0bb5955abf6c94f948` слит merge commit
+  `c8d111f3db615dd3c21c231bf265bb00093c65bd`;
+- PR-head Quality Gate `29662950338` и exact merge-SHA run `29663124774` успешны на Python
+  3.12/3.13; full suite, dependency audit и все обязательные jobs завершились `success`;
+- DB/schema/migration, runtime dependencies, RM-107 score/recommendation/critical stop-factor
+  priority и RM-144+ application scope не изменены.
 
 ## Ранее завершённый этап
 
-**RM-141 — аудит UI**
+**RM-142 — новая информационная архитектура**
 
 Статус: `DONE`
 
-- Audit PR #90 слит в `main` коммитом `a2e8d052`.
-- Exact merge-SHA Quality Gate run `29655095879` успешен на Python 3.12/3.13.
-- UI inventory, findings и handoff RM-142–RM-155 сохранены.
+- Один immutable typed route registry и существующий `DashboardLayout` остаются единственными
+  navigation metadata/stack owners.
+- Feature PR #92 слит merge commit `246734d2f3b700392c6682c7bcfb5d6ab1469ec5`.
+- Exact merge-SHA Quality Gate run `29659317641` успешен на Python 3.12/3.13.
 
 ## Текущее действие
 
-Начать RM-143 с отдельного audit-first пакета, сохраняя route/navigation contract RM-142 и handoff
-`RM-141_REDESIGN_HANDOFF.md`. Не начинать RM-144+ и не изменять business/data ownership или
-deterministic decision/scoring/critical stop-factor priority без отдельного аудита.
+Начать RM-144 с отдельного audit-first пакета. Не начинать RM-145+, не создавать второй
+theme/navigation/business owner и не изменять deterministic decision/scoring/critical stop-factor
+priority без отдельного аудита и Definition of Done.

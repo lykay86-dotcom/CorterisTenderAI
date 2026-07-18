@@ -1,5 +1,34 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-19 — RM-143 завершён, RM-144 активирован
+
+- Audit/contract/matrix/plan зафиксированы commit `69785ee` до application changes;
+  characterization — `6cfc79d`, expected-red contract — `363a572`.
+- `app.ui.theme` расширен одним immutable `corteris-design-v1` token root, одинаковыми dark/light
+  roles и deterministic sRGB contrast audit без второго theme package.
+- Один semantic `IconId` registry разрешает repository-owned original SVG assets через bounded
+  cache и safe path-free fallback. RM-142 route IDs/order/aliases/availability/context не изменены.
+- `CorterisButton`, `Card`/`KpiCard`, status/data/form primitives и offline component gallery
+  покрывают обе темы, focus/keyboard/loading/error/disabled states и lifecycle stability; business
+  status, KPI, score и recommendation остаются у прежних owners.
+- Exact matrix покрывает 45 baseline `setStyleSheet` sites. Итог: 43 current calls, семь legacy
+  MIGRATE/REMOVE calls устранены, пять canonical token-backed owners добавлены, broad exceptions и
+  literal colours outside theme отсутствуют.
+- Локальная acceptance: RM-143 contract `76 passed in 10.23s`, соседний UI contour
+  `40 passed in 29.35s`, full pytest `2059 passed, 2 warnings in 284.17s`; secret scan,
+  Ruff/format (`662 files`), mypy, frozen/build smoke, design guard и dependency audit успешны.
+- Feature PR #94 на head `1915be92dc0a9e0b9c1edc0bb5955abf6c94f948` слит merge commit
+  `c8d111f3db615dd3c21c231bf265bb00093c65bd`.
+- PR-head Quality Gate run `29662950338` успешен: Python 3.12 — `5m03s`, Python 3.13 — `3m30s`.
+  Exact merge-SHA run `29663124774` успешен: Python 3.12 — `4m38s`, Python 3.13 — `4m54s`;
+  full suite, dependency audit и все обязательные jobs завершились `success`.
+- Non-blocking official-actions annotation о Node.js 20/24 остаётся отдельной CI maintenance
+  задачей и не влияет на RM-143 acceptance.
+- DB/schema/migration, runtime dependencies и RM-107 score/recommendation/critical stop-factor
+  priority не изменены. Rollback — revert feature merge без DB/data/settings downgrade.
+  RM-143 переведён в `DONE`; RM-144 назначен единственным `IN PROGRESS`, RM-145–RM-200 остаются
+  `PLANNED`.
+
 ## 2026-07-18 — RM-142 завершён, RM-143 активирован
 
 - Audit/contract/plan зафиксированы commit `985601d` до application changes; characterization —
