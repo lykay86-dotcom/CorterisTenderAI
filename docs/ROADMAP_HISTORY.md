@@ -1,5 +1,29 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-18 — локальная feature acceptance RM-139
+
+- Audit/contract/plan зафиксированы commit `6ad5741` до application changes; expected-red
+  contract — `d9b2b97`, семь collection errors отсутствующих RM-139 production symbols.
+- Existing provider/configuration, connection evidence, Collector accepted run/outcome and
+  checkpoint persistence, C19 verification, schedule, health monitor/circuit, notifications и
+  provider manager dialog переиспользованы; второй monitoring stack и schema bump не добавлены.
+- Code-owned immutable snapshot раздельно показывает enablement, connection readiness,
+  operational run/circuit, checkpoint freshness, C19 verification и schedule. Aware UTC,
+  explicit TTL/future-skew policy, deterministic transitions и stable notification dedup
+  закреплены contract-тестами.
+- Read-only monitoring не выполняет startup network I/O и не создаёт schema; explicit health
+  check отклоняется во время active Collector session. Safe UI/notifications не раскрывают raw
+  exception, URL, credential или response body.
+- RM-107 score/recommendation/hard-exclusion, critical stop-factor priority и AI boundaries не
+  изменены.
+- Локальная acceptance: full pytest `1908 passed, 2 warnings in 120.62s`; secret scan,
+  Ruff/format (`620 files`), required и owner-contour mypy, workflow smokes, five repeated
+  circuit/notification runs, dependency audit и diff-check успешны.
+- Полное evidence записано в `docs/RM-139_ACCEPTANCE.md`.
+- Это feature evidence, не closeout: RM-139 остаётся единственным `IN PROGRESS` до feature PR
+  merge, exact merge-SHA Windows Quality Gate и отдельного docs-only closeout. RM-140–RM-200
+  остаются `PLANNED`.
+
 ## 2026-07-18 — RM-138 завершён, RM-139 активирован
 
 - Audit/contract/plan зафиксированы commit `bd3880d` до application changes;

@@ -12,6 +12,12 @@ RM-138 завершён после audit-first реализации, feature mer
 merge-SHA Windows Quality Gate. RM-139 — единственный активный этап;
 RM-140–RM-200 остаются `PLANNED` и не выполняются параллельно.
 
+Локальная feature acceptance RM-139 пройдена на ветке `feat/rm-139-source-monitoring`:
+audit/contract/plan и expected-red contract зафиксированы до production changes, full pytest —
+`1908 passed, 2 warnings`, обязательные quality/security gates успешны. Детали находятся в
+`docs/RM-139_ACCEPTANCE.md`. Это не closeout: feature PR ещё не слит, exact merge-SHA gate ещё не
+выполнен.
+
 ## Завершённый этап
 
 **RM-138 — параллельный поиск**
@@ -58,6 +64,6 @@ RM-140–RM-200 остаются `PLANNED` и не выполняются пар
 
 ## Текущее действие
 
-Начать RM-139 с отдельного audit-first пакета и канонического entry gate.
-Не начинать RM-140+ и не изменять deterministic decision/scoring/critical stop-factor priority
-до отдельно утверждённого source-monitoring contract.
+Опубликовать feature PR RM-139, дождаться обязательного Windows Quality Gate, после merge проверить
+точный merge SHA и только затем выполнить отдельный docs-only closeout. Не начинать RM-140+ и не
+изменять deterministic decision/scoring/critical stop-factor priority.
