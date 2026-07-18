@@ -9,6 +9,11 @@ from threading import RLock
 from time import monotonic
 from typing import Callable
 
+from app.tenders.collector.search_errors import (
+    classify_search_error,
+    safe_search_error_fields,
+)
+
 
 class ProviderOperationalStatus(StrEnum):
     UNKNOWN = "unknown"
@@ -197,13 +202,12 @@ class ProviderHealthMonitor:
             if latency_ms is not None:
                 state.total_latency_ms += latency_ms
                 state.latency_samples += 1
-            if isinstance(error, BaseException):
-                state.last_error_type = type(error).__name__
-                state.last_error_message = str(error)
-            else:
-                state.last_error_type = "ProviderError"
-                state.last_error_message = str(error)
-            state.last_status_code = status_code
+            failure = classify_search_error(
+                error if isinstance(error, BaseException) else RuntimeError()
+            )
+            state.last_error_type = failure.code
+            state.last_error_message = failure.message
+            state.last_status_code = status_code if status_code is not None else failure.http_status
             if connection_mode:
                 state.connection_mode = connection_mode
             if parser_version:
@@ -222,14 +226,15 @@ class ProviderHealthMonitor:
     def register_not_configured(
         self,
         provider_id: str,
-        message: str,
+        message: str = "",
     ) -> ProviderHealthSnapshot:
+        del message
         with self._lock:
             state = self._state(provider_id)
             state.status = ProviderOperationalStatus.NOT_CONFIGURED
             state.checked_at = self._timestamp()
-            state.last_error_type = "ProviderNotConfiguredError"
-            state.last_error_message = message.strip()
+            state.last_error_type = "provider_not_configured"
+            state.last_error_message = "Источник не настроен."
             return self._snapshot(state)
 
     def set_disabled(
@@ -279,6 +284,11 @@ class ProviderHealthMonitor:
         if not isinstance(value, ProviderHealthRestoreState):
             raise TypeError("value must be ProviderHealthRestoreState")
         normalized = self._normalize_id(value.provider_id)
+        safe_error_type, safe_error_message = (
+            safe_search_error_fields(value.last_error_type)
+            if value.last_error_type.strip()
+            else ("", "")
+        )
         with self._lock:
             state = _ProviderHealthState(
                 provider_id=normalized,
@@ -288,8 +298,8 @@ class ProviderHealthMonitor:
                 consecutive_failures=value.consecutive_failures,
                 total_successes=value.total_successes,
                 total_failures=value.total_failures,
-                last_error_type=value.last_error_type,
-                last_error_message=value.last_error_message,
+                last_error_type=safe_error_type,
+                last_error_message=safe_error_message,
                 cooldown_until=(
                     self._clock() + value.cooldown_remaining_seconds
                     if value.cooldown_remaining_seconds > 0

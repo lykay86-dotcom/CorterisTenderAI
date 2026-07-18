@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -33,6 +34,8 @@ from app.tenders.collector.progress import (
 from app.tenders.collector.search_errors import (
     SearchErrorCategory,
     classify_search_error,
+    safe_provider_display_name,
+    safe_provider_warnings,
 )
 from app.tenders.provider_base import (
     ProviderCapabilityError,
@@ -69,6 +72,23 @@ class AsyncProviderSearchOutcome:
     attempt_count: int = 1
     retryable: bool = False
     http_status: int | None = None
+    error_at: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "display_name",
+            safe_provider_display_name(self.display_name, provider_id=self.provider_id),
+        )
+        object.__setattr__(self, "warnings", safe_provider_warnings(self.warnings))
+        if len(self.error_type) > 120 or len(self.error_code) > 120:
+            raise ValueError("provider error code exceeds its public bound")
+        if len(self.error_message) > 300:
+            raise ValueError("provider error message exceeds its public bound")
+        if self.error_at:
+            parsed = datetime.fromisoformat(self.error_at.replace("Z", "+00:00"))
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("provider error timestamp must be timezone-aware")
 
     @property
     def successful(self) -> bool:
@@ -123,6 +143,7 @@ class _SearchLifecycle:
         dispatcher: CollectorProgressDispatcher,
         normalizer: TenderNormalizer,
         deduplicator: TenderDeduplicator,
+        utc_timestamp: Callable[[], str],
     ) -> None:
         self.providers = providers
         self.run_id = run_id
@@ -130,6 +151,7 @@ class _SearchLifecycle:
         self.dispatcher = dispatcher
         self.normalizer = normalizer
         self.deduplicator = deduplicator
+        self.utc_timestamp = utc_timestamp
         self.state = ParallelSearchRunState.RUNNING
         self.revision = -1
         self.percent = 0
@@ -236,13 +258,14 @@ class _SearchLifecycle:
                 display_name=provider.descriptor.display_name,
                 status=terminal_provider_state,
                 elapsed_ms=0,
-                error_type=type(error).__name__,
+                error_type=failure.code,
                 error_message=failure.message,
                 error_category=failure.category,
                 error_code=failure.code,
                 attempt_count=failure.attempts,
                 retryable=failure.retryable,
                 http_status=failure.http_status,
+                error_at=failure.occurred_at,
             )
             self.executions[provider_id] = _Execution(provider, None, outcome)
             self.provider_snapshots[provider_id] = ProviderExecutionSnapshot(
@@ -299,7 +322,7 @@ class _SearchLifecycle:
             state=self.state,
             providers=providers,
             started_at=self.started_at,
-            updated_at=_utc_now(),
+            updated_at=self.utc_timestamp(),
             completed=completed,
             percent=self.percent,
             partial_items=self.deduplication.items,
@@ -340,6 +363,8 @@ class AsyncProviderSearchEngine:
         progress_shutdown_timeout_seconds: float = 0.2,
         normalizer: TenderNormalizer | None = None,
         deduplicator: TenderDeduplicator | None = None,
+        monotonic_clock: Callable[[], float] = perf_counter,
+        utcnow: Callable[[], datetime] | None = None,
     ) -> None:
         if max_concurrent_providers < 1:
             raise ValueError("max_concurrent_providers must be at least 1")
@@ -369,6 +394,8 @@ class AsyncProviderSearchEngine:
         self.progress_shutdown_timeout_seconds = float(progress_shutdown_timeout_seconds)
         self.normalizer = normalizer or TenderNormalizer()
         self.deduplicator = deduplicator or TenderDeduplicator(self.normalizer)
+        self._monotonic_clock = monotonic_clock
+        self._utcnow = utcnow or (lambda: datetime.now(timezone.utc))
 
     async def search(
         self,
@@ -379,8 +406,8 @@ class AsyncProviderSearchEngine:
         progress_callback: CollectorProgressCallback | None = None,
         run_id: str = "",
     ) -> AsyncProviderBatchResult:
-        started_counter = perf_counter()
-        started_at = _utc_now()
+        started_counter = self._monotonic_clock()
+        started_at = self._utc_now()
         selected = self._select(provider_ids)
         semaphore = asyncio.Semaphore(self.max_concurrent_providers)
         token = cancellation_token or CollectorCancellationToken()
@@ -397,6 +424,7 @@ class AsyncProviderSearchEngine:
             dispatcher=dispatcher,
             normalizer=self.normalizer,
             deduplicator=self.deduplicator,
+            utc_timestamp=self._utc_now,
         )
         await lifecycle.start()
 
@@ -475,8 +503,11 @@ class AsyncProviderSearchEngine:
             results=results,
             outcomes=outcomes,
             started_at=started_at,
-            completed_at=_utc_now(),
-            elapsed_ms=round((perf_counter() - started_counter) * 1000),
+            completed_at=self._utc_now(),
+            elapsed_ms=max(
+                0,
+                round((self._monotonic_clock() - started_counter) * 1000),
+            ),
             cancelled=cancelled,
             timed_out=timed_out,
             run_id=effective_run_id,
@@ -548,15 +579,16 @@ class AsyncProviderSearchEngine:
                     display_name=display_name,
                     status=AsyncProviderSearchStatus.CIRCUIT_OPEN,
                     elapsed_ms=0,
-                    error_type="ProviderCircuitOpenError",
+                    error_type="provider_circuit_open",
                     error_message="Источник временно отключён после повторных ошибок.",
                     error_category=SearchErrorCategory.REMOTE_SERVICE,
                     error_code="provider_circuit_open",
                     retryable=True,
+                    error_at=self._utc_now(),
                 ),
             )
 
-        started = perf_counter()
+        started = self._monotonic_clock()
         try:
             cancellation_token.throw_if_cancelled()
             async with semaphore:
@@ -568,7 +600,8 @@ class AsyncProviderSearchEngine:
                         query,
                         cancellation_token=cancellation_token,
                     )
-            elapsed_ms = round((perf_counter() - started) * 1000)
+                    result = replace(result, warnings=safe_provider_warnings(result.warnings))
+            elapsed_ms = self._elapsed_ms(started)
             self.health_monitor.register_success(
                 provider_id,
                 latency_ms=elapsed_ms,
@@ -593,10 +626,9 @@ class AsyncProviderSearchEngine:
                 ),
             )
         except ProviderNotConfiguredError as exc:
-            elapsed_ms = round((perf_counter() - started) * 1000)
+            elapsed_ms = self._elapsed_ms(started)
             self.health_monitor.register_not_configured(
                 provider_id,
-                str(exc),
             )
             return self._failure_execution(
                 provider,
@@ -605,7 +637,7 @@ class AsyncProviderSearchEngine:
                 exc,
             )
         except ProviderCapabilityError as exc:
-            elapsed_ms = round((perf_counter() - started) * 1000)
+            elapsed_ms = self._elapsed_ms(started)
             return self._failure_execution(
                 provider,
                 AsyncProviderSearchStatus.UNSUPPORTED,
@@ -613,7 +645,7 @@ class AsyncProviderSearchEngine:
                 exc,
             )
         except TimeoutError as exc:
-            elapsed_ms = round((perf_counter() - started) * 1000)
+            elapsed_ms = self._elapsed_ms(started)
             self.health_monitor.register_failure(
                 provider_id,
                 exc,
@@ -626,10 +658,9 @@ class AsyncProviderSearchEngine:
                 AsyncProviderSearchStatus.TIMED_OUT,
                 elapsed_ms,
                 exc,
-                message=(f"Источник не завершил поиск за {self.provider_timeout_seconds:g} сек."),
             )
         except (CollectorCancelledError, asyncio.CancelledError) as exc:
-            elapsed_ms = round((perf_counter() - started) * 1000)
+            elapsed_ms = self._elapsed_ms(started)
             return self._failure_execution(
                 provider,
                 AsyncProviderSearchStatus.CANCELLED,
@@ -637,7 +668,7 @@ class AsyncProviderSearchEngine:
                 exc,
             )
         except Exception as exc:
-            elapsed_ms = round((perf_counter() - started) * 1000)
+            elapsed_ms = self._elapsed_ms(started)
             self.health_monitor.register_failure(
                 provider_id,
                 exc,
@@ -658,8 +689,6 @@ class AsyncProviderSearchEngine:
         status: AsyncProviderSearchStatus,
         elapsed_ms: int,
         error: BaseException,
-        *,
-        message: str = "",
     ) -> _Execution:
         failure = classify_search_error(error)
         return _Execution(
@@ -670,15 +699,25 @@ class AsyncProviderSearchEngine:
                 display_name=provider.descriptor.display_name,
                 status=status,
                 elapsed_ms=elapsed_ms,
-                error_type=type(error).__name__,
-                error_message=message or failure.message,
+                error_type=failure.code,
+                error_message=failure.message,
                 error_category=failure.category,
                 error_code=failure.code,
                 attempt_count=failure.attempts,
                 retryable=failure.retryable,
                 http_status=failure.http_status,
+                error_at=failure.occurred_at,
             ),
         )
+
+    def _elapsed_ms(self, started: float) -> int:
+        return max(0, round((self._monotonic_clock() - started) * 1000))
+
+    def _utc_now(self) -> str:
+        moment = self._utcnow()
+        if moment.tzinfo is None or moment.utcoffset() is None:
+            raise ValueError("utcnow must return a timezone-aware datetime")
+        return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
 
     @staticmethod
     def _cancelled_execution(
@@ -728,10 +767,6 @@ def _provider_status_message(
         AsyncProviderSearchStatus.SKIPPED: "Источник пропущен.",
         AsyncProviderSearchStatus.CIRCUIT_OPEN: ("Источник временно отключён после ошибок."),
     }[status]
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 __all__ = [

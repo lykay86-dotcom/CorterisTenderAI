@@ -8,7 +8,7 @@ from concurrent.futures import (
     wait,
 )
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
 from time import perf_counter
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
@@ -145,7 +145,7 @@ class TenderSearchEngine:
         include_disabled: bool = False,
         parallel: bool = True,
     ) -> AggregatedTenderSearchResult:
-        started = datetime.now()
+        started = datetime.now(timezone.utc)
         started_counter = perf_counter()
         entries = self._select_entries(
             provider_ids=provider_ids,
@@ -171,7 +171,7 @@ class TenderSearchEngine:
             provider_priorities={entry.id: entry.priority for entry in entries},
         )
 
-        completed = datetime.now()
+        completed = datetime.now(timezone.utc)
         elapsed_ms = max(
             0,
             int((perf_counter() - started_counter) * 1000),
@@ -222,6 +222,7 @@ class TenderSearchEngine:
             try:
                 execution_by_id[entry.id] = future.result()
             except Exception as exc:
+                failure = _classify_search_error(exc)
                 execution_by_id[entry.id] = _ProviderExecution(
                     entry=entry,
                     result=None,
@@ -230,13 +231,14 @@ class TenderSearchEngine:
                         display_name=(entry.provider.descriptor.display_name),
                         status=ProviderSearchStatus.FAILED,
                         elapsed_ms=0,
-                        error_type=type(exc).__name__,
-                        error_message=str(exc),
+                        error_type=failure.code,
+                        error_message=failure.message,
                     ),
                 )
 
         for future in pending:
             entry = future_map[future]
+            failure = _classify_search_error(TimeoutError())
             future.cancel()
             execution_by_id[entry.id] = _ProviderExecution(
                 entry=entry,
@@ -246,8 +248,8 @@ class TenderSearchEngine:
                     display_name=(entry.provider.descriptor.display_name),
                     status=ProviderSearchStatus.TIMED_OUT,
                     elapsed_ms=int(self.timeout_seconds * 1000),
-                    error_type="TimeoutError",
-                    error_message=(f"Провайдер не завершил поиск за {self.timeout_seconds:g} сек."),
+                    error_type=failure.code,
+                    error_message=failure.message,
                 ),
             )
 
@@ -267,6 +269,7 @@ class TenderSearchEngine:
         try:
             result = provider.search(query)
         except ProviderNotConfiguredError as exc:
+            failure = _classify_search_error(exc)
             return _ProviderExecution(
                 entry=entry,
                 result=None,
@@ -275,11 +278,12 @@ class TenderSearchEngine:
                     display_name=descriptor.display_name,
                     status=ProviderSearchStatus.NOT_CONFIGURED,
                     elapsed_ms=_elapsed_ms(started),
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    error_type=failure.code,
+                    error_message=failure.message,
                 ),
             )
         except ProviderCapabilityError as exc:
+            failure = _classify_search_error(exc)
             return _ProviderExecution(
                 entry=entry,
                 result=None,
@@ -288,11 +292,12 @@ class TenderSearchEngine:
                     display_name=descriptor.display_name,
                     status=ProviderSearchStatus.UNSUPPORTED,
                     elapsed_ms=_elapsed_ms(started),
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    error_type=failure.code,
+                    error_message=failure.message,
                 ),
             )
         except TenderProviderError as exc:
+            failure = _classify_search_error(exc)
             return _ProviderExecution(
                 entry=entry,
                 result=None,
@@ -301,11 +306,12 @@ class TenderSearchEngine:
                     display_name=descriptor.display_name,
                     status=ProviderSearchStatus.FAILED,
                     elapsed_ms=_elapsed_ms(started),
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    error_type=failure.code,
+                    error_message=failure.message,
                 ),
             )
         except Exception as exc:
+            failure = _classify_search_error(exc)
             return _ProviderExecution(
                 entry=entry,
                 result=None,
@@ -314,8 +320,8 @@ class TenderSearchEngine:
                     display_name=descriptor.display_name,
                     status=ProviderSearchStatus.FAILED,
                     elapsed_ms=_elapsed_ms(started),
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    error_type=failure.code,
+                    error_message=failure.message,
                 ),
             )
 
@@ -642,6 +648,12 @@ class TenderSearchEngine:
 
 def _elapsed_ms(started: float) -> int:
     return max(0, int((perf_counter() - started) * 1000))
+
+
+def _classify_search_error(error: BaseException):
+    from app.tenders.collector.search_errors import classify_search_error
+
+    return classify_search_error(error)
 
 
 def _prefer_text(primary: str, secondary: str) -> str:

@@ -11,7 +11,10 @@ import inspect
 import logging
 
 from app.tenders.collector.models import NormalizedTender
-from app.tenders.collector.search_errors import SearchErrorCategory
+from app.tenders.collector.search_errors import (
+    SearchErrorCategory,
+    safe_provider_display_name,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +92,11 @@ class ProviderExecutionSnapshot:
     http_status: int | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "display_name",
+            safe_provider_display_name(self.display_name, provider_id=self.provider_id),
+        )
         if not self.provider_id.strip() or not self.display_name.strip():
             raise ValueError("Provider snapshot identity is required")
         if self.item_count < 0 or self.elapsed_ms < 0 or self.attempt_count < 1:
@@ -177,6 +185,12 @@ class CollectorProgressEvent:
     snapshot: ParallelSearchSnapshot | None = None
 
     def __post_init__(self) -> None:
+        if self.display_name:
+            object.__setattr__(
+                self,
+                "display_name",
+                safe_provider_display_name(self.display_name, provider_id=self.provider_id),
+            )
         integer_fields = (
             self.item_count,
             self.elapsed_ms,
@@ -287,8 +301,8 @@ async def emit_collector_progress(
         if inspect.isawaitable(result):
             await result
     except Exception:
-        _LOGGER.exception(
-            "Collector progress callback failed during %s",
+        _LOGGER.warning(
+            "Collector progress callback failed safely during %s",
             event.phase.value,
         )
 

@@ -277,29 +277,42 @@ def test_partial_failure_and_invalid_result_are_not_reported_as_success(tmp_path
     assert "ошибками" in dialog.status_label.text().casefold()
 
     assert controller.try_start_collector("all-corteris", ("eis",)) is True
-    controller._on_collector_failed("RuntimeError", "bounded failure")
+    controller._on_collector_failed(
+        "provider_internal_error",
+        (
+            "RM140_SECRET_SENTINEL "
+            "https://user:RM140_SECRET_SENTINEL@example.test/path?token=RM140_SECRET_SENTINEL"
+        ),
+    )
     assert controller._collector_worker is None
     assert "ошибкой" in panel.status_label.text().casefold()
-    assert "bounded failure" in dialog.status_label.text()
+    assert "безопасно скрытой ошибкой" in dialog.status_label.text()
+    assert "RM140_SECRET_SENTINEL" not in dialog.status_label.text()
+    notification_payload = (tmp_path / "collector_notifications.json").read_text(encoding="utf-8")
+    assert "RM140_SECRET_SENTINEL" not in notification_payload
+    assert "example.test" not in notification_payload
 
     assert controller.try_start_collector("all-corteris", ("eis",)) is True
     controller._on_collector_succeeded(object())
     assert controller._collector_worker is None
-    assert "неподдерживаемый результат" in panel.status_label.text().casefold()
+    assert "безопасно скрытой ошибкой" in panel.status_label.text().casefold()
 
 
 def test_collector_worker_emits_only_safe_typed_failure() -> None:
     _app()
-    worker = _CollectorRunWorker(FailingCollectorSession(), object(), ("eis",))
-    failures: list[tuple[str, str]] = []
-    worker.signals.failed.connect(lambda code, message: failures.append((code, message)))
+    worker = _CollectorRunWorker(FailingCollectorSession(), object(), ("eis",), 7)
+    failures: list[tuple[int, str, str]] = []
+    worker.signals.failed.connect(
+        lambda generation, code, message: failures.append((generation, code, message))
+    )
 
     worker.run()
 
     assert failures == [
         (
+            7,
             "provider_internal_error",
             "Источник завершил поиск с безопасно скрытой ошибкой.",
         )
     ]
-    assert "ui-secret" not in failures[0][1]
+    assert "ui-secret" not in failures[0][2]

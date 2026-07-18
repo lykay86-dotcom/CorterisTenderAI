@@ -14,7 +14,7 @@ class NoNetworkTransport:
         raise AssertionError("Runtime creation must not use network")
 
 
-def test_runtime_builds_repository_registry_and_runner(tmp_path) -> None:
+def test_runtime_builds_production_services_without_legacy_search_owners(tmp_path) -> None:
     transport = NoNetworkTransport()
 
     runtime = create_tender_search_runtime(
@@ -28,10 +28,9 @@ def test_runtime_builds_repository_registry_and_runner(tmp_path) -> None:
     assert runtime.repository.path == (tmp_path / "data" / "search_profiles.json")
     assert len(runtime.repository.list_profiles()) == 7
     assert runtime.registry.get("eis").descriptor.id == "eis"
-    assert runtime.engine.max_workers == 3
-    assert runtime.engine.timeout_seconds == 12
-    assert runtime.runner.repository is runtime.repository
-    assert runtime.runner.search_service is runtime.search_service
+    assert runtime.engine is None
+    assert runtime.search_service is None
+    assert runtime.runner is None
     assert runtime.ai_orchestrator is not None
     assert callable(runtime.ai_orchestrator.recheck)
     assert (

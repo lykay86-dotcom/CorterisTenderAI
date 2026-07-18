@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -81,6 +83,7 @@ class TenderSearchRunRecord:
     rejected_count: int
     provider_count: int
     elapsed_ms: int
+    timezone_status: str = "unknown"
 
 
 class TenderRegistrySort(StrEnum):
@@ -124,6 +127,7 @@ class TenderRegistryOccurrence:
     directions: tuple[str, ...]
     reasons: tuple[str, ...]
     rejection_reasons: tuple[str, ...]
+    timezone_status: str = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,108 +148,119 @@ class TenderRegistryRepository:
         self.path = Path(path).expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
+        self._initialized = False
 
     def initialize(self) -> None:
-        with self._lock, self._connect() as connection:
-            connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS tender_registry_meta (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                );
+        with self._lock:
+            if self._initialized:
+                return
+            with self._connect() as connection:
+                connection.execute("PRAGMA journal_mode = WAL")
+                self._initialize_schema(connection)
+            self._initialized = True
 
-                CREATE TABLE IF NOT EXISTS tender_records (
-                    registry_key TEXT PRIMARY KEY,
-                    procurement_number TEXT NOT NULL,
-                    identity_key TEXT NOT NULL,
-                    source TEXT NOT NULL,
-                    external_id TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    customer_name TEXT NOT NULL,
-                    customer_inn TEXT NOT NULL DEFAULT '',
-                    customer_kpp TEXT NOT NULL DEFAULT '',
-                    customer_region TEXT NOT NULL DEFAULT '',
-                    region TEXT NOT NULL DEFAULT '',
-                    price_amount TEXT,
-                    currency TEXT NOT NULL DEFAULT '',
-                    includes_vat INTEGER,
-                    status TEXT NOT NULL,
-                    procedure_type TEXT NOT NULL,
-                    law TEXT NOT NULL DEFAULT '',
-                    published_at TEXT NOT NULL DEFAULT '',
-                    application_deadline TEXT NOT NULL DEFAULT '',
-                    execution_deadline TEXT NOT NULL DEFAULT '',
-                    source_url TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    first_seen_at TEXT NOT NULL,
-                    last_seen_at TEXT NOT NULL,
-                    seen_count INTEGER NOT NULL DEFAULT 1,
-                    last_relevance_score INTEGER NOT NULL DEFAULT 0,
-                    last_relevance_grade TEXT NOT NULL DEFAULT 'excluded',
-                    last_accepted INTEGER NOT NULL DEFAULT 0,
-                    archived INTEGER NOT NULL DEFAULT 0
-                );
+    def _initialize_schema(self, connection: sqlite3.Connection) -> None:
+        """Create the stable registry schema inside one owned connection."""
 
-                CREATE INDEX IF NOT EXISTS idx_tender_records_number
-                    ON tender_records(procurement_number COLLATE NOCASE);
-                CREATE INDEX IF NOT EXISTS idx_tender_records_deadline
-                    ON tender_records(application_deadline);
-                CREATE INDEX IF NOT EXISTS idx_tender_records_score
-                    ON tender_records(last_relevance_score DESC);
-                CREATE INDEX IF NOT EXISTS idx_tender_records_seen
-                    ON tender_records(last_seen_at DESC);
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS tender_registry_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
 
-                CREATE TABLE IF NOT EXISTS tender_search_runs (
-                    run_id TEXT PRIMARY KEY,
-                    profile_id TEXT NOT NULL,
-                    profile_name TEXT NOT NULL,
-                    executed_at TEXT NOT NULL,
-                    saved_at TEXT NOT NULL,
-                    raw_item_count INTEGER NOT NULL,
-                    merged_item_count INTEGER NOT NULL,
-                    duplicate_count INTEGER NOT NULL,
-                    accepted_count INTEGER NOT NULL,
-                    rejected_count INTEGER NOT NULL,
-                    provider_count INTEGER NOT NULL,
-                    completed_provider_count INTEGER NOT NULL,
-                    elapsed_ms INTEGER NOT NULL,
-                    provider_outcomes_json TEXT NOT NULL
-                );
+            CREATE TABLE IF NOT EXISTS tender_records (
+                registry_key TEXT PRIMARY KEY,
+                procurement_number TEXT NOT NULL,
+                identity_key TEXT NOT NULL,
+                source TEXT NOT NULL,
+                external_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                customer_name TEXT NOT NULL,
+                customer_inn TEXT NOT NULL DEFAULT '',
+                customer_kpp TEXT NOT NULL DEFAULT '',
+                customer_region TEXT NOT NULL DEFAULT '',
+                region TEXT NOT NULL DEFAULT '',
+                price_amount TEXT,
+                currency TEXT NOT NULL DEFAULT '',
+                includes_vat INTEGER,
+                status TEXT NOT NULL,
+                procedure_type TEXT NOT NULL,
+                law TEXT NOT NULL DEFAULT '',
+                published_at TEXT NOT NULL DEFAULT '',
+                application_deadline TEXT NOT NULL DEFAULT '',
+                execution_deadline TEXT NOT NULL DEFAULT '',
+                source_url TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                seen_count INTEGER NOT NULL DEFAULT 1,
+                last_relevance_score INTEGER NOT NULL DEFAULT 0,
+                last_relevance_grade TEXT NOT NULL DEFAULT 'excluded',
+                last_accepted INTEGER NOT NULL DEFAULT 0,
+                archived INTEGER NOT NULL DEFAULT 0
+            );
 
-                CREATE INDEX IF NOT EXISTS idx_tender_runs_profile
-                    ON tender_search_runs(profile_id, executed_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_tender_records_number
+                ON tender_records(procurement_number COLLATE NOCASE);
+            CREATE INDEX IF NOT EXISTS idx_tender_records_deadline
+                ON tender_records(application_deadline);
+            CREATE INDEX IF NOT EXISTS idx_tender_records_score
+                ON tender_records(last_relevance_score DESC);
+            CREATE INDEX IF NOT EXISTS idx_tender_records_seen
+                ON tender_records(last_seen_at DESC);
 
-                CREATE TABLE IF NOT EXISTS tender_search_run_items (
-                    run_id TEXT NOT NULL,
-                    registry_key TEXT NOT NULL,
-                    accepted INTEGER NOT NULL,
-                    relevance_score INTEGER NOT NULL,
-                    relevance_grade TEXT NOT NULL,
-                    directions_json TEXT NOT NULL,
-                    reasons_json TEXT NOT NULL,
-                    rejection_reasons_json TEXT NOT NULL,
-                    position INTEGER NOT NULL,
-                    PRIMARY KEY (run_id, registry_key),
-                    FOREIGN KEY (run_id)
-                        REFERENCES tender_search_runs(run_id)
-                        ON DELETE CASCADE,
-                    FOREIGN KEY (registry_key)
-                        REFERENCES tender_records(registry_key)
-                        ON DELETE CASCADE
-                );
+            CREATE TABLE IF NOT EXISTS tender_search_runs (
+                run_id TEXT PRIMARY KEY,
+                profile_id TEXT NOT NULL,
+                profile_name TEXT NOT NULL,
+                executed_at TEXT NOT NULL,
+                saved_at TEXT NOT NULL,
+                raw_item_count INTEGER NOT NULL,
+                merged_item_count INTEGER NOT NULL,
+                duplicate_count INTEGER NOT NULL,
+                accepted_count INTEGER NOT NULL,
+                rejected_count INTEGER NOT NULL,
+                provider_count INTEGER NOT NULL,
+                completed_provider_count INTEGER NOT NULL,
+                elapsed_ms INTEGER NOT NULL,
+                provider_outcomes_json TEXT NOT NULL
+            );
 
-                CREATE INDEX IF NOT EXISTS idx_tender_run_items_registry
-                    ON tender_search_run_items(registry_key);
-                """
-            )
-            connection.execute(
-                """
-                INSERT INTO tender_registry_meta(key, value)
-                VALUES('schema_version', ?)
-                ON CONFLICT(key) DO UPDATE SET value=excluded.value
-                """,
-                (str(self.SCHEMA_VERSION),),
-            )
+            CREATE INDEX IF NOT EXISTS idx_tender_runs_profile
+                ON tender_search_runs(profile_id, executed_at DESC);
+
+            CREATE TABLE IF NOT EXISTS tender_search_run_items (
+                run_id TEXT NOT NULL,
+                registry_key TEXT NOT NULL,
+                accepted INTEGER NOT NULL,
+                relevance_score INTEGER NOT NULL,
+                relevance_grade TEXT NOT NULL,
+                directions_json TEXT NOT NULL,
+                reasons_json TEXT NOT NULL,
+                rejection_reasons_json TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                PRIMARY KEY (run_id, registry_key),
+                FOREIGN KEY (run_id)
+                    REFERENCES tender_search_runs(run_id)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (registry_key)
+                    REFERENCES tender_records(registry_key)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_tender_run_items_registry
+                ON tender_search_run_items(registry_key);
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO tender_registry_meta(key, value)
+            VALUES('schema_version', ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
+            (str(self.SCHEMA_VERSION),),
+        )
 
     def record_profile_run(
         self,
@@ -259,7 +274,9 @@ class TenderRegistryRepository:
         self.initialize()
         effective_run_id = run_id or uuid4().hex
         saved_timestamp = _iso_timestamp(saved_at)
-        executed_at = run.executed_at or saved_timestamp
+        executed_at = (
+            _aware_utc_timestamp_text(run.executed_at) if run.executed_at else saved_timestamp
+        )
 
         evaluated = _unique_evaluated(
             (
@@ -587,6 +604,7 @@ class TenderRegistryRepository:
                 rejected_count=int(row["rejected_count"]),
                 provider_count=int(row["provider_count"]),
                 elapsed_ms=int(row["elapsed_ms"]),
+                timezone_status=legacy_timestamp_status(str(row["executed_at"])),
             )
             for row in rows
         )
@@ -746,6 +764,7 @@ class TenderRegistryRepository:
                 directions=_json_string_tuple(row["directions_json"]),
                 reasons=_json_string_tuple(row["reasons_json"]),
                 rejection_reasons=_json_string_tuple(row["rejection_reasons_json"]),
+                timezone_status=legacy_timestamp_status(str(row["executed_at"])),
             )
             for row in rows
         )
@@ -794,23 +813,27 @@ class TenderRegistryRepository:
             )
         return cursor.rowcount > 0
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(
             self.path,
             timeout=10.0,
             isolation_level=None,
         )
-        connection.row_factory = sqlite3.Row
-        connection.create_function(
-            "CASEFOLD",
-            1,
-            lambda value: str(value or "").casefold(),
-            deterministic=True,
-        )
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA busy_timeout = 10000")
-        connection.execute("PRAGMA journal_mode = WAL")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.create_function(
+                "CASEFOLD",
+                1,
+                lambda value: str(value or "").casefold(),
+                deterministic=True,
+            )
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("PRAGMA busy_timeout = 10000")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
 
 def _registry_query_conditions(
@@ -1121,9 +1144,29 @@ def _optional_iso(value: datetime | date | None) -> str:
 
 def _iso_timestamp(value: datetime | None) -> str:
     moment = value or datetime.now(timezone.utc)
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("run timestamp must be timezone-aware")
     return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _aware_utc_timestamp_text(value: str) -> str:
+    try:
+        moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("run timestamp must be a valid timezone-aware datetime") from exc
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("run timestamp must be timezone-aware")
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def legacy_timestamp_status(value: str) -> str:
+    try:
+        moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return "invalid"
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        return "unknown"
+    return "explicit"
 
 
 def _json_dumps(value: object) -> str:
@@ -1161,5 +1204,6 @@ __all__ = [
     "TenderRegistryStatistics",
     "TenderSearchRunRecord",
     "normalize_registry_component",
+    "legacy_timestamp_status",
     "tender_registry_key",
 ]

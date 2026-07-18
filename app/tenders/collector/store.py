@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +28,7 @@ from app.tenders.collector.participation_score import (
     CorterisParticipationScore,
     ParticipationRecommendation,
 )
+from app.tenders.collector.search_errors import safe_search_error_fields
 from app.tenders.collector.freshness import (
     DeadlineTimezoneStatus,
     FreshnessBatchResult,
@@ -85,11 +88,17 @@ class CollectorStateRepository:
         self.change_tracker = change_tracker or TenderChangeTracker()
         self.migrator = migrator or CollectorSchemaMigrator()
         self._lock = RLock()
+        self._initialized = False
 
     def initialize(self) -> None:
-        TenderRegistryRepository(self.path).initialize()
-        with self._lock, self._connect() as connection:
-            self.migrator.migrate(connection)
+        with self._lock:
+            if self._initialized:
+                return
+            TenderRegistryRepository(self.path).initialize()
+            with self._connect() as connection:
+                connection.execute("PRAGMA journal_mode = WAL")
+                self.migrator.migrate(connection)
+            self._initialized = True
 
     def start_run(
         self,
@@ -101,7 +110,7 @@ class CollectorStateRepository:
     ) -> str:
         self.initialize()
         effective_id = run_id or uuid4().hex
-        moment = started_at or _utc_now()
+        moment = _aware_utc_timestamp(started_at or _utc_now())
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
@@ -138,7 +147,7 @@ class CollectorStateRepository:
         freshness: FreshnessBatchResult | None = None,
     ) -> CollectionPersistenceSummary:
         self.initialize()
-        moment = observed_at or _utc_now()
+        moment = _aware_utc_timestamp(observed_at or _utc_now())
         new_count = 0
         unchanged_count = 0
         changed_count = 0
@@ -404,12 +413,17 @@ class CollectorStateRepository:
         outcomes = tuple(provider_outcomes)
         successful = sum(bool(getattr(outcome, "successful", False)) for outcome in outcomes)
         failed = len(outcomes) - successful
-        moment = completed_at or _utc_now()
+        moment = _aware_utc_timestamp(completed_at or _utc_now())
         safe_run_code = error_code.strip()
         safe_run_message = error_message.strip()
         if error is not None and not safe_run_code:
             safe_run_code = "collector_internal_error"
             safe_run_message = "Сбор завершился с безопасно скрытой ошибкой."
+        if safe_run_code or safe_run_message:
+            safe_run_code, safe_run_message = safe_search_error_fields(
+                safe_run_code,
+                default_code="collector_internal_error",
+            )
 
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -521,20 +535,27 @@ class CollectorStateRepository:
                 ).fetchall()
         except sqlite3.Error:
             return ()
-        return tuple(
-            ProviderRunOutcomeRecord(
-                run_id=str(row["run_id"]),
-                provider_id=str(row["provider_id"]).strip().casefold(),
-                status=str(row["status"]),
-                completed_at=str(row["completed_at"]),
-                error_code=str(row["error_type"]),
-                error_message=str(row["error_message"]),
-                item_count=max(0, int(row["item_count"])),
-                elapsed_ms=max(0, int(row["elapsed_ms"])),
+        result: list[ProviderRunOutcomeRecord] = []
+        for row in rows:
+            if not str(row["run_id"]).strip() or not str(row["provider_id"]).strip():
+                continue
+            code = str(row["error_type"])
+            safe_code, safe_message = (
+                ("", "") if not code.strip() else safe_search_error_fields(code)
             )
-            for row in rows
-            if str(row["run_id"]).strip() and str(row["provider_id"]).strip()
-        )
+            result.append(
+                ProviderRunOutcomeRecord(
+                    run_id=str(row["run_id"]),
+                    provider_id=str(row["provider_id"]).strip().casefold(),
+                    status=str(row["status"]),
+                    completed_at=str(row["completed_at"]),
+                    error_code=safe_code,
+                    error_message=safe_message,
+                    item_count=max(0, int(row["item_count"])),
+                    elapsed_ms=max(0, int(row["elapsed_ms"])),
+                )
+            )
+        return tuple(result)
 
     def list_changes(
         self,
@@ -2556,25 +2577,34 @@ class CollectorStateRepository:
             ),
         )
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(
             self.path,
             timeout=10.0,
             isolation_level=None,
         )
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA busy_timeout = 10000")
-        connection.execute("PRAGMA journal_mode = WAL")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("PRAGMA busy_timeout = 10000")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
-    def _connect_readonly(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect_readonly(self) -> Iterator[sqlite3.Connection]:
         uri = f"file:{self.path.resolve().as_posix()}?mode=ro"
         connection = sqlite3.connect(uri, uri=True, timeout=10.0, isolation_level=None)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA query_only = ON")
-        connection.execute("PRAGMA busy_timeout = 10000")
-        return connection
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA query_only = ON")
+            connection.execute("PRAGMA busy_timeout = 10000")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
 
 def _source_payloads(item: NormalizedTender) -> tuple[dict[str, str], ...]:
@@ -2766,10 +2796,7 @@ def _safe_outcome_error(outcome: object) -> tuple[str, str]:
     if bool(getattr(outcome, "successful", False)):
         return "", ""
     code = str(getattr(outcome, "error_code", "")).strip()
-    if not code:
-        return "provider_error", "Источник завершил поиск с безопасно скрытой ошибкой."
-    message = str(getattr(outcome, "error_message", "")).strip()
-    return code, message or "Источник завершил поиск с безопасно скрытой ошибкой."
+    return safe_search_error_fields(code, default_code="provider_internal_error")
 
 
 def _enum_value(value: object) -> str:
@@ -2791,6 +2818,16 @@ def _verification_storage_id(
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _aware_utc_timestamp(value: str) -> str:
+    try:
+        moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("run timestamp must be a valid timezone-aware datetime") from exc
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("run timestamp must be timezone-aware")
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
 
 
 __all__ = ["CollectorStateRepository"]

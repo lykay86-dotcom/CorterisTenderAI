@@ -269,6 +269,11 @@ class ModernMainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Stop the background work owned by the modern shell."""
+        tender_search = getattr(self, "_tender_search_ui_controller", None)
+        shutdown_tender_search = getattr(tender_search, "shutdown", None)
+        if callable(shutdown_tender_search) and not shutdown_tender_search():
+            event.ignore()
+            return
         try:
             self.dashboard_controller.shutdown()
         finally:

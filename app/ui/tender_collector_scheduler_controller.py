@@ -21,6 +21,7 @@ from app.tenders.collector.notifications import (
     CollectorNotificationRepository,
     CollectorNotificationService,
 )
+from app.tenders.collector.search_errors import safe_search_error_fields
 from app.tenders.collector.provider_control import (
     CollectorProviderManager,
 )
@@ -96,6 +97,7 @@ class TenderCollectorSchedulerUiController(QObject):
         self._schedule_dialog: TenderCollectorScheduleDialog | None = None
         self._notifications_dialog: TenderCollectorNotificationsDialog | None = None
         self._scheduled_active = False
+        self._shutdown = False
 
         self.schedule_action = QAction(
             "Планировщик тендеров…",
@@ -145,7 +147,7 @@ class TenderCollectorSchedulerUiController(QObject):
             if self.notifications_action not in main_window.actions():
                 main_window.addAction(self.notifications_action)
 
-        if not self.timer.isActive():
+        if not self._shutdown and not self.timer.isActive():
             self.timer.start()
             QTimer.singleShot(
                 1500,
@@ -203,10 +205,10 @@ class TenderCollectorSchedulerUiController(QObject):
             return
         try:
             self.scheduler.update_settings(value)
-        except Exception as exc:
+        except Exception:
             if self._schedule_dialog is not None:
                 self._schedule_dialog.set_status(
-                    f"Не удалось сохранить: {exc}",
+                    "Не удалось безопасно сохранить расписание.",
                     error=True,
                 )
             return
@@ -240,23 +242,26 @@ class TenderCollectorSchedulerUiController(QObject):
 
     @Slot()
     def check_startup_run(self) -> None:
+        if self._shutdown:
+            return
         request = self.scheduler.startup_request()
         if request is not None:
             self._start_scheduled(request)
 
     @Slot()
     def poll(self) -> None:
+        if self._shutdown:
+            return
         freshness_due_at = ""
         try:
             due_items = self.freshness_repository.list_due_reverification(limit=1)
             if due_items:
                 freshness_due_at = due_items[0].verification_due_at or due_items[0].updated_at
-        except Exception as exc:
+        except Exception:
             # The regular schedule must remain operational even when the
             # registry is temporarily locked or has not been created yet.
             LOGGER.warning(
-                "Freshness queue is temporarily unavailable: %s",
-                exc,
+                "Freshness queue is temporarily unavailable (safe_error).",
             )
             freshness_due_at = ""
         request = self.scheduler.poll(
@@ -271,6 +276,8 @@ class TenderCollectorSchedulerUiController(QObject):
         self,
         request: ScheduledCollectorRequest,
     ) -> None:
+        if self._shutdown:
+            return
         if self.is_collector_busy():
             return
         self.scheduler.mark_started(request)
@@ -310,16 +317,18 @@ class TenderCollectorSchedulerUiController(QObject):
         self,
         message: str,
     ) -> None:
+        safe_code, safe_message = safe_search_error_fields(message.partition(":")[0])
+        rendered = f"{safe_code}: {safe_message}"
         if self._scheduled_active:
             self.scheduler.mark_finished(
                 "failed",
-                error=message,
+                error=rendered,
             )
             self._scheduled_active = False
         settings, _ = self.scheduler.snapshot()
         self._publish(
             self.notification_service.for_failure(
-                message,
+                rendered,
                 settings,
             )
         )
@@ -400,6 +409,16 @@ class TenderCollectorSchedulerUiController(QObject):
         )
         if callable(method):
             method()
+
+    def shutdown(self) -> None:
+        """Stop scheduler admission and its owned timer idempotently."""
+
+        if self._shutdown:
+            return
+        self._shutdown = True
+        self.timer.stop()
+        self._scheduled_active = False
+        self.schedule_action.setEnabled(False)
 
 
 __all__ = ["TenderCollectorSchedulerUiController"]
