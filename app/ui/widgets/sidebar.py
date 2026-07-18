@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
+from app.ui.navigation import DEFAULT_ROUTE_REGISTRY, RouteRegistry, RouteSpec
 
 
 @dataclass(slots=True, frozen=True)
@@ -17,9 +20,9 @@ class Sidebar(QWidget):
 
     item_selected = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._buttons = {}
+        self._buttons: dict[str, QPushButton] = {}
         self._current = ""
         self.setMinimumWidth(250)
 
@@ -39,19 +42,23 @@ class Sidebar(QWidget):
         footer.addWidget(QLabel("v1.3"))
         layout.addLayout(footer)
 
-    def add_item(self, item: SidebarItem):
+    def add_item(self, item: SidebarItem) -> None:
         btn = QPushButton(f"{item.icon}  {item.title}")
         btn.setCheckable(True)
         btn.clicked.connect(lambda _, k=item.key: self.select(k))
         self._buttons[item.key] = btn
         self._container.addWidget(btn)
 
-    def select(self, key: str):
-        if key not in self._buttons:
-            return
+    def set_current(self, key: str) -> None:
+        """Update the visible primary item without emitting a new intent."""
         for k, b in self._buttons.items():
             b.setChecked(k == key)
-        self._current = key
+        if key in self._buttons:
+            self._current = key
+
+    def select(self, key: str) -> None:
+        """Emit a legacy/canonical intent, including hidden compatibility aliases."""
+        self.set_current(key)
         self.item_selected.emit(key)
 
     @property
@@ -59,21 +66,26 @@ class Sidebar(QWidget):
         return self._current
 
 
-def create_default_sidebar() -> Sidebar:
+def _primary_sidebar_key(spec: RouteSpec) -> str:
+    if spec.aliases:
+        return spec.aliases[0]
+    return spec.route_id.value.rsplit(".", 1)[-1]
+
+
+def create_default_sidebar(
+    registry: RouteRegistry = DEFAULT_ROUTE_REGISTRY,
+) -> Sidebar:
     sb = Sidebar()
-    for key, title, icon in [
-        ("dashboard", "Dashboard", "🏠"),
-        ("tenders", "Тендеры", "🔎"),
-        ("ai", "AI Анализ", "🤖"),
-        ("quotes", "КП", "📄"),
-        ("estimates", "Сметы", "📊"),
-        ("documents", "Документы", "📂"),
-        ("clients", "Клиенты", "👥"),
-        ("analytics", "Аналитика", "📈"),
-        ("settings", "Настройки", "⚙"),
-    ]:
-        sb.add_item(SidebarItem(key, title, icon))
-    sb.select("dashboard")
+    for spec in registry.primary_routes:
+        sb.add_item(
+            SidebarItem(
+                key=_primary_sidebar_key(spec),
+                title=spec.title,
+                icon=spec.icon,
+            )
+        )
+    if registry.primary_routes:
+        sb.set_current(_primary_sidebar_key(registry.primary_routes[0]))
     return sb
 
 
