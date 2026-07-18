@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -116,6 +117,27 @@ from app.ui.widgets.button import (
     PrimaryButton,
     SecondaryButton,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowNavigationState:
+    """Presentation-only workflow filters and stable selection identity."""
+
+    search_text: str = ""
+    kind: str = ""
+    status: str = ""
+    archive_mode: str = WorkflowArchiveMode.ACTIVE.value
+    record_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"", *(kind.value for kind in BusinessRecordKind)}:
+            raise ValueError("Unknown workflow kind")
+        if self.status not in {"", *(status.value for status in BusinessStatus)}:
+            raise ValueError("Unknown workflow status")
+        if self.archive_mode not in {mode.value for mode in WorkflowArchiveMode}:
+            raise ValueError("Unknown workflow archive mode")
+        if self.record_id is not None and not str(self.record_id).strip():
+            raise ValueError("Workflow record identity must not be blank")
 
 
 class BusinessWorkflowPage(QWidget):
@@ -686,6 +708,39 @@ class BusinessWorkflowPage(QWidget):
     @property
     def selected_record(self) -> BusinessWorkflowRecord | None:
         return self._selected_record
+
+    def capture_navigation_state(self) -> WorkflowNavigationState:
+        """Capture current filters without retaining a repository record."""
+        return WorkflowNavigationState(
+            search_text=self.search_edit.text(),
+            kind=str(self.kind_filter.currentData() or ""),
+            status=str(self.status_filter.currentData() or ""),
+            archive_mode=str(self.archive_filter.currentData() or WorkflowArchiveMode.ACTIVE.value),
+            record_id=(self._selected_record.id if self._selected_record is not None else None),
+        )
+
+    def apply_navigation_state(self, state: WorkflowNavigationState) -> None:
+        """Restore filters and select only an exact still-visible stable ID."""
+        if not isinstance(state, WorkflowNavigationState):
+            raise TypeError("Workflow navigation requires WorkflowNavigationState")
+
+        self.search_edit.setText(state.search_text)
+        self._set_filter_value(self.kind_filter, state.kind)
+        self._set_filter_value(self.status_filter, state.status)
+        self._set_filter_value(self.archive_filter, state.archive_mode)
+
+        if state.record_id is not None and self._select_record_id(state.record_id):
+            return
+        self.table.clearSelection()
+        self.table.setCurrentIndex(self.proxy.index(-1, -1))
+        self._set_selected_record(None)
+
+    @staticmethod
+    def _set_filter_value(combo: QComboBox, value: str) -> None:
+        index = combo.findData(value)
+        if index < 0:
+            raise ValueError("Workflow navigation filter is unavailable")
+        combo.setCurrentIndex(index)
 
     def refresh(
         self,
@@ -2205,6 +2260,7 @@ class BusinessWorkflowPage(QWidget):
             self.table.setCurrentIndex(proxy_index)
             self.table.selectRow(proxy_index.row())
             self.table.scrollTo(proxy_index)
+            self._set_selected_record(record)
             return True
         return False
 
@@ -2224,4 +2280,4 @@ class BusinessWorkflowPage(QWidget):
         return f"{amount:,.0f} ₽".replace(",", " ")
 
 
-__all__ = ["BusinessWorkflowPage"]
+__all__ = ["BusinessWorkflowPage", "WorkflowNavigationState"]

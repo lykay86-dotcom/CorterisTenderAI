@@ -24,21 +24,26 @@ class TopBar(QWidget):
         self.page_title = QLabel("Dashboard")
 
         self.search = QLineEdit()
+        self.search.setObjectName("TopBarTenderSearch")
         self.search.setPlaceholderText("Поиск тендеров…")
         self.search.setToolTip("Запустить поиск тендеров по выбранному профилю и источникам")
         self.search.returnPressed.connect(lambda: self.search_requested.emit(self.search.text()))
         self.search.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.ai_button = self._btn("🤖", "AI")
+        self.ai_button.setObjectName("TopBarAiButton")
         self.ai_button.clicked.connect(self.ai_clicked)
 
         self.notify_button = self._btn("🔔", "Уведомления")
+        self.notify_button.setObjectName("TopBarNotificationsButton")
         self.notify_button.clicked.connect(self.notifications_clicked)
 
         self.theme_button = self._btn("🌙", "Тема")
+        self.theme_button.setObjectName("TopBarThemeButton")
         self.theme_button.clicked.connect(self.theme_toggled)
 
         self.profile_button = self._btn("👤", "Профиль")
+        self.profile_button.setObjectName("TopBarProfileButton")
         self.profile_button.clicked.connect(self.profile_clicked)
 
         layout.addWidget(self.page_title)
