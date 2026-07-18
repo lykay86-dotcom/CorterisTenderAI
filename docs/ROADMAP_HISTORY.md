@@ -1,5 +1,29 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-18 — RM-141 завершён, RM-142 активирован
+
+- Шесть обязательных audit-документов зафиксировали production composition и owner map,
+  68 UI modules / 28 910 строк, navigation as-is, 16 user journeys, redesign handoff и acceptance.
+- Read-only deterministic inventory и table-model benchmark добавлены без изменения `app/`,
+  dependencies, DB schema/migrations, navigation/theme или production behavior.
+- Зарегистрированы 17 findings: P0 — 0, P1 — 0, P2 — 16, P3 — 1. Каждый actionable finding
+  назначен ровно одному primary RM из RM-142–RM-155; недоступные DPI/screen-reader/visual cases
+  честно отмечены `NOT_EXECUTED`.
+- Локальная acceptance: secret scan, Ruff/format (`632 files`), mypy, mandatory offline/migration/
+  composition/build selection (`14 passed in 19.32s`), UI contour
+  (`302 passed, 2 warnings in 81.39s`) и full pytest
+  (`1946 passed, 2 warnings in 165.52s`) успешны.
+- Audit PR #90 на head `f5de117d15265fb1529df346e577f571b1ccc838` слит merge commit
+  `a2e8d0528a1b9c6378a543a5c9f2c5b762483c63`.
+- PR Quality Gate run `29654916158` успешен: Python 3.12 — `3m59s`, Python 3.13 — `4m21s`.
+  Exact merge-SHA push run `29655095879` успешен: Python 3.12 — `3m46s`, Python 3.13 — `4m36s`;
+  dependency audit и все обязательные jobs завершились `success`.
+- Non-blocking official-actions annotation о Node.js 20/24 остаётся отдельной CI maintenance
+  задачей и не влияет на RM-141 acceptance.
+- Deterministic score/recommendation/critical stop-factor priority и AI decision boundary не
+  изменены. RM-141 переведён в `DONE`; RM-142 назначен единственным `IN PROGRESS`,
+  RM-143–RM-200 остаются `PLANNED`.
+
 ## 2026-07-18 — RM-140 завершён, RM-141 активирован
 
 - Audit/contract/plan зафиксированы commit `30b2f4a` до application changes; characterization —
