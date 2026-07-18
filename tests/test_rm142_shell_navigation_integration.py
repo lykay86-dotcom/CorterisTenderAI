@@ -4,22 +4,35 @@ from __future__ import annotations
 
 import os
 import socket
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QStackedWidget, QWidget
 
 from app.ui.navigation import (
     NavigationCause,
     NavigationStatus,
+    RouteContext,
     RouteId,
     RouteRequest,
 )
+from app.ui.pages.business_workflow_page import WorkflowNavigationState
 from app.ui.widgets.dashboard_layout import DashboardLayout
+from tests.test_rm127_modern_main_window_composition import _window as _rm127_window
 
 
 def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
+
+
+def _window(monkeypatch):
+    monkeypatch.setattr(
+        "app.ui.pages.business_workflow_page.SystemHealthMonitor.request_refresh",
+        lambda _self: False,
+    )
+    return _rm127_window(monkeypatch)
 
 
 def _layout() -> tuple[DashboardLayout, dict[str, QWidget]]:
@@ -98,3 +111,134 @@ def test_registry_and_layout_composition_are_offline(monkeypatch) -> None:
     result = layout.navigate(RouteRequest("tenders", cause=NavigationCause.SIDEBAR))
 
     assert result.status is NavigationStatus.NAVIGATED
+
+
+def test_production_shell_has_three_primary_areas_and_no_placeholder_pages(monkeypatch) -> None:
+    app = _app()
+    window = _window(monkeypatch)
+
+    assert tuple(window.workspace.sidebar._buttons) == ("dashboard", "tenders", "workflow")
+    assert tuple(window.workspace._page_index) == (
+        "dashboard",
+        "tenders",
+        "quotes",
+        "estimates",
+    )
+    assert window.workspace.pages.count() == 4
+
+    window.workspace.sidebar.select("ai")
+    assert window.workspace.current_snapshot is not None
+    assert window.workspace.current_snapshot.route_id is RouteId.TENDER_AI
+    assert window.workspace.pages.currentWidget() is window.tender_workspace_page
+    assert (
+        window.tender_workspace_page.tabs.currentIndex()
+        == window.tender_workspace_page._section_indexes["settings"]
+    )
+    assert (
+        window.tender_workspace_page.settings_tabs.currentIndex()
+        == window.tender_workspace_page._settings_section_indexes["ai"]
+    )
+
+    window.workspace.sidebar.select("analytics")
+    assert window.workspace.last_navigation_result.status is NavigationStatus.UNAVAILABLE
+    assert window.workspace.pages.currentWidget() is window.tender_workspace_page
+
+    window.close()
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_dashboard_actions_and_back_preserve_workflow_intent(monkeypatch) -> None:
+    app = _app()
+    window = _window(monkeypatch)
+
+    window.dashboard_page.create_proposal_requested.emit()
+    assert window.workspace.current_snapshot is not None
+    assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW_PROPOSALS
+    assert window.workspace.pages.currentWidget() is window.quotes_page
+    assert window.quotes_page.kind_filter.currentData() == "proposal"
+
+    window.quotes_page.search_edit.setText("камера")
+    window.dashboard_page.find_tenders_requested.emit()
+    assert window.workspace.current_snapshot.route_id is RouteId.TENDERS
+
+    returned = window.workspace.back()
+    assert returned.status is NavigationStatus.NAVIGATED
+    assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW_PROPOSALS
+    assert window.quotes_page.search_edit.text() == "камера"
+
+    window.quotes_page.apply_navigation_state(
+        WorkflowNavigationState(kind="proposal", record_id=None)
+    )
+    window._navigate(
+        RouteId.WORKFLOW_PROJECTS,
+        cause=NavigationCause.PROGRAMMATIC,
+        context=RouteContext(workflow_search="изменённый фильтр"),
+    )
+    assert window.quotes_page.search_edit.text() == "изменённый фильтр"
+
+    returned = window.workspace.back()
+    assert returned.status is NavigationStatus.NAVIGATED
+    assert window.quotes_page.search_edit.text() == ""
+    assert window.quotes_page.selected_record is None
+
+    window.dashboard_page.create_estimate_requested.emit()
+    assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW_ESTIMATES
+    assert window.workspace.pages.currentWidget() is window.estimates_page
+    assert window.estimates_page.kind_filter.currentData() == "estimate"
+
+    window.close()
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_tender_deep_link_and_existing_controller_actions_converge(monkeypatch) -> None:
+    app = _app()
+    window = _window(monkeypatch)
+    schedule_action = QAction(window)
+    notifications_action = QAction(window)
+    triggered: list[str] = []
+    opened_documents: list[str] = []
+    schedule_action.triggered.connect(lambda: triggered.append("schedule"))
+    notifications_action.triggered.connect(lambda: triggered.append("notifications"))
+    window._tender_search_ui_controller = SimpleNamespace(
+        scheduler_ui_controller=SimpleNamespace(
+            schedule_action=schedule_action,
+            notifications_action=notifications_action,
+        ),
+        open_registry_documents=opened_documents.append,
+        shutdown=lambda: True,
+    )
+
+    window._open_tender_from_dashboard("missing")
+    assert window.workspace.current_snapshot is not None
+    assert window.workspace.current_snapshot.route_id is RouteId.DASHBOARD
+
+    window._open_tender_from_dashboard("tender-7")
+    assert window.workspace.current_snapshot.route_id is RouteId.TENDERS
+    assert window.tender_workspace_page.current_id == "tender-7"
+
+    notification = window._navigate(
+        RouteId.TENDER_NOTIFICATIONS,
+        cause=NavigationCause.SHORTCUT,
+    )
+    scheduler = window._navigate(
+        RouteId.TENDER_SCHEDULER,
+        cause=NavigationCause.SHORTCUT,
+    )
+    documents = window._navigate(
+        RouteId.TENDER_DOCUMENTS,
+        cause=NavigationCause.DEEP_LINK,
+        context=RouteContext(tender_id="000123"),
+    )
+
+    assert notification.status is NavigationStatus.NAVIGATED
+    assert scheduler.status is NavigationStatus.NAVIGATED
+    assert documents.status is NavigationStatus.NAVIGATED
+    assert triggered == ["notifications", "schedule"]
+    assert opened_documents == ["000123"]
+    assert window.workspace.current_snapshot.route_id is RouteId.TENDERS
+
+    window.close()
+    window.deleteLater()
+    app.processEvents()

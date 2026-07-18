@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import inspect
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication
 
 from app.ui import navigation
 from app.ui.navigation import NavigationStatus, RouteContext, RouteRequest
 from app.ui.widgets.dashboard_layout import DashboardLayout
+
+
+def _app() -> QApplication:
+    return QApplication.instance() or QApplication([])
 
 
 def test_pure_navigation_contract_does_not_import_runtime_or_domain_owners() -> None:
@@ -19,6 +28,7 @@ def test_pure_navigation_contract_does_not_import_runtime_or_domain_owners() -> 
 
 
 def test_unknown_route_failure_is_safe_and_does_not_echo_input() -> None:
+    _app()
     layout = DashboardLayout()
     secret_shaped_target = "unknown?api_key=rm142-sentinel"
 
