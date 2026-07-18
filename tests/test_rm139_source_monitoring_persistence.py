@@ -21,7 +21,7 @@ def test_provider_outcomes_and_checkpoints_are_ordered_read_models(tmp_path) -> 
 
     repository = CollectorStateRepository(tmp_path / "registry.sqlite3")
     run_id = repository.start_run(
-        TenderSearchQuery(text="test"),
+        TenderSearchQuery(keywords=("test",)),
         provider_ids=("eis",),
         started_at="2026-07-18T10:00:00+00:00",
     )
@@ -48,4 +48,7 @@ def test_provider_outcomes_and_checkpoints_are_ordered_read_models(tmp_path) -> 
     outcomes = repository.list_provider_outcomes(provider_id="eis", limit=10)
     checkpoints = repository.list_checkpoints(provider_id="eis")
     assert [(item.run_id, item.status) for item in outcomes] == [(run_id, "success")]
-    assert [(item.provider_id, item.scope_key) for item in checkpoints] == [("eis", "a"), ("eis", "z")]
+    assert [(item.provider_id, item.scope_key) for item in checkpoints] == [
+        ("eis", "a"),
+        ("eis", "z"),
+    ]

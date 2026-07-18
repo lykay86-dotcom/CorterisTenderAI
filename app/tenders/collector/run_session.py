@@ -10,6 +10,7 @@ from app.tenders.collector.async_provider_factory import (
     create_default_collector_service,
 )
 from app.tenders.collector.cancellation import CollectorCancellationToken
+from app.tenders.collector.health_monitor import ProviderHealthMonitor
 from app.tenders.collector.models import CollectorRunResult
 from app.tenders.collector.network_runtime import (
     CollectorNetworkRuntime,
@@ -17,6 +18,8 @@ from app.tenders.collector.network_runtime import (
 )
 from app.tenders.collector.progress import CollectorProgressCallback
 from app.tenders.collector.provider_control import CollectorProviderManager
+from app.tenders.collector.source_monitoring import hydrate_health_monitor
+from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.provider_settings import (
     ProviderEnablementRepository,
     ProviderSettingsLoadStatus,
@@ -88,6 +91,12 @@ class CollectorRunSession:
             provider_ids = settings_snapshot.assert_runnable_provider_ids(tuple(provider_ids))
         runtime = self.runtime_factory()
         try:
+            monitor = getattr(runtime, "health_monitor", None)
+            if isinstance(monitor, ProviderHealthMonitor):
+                history = CollectorStateRepository(
+                    self.data_directory / "tender_registry.sqlite3"
+                ).list_provider_outcomes(limit=1000)
+                hydrate_health_monitor(monitor, history)
             service = self.service_factory(
                 self.data_directory,
                 runtime,

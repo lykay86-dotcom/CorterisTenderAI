@@ -173,16 +173,20 @@ class VerticalSourceVerificationRepository:
         return verification
 
     def latest(self, provider_id: str) -> VerticalSourceVerification | None:
-        self.initialize()
-        with self._lock, self._connect() as connection:
-            row = connection.execute(
-                """SELECT payload_json
-                FROM collector_vertical_source_verifications
-                WHERE provider_id = ?
-                ORDER BY completed_at DESC, rowid DESC
-                LIMIT 1""",
-                (provider_id.strip().casefold(),),
-            ).fetchone()
+        if not self.path.is_file():
+            return None
+        try:
+            with self._lock, self._connect_readonly() as connection:
+                row = connection.execute(
+                    """SELECT payload_json
+                    FROM collector_vertical_source_verifications
+                    WHERE provider_id = ?
+                    ORDER BY completed_at DESC, rowid DESC
+                    LIMIT 1""",
+                    (provider_id.strip().casefold(),),
+                ).fetchone()
+        except (sqlite3.Error, OSError):
+            return None
         if row is None:
             return None
         payload = json.loads(str(row["payload_json"]))
@@ -199,6 +203,13 @@ class VerticalSourceVerificationRepository:
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
         connection.row_factory = sqlite3.Row
+        return connection
+
+    def _connect_readonly(self) -> sqlite3.Connection:
+        uri = f"file:{self.path.resolve().as_posix()}?mode=ro"
+        connection = sqlite3.connect(uri, uri=True, timeout=30.0, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only = ON")
         return connection
 
 

@@ -234,6 +234,26 @@ class CollectionRunRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderRunOutcomeRecord:
+    """Safe persisted terminal outcome used by passive source monitoring."""
+
+    run_id: str
+    provider_id: str
+    status: str
+    completed_at: str
+    error_code: str
+    error_message: str
+    item_count: int
+    elapsed_ms: int
+
+    def __post_init__(self) -> None:
+        if not self.run_id.strip() or not self.provider_id.strip():
+            raise ValueError("provider run outcome identity is required")
+        if self.item_count < 0 or self.elapsed_ms < 0:
+            raise ValueError("provider run outcome counters must be non-negative")
+
+
+@dataclass(frozen=True, slots=True)
 class CollectorSourceReference:
     registry_key: str
     source: str
@@ -262,6 +282,7 @@ __all__ = [
     "CollectionRunStatus",
     "CollectorRunResult",
     "CollectorSourceReference",
+    "ProviderRunOutcomeRecord",
     "DeduplicationGroup",
     "DeduplicationMatchLevel",
     "DeduplicationResult",

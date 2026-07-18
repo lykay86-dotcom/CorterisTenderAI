@@ -456,6 +456,7 @@ class ProviderDisplayState:
     adapter_compiled: bool = True
     credential_available: bool = True
     health_check_available: bool = True
+    checkpoint_supported: bool = False
     manual_registration: ManualProviderRegistration | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -1900,6 +1901,7 @@ class CollectorProviderManager:
                 if catalog_entry is not None
                 else True
             ),
+            checkpoint_supported=bool(descriptor.capabilities.incremental_updates),
             manual_registration=(
                 catalog_entry.manual_registration if catalog_entry is not None else None
             ),

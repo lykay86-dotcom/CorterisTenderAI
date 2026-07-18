@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from app.tenders.collector.health_monitor import ProviderHealthMonitor, ProviderOperationalStatus
@@ -50,3 +51,63 @@ def test_cancelled_and_unsupported_do_not_count_as_remote_failures() -> None:
     monitor = ProviderHealthMonitor(clock=lambda: 100.0, utcnow=lambda: NOW)
     hydrate_health_monitor(monitor, records, observed_at=NOW)
     assert monitor.snapshot("eis").consecutive_failures == 0
+
+
+def test_run_session_hydrates_persisted_circuit_before_dispatch(tmp_path) -> None:
+    from app.tenders.collector.async_engine import (
+        AsyncProviderSearchOutcome,
+        AsyncProviderSearchStatus,
+    )
+    from app.tenders.collector.models import CollectionRunStatus
+    from app.tenders.collector.run_session import CollectorRunSession
+    from app.tenders.collector.search_errors import SearchErrorCategory
+    from app.tenders.collector.store import CollectorStateRepository
+    from app.tenders.provider_base import TenderSearchQuery
+
+    repository = CollectorStateRepository(tmp_path / "tender_registry.sqlite3")
+    completed = datetime.now(timezone.utc)
+    for index in range(3):
+        run_id = repository.start_run(
+            TenderSearchQuery(),
+            provider_ids=("eis",),
+            started_at=(completed - timedelta(seconds=10 - index)).isoformat(),
+        )
+        repository.complete_run(
+            run_id,
+            status=CollectionRunStatus.FAILED,
+            completed_at=(completed - timedelta(seconds=3 - index)).isoformat(),
+            provider_outcomes=(
+                AsyncProviderSearchOutcome(
+                    provider_id="eis",
+                    display_name="ЕИС",
+                    status=AsyncProviderSearchStatus.FAILED,
+                    elapsed_ms=100,
+                    error_category=SearchErrorCategory.NETWORK,
+                    error_code="provider_network_error",
+                    error_message="Источник временно недоступен.",
+                ),
+            ),
+        )
+
+    class Runtime:
+        def __init__(self) -> None:
+            self.health_monitor = ProviderHealthMonitor(clock=lambda: 100.0)
+            self.closed = False
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    runtime = Runtime()
+
+    class Service:
+        async def collect(self, *_args, **_kwargs):
+            return runtime.health_monitor.snapshot("eis")
+
+    session = CollectorRunSession(
+        tmp_path,
+        runtime_factory=lambda: runtime,  # type: ignore[arg-type]
+        service_factory=lambda *_args, **_kwargs: Service(),
+    )
+    snapshot = asyncio.run(session.run(TenderSearchQuery()))
+    assert snapshot.status is ProviderOperationalStatus.COOLDOWN
+    assert runtime.closed is True

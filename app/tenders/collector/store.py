@@ -40,6 +40,7 @@ from app.tenders.collector.models import (
     CollectorSourceReference,
     DeduplicationResult,
     NormalizedTender,
+    ProviderRunOutcomeRecord,
     TenderObservationStatus,
 )
 from app.tenders.collector.schema import CollectorSchemaMigrator
@@ -487,6 +488,53 @@ class CollectorStateRepository:
                 (run_id,),
             ).fetchone()
         return _row_to_run(row) if row is not None else None
+
+    def list_provider_outcomes(
+        self,
+        provider_id: str | None = None,
+        *,
+        limit: int = 200,
+    ) -> tuple[ProviderRunOutcomeRecord, ...]:
+        """Read safe accepted provider outcomes without creating or migrating the DB."""
+
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        if not self.path.is_file():
+            return ()
+        normalized = provider_id.strip().casefold() if provider_id is not None else ""
+        where = "WHERE p.provider_id = ?" if normalized else ""
+        parameters: tuple[object, ...] = (normalized, limit) if normalized else (limit,)
+        try:
+            with self._lock, self._connect_readonly() as connection:
+                rows = connection.execute(
+                    f"""
+                    SELECT p.run_id, p.provider_id, p.status, p.item_count,
+                           p.elapsed_ms, p.error_type, p.error_message,
+                           r.completed_at
+                    FROM collector_run_providers AS p
+                    JOIN collector_runs AS r ON r.run_id = p.run_id
+                    {where}
+                    ORDER BY r.completed_at DESC, p.run_id DESC, p.provider_id ASC
+                    LIMIT ?
+                    """,
+                    parameters,
+                ).fetchall()
+        except sqlite3.Error:
+            return ()
+        return tuple(
+            ProviderRunOutcomeRecord(
+                run_id=str(row["run_id"]),
+                provider_id=str(row["provider_id"]).strip().casefold(),
+                status=str(row["status"]),
+                completed_at=str(row["completed_at"]),
+                error_code=str(row["error_type"]),
+                error_message=str(row["error_message"]),
+                item_count=max(0, int(row["item_count"])),
+                elapsed_ms=max(0, int(row["elapsed_ms"])),
+            )
+            for row in rows
+            if str(row["run_id"]).strip() and str(row["provider_id"]).strip()
+        )
 
     def list_changes(
         self,
@@ -2102,6 +2150,50 @@ class CollectorStateRepository:
             updated_at=str(row["updated_at"]),
         )
 
+    def list_checkpoints(
+        self,
+        provider_id: str | None = None,
+    ) -> tuple[CollectorCheckpoint, ...]:
+        """Read ordered checkpoints without creating or migrating the database."""
+
+        if not self.path.is_file():
+            return ()
+        normalized = provider_id.strip().casefold() if provider_id is not None else ""
+        where = "WHERE provider_id = ?" if normalized else ""
+        parameters: tuple[object, ...] = (normalized,) if normalized else ()
+        try:
+            with self._lock, self._connect_readonly() as connection:
+                rows = connection.execute(
+                    f"""
+                    SELECT provider_id, scope_key, cursor, watermark, state_json, updated_at
+                    FROM collector_checkpoints
+                    {where}
+                    ORDER BY provider_id ASC, scope_key ASC
+                    """,
+                    parameters,
+                ).fetchall()
+        except sqlite3.Error:
+            return ()
+        result: list[CollectorCheckpoint] = []
+        for row in rows:
+            try:
+                state = json.loads(str(row["state_json"] or "{}"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                state = {}
+            if not isinstance(state, Mapping):
+                state = {}
+            result.append(
+                CollectorCheckpoint(
+                    provider_id=str(row["provider_id"]),
+                    scope_key=str(row["scope_key"]),
+                    cursor=str(row["cursor"]),
+                    watermark=str(row["watermark"]),
+                    state=dict(state),
+                    updated_at=str(row["updated_at"]),
+                )
+            )
+        return tuple(result)
+
     def _resolve_registry_key(
         self,
         connection: sqlite3.Connection,
@@ -2474,6 +2566,14 @@ class CollectorStateRepository:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 10000")
         connection.execute("PRAGMA journal_mode = WAL")
+        return connection
+
+    def _connect_readonly(self) -> sqlite3.Connection:
+        uri = f"file:{self.path.resolve().as_posix()}?mode=ro"
+        connection = sqlite3.connect(uri, uri=True, timeout=10.0, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA query_only = ON")
+        connection.execute("PRAGMA busy_timeout = 10000")
         return connection
 
 

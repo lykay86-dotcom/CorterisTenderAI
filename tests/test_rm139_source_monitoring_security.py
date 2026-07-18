@@ -28,6 +28,8 @@ def test_raw_provider_error_is_not_copied_to_monitoring_snapshot(tmp_path) -> No
         schedule_repository=CollectorScheduleRepository(tmp_path / "schedule.json"),
         verification_repository=VerticalSourceVerificationRepository(tmp_path / "registry.sqlite3"),
     )
-    snapshot = service.snapshot((state,), observed_at=datetime(2026, 7, 18, 12, tzinfo=timezone.utc))
+    snapshot = service.snapshot(
+        (state,), observed_at=datetime(2026, 7, 18, 12, tzinfo=timezone.utc)
+    )
     assert sentinel not in repr(snapshot)
     assert "token=secret" not in repr(snapshot)
