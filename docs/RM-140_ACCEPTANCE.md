@@ -2,9 +2,9 @@
 
 Дата локальной приёмки: 18 июля 2026 года.
 
-Статус пакета: feature implementation и локальные gates пройдены. RM-140 остаётся `IN PROGRESS`
-до merge feature PR, успешного Windows Quality Gate на точном merge SHA и отдельного docs-only
-closeout по `docs/DEFINITION_OF_DONE.md`.
+Статус пакета: feature implementation, локальные gates, feature PR и Windows Quality Gate на
+точном merge SHA пройдены. Этот docs-only closeout переводит RM-140 в `DONE` и активирует RM-141
+как единственный `IN PROGRESS` по `docs/DEFINITION_OF_DONE.md`.
 
 ## Границы и трассируемость
 
@@ -15,7 +15,10 @@ closeout по `docs/DEFINITION_OF_DONE.md`.
 - Expected-red: `ed150ae`; `8 passed, 12 failed in 11.10s`, все failures соответствовали
   заранее описанным lifecycle/time/error/shutdown/compatibility gaps.
 - Локально принятый implementation SHA: `f9db188`.
-- Пакет закрывает C20 из `docs/RM-126_REQUIREMENTS.md` и не начинает RM-141+.
+- Acceptance documentation SHA feature-ветки: `fddb160eed37687bf53089e2e6f21d0cc8b9c299`.
+- Feature PR: #88; merge SHA: `8c09ca6df469549b4ae50457b6924898a629c0d2`.
+- Docs-only closeout PR: #89.
+- Пакет закрывает C20 из `docs/RM-126_REQUIREMENTS.md` и не реализует RM-141+.
 
 ## Принятая реализация
 
@@ -76,9 +79,8 @@ Implementation SHA `f9db188`, Windows 10 `10.0.19045`, Python 3.12.7, AMD64 Fami
 connection close, provider concurrency 4, cancellation и progress-worker cleanup.
 
 Локальный `pip-audit` заблокирован политикой tenant, что зафиксировано без обхода. На неизменённых
-dependency manifests exact baseline/closeout SHA `f14ba84...` прошёл dependency audit в GitHub run
-`29624885521`. Обязательное подтверждение для feature и exact merge SHA остаётся за Windows Quality
-Gate до closeout.
+dependency manifests dependency audit успешно выполнен в feature PR run `29651765243` и exact
+merge-SHA run `29651986321`.
 
 ## Performance acceptance
 
@@ -118,12 +120,19 @@ History write/read после explicit connection close:
 быстрее baseline. Cancellation, десять providers/concurrency 4: tasks `1 → 14 → 1`, p50 `17.078ms`,
 p95 `17.719ms`, max `17.945ms`, что ниже local target 100ms и test bound 1,000ms.
 
-## Rollback и оставшиеся gates
+## GitHub acceptance, rollback и closeout
+
+- Feature PR #88 слит в `main` merge commit
+  `8c09ca6df469549b4ae50457b6924898a629c0d2`.
+- PR Quality Gate run `29651765243` завершился `success` для Python 3.12 и 3.13; full suite,
+  dependency audit и все обязательные steps прошли.
+- Exact merge-SHA push run `29651986321` на
+  `8c09ca6df469549b4ae50457b6924898a629c0d2` завершился `success` для Python 3.12 и 3.13;
+  dependency audit и все обязательные steps прошли.
 
 - Схема и данные не преобразовывались; rollback — revert feature commits на baseline code.
 - Legacy rows/API, provider settings, credentials, schedules, notifications и RM-139 monitoring
   сохраняются.
-- До feature merge RM-140 не переводится в `DONE`; `STATUS.md`, `ROADMAP.md` и
-  `ROADMAP_HISTORY.md` обновляются только отдельным closeout после exact merge-SHA gate.
-- Требуются feature PR review, Windows Quality Gate Python 3.12/3.13, dependency audit, merge,
-  отдельный successful run на точном merge SHA и docs-only closeout.
+- Все обязательные feature и exact merge-SHA gates пройдены. Отдельный docs-only closeout
+  переводит RM-140 в `DONE`; RM-141 становится единственным `IN PROGRESS`, RM-142–RM-200 остаются
+  `PLANNED`.
