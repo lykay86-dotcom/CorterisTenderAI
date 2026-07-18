@@ -60,9 +60,9 @@ def _classify(module: str) -> str:
     if module == "app.ui.modern_main_window":
         return "PRODUCTION_ROOT"
     if module == "app.ui.main_window":
-        return "EMBEDDED_LEGACY"
-    if module == "app.ui.pages.tender_workspace_page":
         return "COMPATIBILITY_ONLY"
+    if module == "app.ui.pages.tender_workspace_page":
+        return "PRODUCTION_PAGE"
     if module in {
         "app.ui.pages.dashboard_page",
         "app.ui.pages.business_workflow_page",

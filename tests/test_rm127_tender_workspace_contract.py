@@ -93,11 +93,12 @@ class _PriceOfferRepository:
 
 
 def _isolate_page_dependencies(monkeypatch) -> None:
-    monkeypatch.setattr("app.ui.main_window.TenderRepository", _TenderRepository)
-    monkeypatch.setattr("app.ui.main_window.UserSettingsStore", _SettingsStore)
-    monkeypatch.setattr("app.ui.main_window.PriceCatalog", lambda _path: _PriceCatalog())
-    monkeypatch.setattr("app.ui.main_window.PriceOfferRepository", _PriceOfferRepository)
-    monkeypatch.setattr("app.ui.main_window.AiProviderSettingsWidget.load", lambda _self: None)
+    module = "app.ui.pages.tender_workspace_page"
+    monkeypatch.setattr(f"{module}.TenderRepository", _TenderRepository)
+    monkeypatch.setattr(f"{module}.UserSettingsStore", _SettingsStore)
+    monkeypatch.setattr(f"{module}.PriceCatalog", lambda _path: _PriceCatalog())
+    monkeypatch.setattr(f"{module}.PriceOfferRepository", _PriceOfferRepository)
+    monkeypatch.setattr(f"{module}.AiProviderSettingsWidget.load", lambda _self: None)
 
 
 def _page(monkeypatch) -> TenderWorkspacePage:
