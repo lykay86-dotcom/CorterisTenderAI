@@ -27,6 +27,7 @@ from app.ui.widgets.topbar import TopBar
 
 
 RouteHandler = Callable[[RouteContext], bool]
+RouteContextProvider = Callable[[], RouteContext]
 
 
 class DashboardLayout(QWidget):
@@ -52,6 +53,7 @@ class DashboardLayout(QWidget):
         )
         self._destination_index: dict[str, int] = {}
         self._route_handlers: dict[RouteId, RouteHandler] = {}
+        self._context_providers: dict[str, RouteContextProvider] = {}
 
         self.sidebar = create_default_sidebar(registry)
         self.topbar = TopBar()
@@ -115,6 +117,17 @@ class DashboardLayout(QWidget):
             raise ValueError("Cannot bind an unknown route")
         self._route_handlers[route_id] = handler
 
+    def register_context_provider(
+        self,
+        destination: str,
+        provider: RouteContextProvider,
+    ) -> None:
+        """Register a page-owned presentation-state snapshot provider."""
+        normalized = str(destination).strip()
+        if not normalized or not callable(provider):
+            raise ValueError("A context provider needs a destination and callable")
+        self._context_providers[normalized] = provider
+
     def add_placeholder_page(self, key: str, title: str) -> None:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -175,6 +188,15 @@ class DashboardLayout(QWidget):
                 )
             )
 
+        origin_snapshot: NavigationSnapshot | None = None
+        if (
+            request.record_history
+            and spec.history_enabled
+            and self.current_snapshot is not None
+            and spec.kind is not RouteKind.MODAL
+        ):
+            origin_snapshot = self._capture_current_snapshot()
+
         handler = self._route_handlers.get(spec.route_id)
         handler_required = spec.kind in {RouteKind.EMBEDDED, RouteKind.MODAL}
         if handler_required and handler is None:
@@ -217,10 +239,10 @@ class DashboardLayout(QWidget):
             )
 
         history_changed = False
-        if request.record_history and spec.history_enabled and self.current_snapshot is not None:
+        if origin_snapshot is not None:
             origin = replace(
-                self.current_snapshot,
-                focus_token=request.focus_token or self.current_snapshot.focus_token,
+                origin_snapshot,
+                focus_token=request.focus_token or origin_snapshot.focus_token,
             )
             history_changed = self.navigation_history.push(origin)
 
@@ -319,6 +341,26 @@ class DashboardLayout(QWidget):
         current = self.pages.currentWidget()
         if current is not None:
             current.setFocus()
+
+    def _capture_current_snapshot(self) -> NavigationSnapshot:
+        current = self.current_snapshot
+        if current is None:
+            raise RuntimeError("Navigation snapshot is unavailable")
+        spec = self.route_registry.get(current.route_id)
+        provider = self._context_providers.get(spec.destination or "")
+        if provider is None:
+            return current
+        try:
+            context = provider()
+        except Exception:
+            return current
+        if not isinstance(context, RouteContext):
+            return current
+        if self.route_registry.validate_context(spec, context) is not None:
+            return current
+        captured = replace(current, context=context)
+        self.current_snapshot = captured
+        return captured
 
     def _activate(self, key: str) -> None:
         self.navigate(

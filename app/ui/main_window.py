@@ -325,6 +325,14 @@ class TenderWorkspacePage(QWidget):
         self.tabs.setCurrentIndex(index)
         return True
 
+    def select_settings_section(self, key: str) -> bool:
+        """Select a known embedded settings section by its stable key."""
+        index = self._settings_section_indexes.get(str(key).strip())
+        if index is None or not self.select_section("settings"):
+            return False
+        self.settings_tabs.setCurrentIndex(index)
+        return True
+
     def bind_tender_actions(self, actions: Iterable["QAction"]) -> None:
         """Expose existing controller actions without reparenting or recreating them."""
         installed = self.actions()
