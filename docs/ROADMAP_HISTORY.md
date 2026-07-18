@@ -1,5 +1,28 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-18 — RM-140 завершён, RM-141 активирован
+
+- Audit/contract/plan зафиксированы commit `30b2f4a` до application changes; characterization —
+  `23d28ce`, expected-red contract — `ed150ae`.
+- Saved profiles, unified/manual search и scheduler сведены к одному Collector admission/generation;
+  typed lifecycle, late-result guards, bounded cancellation и идемпотентный shutdown закреплены.
+- Active timestamps используют aware UTC, durations — monotonic clock; safe typed errors и sentinel
+  exclusion проходят через outcome, persistence, UI, notifications, logs и support bundle.
+- Production legacy engine/service/runner retired при сохранённом public compatibility API;
+  Collector schema v14 и Registry schema v1 сохранены без migration или data copy.
+- SQLite connections закрываются после операций, schema/WAL initialization выполняется один раз
+  на repository instance; offline composition не выполняет network или keyring I/O.
+- RM-107 score/recommendation/hard-exclusion, critical stop-factor priority и AI decision boundary
+  не изменены.
+- Локальная acceptance: full pytest `1946 passed, 2 warnings in 155.86s`; secret scan,
+  Ruff/format (`630 files`), mypy, workflow smokes, five-cycle race gate и performance contour
+  успешны.
+- Feature PR #88 слит merge commit `8c09ca6df469549b4ae50457b6924898a629c0d2`.
+- PR Quality Gate run `29651765243` и exact merge-SHA push run `29651986321` успешны на Python
+  3.12/3.13; dependency audit и все обязательные jobs завершились `success`.
+- Schema/data rollback остаётся code revert без migration rollback. RM-140 переведён в `DONE`;
+  RM-141 назначен единственным `IN PROGRESS`, RM-142–RM-200 остаются `PLANNED`.
+
 ## 2026-07-18 — RM-139 завершён, RM-140 активирован
 
 - Audit/contract/plan зафиксированы commit `6ad5741` до application changes; expected-red

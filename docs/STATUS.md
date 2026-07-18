@@ -4,56 +4,51 @@
 
 ## Активный этап
 
-**RM-140 — стабилизация поиска**
+**RM-141 — аудит UI**
 
 Статус: `IN PROGRESS`
 
-RM-139 завершён после audit-first реализации, feature PR #86, merge commit
-`41b547f67020b9645d915694c943b962b46ddc08` и успешного exact merge-SHA Windows Quality Gate
-run `29624355650`. RM-140 — единственный активный этап; RM-141–RM-200 остаются `PLANNED` и не
+RM-140 завершён после audit-first реализации, feature PR #88, merge commit
+`8c09ca6df469549b4ae50457b6924898a629c0d2` и успешного exact merge-SHA Windows Quality Gate
+run `29651986321`. RM-141 — единственный активный этап; RM-142–RM-200 остаются `PLANNED` и не
 выполняются параллельно.
 
 ## Завершённый этап
 
-**RM-139 — мониторинг источников**
+**RM-140 — стабилизация поиска**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- audit/contract/plan зафиксированы commit `6ad5741` до application-кода, expected-red contract —
-  `d9b2b97`;
-- existing provider/configuration, connection evidence, Collector run/outcome/checkpoint
-  persistence, C19 verification, schedule, health monitor/circuit, notifications и provider manager
-  dialog переиспользованы без второго monitoring stack и schema bump;
-- code-owned immutable snapshot раздельно показывает enablement, connection readiness,
-  operational run/circuit, checkpoint freshness, C19 verification и schedule; aware UTC,
-  explicit TTL/future-skew policy и stable transition dedup сохранены;
-- startup network I/O не добавлен, active Collector admission и safe UI/notification boundaries
-  сохранены; RM-107 deterministic decision/scoring/critical stop-factor priority не изменены;
-- локально: full pytest `1908 passed, 2 warnings in 120.62s`; secret scan, Ruff/format (`620 files`),
-  required/owner-contour mypy, workflow smokes, five-cycle circuit/notification gate и dependency
-  audit успешны;
-- feature PR #86 слит в `main` merge commit
-  `41b547f67020b9645d915694c943b962b46ddc08`;
-- PR Quality Gate run `29623757948` успешен: Python 3.12 —
-  `1908 passed, 2 warnings in 82.11s`, Python 3.13 —
-  `1908 passed, 2 warnings in 109.04s`;
-- exact merge-SHA run `29624355650` успешен: Python 3.12 —
-  `1908 passed, 2 warnings in 120.67s`, Python 3.13 —
-  `1908 passed, 2 warnings in 133.34s`; все обязательные jobs завершились `success`.
+- audit/contract/plan зафиксированы commit `30b2f4a` до application-кода; characterization —
+  `23d28ce`, expected-red contract — `ed150ae`;
+- saved profiles, unified/manual search и scheduler сведены к одному Collector admission/generation;
+  typed lifecycle, late-result guards, bounded cancellation и идемпотентный shutdown закреплены;
+- aware UTC для active timestamps, monotonic durations, safe typed errors, sentinel exclusion и
+  explicit SQLite connection close покрыты contract-тестами;
+- production runtime больше не создаёт legacy engine/service/runner; Collector schema v14 и
+  Registry schema v1 сохранены без migration или data copy;
+- offline composition и deterministic RM-107 decision/scoring/critical stop-factor priority не
+  изменены;
+- локально: full pytest `1946 passed, 2 warnings in 155.86s`; secret scan, Ruff/format (`630 files`),
+  mypy, workflow smokes, five-cycle race gate и performance acceptance успешны;
+- feature PR #88 слит в `main` merge commit
+  `8c09ca6df469549b4ae50457b6924898a629c0d2`;
+- PR Quality Gate run `29651765243` и exact merge-SHA run `29651986321` успешны на Python
+  3.12/3.13; dependency audit и все обязательные jobs завершились `success`.
 
 ## Ранее завершённый этап
 
-**RM-138 — параллельный поиск**
+**RM-139 — мониторинг источников**
 
 Статус: `DONE`
 
-- Feature PR #84 слит в `main` коммитом `593ed39`.
-- Exact merge-SHA Quality Gate run `29619998396` успешен на Python 3.12/3.13.
-- Bounded parallel search и deterministic decision boundaries сохранены.
+- Feature PR #86 слит в `main` коммитом `41b547f`.
+- Exact merge-SHA Quality Gate run `29624355650` успешен на Python 3.12/3.13.
+- Source monitoring и deterministic decision boundaries сохранены.
 
 ## Текущее действие
 
-Начать RM-140 с отдельного audit-first пакета и канонического entry gate. Не начинать RM-141+ и не
+Начать RM-141 с отдельного audit-first пакета и канонического entry gate. Не начинать RM-142+ и не
 изменять deterministic decision/scoring/critical stop-factor priority без отдельного аудита.
