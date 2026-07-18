@@ -2,9 +2,9 @@
 
 Local acceptance date: 18 July 2026.
 
-Package status: feature implementation and all local gates are complete. GitHub PR-head and exact
-merge-SHA evidence are recorded after publication; canonical roadmap closeout remains a separate
-docs-only package.
+Package status: feature implementation, local gates, feature PR, PR-head Quality Gate, merge and
+exact merge-SHA Quality Gate are complete. This separate docs-only package records the canonical
+roadmap closeout and activates RM-144.
 
 ## Entry gate and traceability
 
@@ -109,6 +109,15 @@ warnings from `test_rm132_legacy_credentials_handoff.py`; RM-143 adds no warning
 
 ## GitHub acceptance and closeout
 
-Feature PR, final PR-head Quality Gate, feature merge SHA and exact merge-SHA run are intentionally
-filled after GitHub publication. RM-143 is not marked `DONE`, and RM-144 is not activated, until
-those gates succeed and the separate docs-only closeout PR is merged.
+- Feature PR #94 head: `1915be92dc0a9e0b9c1edc0bb5955abf6c94f948`.
+- PR-head Quality Gate run `29662950338`: `success`; Python 3.12 — `5m03s`, Python 3.13 —
+  `3m30s`.
+- Feature merge SHA: `c8d111f3db615dd3c21c231bf265bb00093c65bd`.
+- Exact merge-SHA push run `29663124774`: `success`; Python 3.12 — `4m38s`, Python 3.13 —
+  `4m54s`. Full suite, dependency audit and every required step succeeded.
+- The only annotation is the existing non-blocking official-actions Node.js 20/24 migration notice.
+- This docs-only closeout changes only `ROADMAP.md`, `STATUS.md`, `ROADMAP_HISTORY.md` and this
+  acceptance file. It marks RM-143 `DONE` and activates RM-144 as the sole `IN PROGRESS` stage.
+
+Final DoD verdict: RM-143 satisfies the Definition of Done. Feature and exact merge-SHA gates are
+green; DB/data/settings downgrade is unnecessary; UI-141-003 is closed.
