@@ -2,11 +2,10 @@
 
 ## Current verdict
 
-`AUDIT PACKAGE READY FOR DRAFT PR` — entry gate, baseline, inventory, runtime characterization,
-focused UI suite, final local Quality Gate and audit documents are complete. RM-141 is not `DONE`
-until the audit PR is merged, the exact merge-SHA Windows Quality Gate succeeds on Python
-3.12/3.13, and a separate docs-only closeout is merged. RM-142 remains unimplemented and inactive
-during this record.
+`ACCEPTED FOR DOCS-ONLY CLOSEOUT` — entry gate, baseline, inventory, runtime characterization,
+focused UI suite, final local Quality Gate, audit PR merge and exact merge-SHA Quality Gate are
+complete. This separate closeout marks RM-141 `DONE` and RM-142 as the sole `IN PROGRESS` stage.
+No RM-142 production code is included.
 
 ## Entry gate
 
@@ -19,7 +18,7 @@ during this record.
 | Feature exact merge-SHA gate | run `29651986321`, Python 3.12/3.13 success |
 | Closeout PR Quality Gate | run `29652359999`, Python 3.12/3.13 success |
 | Closeout exact-SHA gate | run `29652536755`, Python 3.12/3.13 success, dependency audit included |
-| Canonical status | RM-140 `DONE`; RM-141 sole `IN PROGRESS`; RM-142–RM-200 `PLANNED` |
+| Canonical status at audit branch creation | RM-140 `DONE`; RM-141 sole `IN PROGRESS`; RM-142–RM-200 `PLANNED` |
 | Audit worktree/branch | clean detached worktree from exact SHA; `docs/rm-141-ui-audit` |
 | User changes | root checkout untracked `.agents/` and `skills-lock.json` preserved and excluded |
 
@@ -139,19 +138,16 @@ runtime consumer, expected invariant, impact, owner, tests, regression contract,
 compatibility concern and confidence. Each is mapped exactly once to a primary RM in RM-142–RM-155.
 No stop-condition P0/P1 was evidenced.
 
-## Pending PR/merge evidence
-
-To be appended before final closeout:
+## PR and merge evidence
 
 | Gate | Status |
 |---|---|
 | Audit branch final full local gate | PASSED at `e307d3a349909cd7a97d9accacf6ee47b6bf4c1d` |
-| Audit PR number and head SHA | PENDING |
-| Audit PR Windows Quality Gate 3.12/3.13 | PENDING |
-| Audit PR merge SHA | PENDING |
-| Exact audit merge-SHA gate 3.12/3.13 | PENDING |
-| Docs-only closeout PR/merge | PENDING |
-| Exact closeout SHA status | PENDING |
+| Audit PR number and head SHA | #90; `f5de117d15265fb1529df346e577f571b1ccc838` |
+| Audit PR Windows Quality Gate 3.12/3.13 | run `29654916158`; success / success |
+| Audit PR merge SHA | `a2e8d0528a1b9c6378a543a5c9f2c5b762483c63` |
+| Exact audit merge-SHA gate 3.12/3.13 | run `29655095879`; success / success; dependency audit passed |
+| Docs-only closeout | this separate branch/PR; PR number and merge SHA are non-self-referential final-report evidence |
 
-Rollback for the audit PR is a revert of RM-141 docs/read-only scripts only. RM-142+ code was not
-implemented.
+Rollback is a revert of RM-141 audit docs/read-only scripts and this closeout status update only.
+RM-142+ code was not implemented.
