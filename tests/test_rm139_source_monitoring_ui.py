@@ -35,10 +35,14 @@ def test_dialog_renders_monitoring_dimensions_without_calculating_them(tmp_path)
         schedule_repository=CollectorScheduleRepository(tmp_path / "schedule.json"),
         verification_repository=VerticalSourceVerificationRepository(tmp_path / "registry.sqlite3"),
     )
-    snapshot = service.snapshot((state,), observed_at=datetime(2026, 7, 18, 12, tzinfo=timezone.utc))
+    snapshot = service.snapshot(
+        (state,), observed_at=datetime(2026, 7, 18, 12, tzinfo=timezone.utc)
+    )
     dialog = TenderProviderManagerDialog((state,), monitoring_snapshot=snapshot)
 
-    headers = [dialog.table.horizontalHeaderItem(i).text() for i in range(dialog.table.columnCount())]
+    headers = [
+        dialog.table.horizontalHeaderItem(i).text() for i in range(dialog.table.columnCount())
+    ]
     assert "Подключение" in headers
     assert "Сбор/circuit" in headers
     assert "Checkpoint" in headers
