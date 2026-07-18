@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
 
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
+from app.ui.theme.icons import IconId, get_icon_provider
+from app.ui.theme.tokens import BorderWidth, Radius, Spacing
 
 
 class StatusTone(StrEnum):
@@ -57,8 +59,8 @@ class DashboardStatusBanner(QFrame):
         self._hide_timer.timeout.connect(self.clear)
 
         root = QHBoxLayout(self)
-        root.setContentsMargins(12, 10, 10, 10)
-        root.setSpacing(11)
+        root.setContentsMargins(int(Spacing.M), int(Spacing.S), int(Spacing.S), int(Spacing.S))
+        root.setSpacing(int(Spacing.M))
 
         self.icon_label = QLabel("i", self)
         self.icon_label.setObjectName("DashboardStatusIcon")
@@ -87,7 +89,7 @@ class DashboardStatusBanner(QFrame):
 
         self.close_button = QToolButton(self)
         self.close_button.setObjectName("DashboardStatusClose")
-        self.close_button.setText("×")
+        self.close_button.setIcon(get_icon_provider().icon(IconId.ACTION_CLOSE, theme=self._theme))
         self.close_button.setToolTip("Скрыть уведомление")
         self.close_button.setAccessibleName("Скрыть уведомление")
         self.close_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -171,6 +173,7 @@ class DashboardStatusBanner(QFrame):
         """Apply theme and semantic tone colors."""
         self._theme = ThemeName(theme)
         palette = get_palette(self._theme)
+        self.close_button.setIcon(get_icon_provider().icon(IconId.ACTION_CLOSE, theme=self._theme))
 
         tone_color = {
             StatusTone.INFO: palette.info,
@@ -193,8 +196,8 @@ class DashboardStatusBanner(QFrame):
             f"""
             QFrame#DashboardStatusBanner {{
                 background-color: {palette.elevated_background};
-                border: 1px solid {tone_color};
-                border-radius: 10px;
+                border: {int(BorderWidth.DEFAULT)}px solid {tone_color};
+                border-radius: {int(Radius.LARGE)}px;
             }}
             QLabel {{
                 background: transparent;
@@ -203,8 +206,8 @@ class DashboardStatusBanner(QFrame):
             QLabel#DashboardStatusIcon {{
                 color: {tone_color};
                 background-color: {palette.input_background};
-                border: 1px solid {tone_color};
-                border-radius: 8px;
+                border: {int(BorderWidth.DEFAULT)}px solid {tone_color};
+                border-radius: {int(Radius.MEDIUM)}px;
                 {Typography.BUTTON.css()}
             }}
             QLabel#DashboardStatusTitle {{
@@ -218,9 +221,9 @@ class DashboardStatusBanner(QFrame):
             QPushButton#DashboardStatusAction {{
                 color: {tone_color};
                 background: transparent;
-                border: 1px solid {tone_color};
-                border-radius: 7px;
-                padding: 6px 10px;
+                border: {int(BorderWidth.DEFAULT)}px solid {tone_color};
+                border-radius: {int(Radius.MEDIUM)}px;
+                padding: {int(Spacing.S)}px {int(Spacing.M)}px;
                 {Typography.CAPTION.css()}
             }}
             QPushButton#DashboardStatusAction:hover {{
@@ -230,8 +233,8 @@ class DashboardStatusBanner(QFrame):
                 color: {palette.text_muted};
                 background: transparent;
                 border: none;
-                border-radius: 6px;
-                padding: 3px;
+                border-radius: {int(Radius.MEDIUM)}px;
+                padding: {int(Spacing.XS)}px;
                 {Typography.BUTTON.css()}
             }}
             QToolButton#DashboardStatusClose:hover {{

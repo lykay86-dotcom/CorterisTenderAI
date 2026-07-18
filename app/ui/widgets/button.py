@@ -1,4 +1,4 @@
-"""Button system for Corteris Tender AI."""
+"""Canonical token-backed button family for Corteris Tender AI."""
 
 from __future__ import annotations
 
@@ -9,29 +9,28 @@ from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import QPushButton, QWidget
 
 from app.ui.theme.colors import ThemeName, ThemePalette, get_palette
+from app.ui.theme.icons import IconId, get_icon_provider
+from app.ui.theme.tokens import BorderWidth, DESIGN_TOKENS
 from app.ui.theme.typography import Typography
 
 
 class ButtonVariant(StrEnum):
-    """Supported visual button variants."""
-
     PRIMARY = "primary"
     SECONDARY = "secondary"
     OUTLINE = "outline"
     GHOST = "ghost"
     DANGER = "danger"
+    ICON_ONLY = "icon-only"
 
 
 class ButtonSize(StrEnum):
-    """Supported button sizes."""
-
     SMALL = "small"
     MEDIUM = "medium"
     LARGE = "large"
 
 
 class CorterisButton(QPushButton):
-    """Theme-aware button used across the Corteris Tender AI interface."""
+    """Theme-aware button with stable variants, sizing and loading state."""
 
     def __init__(
         self,
@@ -41,10 +40,10 @@ class CorterisButton(QPushButton):
         size: ButtonSize | str = ButtonSize.MEDIUM,
         theme: ThemeName | str = ThemeName.DARK,
         icon_text: str = "",
+        accessible_name: str = "",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(text, parent)
-
         self._variant = ButtonVariant(variant)
         self._size = ButtonSize(size)
         self._theme = ThemeName(theme)
@@ -53,14 +52,16 @@ class CorterisButton(QPushButton):
         self._original_text = text
         self._loading_frame = 0
         self._loading_timer = QTimer(self)
-        self._loading_timer.setInterval(160)
+        self._loading_timer.setInterval(DESIGN_TOKENS.motion.loading_frame_ms)
         self._loading_timer.timeout.connect(self._advance_loading)
 
+        if self._variant is ButtonVariant.ICON_ONLY and not accessible_name.strip():
+            raise ValueError("icon-only button requires an accessible name")
         self.setObjectName("CorterisButton")
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.setAutoDefault(False)
         self.setDefault(False)
-        self.setAccessibleName(text or "Кнопка")
+        self.setAccessibleName(accessible_name.strip() or text or "Кнопка")
         self._apply_size()
         self._apply_theme()
         self._refresh_text()
@@ -70,6 +71,8 @@ class CorterisButton(QPushButton):
 
     def set_variant(self, value: ButtonVariant | str) -> None:
         variant = ButtonVariant(value)
+        if variant is ButtonVariant.ICON_ONLY and not self.accessibleName().strip():
+            raise ValueError("icon-only button requires an accessible name")
         if variant != self._variant:
             self._variant = variant
             self._apply_theme()
@@ -96,6 +99,8 @@ class CorterisButton(QPushButton):
         if theme != self._theme:
             self._theme = theme
             self._apply_theme()
+            if not self.icon().isNull():
+                self.update()
 
     theme = Property(str, get_theme, set_theme)
 
@@ -106,7 +111,6 @@ class CorterisButton(QPushButton):
         enabled = bool(enabled)
         if enabled == self._loading:
             return
-
         self._loading = enabled
         self.setEnabled(not enabled)
         self.setCursor(
@@ -114,16 +118,18 @@ class CorterisButton(QPushButton):
             if enabled
             else QCursor(Qt.CursorShape.PointingHandCursor)
         )
-
         if enabled:
             self._loading_frame = 0
             self._loading_timer.start()
         else:
             self._loading_timer.stop()
-
         self._refresh_text()
 
     loading = Property(bool, get_loading, set_loading)
+
+    @property
+    def loading_timer(self) -> QTimer:
+        return self._loading_timer
 
     @property
     def icon_text(self) -> str:
@@ -136,7 +142,8 @@ class CorterisButton(QPushButton):
 
     def setText(self, text: str) -> None:  # noqa: N802
         self._original_text = text
-        self.setAccessibleName(text or "Кнопка")
+        if self._variant is not ButtonVariant.ICON_ONLY:
+            self.setAccessibleName(text or "Кнопка")
         self._refresh_text()
 
     def _advance_loading(self) -> None:
@@ -145,128 +152,66 @@ class CorterisButton(QPushButton):
 
     def _refresh_text(self) -> None:
         if self._loading:
-            dots = "." * self._loading_frame
-            display = f"Выполнение{dots}"
+            display = f"Выполнение{'.' * self._loading_frame}"
+            self.setAccessibleName(f"Выполнение: {self._original_text}".rstrip())
         else:
             display = self._original_text
-
+            if self._variant is not ButtonVariant.ICON_ONLY:
+                self.setAccessibleName(self._original_text or "Кнопка")
         if self._icon_text and not self._loading:
             display = f"{self._icon_text}  {display}" if display else self._icon_text
-
         QPushButton.setText(self, display)
 
     def _apply_size(self) -> None:
-        metrics = {
-            ButtonSize.SMALL: (30, 10, 7, Typography.BODY_S.css()),
-            ButtonSize.MEDIUM: (36, 14, 9, Typography.BUTTON.css()),
-            ButtonSize.LARGE: (44, 18, 11, Typography.BODY_L.css()),
-        }
-        height, horizontal_padding, vertical_padding, _ = metrics[self._size]
-        self.setMinimumHeight(height)
-        self.setIconSize(QSize(height - 12, height - 12))
-        self.setProperty("horizontalPadding", horizontal_padding)
-        self.setProperty("verticalPadding", vertical_padding)
+        metric = DESIGN_TOKENS.controls[self._size.value]
+        self.setMinimumHeight(metric.height)
+        self.setIconSize(QSize(metric.icon_size, metric.icon_size))
+        self.setProperty("horizontalPadding", metric.horizontal_padding)
+        self.setProperty("verticalPadding", metric.vertical_padding)
 
-    def _variant_colors(
-        self,
-        palette: ThemePalette,
-    ) -> tuple[str, str, str, str, str, str]:
-        if self._variant == ButtonVariant.PRIMARY:
-            return (
-                palette.brand_primary,
-                palette.text_on_brand,
-                palette.brand_primary_hover,
-                palette.brand_primary_pressed,
-                palette.brand_primary,
-                palette.text_on_brand,
-            )
-
-        if self._variant == ButtonVariant.SECONDARY:
-            return (
-                palette.elevated_background,
-                palette.text_primary,
-                palette.hover_background,
-                palette.selected_background,
-                palette.border_default,
-                palette.text_disabled,
-            )
-
-        if self._variant == ButtonVariant.OUTLINE:
-            return (
-                "transparent",
-                palette.brand_primary,
-                palette.brand_accent_soft,
-                palette.selected_background,
-                palette.brand_primary,
-                palette.text_disabled,
-            )
-
-        if self._variant == ButtonVariant.GHOST:
-            return (
-                "transparent",
-                palette.text_secondary,
-                palette.hover_background,
-                palette.selected_background,
-                "transparent",
-                palette.text_disabled,
-            )
-
-        return (
-            palette.danger,
-            palette.text_on_danger,
-            palette.danger_background,
-            palette.danger,
-            palette.danger,
-            palette.text_on_danger,
-        )
+    def _variant_colors(self, palette: ThemePalette) -> tuple[str, str, str, str, str, str]:
+        transparent = DESIGN_TOKENS.transparent
+        if self._variant is ButtonVariant.PRIMARY:
+            return (palette.brand_primary, palette.text_on_brand, palette.brand_primary_hover, palette.brand_primary_pressed, palette.brand_primary, palette.text_on_brand)
+        if self._variant is ButtonVariant.SECONDARY:
+            return (palette.elevated_background, palette.text_primary, palette.hover_background, palette.selected_background, palette.border_default, palette.text_disabled)
+        if self._variant is ButtonVariant.OUTLINE:
+            return (transparent, palette.brand_primary, palette.brand_accent_soft, palette.selected_background, palette.brand_primary, palette.text_disabled)
+        if self._variant in {ButtonVariant.GHOST, ButtonVariant.ICON_ONLY}:
+            return (transparent, palette.text_secondary, palette.hover_background, palette.selected_background, transparent, palette.text_disabled)
+        return (palette.danger, palette.text_on_danger, palette.danger_background, palette.danger, palette.danger, palette.text_on_danger)
 
     def _apply_theme(self) -> None:
         palette = get_palette(self._theme)
-        (
-            background,
-            foreground,
-            hover_background,
-            pressed_background,
-            border,
-            disabled_foreground,
-        ) = self._variant_colors(palette)
-
-        metrics = {
-            ButtonSize.SMALL: (10, 7, 6, Typography.BODY_S.css()),
-            ButtonSize.MEDIUM: (14, 9, 7, Typography.BUTTON.css()),
-            ButtonSize.LARGE: (18, 11, 9, Typography.BODY_L.css()),
-        }
-        horizontal_padding, vertical_padding, radius, font_css = metrics[self._size]
-
+        background, foreground, hover, pressed, border, disabled = self._variant_colors(palette)
+        metric = DESIGN_TOKENS.controls[self._size.value]
+        font_css = {
+            ButtonSize.SMALL: Typography.BODY_S.css(),
+            ButtonSize.MEDIUM: Typography.BUTTON.css(),
+            ButtonSize.LARGE: Typography.BODY_L.css(),
+        }[self._size]
         disabled_background = (
             palette.neutral_background
             if self._variant in {ButtonVariant.PRIMARY, ButtonVariant.DANGER}
-            else "transparent"
+            else DESIGN_TOKENS.transparent
         )
-
         self.setStyleSheet(
             f"""
             QPushButton#CorterisButton {{
-                background-color: {background};
-                color: {foreground};
-                border: 1px solid {border};
-                border-radius: {radius}px;
-                padding: {vertical_padding}px {horizontal_padding}px;
+                background-color: {background}; color: {foreground};
+                border: {int(BorderWidth.DEFAULT)}px solid {border};
+                border-radius: {metric.radius}px;
+                padding: {metric.vertical_padding}px {metric.horizontal_padding}px;
                 {font_css}
             }}
-            QPushButton#CorterisButton:hover {{
-                background-color: {hover_background};
-            }}
-            QPushButton#CorterisButton:pressed {{
-                background-color: {pressed_background};
-            }}
+            QPushButton#CorterisButton:hover {{ background-color: {hover}; }}
+            QPushButton#CorterisButton:pressed {{ background-color: {pressed}; }}
             QPushButton#CorterisButton:disabled {{
-                background-color: {disabled_background};
-                color: {disabled_foreground};
+                background-color: {disabled_background}; color: {disabled};
                 border-color: {palette.border_subtle};
             }}
             QPushButton#CorterisButton:focus {{
-                border: 2px solid {palette.focus_ring};
+                border: {int(BorderWidth.FOCUS)}px solid {palette.focus_ring};
             }}
             """
         )
@@ -297,37 +242,40 @@ class DangerButton(CorterisButton):
         super().__init__(text, variant=ButtonVariant.DANGER, **kwargs)
 
 
-class IconButton(GhostButton):
-    """Compact square button for icon-only actions."""
+class IconButton(CorterisButton):
+    """Compact square icon-only action with mandatory accessible text."""
 
     def __init__(
         self,
-        icon_text: str,
+        icon: IconId | str,
         *,
         accessible_name: str,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
+        if not accessible_name.strip():
+            raise ValueError("icon-only button requires an accessible name")
         super().__init__(
             "",
-            icon_text=icon_text,
+            variant=ButtonVariant.ICON_ONLY,
             size=ButtonSize.SMALL,
             theme=theme,
+            accessible_name=accessible_name,
             parent=parent,
         )
-        self.setFixedSize(34, 34)
+        try:
+            semantic_id = icon if isinstance(icon, IconId) else IconId(icon)
+        except ValueError:
+            self.icon_text = str(icon)
+        else:
+            self.setIcon(get_icon_provider().icon(semantic_id, theme=theme))
+        side = DESIGN_TOKENS.controls[ButtonSize.SMALL.value].height
+        self.setFixedSize(side, side)
         self.setAccessibleName(accessible_name)
         self.setToolTip(accessible_name)
 
 
 __all__ = [
-    "ButtonSize",
-    "ButtonVariant",
-    "CorterisButton",
-    "DangerButton",
-    "GhostButton",
-    "IconButton",
-    "OutlineButton",
-    "PrimaryButton",
-    "SecondaryButton",
+    "ButtonSize", "ButtonVariant", "CorterisButton", "DangerButton", "GhostButton",
+    "IconButton", "OutlineButton", "PrimaryButton", "SecondaryButton",
 ]
