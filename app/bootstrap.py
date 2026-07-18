@@ -30,8 +30,12 @@ def _find_support_bundle_provider(
     window: object,
 ) -> Callable[[str | Path], Any] | None:
     """Find a workflow page capable of creating a support bundle."""
-    for attribute in ("quotes_page", "estimates_page"):
+    seen: set[int] = set()
+    for attribute in ("workflow_page", "quotes_page", "estimates_page"):
         page = getattr(window, attribute, None)
+        if page is None or id(page) in seen:
+            continue
+        seen.add(id(page))
         provider = getattr(
             page,
             "create_diagnostic_support_bundle",

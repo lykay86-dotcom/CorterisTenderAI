@@ -41,13 +41,11 @@ def _layout() -> tuple[DashboardLayout, dict[str, QWidget]]:
     pages = {
         "dashboard": QWidget(),
         "tenders": QWidget(),
-        "quotes": QWidget(),
-        "estimates": QWidget(),
+        "workflow": QWidget(),
     }
     layout.add_page("dashboard", "Рабочий стол", pages["dashboard"])
     layout.add_page("tenders", "Тендеры и рабочие модули", pages["tenders"])
-    layout.add_page("quotes", "КП, сметы и проекты", pages["quotes"])
-    layout.add_page("estimates", "КП, сметы и проекты", pages["estimates"])
+    layout.add_page("workflow", "КП, сметы и проекты", pages["workflow"])
     return layout, pages
 
 
@@ -121,10 +119,9 @@ def test_production_shell_has_three_primary_areas_and_no_placeholder_pages(monke
     assert tuple(window.workspace._page_index) == (
         "dashboard",
         "tenders",
-        "quotes",
-        "estimates",
+        "workflow",
     )
-    assert window.workspace.pages.count() == 4
+    assert window.workspace.pages.count() == 3
 
     window.workspace.sidebar.select("ai")
     assert window.workspace.current_snapshot is not None

@@ -84,29 +84,21 @@ class ModernMainWindow(QMainWindow):
 
         self.business_repository = BusinessMetricsRepository()
 
-        self.quotes_page = BusinessWorkflowPage(
+        self.workflow_page = BusinessWorkflowPage(
             repository=self.business_repository,
-            initial_kind=BusinessRecordKind.PROPOSAL,
             theme=self._theme,
             parent=self.workspace.pages,
         )
         self.workspace.add_page(
-            "quotes",
+            "workflow",
             "КП, сметы и проекты",
-            self.quotes_page,
+            self.workflow_page,
         )
 
-        self.estimates_page = BusinessWorkflowPage(
-            repository=self.business_repository,
-            initial_kind=BusinessRecordKind.ESTIMATE,
-            theme=self._theme,
-            parent=self.workspace.pages,
-        )
-        self.workspace.add_page(
-            "estimates",
-            "Сметы и проекты",
-            self.estimates_page,
-        )
+        # RM-127/RM-142 compatibility names intentionally reference the same
+        # canonical object. RM-155 owns their eventual retirement.
+        self.quotes_page = self.workflow_page
+        self.estimates_page = self.workflow_page
 
         self._register_navigation_destinations()
 
@@ -125,9 +117,8 @@ class ModernMainWindow(QMainWindow):
             )
         )
 
-        for page in (self.quotes_page, self.estimates_page):
-            page.tender_open_requested.connect(self._open_tender_from_dashboard)
-            page.workflow_changed.connect(self._business_workflow_changed)
+        self.workflow_page.tender_open_requested.connect(self._open_tender_from_dashboard)
+        self.workflow_page.workflow_changed.connect(self._business_workflow_changed)
 
         self.apply_theme(self._theme)
         self.workspace.navigate(
@@ -229,12 +220,8 @@ class ModernMainWindow(QMainWindow):
         )
 
         self.workspace.register_context_provider(
-            "quotes",
-            lambda: self._workflow_route_context(self.quotes_page),
-        )
-        self.workspace.register_context_provider(
-            "estimates",
-            lambda: self._workflow_route_context(self.estimates_page),
+            "workflow",
+            lambda: self._workflow_route_context(self.workflow_page),
         )
         self.workspace.register_route_handler(
             RouteId.TENDER_DOCUMENTS,
@@ -265,11 +252,15 @@ class ModernMainWindow(QMainWindow):
         )
 
     def _activate_workflow(self, route_id: RouteId, context: RouteContext) -> bool:
-        page = self.estimates_page if route_id is RouteId.WORKFLOW_ESTIMATES else self.quotes_page
-        page.apply_navigation_state(
+        route_kind = {
+            RouteId.WORKFLOW_PROPOSALS: BusinessRecordKind.PROPOSAL.value,
+            RouteId.WORKFLOW_ESTIMATES: BusinessRecordKind.ESTIMATE.value,
+            RouteId.WORKFLOW_PROJECTS: BusinessRecordKind.PROJECT.value,
+        }.get(route_id)
+        self.workflow_page.apply_navigation_state(
             WorkflowNavigationState(
                 search_text=context.workflow_search or "",
-                kind=context.workflow_kind or "",
+                kind=route_kind if route_kind is not None else context.workflow_kind or "",
                 status=context.workflow_status or "",
                 archive_mode=context.workflow_archive_mode
                 or WorkflowNavigationState().archive_mode,
@@ -347,13 +338,10 @@ class ModernMainWindow(QMainWindow):
         return result
 
     def _business_workflow_changed(self) -> None:
-        """Synchronize both workflow views and Dashboard KPI."""
-        sender = self.sender()
-        for page in (self.quotes_page, self.estimates_page):
-            if page is not sender:
-                state = page.capture_navigation_state()
-                page.refresh()
-                page.apply_navigation_state(state)
+        """Refresh the canonical workflow view and Dashboard KPI."""
+        state = self.workflow_page.capture_navigation_state()
+        self.workflow_page.refresh()
+        self.workflow_page.apply_navigation_state(state)
 
         self.dashboard_controller.refresh()
         self.statusBar().showMessage(
@@ -381,8 +369,7 @@ class ModernMainWindow(QMainWindow):
         self._theme = ThemeName(theme)
         self.setStyleSheet(build_stylesheet(self._theme.value))
         self.dashboard_page.set_theme(self._theme)
-        self.quotes_page.apply_theme(self._theme)
-        self.estimates_page.apply_theme(self._theme)
+        self.workflow_page.apply_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme.value)
 
         self.workspace.topbar.apply_theme(self._theme)
