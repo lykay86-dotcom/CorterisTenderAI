@@ -290,16 +290,19 @@ def test_partial_failure_and_invalid_result_are_not_reported_as_success(tmp_path
 
 def test_collector_worker_emits_only_safe_typed_failure() -> None:
     _app()
-    worker = _CollectorRunWorker(FailingCollectorSession(), object(), ("eis",))
-    failures: list[tuple[str, str]] = []
-    worker.signals.failed.connect(lambda code, message: failures.append((code, message)))
+    worker = _CollectorRunWorker(FailingCollectorSession(), object(), ("eis",), 7)
+    failures: list[tuple[int, str, str]] = []
+    worker.signals.failed.connect(
+        lambda generation, code, message: failures.append((generation, code, message))
+    )
 
     worker.run()
 
     assert failures == [
         (
+            7,
             "provider_internal_error",
             "Источник завершил поиск с безопасно скрытой ошибкой.",
         )
     ]
-    assert "ui-secret" not in failures[0][1]
+    assert "ui-secret" not in failures[0][2]

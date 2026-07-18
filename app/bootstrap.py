@@ -202,6 +202,8 @@ def bootstrap() -> None:
     window.show()
     exit_code = application.exec()
 
+    tender_search_controller.shutdown()
+
     launch_guard.mark_clean_exit(details=f"Qt exit code: {exit_code}")
     crash_handler.uninstall()
     raise SystemExit(exit_code)

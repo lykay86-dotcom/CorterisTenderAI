@@ -96,6 +96,7 @@ class TenderCollectorSchedulerUiController(QObject):
         self._schedule_dialog: TenderCollectorScheduleDialog | None = None
         self._notifications_dialog: TenderCollectorNotificationsDialog | None = None
         self._scheduled_active = False
+        self._shutdown = False
 
         self.schedule_action = QAction(
             "Планировщик тендеров…",
@@ -145,7 +146,7 @@ class TenderCollectorSchedulerUiController(QObject):
             if self.notifications_action not in main_window.actions():
                 main_window.addAction(self.notifications_action)
 
-        if not self.timer.isActive():
+        if not self._shutdown and not self.timer.isActive():
             self.timer.start()
             QTimer.singleShot(
                 1500,
@@ -240,12 +241,16 @@ class TenderCollectorSchedulerUiController(QObject):
 
     @Slot()
     def check_startup_run(self) -> None:
+        if self._shutdown:
+            return
         request = self.scheduler.startup_request()
         if request is not None:
             self._start_scheduled(request)
 
     @Slot()
     def poll(self) -> None:
+        if self._shutdown:
+            return
         freshness_due_at = ""
         try:
             due_items = self.freshness_repository.list_due_reverification(limit=1)
@@ -271,6 +276,8 @@ class TenderCollectorSchedulerUiController(QObject):
         self,
         request: ScheduledCollectorRequest,
     ) -> None:
+        if self._shutdown:
+            return
         if self.is_collector_busy():
             return
         self.scheduler.mark_started(request)
@@ -400,6 +407,16 @@ class TenderCollectorSchedulerUiController(QObject):
         )
         if callable(method):
             method()
+
+    def shutdown(self) -> None:
+        """Stop scheduler admission and its owned timer idempotently."""
+
+        if self._shutdown:
+            return
+        self._shutdown = True
+        self.timer.stop()
+        self._scheduled_active = False
+        self.schedule_action.setEnabled(False)
 
 
 __all__ = ["TenderCollectorSchedulerUiController"]

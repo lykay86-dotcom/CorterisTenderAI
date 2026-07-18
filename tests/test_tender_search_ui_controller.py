@@ -55,7 +55,8 @@ class FakeRunner:
 
 
 class FakeCollectorSession:
-    def __init__(self) -> None:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.error = error
         self.calls: list[tuple[object, tuple[str, ...]]] = []
 
     async def run(
@@ -67,6 +68,8 @@ class FakeCollectorSession:
         progress_callback,
     ):
         self.calls.append((query, tuple(provider_ids)))
+        if self.error is not None:
+            raise self.error
         return make_collector_result()
 
 
@@ -124,9 +127,11 @@ def test_controller_runs_profile_and_opens_results(tmp_path) -> None:
     app = _app()
     window = QMainWindow()
     runner = FakeRunner()
+    collector_session = FakeCollectorSession()
     controller = TenderSearchUiController(
         tmp_path,
         runtime=_runtime(tmp_path, runner),
+        collector_session=collector_session,
         thread_pool=ImmediateThreadPool(),
         parent=window,
     )
@@ -136,11 +141,12 @@ def test_controller_runs_profile_and_opens_results(tmp_path) -> None:
     controller.run_profile("video-surveillance")
     app.processEvents()
 
-    assert runner.calls == ["video-surveillance"]
-    assert len(controller.result_dialogs) == 1
-    assert controller.result_dialogs[0].table.rowCount() == 1
+    assert runner.calls == []
+    assert len(collector_session.calls) == 1
+    assert controller.result_dialogs == ()
     assert controller.profiles_dialog is not None
     assert not controller.profiles_dialog.isVisible()
+    assert "реестр" in controller.profiles_dialog.panel.status_label.text().casefold()
 
 
 def test_controller_reports_search_error_in_profiles_dialog(
@@ -149,9 +155,11 @@ def test_controller_reports_search_error_in_profiles_dialog(
     app = _app()
     window = QMainWindow()
     runner = FakeRunner(error=RuntimeError("ЕИС недоступна"))
+    collector_session = FakeCollectorSession(error=RuntimeError("ЕИС недоступна ui-secret"))
     controller = TenderSearchUiController(
         tmp_path,
         runtime=_runtime(tmp_path, runner),
+        collector_session=collector_session,
         thread_pool=ImmediateThreadPool(),
         parent=window,
     )
@@ -162,7 +170,10 @@ def test_controller_reports_search_error_in_profiles_dialog(
 
     assert controller.result_dialogs == ()
     assert controller.profiles_dialog is not None
-    assert "ЕИС недоступна" in (controller.profiles_dialog.panel.status_label.text())
+    rendered = controller.profiles_dialog.panel.status_label.text()
+    assert "безопасно скрытой ошибкой" in rendered
+    assert "ЕИС недоступна" not in rendered
+    assert "ui-secret" not in rendered
     assert controller.profiles_dialog.panel.run_button.isEnabled()
 
 

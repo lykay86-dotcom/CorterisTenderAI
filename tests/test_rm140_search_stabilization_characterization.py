@@ -29,9 +29,7 @@ from tests.test_collector_async_engine import FakeProvider as AsyncFakeProvider
 
 class _BlockingProvider(FakeProvider):
     def __init__(self) -> None:
-        super().__init__(
-            descriptor=descriptor("blocking", TenderSource.CUSTOM, priority=10)
-        )
+        super().__init__(descriptor=descriptor("blocking", TenderSource.CUSTOM, priority=10))
         self.entered = Event()
         self.release = Event()
         self.finished = Event()
@@ -88,7 +86,7 @@ def test_sync_timeout_returns_while_started_provider_may_still_finish() -> None:
         assert provider.finished.wait(timeout=1)
 
 
-def test_baseline_composition_is_offline_but_builds_both_search_owners(
+def test_composition_stays_offline_while_ui_uses_canonical_owner(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -103,7 +101,7 @@ def test_baseline_composition_is_offline_but_builds_both_search_owners(
     assert runtime.engine is not None
     assert runtime.runner.search_service is runtime.search_service
     controller_source = inspect.getsource(TenderSearchUiController)
-    assert "self.runtime.runner" in controller_source
+    assert "self.runtime.runner" not in controller_source
     assert "self.collector_session" in controller_source
 
 
@@ -116,11 +114,11 @@ def test_current_manual_and_scheduled_runs_share_collector_admission() -> None:
     assert "start_collector=self.try_start_collector" in controller_source
 
 
-def test_current_shell_close_sequence_names_only_dashboard_owner() -> None:
+def test_shell_close_sequence_preserves_dashboard_and_adds_tender_owner() -> None:
     source = inspect.getsource(ModernMainWindow.closeEvent)
 
     assert "dashboard_controller.shutdown" in source
-    assert "tender_search" not in source
+    assert "tender_search" in source
 
 
 def test_current_history_schemas_keep_distinct_run_families_and_links(tmp_path) -> None:
@@ -130,17 +128,14 @@ def test_current_history_schemas_keep_distinct_run_families_and_links(tmp_path) 
 
     with closing(sqlite3.connect(path)) as connection:
         collector_version = connection.execute(
-            "SELECT value FROM tender_registry_meta "
-            "WHERE key='collector_schema_version'"
+            "SELECT value FROM tender_registry_meta WHERE key='collector_schema_version'"
         ).fetchone()[0]
         registry_version = connection.execute(
             "SELECT value FROM tender_registry_meta WHERE key='schema_version'"
         ).fetchone()[0]
         tables = {
             str(row[0])
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
         legacy_fks = {
             (str(row[2]), str(row[3]), str(row[4]))
@@ -162,18 +157,16 @@ def test_current_history_schemas_keep_distinct_run_families_and_links(tmp_path) 
 
 def test_async_owner_publishes_aware_time_and_safe_unknown_failure() -> None:
     async def scenario() -> None:
-        result = await AsyncProviderSearchEngine(
-            (AsyncFakeProvider("unsafe", "fail"),)
-        ).search(TenderSearchQuery())
+        result = await AsyncProviderSearchEngine((AsyncFakeProvider("unsafe", "fail"),)).search(
+            TenderSearchQuery()
+        )
 
         assert datetime.fromisoformat(result.started_at).utcoffset() is not None
         assert datetime.fromisoformat(result.completed_at).utcoffset() is not None
         outcome = result.outcomes[0]
         assert outcome.status is AsyncProviderSearchStatus.FAILED
         assert outcome.error_code == "provider_internal_error"
-        assert outcome.error_message == (
-            "Источник завершил поиск с безопасно скрытой ошибкой."
-        )
+        assert outcome.error_message == ("Источник завершил поиск с безопасно скрытой ошибкой.")
         assert "provider failed" not in outcome.error_message
 
     asyncio.run(scenario())

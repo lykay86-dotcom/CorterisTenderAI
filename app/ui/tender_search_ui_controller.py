@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from enum import StrEnum
 from pathlib import Path
+from threading import Event
+from time import monotonic
 from typing import Protocol
 from urllib.parse import urlsplit
 
@@ -73,10 +78,6 @@ from app.tenders.document_storage import (
     TenderDocumentDownloadService,
 )
 from app.tenders.models import UnifiedTender
-from app.tenders.corteris_filter import (
-    CorterisTenderClassifier,
-    CorterisTenderFilter,
-)
 from app.tenders.matching_catalog import (
     MatchingCatalog,
     MatchingCatalogRepository,
@@ -84,10 +85,6 @@ from app.tenders.matching_catalog import (
 from app.tenders.requirement_analysis import (
     TenderRequirementAnalysis,
     TenderRequirementAnalysisService,
-)
-from app.tenders.search_profile_runner import (
-    TenderSearchProfileRun,
-    TenderSearchProfileRunner,
 )
 from app.tenders.provider_base import TenderSearchQuery
 from app.tenders.unified_search import (
@@ -148,35 +145,43 @@ class _ThreadPoolLike(Protocol):
     def start(self, runnable: QRunnable) -> None: ...
 
 
-class _SearchWorkerSignals(QObject):
-    succeeded = Signal(str, object)
-    failed = Signal(str, str, str)
+class TenderSearchLifecycleState(StrEnum):
+    IDLE = "idle"
+    QUEUED = "queued"
+    RUNNING = "running"
+    CANCELLING = "cancelling"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TIMED_OUT = "timed_out"
+
+    @property
+    def terminal(self) -> bool:
+        return self in {
+            self.CANCELLED,
+            self.COMPLETED,
+            self.FAILED,
+            self.TIMED_OUT,
+        }
 
 
-class _TenderSearchWorker(QRunnable):
-    def __init__(
-        self,
-        runner: TenderSearchProfileRunner,
-        profile_id: str,
-    ) -> None:
-        super().__init__()
-        self.runner = runner
-        self.profile_id = profile_id
-        self.signals = _SearchWorkerSignals()
-        self.setAutoDelete(True)
+@dataclass(frozen=True, slots=True)
+class TenderSearchLifecycleSnapshot:
+    generation: int
+    revision: int
+    state: TenderSearchLifecycleState
+    profile_id: str = ""
+    updated_at: str = ""
+    error_code: str = ""
+    message: str = ""
 
-    @Slot()
-    def run(self) -> None:
-        try:
-            result = self.runner.run(self.profile_id)
-        except Exception as exc:
-            self.signals.failed.emit(
-                self.profile_id,
-                type(exc).__name__,
-                str(exc),
-            )
-            return
-        self.signals.succeeded.emit(self.profile_id, result)
+    @property
+    def active(self) -> bool:
+        return self.state in {
+            TenderSearchLifecycleState.QUEUED,
+            TenderSearchLifecycleState.RUNNING,
+            TenderSearchLifecycleState.CANCELLING,
+        }
 
 
 class _FullAnalysisWorkerSignals(QObject):
@@ -367,9 +372,10 @@ class _ParticipationScoreWorker(QRunnable):
 
 
 class _CollectorRunWorkerSignals(QObject):
-    progress = Signal(object)
-    succeeded = Signal(object)
-    failed = Signal(str, str)
+    started = Signal(int)
+    progress = Signal(int, object)
+    succeeded = Signal(int, object)
+    failed = Signal(int, str, str)
 
 
 class _CollectorRunWorker(QRunnable):
@@ -378,12 +384,15 @@ class _CollectorRunWorker(QRunnable):
         session: CollectorRunSession,
         query: object,
         provider_ids: tuple[str, ...],
+        generation: int = 0,
     ) -> None:
         super().__init__()
         self.session = session
         self.query = query
         self.provider_ids = provider_ids
+        self.generation = generation
         self.cancellation_token = CollectorCancellationToken()
+        self.completion_event = Event()
         self.signals = _CollectorRunWorkerSignals()
         self.setAutoDelete(True)
 
@@ -397,19 +406,32 @@ class _CollectorRunWorker(QRunnable):
                 self.query,
                 provider_ids=self.provider_ids,
                 cancellation_token=self.cancellation_token,
-                progress_callback=self.signals.progress.emit,
+                progress_callback=lambda event: self.signals.progress.emit(
+                    self.generation,
+                    event,
+                ),
             )
 
+        self.signals.started.emit(self.generation)
         try:
             result = asyncio.run(execute())
         except Exception as exc:
             failure = classify_search_error(exc)
             self.signals.failed.emit(
+                self.generation,
                 failure.code,
                 failure.message,
             )
-            return
-        self.signals.succeeded.emit(result)
+        else:
+            self.signals.succeeded.emit(self.generation, result)
+        finally:
+            self.completion_event.set()
+
+    def abandon(self) -> None:
+        """Mark a queued runnable removed from the owned pool as complete."""
+
+        self.cancel()
+        self.completion_event.set()
 
 
 def safe_manual_health_error_message(_error: BaseException) -> str:
@@ -433,6 +455,7 @@ class _ProviderCheckWorker(QRunnable):
         self.manager = manager
         self.provider_ids = provider_ids
         self.cancellation_token = CollectorCancellationToken()
+        self.completion_event = Event()
         self.signals = _ProviderCheckWorkerSignals()
         self.setAutoDelete(True)
 
@@ -458,11 +481,17 @@ class _ProviderCheckWorker(QRunnable):
                 "ProviderHealthCheckError",
                 safe_manual_health_error_message(exc),
             )
-            return
-        self.signals.succeeded.emit(states)
+        else:
+            self.signals.succeeded.emit(states)
+        finally:
+            self.completion_event.set()
 
     def cancel(self) -> bool:
         return self.cancellation_token.cancel()
+
+    def abandon(self) -> None:
+        self.cancel()
+        self.completion_event.set()
 
 
 class TenderSearchUiController(QObject):
@@ -528,7 +557,17 @@ class TenderSearchUiController(QObject):
             self._theme = ThemeName(theme)
         except (TypeError, ValueError, AttributeError):
             self._theme = ThemeName.DARK
-        self._thread_pool = thread_pool or QThreadPool.globalInstance()
+        self._owns_thread_pool = thread_pool is None
+        self._thread_pool = thread_pool or QThreadPool(self)
+        self._accepting_runs = True
+        self._shutdown_complete = False
+        self._run_generation = 0
+        self._lifecycle_snapshot = TenderSearchLifecycleSnapshot(
+            generation=0,
+            revision=0,
+            state=TenderSearchLifecycleState.IDLE,
+            updated_at=_utc_now(),
+        )
         self._profiles_dialog: TenderSearchProfilesDialog | None = None
         self._registry_dialog: TenderRegistryDialog | None = None
         self._provider_dialog: TenderProviderManagerDialog | None = None
@@ -543,9 +582,9 @@ class TenderSearchUiController(QObject):
         self._collector_worker: _CollectorRunWorker | None = None
         self._source_monitoring_snapshot: SourceMonitoringSnapshot | None = None
         self._collector_profile_id = ""
+        self._profile_dialog_run_id = ""
         self._result_dialogs: list[TenderSearchResultsDialog] = []
         self._document_dialogs: dict[str, TenderDocumentsDialog] = {}
-        self._active_workers: dict[str, _TenderSearchWorker] = {}
         self._document_workers: dict[
             str,
             _TenderDocumentWorker,
@@ -692,6 +731,10 @@ class TenderSearchUiController(QObject):
     @property
     def unified_search_panel(self) -> TenderUnifiedSearchPanel | None:
         return self._unified_search_panel
+
+    @property
+    def lifecycle_snapshot(self) -> TenderSearchLifecycleSnapshot:
+        return self._lifecycle_snapshot
 
     @property
     def result_dialogs(self) -> tuple[TenderSearchResultsDialog, ...]:
@@ -934,9 +977,11 @@ class TenderSearchUiController(QObject):
 
     @Slot(object)
     def _apply_matching_catalog(self, catalog: MatchingCatalog) -> None:
-        self.runtime.search_service.tender_filter = CorterisTenderFilter(
-            CorterisTenderClassifier(catalog.to_search_profile())
-        )
+        # The canonical Collector service loads the persisted catalog for each
+        # fresh run. Keeping a second mutable legacy filter here would create a
+        # competing production search owner.
+        del catalog
+        self.refresh_unified_search_configuration()
 
     @Slot()
     def open_registry_dialog(self) -> None:
@@ -1019,6 +1064,8 @@ class TenderSearchUiController(QObject):
     ) -> bool:
         """Start one collector run and report whether it was accepted."""
 
+        if not self._accepting_runs:
+            return False
         normalized = profile_id.strip().casefold()
         if not normalized:
             return False
@@ -1037,6 +1084,8 @@ class TenderSearchUiController(QObject):
             requested_provider_ids = tuple(
                 str(item) for item in (provider_ids or ()) if str(item).strip()
             )
+            if not requested_provider_ids:
+                requested_provider_ids = self.provider_manager.enabled_provider_ids()
             resolver = getattr(self.provider_manager, "resolve_provider_ids", None)
             selected = (
                 resolver(requested_provider_ids)
@@ -1069,10 +1118,23 @@ class TenderSearchUiController(QObject):
                 self._collector_dialog.set_error("Нет включённых источников для запуска.")
             return False
 
+        query = profile.to_search_query()
+        query = replace(
+            query,
+            extra={
+                **dict(query.extra),
+                "corteris_run_context": {
+                    "schema_version": 1,
+                    "origin": "saved_profile",
+                    "profile_id": normalized[:120],
+                    "profile_name": profile.name[:200],
+                },
+            },
+        )
         return self._try_start_collector_query(
             profile_id=normalized,
             profile_name=profile.name,
-            query=profile.to_search_query(),
+            query=query,
             provider_ids=selected,
         )
 
@@ -1112,18 +1174,42 @@ class TenderSearchUiController(QObject):
         provider_ids: tuple[str, ...],
     ) -> bool:
         """Create and wire the sole Collector worker for every UI entry point."""
-        if self._collector_worker is not None:
+        if not self._accepting_runs:
+            return False
+        if self._collector_worker is not None or self._lifecycle_snapshot.active:
             if self._collector_dialog is not None:
                 self._collector_dialog.set_status("Сборщик уже выполняется.")
             if self._unified_search_panel is not None:
                 self._unified_search_panel.set_status("Поиск уже выполняется.", error=True)
             return False
 
+        if "corteris_run_context" not in query.extra:
+            query = replace(
+                query,
+                extra={
+                    **dict(query.extra),
+                    "corteris_run_context": {
+                        "schema_version": 1,
+                        "origin": "unified_search",
+                        "profile_id": profile_id[:120],
+                        "profile_name": profile_name[:200],
+                    },
+                },
+            )
+        self._run_generation += 1
+        generation = self._run_generation
+        self._transition_lifecycle(
+            TenderSearchLifecycleState.QUEUED,
+            generation=generation,
+            profile_id=profile_id,
+        )
         worker = _CollectorRunWorker(
             self.collector_session,
             query,
             provider_ids,
+            generation,
         )
+        worker.signals.started.connect(self._on_collector_started)
         worker.signals.progress.connect(self._on_collector_progress)
         worker.signals.succeeded.connect(self._on_collector_succeeded)
         worker.signals.failed.connect(self._on_collector_failed)
@@ -1149,28 +1235,65 @@ class TenderSearchUiController(QObject):
         worker = self._collector_worker
         if worker is None:
             return
+        self._transition_lifecycle(
+            TenderSearchLifecycleState.CANCELLING,
+            generation=worker.generation,
+        )
         worker.cancel()
         if self._collector_dialog is not None:
             self._collector_dialog.mark_cancel_requested()
         if self._unified_search_panel is not None:
             self._unified_search_panel.mark_cancel_requested()
 
-    @Slot(object)
-    def _on_collector_progress(self, event: object) -> None:
+    @Slot(int)
+    def _on_collector_started(self, generation: int) -> None:
+        self._transition_lifecycle(
+            TenderSearchLifecycleState.RUNNING,
+            generation=generation,
+        )
+
+    @Slot(int, object)
+    def _on_collector_progress(self, generation: int, event: object) -> None:
+        if not self._accepts_generation(generation):
+            return
         if self._collector_dialog is not None and isinstance(event, CollectorProgressEvent):
             self._collector_dialog.apply_progress(event)
         if self._unified_search_panel is not None and isinstance(event, CollectorProgressEvent):
             self._unified_search_panel.apply_progress(event)
 
-    @Slot(object)
-    def _on_collector_succeeded(self, result: object) -> None:
-        self._collector_worker = None
+    @Slot(int, object)
+    def _on_collector_succeeded(
+        self,
+        generation: int | object,
+        result: object | None = None,
+    ) -> None:
+        if result is None:
+            result = generation
+            generation = self._lifecycle_snapshot.generation
+        generation = int(generation)
+        if not self._accepts_generation(generation):
+            return
         if not isinstance(result, CollectorRunResult):
             self._on_collector_failed(
+                generation,
                 "TypeError",
                 "Коллектор вернул неподдерживаемый результат.",
             )
             return
+        state = (
+            TenderSearchLifecycleState.CANCELLED
+            if (
+                result.status.value == "cancelled"
+                or self._lifecycle_snapshot.state is TenderSearchLifecycleState.CANCELLING
+            )
+            else (
+                TenderSearchLifecycleState.TIMED_OUT
+                if bool(getattr(result.batch_result, "timed_out", False))
+                else TenderSearchLifecycleState.COMPLETED
+            )
+        )
+        self._transition_lifecycle(state, generation=generation)
+        self._collector_worker = None
         if self._collector_dialog is not None:
             self._collector_dialog.set_result(result)
         if self._unified_search_panel is not None:
@@ -1179,13 +1302,37 @@ class TenderSearchUiController(QObject):
             self._registry_dialog.refresh_records()
         self.refresh_provider_states()
         self.collector_finished.emit(result)
+        self._finish_profile_dialog_run(result=result)
 
-    @Slot(str, str)
+    @Slot(int, str, str)
     def _on_collector_failed(
         self,
+        generation: int | str,
         error_type: str,
-        message: str,
+        message: str | None = None,
     ) -> None:
+        if message is None:
+            message = error_type
+            error_type = str(generation)
+            generation = self._lifecycle_snapshot.generation
+        generation = int(generation)
+        if not self._accepts_generation(generation):
+            return
+        terminal = (
+            TenderSearchLifecycleState.CANCELLED
+            if error_type == "search_cancelled"
+            else (
+                TenderSearchLifecycleState.TIMED_OUT
+                if error_type == "provider_timeout"
+                else TenderSearchLifecycleState.FAILED
+            )
+        )
+        self._transition_lifecycle(
+            terminal,
+            generation=generation,
+            error_code=error_type,
+            message=message,
+        )
         self._collector_worker = None
         rendered = f"{error_type}: {message}"
         if self._collector_dialog is not None:
@@ -1194,6 +1341,7 @@ class TenderSearchUiController(QObject):
             self._unified_search_panel.set_error(f"Поиск завершился ошибкой: {rendered}")
         self.refresh_provider_states()
         self.collector_failed.emit(rendered)
+        self._finish_profile_dialog_run(error=message)
 
     @Slot()
     def open_provider_manager_dialog(self) -> None:
@@ -1677,71 +1825,145 @@ class TenderSearchUiController(QObject):
         normalized = profile_id.strip().casefold()
         if not normalized:
             return
-
-        if normalized in self._active_workers:
+        if self._lifecycle_snapshot.active:
             self._set_profiles_status("Этот профиль уже выполняется. Дождитесь завершения.")
             return
 
-        worker = _TenderSearchWorker(
-            self.runtime.runner,
-            normalized,
-        )
-        worker.signals.succeeded.connect(self._on_search_succeeded)
-        worker.signals.failed.connect(self._on_search_failed)
-        self._active_workers[normalized] = worker
-
+        self._profile_dialog_run_id = normalized
         if self._profiles_dialog is not None:
-            self._profiles_dialog.set_search_busy(
-                True,
-                profile_id=normalized,
-            )
-
+            self._profiles_dialog.set_search_busy(True, profile_id=normalized)
         self.search_started.emit(normalized)
-        self._thread_pool.start(worker)
-
-    @Slot(str, object)
-    def _on_search_succeeded(
-        self,
-        profile_id: str,
-        run: object,
-    ) -> None:
-        self._active_workers.pop(profile_id, None)
-        if self._profiles_dialog is not None:
-            self._profiles_dialog.set_search_busy(False)
-            self._profiles_dialog.set_status("Поиск завершён. Открыта таблица результатов.")
-            self._profiles_dialog.hide()
-
-        if not isinstance(run, TenderSearchProfileRun):
-            self._on_search_failed(
-                profile_id,
-                "TypeError",
-                "Поисковый сервис вернул неподдерживаемый результат.",
-            )
+        if not self.try_start_collector(normalized, ()):
+            self._profile_dialog_run_id = ""
+            if self._profiles_dialog is not None:
+                self._profiles_dialog.set_search_busy(False)
+            self._set_profiles_status("Поиск не запущен. Проверьте профиль и источники.")
             return
 
-        parent = self.parent()
-        parent_widget = parent if isinstance(parent, QWidget) else None
-        dialog = TenderSearchResultsDialog(
-            run,
-            theme=self._theme,
-            parent=parent_widget,
-        )
-        dialog.rerun_requested.connect(self.run_profile)
-        dialog.profiles_requested.connect(self.open_profiles_dialog)
-        dialog.documents_requested.connect(self.open_tender_documents)
-        dialog.full_analysis_requested.connect(
-            lambda tender: self.open_full_analysis(tender_registry_key(tender))
-        )
-        dialog.finished.connect(lambda _result, current=dialog: self._forget_result_dialog(current))
-        self._result_dialogs.append(dialog)
-        dialog.show()
-        dialog.raise_()
-        dialog.activateWindow()
+    def _accepts_generation(self, generation: int) -> bool:
+        snapshot = self._lifecycle_snapshot
+        return snapshot.generation == generation and not snapshot.state.terminal
 
-        if self._registry_dialog is not None:
-            self._registry_dialog.refresh_records()
+    def _transition_lifecycle(
+        self,
+        state: TenderSearchLifecycleState,
+        *,
+        generation: int,
+        profile_id: str = "",
+        error_code: str = "",
+        message: str = "",
+    ) -> bool:
+        current = self._lifecycle_snapshot
+        if state is TenderSearchLifecycleState.QUEUED and generation > current.generation:
+            pass
+        elif generation != current.generation or current.state.terminal:
+            return False
+        elif (
+            current.state is TenderSearchLifecycleState.CANCELLING
+            and state is TenderSearchLifecycleState.RUNNING
+        ):
+            return False
+        if current.generation == generation and current.state is state:
+            return False
+        self._lifecycle_snapshot = TenderSearchLifecycleSnapshot(
+            generation=generation,
+            revision=current.revision + 1,
+            state=state,
+            profile_id=profile_id or current.profile_id,
+            updated_at=_utc_now(),
+            error_code=error_code[:120],
+            message=message[:300],
+        )
+        return True
 
-        self.search_finished.emit(profile_id, run)
+    def _finish_profile_dialog_run(
+        self,
+        *,
+        result: object | None = None,
+        error: str = "",
+    ) -> None:
+        profile_id = self._profile_dialog_run_id
+        if not profile_id:
+            return
+        self._profile_dialog_run_id = ""
+        if self._profiles_dialog is not None:
+            self._profiles_dialog.set_search_busy(False)
+            if error:
+                self._profiles_dialog.set_status(
+                    f"Поиск не выполнен: {error[:300]}",
+                    error=True,
+                )
+            else:
+                self._profiles_dialog.set_status("Поиск завершён. Результаты сохранены в реестр.")
+                self._profiles_dialog.hide()
+        if error:
+            self.search_failed.emit(profile_id, error[:300])
+        else:
+            self.search_finished.emit(profile_id, result)
+
+    def shutdown(self, timeout_ms: int = 3000) -> bool:
+        """Cancel and join tender-owned background work within a fixed budget."""
+
+        if timeout_ms < 0:
+            raise ValueError("timeout_ms must be non-negative")
+        if self._shutdown_complete:
+            return True
+        self._accepting_runs = False
+        self.scheduler_ui_controller.shutdown()
+        deadline = monotonic() + (timeout_ms / 1000)
+
+        collector = self._collector_worker
+        if collector is not None:
+            self._transition_lifecycle(
+                TenderSearchLifecycleState.CANCELLING,
+                generation=collector.generation,
+            )
+            collector.cancel()
+            self._transition_lifecycle(
+                TenderSearchLifecycleState.CANCELLED,
+                generation=collector.generation,
+                error_code="search_cancelled",
+                message="Операция поиска отменена при закрытии приложения.",
+            )
+            self._abandon_if_queued(collector)
+
+        provider_check = self._provider_check_worker
+        if provider_check is not None:
+            provider_check.cancel()
+            self._abandon_if_queued(provider_check)
+
+        completed = self._wait_for_worker(collector, deadline)
+        completed = self._wait_for_worker(provider_check, deadline) and completed
+        wait_for_done = getattr(self._thread_pool, "waitForDone", None)
+        if completed and self._owns_thread_pool and callable(wait_for_done):
+            remaining_ms = max(0, round((deadline - monotonic()) * 1000))
+            completed = bool(wait_for_done(remaining_ms))
+
+        if not completed:
+            return False
+        self._collector_worker = None
+        self._provider_check_worker = None
+        self._provider_check_ids = ()
+        self._finish_profile_dialog_run(error="Операция поиска отменена.")
+        self._shutdown_complete = True
+        return True
+
+    def _abandon_if_queued(self, worker: object) -> None:
+        try_take = getattr(self._thread_pool, "tryTake", None)
+        if callable(try_take) and bool(try_take(worker)):
+            abandon = getattr(worker, "abandon", None)
+            if callable(abandon):
+                abandon()
+
+    @staticmethod
+    def _wait_for_worker(worker: object | None, deadline: float) -> bool:
+        if worker is None:
+            return True
+        event = getattr(worker, "completion_event", None)
+        wait = getattr(event, "wait", None)
+        if not callable(wait):
+            return True
+        return bool(wait(timeout=max(0.0, deadline - monotonic())))
 
     @Slot(str)
     def open_registry_documents(self, registry_key: str) -> None:
@@ -2457,29 +2679,6 @@ class TenderSearchUiController(QObject):
             dialog.set_analysis_error(rendered)
         self.analysis_failed.emit(registry_key, rendered)
 
-    @Slot(str, str, str)
-    def _on_search_failed(
-        self,
-        profile_id: str,
-        error_type: str,
-        message: str,
-    ) -> None:
-        self._active_workers.pop(profile_id, None)
-        if self._profiles_dialog is not None:
-            self._profiles_dialog.set_search_busy(False)
-            self._profiles_dialog.set_status(
-                (
-                    f"Поиск не выполнен: {message or error_type}. "
-                    "Проверьте интернет, доступность ЕИС и параметры "
-                    "профиля."
-                ),
-                error=True,
-            )
-        self.search_failed.emit(
-            profile_id,
-            message or error_type,
-        )
-
     def _set_profiles_status(self, message: str) -> None:
         if self._profiles_dialog is not None:
             self._profiles_dialog.set_status(
@@ -2600,4 +2799,13 @@ class TenderSearchUiController(QObject):
         return toolbar
 
 
-__all__ = ["TenderSearchUiController", "safe_manual_health_error_message"]
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+__all__ = [
+    "TenderSearchLifecycleSnapshot",
+    "TenderSearchLifecycleState",
+    "TenderSearchUiController",
+    "safe_manual_health_error_message",
+]
