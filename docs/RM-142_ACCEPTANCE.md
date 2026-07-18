@@ -2,9 +2,9 @@
 
 Дата локальной приёмки: 18 июля 2026 года.
 
-Статус пакета: feature implementation и локальные gates пройдены; feature PR, Windows Quality
-Gate, merge, exact merge-SHA gate и отдельный docs-only closeout ещё не выполнены. До этих шагов
-RM-142 остаётся единственным `IN PROGRESS`, а RM-143+ — `PLANNED`.
+Статус пакета: feature implementation, локальные gates, feature PR и первый Windows Quality Gate
+пройдены; финальный PR-head gate, merge, exact merge-SHA gate и отдельный docs-only closeout ещё
+не выполнены. До этих шагов RM-142 остаётся единственным `IN PROGRESS`, а RM-143+ — `PLANNED`.
 
 ## Вход и трассируемость
 
@@ -23,6 +23,10 @@ RM-142 остаётся единственным `IN PROGRESS`, а RM-143+ — `
 - Workflow navigation state: `c8893ea`.
 - Production shell integration: `15e7bb7`.
 - Offline journey/security coverage: `6f0331e`.
+- Feature acceptance documentation: `4b4e6bc`.
+- Feature PR: #92.
+- PR Quality Gate run `29658950250` на head `4b4e6bc60c793838c56e2c9448bed742c674150c`:
+  `success`, Python 3.12 за 5:36 и Python 3.13 за 5:22.
 
 Entry gate подтвердил RM-141 `DONE`, RM-142 как единственный `IN PROGRESS`, RM-143–RM-200
 `PLANNED`, наличие handoff и отсутствие параллельной реализации следующего этапа. Baseline full
@@ -92,8 +96,8 @@ warnings RM-142 нет.
 
 Локальный `pip-audit --skip-editable` не получил доступ к PyPI из sandbox. Повтор с внешним
 доступом был отклонён политикой среды из-за передачи dependency metadata; обход не выполнялся.
-Dependency audit остаётся обязательным step Windows Quality Gate и должен быть подтверждён в PR и
-на exact merge SHA до closeout.
+Dependency audit успешно выполнен в PR run `29658950250` на Python 3.12 и 3.13. Его повтор на
+финальном PR head и exact merge SHA остаётся обязательным до closeout.
 
 ## Database, границы и rollback
 
@@ -107,14 +111,13 @@ Dependency audit остаётся обязательным step Windows Quality 
 
 ## Оставшиеся обязательные gates
 
-RM-142 нельзя признать `DONE`, пока не выполнены все пункты:
+RM-142 нельзя признать `DONE`, пока не выполнены оставшиеся пункты:
 
-1. Feature PR `feat(rm-142): implement canonical information architecture`.
-2. PR Quality Gate `success` на Python 3.12 и 3.13, включая full pytest и dependency audit.
-3. Merge feature PR в `main` и фиксация точного merge SHA.
-4. Exact merge-SHA Quality Gate `success` на Python 3.12 и 3.13.
-5. Отдельный docs-only closeout PR: RM-142 → `DONE`, RM-143 → единственный `IN PROGRESS`,
+1. Финальный PR-head Quality Gate после этого evidence-коммита.
+2. Merge feature PR в `main` и фиксация точного merge SHA.
+3. Exact merge-SHA Quality Gate `success` на Python 3.12 и 3.13.
+4. Отдельный docs-only closeout PR: RM-142 → `DONE`, RM-143 → единственный `IN PROGRESS`,
    обновление `ROADMAP.md`, `STATUS.md`, `ROADMAP_HISTORY.md` и этого acceptance-файла.
 
-Текущий DoD verdict: локальная feature-приёмка пройдена; внешние PR/merge/exact-SHA/closeout gates
-ожидаются, поэтому этап остаётся `IN PROGRESS`.
+Текущий DoD verdict: локальная feature-приёмка и первый PR gate пройдены;
+final-head/merge/exact-SHA/closeout gates ожидаются, поэтому этап остаётся `IN PROGRESS`.
