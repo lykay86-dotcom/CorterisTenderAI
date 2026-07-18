@@ -146,13 +146,17 @@ def inspect_module(path: Path, test_sources: dict[str, str]) -> ModuleInventory:
     )
 
 
+def _load_ui_test_sources() -> dict[str, str]:
+    result: dict[str, str] = {}
+    for path in sorted(TEST_ROOT.glob("test_*.py")):
+        source = path.read_text(encoding="utf-8")
+        if "app.ui" in source or "PySide6" in source:
+            result[path.relative_to(ROOT).as_posix()] = source
+    return result
+
+
 def build_inventory() -> tuple[ModuleInventory, ...]:
-    test_sources = {
-        path.relative_to(ROOT).as_posix(): path.read_text(encoding="utf-8")
-        for path in sorted(TEST_ROOT.glob("test_*.py"))
-        if "app.ui" in path.read_text(encoding="utf-8")
-        or "PySide6" in path.read_text(encoding="utf-8")
-    }
+    test_sources = _load_ui_test_sources()
     return tuple(inspect_module(path, test_sources) for path in sorted(UI_ROOT.rglob("*.py")))
 
 
@@ -163,7 +167,7 @@ def summary(inventory: tuple[ModuleInventory, ...]) -> dict[str, object]:
         "classification_counts": dict(
             sorted(Counter(item.classification for item in inventory).items())
         ),
-        "ui_test_module_count": len({test for item in inventory for test in item.tests}),
+        "ui_test_module_count": len(_load_ui_test_sources()),
         "stylesheet_calls": sum(item.stylesheet_calls for item in inventory),
         "literal_colors_outside_theme": sorted(
             {color for item in inventory for color in item.literal_colors}
