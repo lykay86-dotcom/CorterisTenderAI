@@ -74,7 +74,7 @@ def test_runtime_baseline_builds_without_network_activity(tmp_path) -> None:
     )
 
     assert transport.calls == []
-    assert baseline.has_search_engine
+    assert not baseline.has_search_engine
     assert baseline.has_tender_registry
     assert baseline.has_document_store
     assert baseline.has_text_extraction

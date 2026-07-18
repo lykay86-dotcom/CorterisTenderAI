@@ -98,8 +98,9 @@ def test_composition_stays_offline_while_ui_uses_canonical_owner(
 
     runtime = create_tender_search_runtime(tmp_path)
 
-    assert runtime.engine is not None
-    assert runtime.runner.search_service is runtime.search_service
+    assert runtime.engine is None
+    assert runtime.search_service is None
+    assert runtime.runner is None
     controller_source = inspect.getsource(TenderSearchUiController)
     assert "self.runtime.runner" not in controller_source
     assert "self.collector_session" in controller_source
