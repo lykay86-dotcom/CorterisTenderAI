@@ -4,66 +4,56 @@
 
 ## Активный этап
 
-**RM-139 — мониторинг источников**
+**RM-140 — стабилизация поиска**
 
 Статус: `IN PROGRESS`
 
-RM-138 завершён после audit-first реализации, feature merge и успешного exact
-merge-SHA Windows Quality Gate. RM-139 — единственный активный этап;
-RM-140–RM-200 остаются `PLANNED` и не выполняются параллельно.
-
-Локальная feature acceptance RM-139 пройдена на ветке `feat/rm-139-source-monitoring`:
-audit/contract/plan и expected-red contract зафиксированы до production changes, full pytest —
-`1908 passed, 2 warnings`, обязательные quality/security gates успешны. Детали находятся в
-`docs/RM-139_ACCEPTANCE.md`. Это не closeout: feature PR ещё не слит, exact merge-SHA gate ещё не
-выполнен.
+RM-139 завершён после audit-first реализации, feature PR #86, merge commit
+`41b547f67020b9645d915694c943b962b46ddc08` и успешного exact merge-SHA Windows Quality Gate
+run `29624355650`. RM-140 — единственный активный этап; RM-141–RM-200 остаются `PLANNED` и не
+выполняются параллельно.
 
 ## Завершённый этап
 
-**RM-138 — параллельный поиск**
+**RM-139 — мониторинг источников**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- audit/contract/plan зафиксированы commit `bd3880d` до application-кода,
-  expected-red lifecycle contract — `7360125`;
-- existing production `AsyncProviderSearchEngine`, Collector session/admission, RM-137 normalizer/
-  deduplicator, repository/DB, HTTP retry и DI paths переиспользованы; третий engine, второй retry,
-  model/repository/DB не добавлялись;
-- bounded parallel lifecycle публикует immutable revisioned snapshots с exact queued/running/
-  completed state, aware UTC, monotonic provider/overall deadlines и engine-owned progress;
-- cooperative idempotent cancellation ставит terminal boundary до отмены задач, сохраняет принятые
-  partial results и отвергает late completions; legacy blocking-thread limit задокументирован;
-- canonical partial results используют RM-137 normalization/dedup один раз и детерминированы
-  относительно completion schedule; slow progress subscriber не удерживает provider slot;
-- provider/pipeline/persistence/UI boundaries используют safe typed category/code/message без raw
-  exception/URL/credential; UI остаётся в одном background worker и не вычисляет business progress;
-- sync `TenderSearchEngine` API, RM-107 score/recommendation/hard-exclusion и critical stop-factor
-  priority сохранены;
-- локально: full pytest `1892 passed, 2 warnings`; secret scan, Ruff/format (`611 files`), mypy,
-  workflow smokes, five-cycle race gate и dependency audit успешны;
-- feature PR #84 слит в `main` merge commit
-  `593ed39c7b81efc8a67e36eef47ceadbbbaf46ca`;
-- PR Quality Gate run `29619784410` успешен: Python 3.12 —
-  `1892 passed, 2 warnings in 94.36s`, Python 3.13 —
-  `1892 passed, 2 warnings in 111.15s`;
-- exact merge-SHA run `29619998396` успешен: Python 3.12 —
-  `1892 passed, 2 warnings in 102.67s`, Python 3.13 —
-  `1892 passed, 2 warnings in 82.24s`; все обязательные jobs завершились `success`.
+- audit/contract/plan зафиксированы commit `6ad5741` до application-кода, expected-red contract —
+  `d9b2b97`;
+- existing provider/configuration, connection evidence, Collector run/outcome/checkpoint
+  persistence, C19 verification, schedule, health monitor/circuit, notifications и provider manager
+  dialog переиспользованы без второго monitoring stack и schema bump;
+- code-owned immutable snapshot раздельно показывает enablement, connection readiness,
+  operational run/circuit, checkpoint freshness, C19 verification и schedule; aware UTC,
+  explicit TTL/future-skew policy и stable transition dedup сохранены;
+- startup network I/O не добавлен, active Collector admission и safe UI/notification boundaries
+  сохранены; RM-107 deterministic decision/scoring/critical stop-factor priority не изменены;
+- локально: full pytest `1908 passed, 2 warnings in 120.62s`; secret scan, Ruff/format (`620 files`),
+  required/owner-contour mypy, workflow smokes, five-cycle circuit/notification gate и dependency
+  audit успешны;
+- feature PR #86 слит в `main` merge commit
+  `41b547f67020b9645d915694c943b962b46ddc08`;
+- PR Quality Gate run `29623757948` успешен: Python 3.12 —
+  `1908 passed, 2 warnings in 82.11s`, Python 3.13 —
+  `1908 passed, 2 warnings in 109.04s`;
+- exact merge-SHA run `29624355650` успешен: Python 3.12 —
+  `1908 passed, 2 warnings in 120.67s`, Python 3.13 —
+  `1908 passed, 2 warnings in 133.34s`; все обязательные jobs завершились `success`.
 
 ## Ранее завершённый этап
 
-**RM-137 — отраслево-независимая нормализация**
+**RM-138 — параллельный поиск**
 
 Статус: `DONE`
 
-- Feature PR #81 слит в `main` коммитом `e38c8c1`.
-- Exact merge-SHA Quality Gate run `29615080804` успешен на Python 3.12/3.13.
-- Canonical normalization/dedup и deterministic decision boundaries сохранены.
+- Feature PR #84 слит в `main` коммитом `593ed39`.
+- Exact merge-SHA Quality Gate run `29619998396` успешен на Python 3.12/3.13.
+- Bounded parallel search и deterministic decision boundaries сохранены.
 
 ## Текущее действие
 
-Опубликовать feature PR RM-139, дождаться обязательного Windows Quality Gate, после merge проверить
-точный merge SHA и только затем выполнить отдельный docs-only closeout. Не начинать RM-140+ и не
-изменять deterministic decision/scoring/critical stop-factor priority.
+Начать RM-140 с отдельного audit-first пакета и канонического entry gate. Не начинать RM-141+ и не
+изменять deterministic decision/scoring/critical stop-factor priority без отдельного аудита.

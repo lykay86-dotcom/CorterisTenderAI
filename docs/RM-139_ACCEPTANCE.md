@@ -2,9 +2,8 @@
 
 Дата: 18 июля 2026 года.
 
-Статус пакета: локальная feature acceptance пройдена. RM-139 остаётся `IN PROGRESS` до merge
-feature PR в `main`, успешного exact merge-SHA Windows Quality Gate и отдельного docs-only
-closeout. RM-140–RM-200 остаются `PLANNED`.
+Статус пакета: feature acceptance и exact merge-SHA gate пройдены. Feature PR #86 слит в `main`;
+этот docs-only closeout переводит RM-139 в `DONE` и активирует RM-140.
 
 ## Границы и трассируемость
 
@@ -14,6 +13,7 @@ closeout. RM-140–RM-200 остаются `PLANNED`.
 - Expected-red contract: commit `d9b2b97`; семь collection errors отсутствующих RM-139
   production symbols подтвердили, что тесты не проходили случайно через legacy поведение.
 - Production commits: `fdcb9c2`, `088e100`, `a29a978`.
+- Feature PR: #86; merge commit: `41b547f67020b9645d915694c943b962b46ddc08`.
 - Реализация покрывает C19 из `docs/RM-126_REQUIREMENTS.md` и не начинает RM-140.
 
 ## Принятая реализация
@@ -63,8 +63,19 @@ closeout. RM-140–RM-200 остаются `PLANNED`.
 ошибкой RM-139. Более широкий legacy mypy запуск обнаруживает существующие ошибки вне обязательного
 и RM-139 owner contours; их исправление не входит в scope этого этапа.
 
-## Остаточный gate
+## GitHub acceptance
 
-Definition of Done ещё не достигнут: нужен feature PR, merge в `main`, успешный exact merge-SHA
-Windows Quality Gate и отдельный docs-only closeout с PR/run/merge evidence. До этого документация
-не переводит RM-139 в `DONE` и не активирует RM-140.
+- PR Quality Gate run `29623757948`: Python 3.12 —
+  `1908 passed, 2 warnings in 82.11s`; Python 3.13 —
+  `1908 passed, 2 warnings in 109.04s`.
+- Exact merge-SHA push run `29624355650` на
+  `41b547f67020b9645d915694c943b962b46ddc08`: Python 3.12 —
+  `1908 passed, 2 warnings in 120.67s`; Python 3.13 —
+  `1908 passed, 2 warnings in 133.34s`.
+- В обоих run успешны secret scan, Ruff check/format, required mypy, workflow smokes, full pytest
+  и dependency audit. Неблокирующее Node.js 20/24 annotation относится к official actions и не
+  изменяет итог gate.
+
+После merge feature PR и успешного exact merge-SHA gate RM-139 соответствует Definition of Done.
+Этот отдельный docs-only closeout фиксирует evidence, переводит RM-139 в `DONE` и назначает RM-140
+единственным `IN PROGRESS`; RM-141–RM-200 остаются `PLANNED`.

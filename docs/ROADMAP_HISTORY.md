@@ -1,5 +1,33 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-18 — RM-139 завершён, RM-140 активирован
+
+- Audit/contract/plan зафиксированы commit `6ad5741` до application changes; expected-red
+  contract — `d9b2b97`.
+- Existing provider/configuration, connection evidence, Collector accepted run/outcome and
+  checkpoint persistence, C19 verification, schedule, health monitor/circuit, notifications и
+  provider manager dialog переиспользованы без второго monitoring stack или schema bump.
+- Code-owned immutable snapshot раздельно показывает enablement, connection readiness,
+  operational run/circuit, checkpoint freshness, C19 verification и schedule; aware UTC,
+  explicit TTL/future-skew policy, safe UI/notifications и stable transition dedup сохранены.
+- Startup network I/O не добавлен; active Collector admission, RM-107 score/recommendation/
+  hard-exclusion, critical stop-factor priority и AI boundaries не изменены.
+- Локальная acceptance: full pytest `1908 passed, 2 warnings in 120.62s`; secret scan,
+  Ruff/format (`620 files`), required и owner-contour mypy, workflow smokes, five-cycle
+  circuit/notification gate, dependency audit и diff-check успешны.
+- Feature PR #86 слит merge commit `41b547f67020b9645d915694c943b962b46ddc08`.
+- PR Quality Gate run `29623757948` успешен: Python 3.12 —
+  `1908 passed, 2 warnings in 82.11s`, Python 3.13 —
+  `1908 passed, 2 warnings in 109.04s`.
+- Exact merge-SHA push run `29624355650` на
+  `41b547f67020b9645d915694c943b962b46ddc08` успешен: Python 3.12 —
+  `1908 passed, 2 warnings in 120.67s`, Python 3.13 —
+  `1908 passed, 2 warnings in 133.34s`; dependency audit и все обязательные jobs — `success`.
+- Неблокирующее official-actions annotation о Node.js 20/24 не повлияло на gate и остаётся
+  отдельной CI maintenance задачей.
+- RM-139 переведён в `DONE`; RM-140 назначен единственным `IN PROGRESS`.
+  RM-141–RM-200 остаются `PLANNED`.
+
 ## 2026-07-18 — локальная feature acceptance RM-139
 
 - Audit/contract/plan зафиксированы commit `6ad5741` до application changes; expected-red
