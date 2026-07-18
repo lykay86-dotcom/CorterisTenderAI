@@ -14,6 +14,7 @@
   production symbols подтвердили, что тесты не проходили случайно через legacy поведение.
 - Production commits: `fdcb9c2`, `088e100`, `a29a978`.
 - Feature PR: #86; merge commit: `41b547f67020b9645d915694c943b962b46ddc08`.
+- Documentation closeout PR: #87.
 - Реализация покрывает C19 из `docs/RM-126_REQUIREMENTS.md` и не начинает RM-140.
 
 ## Принятая реализация
@@ -75,6 +76,8 @@
 - В обоих run успешны secret scan, Ruff check/format, required mypy, workflow smokes, full pytest
   и dependency audit. Неблокирующее Node.js 20/24 annotation относится к official actions и не
   изменяет итог gate.
+- Documentation closeout PR: #87
+  (`https://github.com/lykay86-dotcom/CorterisTenderAI/pull/87`).
 
 После merge feature PR и успешного exact merge-SHA gate RM-139 соответствует Definition of Done.
 Этот отдельный docs-only closeout фиксирует evidence, переводит RM-139 в `DONE` и назначает RM-140
