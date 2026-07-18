@@ -2,10 +2,11 @@
 
 ## Current verdict
 
-`AUDIT PACKAGE IN PROGRESS` — entry gate, baseline, inventory, runtime characterization, focused UI
-suite and audit documents are complete. RM-141 is not `DONE` until the audit PR is merged, the
-exact merge-SHA Windows Quality Gate succeeds on Python 3.12/3.13, and a separate docs-only
-closeout is merged. RM-142 remains unimplemented and inactive during this record.
+`AUDIT PACKAGE READY FOR DRAFT PR` — entry gate, baseline, inventory, runtime characterization,
+focused UI suite, final local Quality Gate and audit documents are complete. RM-141 is not `DONE`
+until the audit PR is merged, the exact merge-SHA Windows Quality Gate succeeds on Python
+3.12/3.13, and a separate docs-only closeout is merged. RM-142 remains unimplemented and inactive
+during this record.
 
 ## Entry gate
 
@@ -65,6 +66,21 @@ formatting extension. No test was skipped or replaced by a sample set.
 | tender action/tab inventory | 8 workspace tabs, 6 settings tabs, 9 controller actions |
 | rapid shell close during health refresh | reproduced late deleted-signal-source error; UI-141-005 |
 | application/dependency/schema diff | no `app/`, dependency, migration, DB schema or production behavior change |
+
+Final local Quality Gate was executed after both audit-content commits at branch SHA
+`e307d3a349909cd7a97d9accacf6ee47b6bf4c1d`:
+
+| Contour | Result |
+|---|---|
+| repository secret scan | passed |
+| Ruff check | passed |
+| Ruff format check | 632 files already formatted |
+| mypy | success, 20 source files |
+| combined mandatory offline/migration/composition/build selection | 14 passed in 19.32 s |
+| Dashboard controller import | passed |
+| full `pytest -q` with isolated base temp | 1,946 passed, 2 warnings in 165.52 s |
+
+The subsequent acceptance-only commit records these results and changes no executable file.
 
 ## Model performance baseline
 
@@ -129,7 +145,7 @@ To be appended before final closeout:
 
 | Gate | Status |
 |---|---|
-| Audit branch final full local gate | PENDING after document completion |
+| Audit branch final full local gate | PASSED at `e307d3a349909cd7a97d9accacf6ee47b6bf4c1d` |
 | Audit PR number and head SHA | PENDING |
 | Audit PR Windows Quality Gate 3.12/3.13 | PENDING |
 | Audit PR merge SHA | PENDING |
