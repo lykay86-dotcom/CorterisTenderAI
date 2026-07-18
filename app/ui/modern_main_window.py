@@ -14,6 +14,7 @@ from app.repositories.business_metrics import (
 from app.ui.controllers.dashboard_controller import DashboardController
 from app.ui.navigation import (
     NavigationCause,
+    NavigationStatus,
     RouteContext,
     RouteId,
     RouteRequest,
@@ -45,6 +46,10 @@ class ModernMainWindow(QMainWindow):
         ai_provider_selection_service: "AiProviderSelectionService | None" = None,
     ) -> None:
         super().__init__()
+
+        self._close_started = False
+        self._close_complete = False
+        self._dashboard_shutdown = False
 
         self.setObjectName("ModernMainWindow")
         self.setWindowTitle("Corteris Tender AI 1.3 Alpha")
@@ -84,29 +89,21 @@ class ModernMainWindow(QMainWindow):
 
         self.business_repository = BusinessMetricsRepository()
 
-        self.quotes_page = BusinessWorkflowPage(
+        self.workflow_page = BusinessWorkflowPage(
             repository=self.business_repository,
-            initial_kind=BusinessRecordKind.PROPOSAL,
             theme=self._theme,
             parent=self.workspace.pages,
         )
         self.workspace.add_page(
-            "quotes",
+            "workflow",
             "КП, сметы и проекты",
-            self.quotes_page,
+            self.workflow_page,
         )
 
-        self.estimates_page = BusinessWorkflowPage(
-            repository=self.business_repository,
-            initial_kind=BusinessRecordKind.ESTIMATE,
-            theme=self._theme,
-            parent=self.workspace.pages,
-        )
-        self.workspace.add_page(
-            "estimates",
-            "Сметы и проекты",
-            self.estimates_page,
-        )
+        # RM-127/RM-142 compatibility names intentionally reference the same
+        # canonical object. RM-155 owns their eventual retirement.
+        self.quotes_page = self.workflow_page
+        self.estimates_page = self.workflow_page
 
         self._register_navigation_destinations()
 
@@ -125,9 +122,8 @@ class ModernMainWindow(QMainWindow):
             )
         )
 
-        for page in (self.quotes_page, self.estimates_page):
-            page.tender_open_requested.connect(self._open_tender_from_dashboard)
-            page.workflow_changed.connect(self._business_workflow_changed)
+        self.workflow_page.tender_open_requested.connect(self._open_tender_from_dashboard)
+        self.workflow_page.workflow_changed.connect(self._business_workflow_changed)
 
         self.apply_theme(self._theme)
         self.workspace.navigate(
@@ -229,12 +225,8 @@ class ModernMainWindow(QMainWindow):
         )
 
         self.workspace.register_context_provider(
-            "quotes",
-            lambda: self._workflow_route_context(self.quotes_page),
-        )
-        self.workspace.register_context_provider(
-            "estimates",
-            lambda: self._workflow_route_context(self.estimates_page),
+            "workflow",
+            lambda: self._workflow_route_context(self.workflow_page),
         )
         self.workspace.register_route_handler(
             RouteId.TENDER_DOCUMENTS,
@@ -265,11 +257,15 @@ class ModernMainWindow(QMainWindow):
         )
 
     def _activate_workflow(self, route_id: RouteId, context: RouteContext) -> bool:
-        page = self.estimates_page if route_id is RouteId.WORKFLOW_ESTIMATES else self.quotes_page
-        page.apply_navigation_state(
+        route_kind = {
+            RouteId.WORKFLOW_PROPOSALS: BusinessRecordKind.PROPOSAL.value,
+            RouteId.WORKFLOW_ESTIMATES: BusinessRecordKind.ESTIMATE.value,
+            RouteId.WORKFLOW_PROJECTS: BusinessRecordKind.PROJECT.value,
+        }.get(route_id)
+        self.workflow_page.apply_navigation_state(
             WorkflowNavigationState(
                 search_text=context.workflow_search or "",
-                kind=context.workflow_kind or "",
+                kind=route_kind if route_kind is not None else context.workflow_kind or "",
                 status=context.workflow_status or "",
                 archive_mode=context.workflow_archive_mode
                 or WorkflowNavigationState().archive_mode,
@@ -334,6 +330,13 @@ class ModernMainWindow(QMainWindow):
         context: RouteContext = RouteContext(),
         focus_token: str | None = None,
     ) -> RouteResult:
+        if self._close_started:
+            return RouteResult(
+                status=NavigationStatus.UNAVAILABLE,
+                reason_code="shell_closing",
+                message="Приложение завершает работу.",
+                snapshot=self.workspace.current_snapshot,
+            )
         result = self.workspace.navigate(
             RouteRequest(
                 target,
@@ -347,13 +350,12 @@ class ModernMainWindow(QMainWindow):
         return result
 
     def _business_workflow_changed(self) -> None:
-        """Synchronize both workflow views and Dashboard KPI."""
-        sender = self.sender()
-        for page in (self.quotes_page, self.estimates_page):
-            if page is not sender:
-                state = page.capture_navigation_state()
-                page.refresh()
-                page.apply_navigation_state(state)
+        """Refresh the canonical workflow view and Dashboard KPI."""
+        if self._close_started:
+            return
+        state = self.workflow_page.capture_navigation_state()
+        self.workflow_page.refresh()
+        self.workflow_page.apply_navigation_state(state)
 
         self.dashboard_controller.refresh()
         self.statusBar().showMessage(
@@ -381,8 +383,7 @@ class ModernMainWindow(QMainWindow):
         self._theme = ThemeName(theme)
         self.setStyleSheet(build_stylesheet(self._theme.value))
         self.dashboard_page.set_theme(self._theme)
-        self.quotes_page.apply_theme(self._theme)
-        self.estimates_page.apply_theme(self._theme)
+        self.workflow_page.apply_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme.value)
 
         self.workspace.topbar.apply_theme(self._theme)
@@ -423,15 +424,28 @@ class ModernMainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Stop the background work owned by the modern shell."""
+        if self._close_complete:
+            super().closeEvent(event)
+            return
+
         tender_search = getattr(self, "_tender_search_ui_controller", None)
         shutdown_tender_search = getattr(tender_search, "shutdown", None)
         if callable(shutdown_tender_search) and not shutdown_tender_search():
             event.ignore()
             return
-        try:
+
+        self._close_started = True
+        self.workspace.setEnabled(False)
+        if not self.workflow_page.shutdown():
+            event.ignore()
+            return
+
+        if not self._dashboard_shutdown:
             self.dashboard_controller.shutdown()
-        finally:
-            super().closeEvent(event)
+            self._dashboard_shutdown = True
+
+        self._close_complete = True
+        super().closeEvent(event)
 
 
 __all__ = ["ModernMainWindow"]

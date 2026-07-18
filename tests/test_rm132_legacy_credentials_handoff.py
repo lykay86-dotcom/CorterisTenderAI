@@ -42,7 +42,7 @@ def test_legacy_source_has_no_arbitrary_keyring_crud() -> None:
 def test_legacy_secret_input_is_disabled_and_never_prefilled(tmp_path, monkeypatch) -> None:
     _app()
     monkeypatch.setattr(
-        "app.ui.main_window.UserSettingsStore",
+        "app.ui.pages.tender_workspace_page.UserSettingsStore",
         lambda: __import__(
             "app.config.user_settings", fromlist=["UserSettingsStore"]
         ).UserSettingsStore(tmp_path / "user_settings.json"),
