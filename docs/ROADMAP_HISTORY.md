@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-18 — RM-142 завершён, RM-143 активирован
+
+- Audit/contract/plan зафиксированы commit `985601d` до application changes; characterization —
+  `153ab5f`, expected-red contract — `535db20`.
+- `app/ui/navigation/` добавляет immutable typed routes, availability, closed context, requests,
+  results и bounded memory-only history. Existing `DashboardLayout` остаётся единственным
+  production navigation owner и владельцем одного page stack.
+- Primary Sidebar содержит Dashboard, Tenders и один Business Workflow. Five false peer
+  placeholders удалены; planned routes fail safe, legacy aliases остаются однозначными.
+- Dashboard quick actions, exact tender deep links, global search, AI/settings и существующие
+  documents/scheduler/notification owners сведены к canonical route requests без второго action,
+  service, repository, worker или lifecycle owner.
+- Workflow proposal/estimate/project оформлены typed child intents. Search/filter state, stable
+  record selection, explicit no-selection, focus origin и back/return сохраняются offline.
+- UI-141-001 и UI-141-002 закрыты. DB/schema/migration, RM-107 score/recommendation/critical
+  stop-factor priority и RM-143+ application scope не изменены.
+- Локальная acceptance: RM-142 focused `37 passed`, соседний UI/lifecycle contour `68 passed`,
+  full pytest `1983 passed, 2 warnings in 165.65s`; secret scan, Ruff/format (`644 files`), required
+  mypy и diff-check успешны.
+- Feature PR #92 на финальном head `01c73aee26facf4061ba32db57d4cad92fc6f62d` слит merge commit
+  `246734d2f3b700392c6682c7bcfb5d6ab1469ec5`.
+- Финальный PR Quality Gate run `29659175137` успешен: Python 3.12 — `3m49s`, Python 3.13 —
+  `3m33s`. Exact merge-SHA push run `29659317641` успешен: Python 3.12 — `3m46s`, Python 3.13 —
+  `3m38s`; dependency audit и все обязательные jobs завершились `success`.
+- Non-blocking official-actions annotation о Node.js 20/24 остаётся отдельной CI maintenance
+  задачей и не влияет на RM-142 acceptance.
+- Rollback — revert feature merge без DB/data downgrade; legacy aliases сохраняют прежние entry
+  points. RM-142 переведён в `DONE`; RM-143 назначен единственным `IN PROGRESS`, RM-144–RM-200
+  остаются `PLANNED`.
+
 ## 2026-07-18 — RM-141 завершён, RM-142 активирован
 
 - Шесть обязательных audit-документов зафиксировали production composition и owner map,
