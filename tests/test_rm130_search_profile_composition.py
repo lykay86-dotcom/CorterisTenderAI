@@ -13,7 +13,7 @@ def test_production_composes_one_repository_and_one_json_path(tmp_path) -> None:
     runtime = create_tender_search_runtime(tmp_path / "data")
 
     assert runtime.repository.path == tmp_path / "data" / "search_profiles.json"
-    assert runtime.runner.repository is runtime.repository
+    assert runtime.runner is None
     assert runtime.repository.load_result().status is SearchProfileCatalogLoadStatus.CURRENT
 
     source = Path("app/tenders/search_runtime.py").read_text(encoding="utf-8")
@@ -45,5 +45,6 @@ def test_existing_controller_shares_repository_with_scheduler_and_worker_seam() 
 
     assert "profile_repository=self.runtime.repository" in source
     assert source.count("worker = _CollectorRunWorker(") == 1
-    assert "self.runtime.runner" in source
+    assert "self.runtime.runner" not in source
+    assert "try_start_collector" in source
     assert "resolve_unified_tender_search(" in source
