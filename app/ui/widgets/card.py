@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 
 from PySide6.QtCore import Property, Qt, Signal
-from PySide6.QtGui import QCursor, QEnterEvent, QMouseEvent
+from PySide6.QtGui import QCursor, QEnterEvent, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from app.ui.theme.colors import SemanticColor, ThemeName, ThemePalette, get_palette
 from app.ui.theme.typography import Typography
+from app.ui.theme.tokens import BorderWidth, DESIGN_TOKENS, Radius, Spacing
 
 
 class CardTone(StrEnum):
@@ -28,6 +29,7 @@ class CardTone(StrEnum):
     SUCCESS = "success"
     WARNING = "warning"
     DANGER = "danger"
+    NEUTRAL = "neutral"
 
 
 class Card(QFrame):
@@ -63,10 +65,12 @@ class Card(QFrame):
         self._shadow_enabled = shadow
         self._hovered = False
         self._pressed = False
+        self._shadow_effect: QGraphicsDropShadowEffect | None = None
 
         self.setObjectName("CorterisCard")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus if clickable else Qt.FocusPolicy.NoFocus)
         self.setCursor(
             QCursor(Qt.CursorShape.PointingHandCursor)
             if clickable
@@ -74,8 +78,10 @@ class Card(QFrame):
         )
 
         self._root_layout = QVBoxLayout(self)
-        self._root_layout.setContentsMargins(18, 16, 18, 16)
-        self._root_layout.setSpacing(10)
+        self._root_layout.setContentsMargins(
+            int(Spacing.L), int(Spacing.L), int(Spacing.L), int(Spacing.L)
+        )
+        self._root_layout.setSpacing(int(Spacing.M))
 
         self._header_layout = QHBoxLayout()
         self._header_layout.setContentsMargins(0, 0, 0, 0)
@@ -209,6 +215,9 @@ class Card(QFrame):
             if self._clickable
             else QCursor(Qt.CursorShape.ArrowCursor)
         )
+        self.setFocusPolicy(
+            Qt.FocusPolicy.StrongFocus if self._clickable else Qt.FocusPolicy.NoFocus
+        )
         self._apply_theme()
 
     clickable = Property(bool, is_clickable, set_clickable)
@@ -246,7 +255,11 @@ class Card(QFrame):
 
     def set_compact(self, compact: bool) -> None:
         """Switch between normal and compact card spacing."""
-        margins = (14, 12, 14, 12) if compact else (18, 16, 18, 16)
+        margins = (
+            (int(Spacing.M), int(Spacing.S), int(Spacing.M), int(Spacing.S))
+            if compact
+            else (int(Spacing.L), int(Spacing.L), int(Spacing.L), int(Spacing.L))
+        )
         self._root_layout.setContentsMargins(*margins)
         self._root_layout.setSpacing(7 if compact else 10)
 
@@ -259,6 +272,8 @@ class Card(QFrame):
             return palette.semantic(SemanticColor.WARNING)
         if self._tone == CardTone.DANGER:
             return palette.semantic(SemanticColor.DANGER)
+        if self._tone == CardTone.NEUTRAL:
+            return palette.semantic(SemanticColor.NEUTRAL)
         return palette.brand_accent, palette.card_background
 
     def _apply_shadow(self) -> None:
@@ -267,11 +282,12 @@ class Card(QFrame):
             return
 
         palette = get_palette(self._theme)
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(26)
-        shadow.setOffset(0, 6)
-        shadow.setColor(palette.shadow)
-        self.setGraphicsEffect(shadow)
+        if self._shadow_effect is None:
+            self._shadow_effect = QGraphicsDropShadowEffect(self)
+            self.setGraphicsEffect(self._shadow_effect)
+        self._shadow_effect.setBlurRadius(DESIGN_TOKENS.elevation.card_blur)
+        self._shadow_effect.setOffset(0, DESIGN_TOKENS.elevation.card_offset_y)
+        self._shadow_effect.setColor(palette.shadow)
 
     def _apply_theme(self) -> None:
         palette = get_palette(self._theme)
@@ -294,8 +310,8 @@ class Card(QFrame):
             f"""
             QFrame#CorterisCard {{
                 background-color: {background};
-                border: 1px solid {border};
-                border-radius: 12px;
+                border: {int(BorderWidth.DEFAULT)}px solid {border};
+                border-radius: {int(Radius.LARGE)}px;
             }}
             QFrame#CorterisCard QLabel {{
                 background: transparent;
@@ -324,6 +340,9 @@ class Card(QFrame):
             QWidget#CardContent, QWidget#CardFooter {{
                 background: transparent;
                 border: none;
+            }}
+            QFrame#CorterisCard:focus {{
+                border: {int(BorderWidth.FOCUS)}px solid {palette.focus_ring};
             }}
             """
         )
@@ -361,6 +380,17 @@ class Card(QFrame):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self._clickable and event.key() in {
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Space,
+        }:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class KpiCard(Card):
@@ -432,8 +462,8 @@ class KpiCard(Card):
                 color: {foreground};
                 background-color: {background};
                 border: none;
-                border-radius: 8px;
-                padding: 3px 8px;
+                border-radius: {int(Radius.PILL)}px;
+                padding: {int(Spacing.XS)}px {int(Spacing.S)}px;
                 {Typography.CAPTION.css()}
             }}
             """

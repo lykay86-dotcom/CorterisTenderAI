@@ -10,6 +10,7 @@ from app.core.system_health import (
 )
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
+from app.ui.theme.tokens import BorderWidth, DESIGN_TOKENS, Radius, Spacing
 
 
 class SystemHealthBadge(QPushButton):
@@ -29,7 +30,7 @@ class SystemHealthBadge(QPushButton):
         self._snapshot: SystemHealthSnapshot | None = None
 
         self.setObjectName("SystemHealthBadge")
-        self.setMinimumHeight(34)
+        self.setMinimumHeight(DESIGN_TOKENS.controls["small"].height)
         self.setMinimumWidth(156)
         self.setCursor(self.cursor())
         self.setToolTip("Открыть центр состояния системы")
@@ -119,9 +120,9 @@ class SystemHealthBadge(QPushButton):
             QPushButton#SystemHealthBadge {{
                 color: {foreground};
                 background-color: {background};
-                border: 1px solid {foreground};
-                border-radius: 17px;
-                padding: 4px 12px;
+                border: {int(BorderWidth.DEFAULT)}px solid {foreground};
+                border-radius: {int(Radius.PILL)}px;
+                padding: {int(Spacing.XS)}px {int(Spacing.M)}px;
                 text-align: center;
                 {Typography.BUTTON.css()}
             }}
@@ -131,6 +132,9 @@ class SystemHealthBadge(QPushButton):
             }}
             QPushButton#SystemHealthBadge:pressed {{
                 background-color: {palette.selected_background};
+            }}
+            QPushButton#SystemHealthBadge:focus {{
+                border: {int(BorderWidth.FOCUS)}px solid {palette.focus_ring};
             }}
             """
         )

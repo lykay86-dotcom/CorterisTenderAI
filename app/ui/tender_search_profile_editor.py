@@ -441,13 +441,15 @@ class TenderSearchProfileEditor(QWidget):
 
     def show_validation_error(self, message: str) -> None:
         self.validation_label.setText(message)
-        palette = get_palette(self._theme)
-        self.validation_label.setStyleSheet(f"color: {palette.danger};")
+        self.validation_label.setProperty("semanticTone", "danger")
+        self.validation_label.style().unpolish(self.validation_label)
+        self.validation_label.style().polish(self.validation_label)
 
     def show_validation_success(self, message: str) -> None:
         self.validation_label.setText(message)
-        palette = get_palette(self._theme)
-        self.validation_label.setStyleSheet(f"color: {palette.success};")
+        self.validation_label.setProperty("semanticTone", "success")
+        self.validation_label.style().unpolish(self.validation_label)
+        self.validation_label.style().polish(self.validation_label)
 
     def clear_validation_message(self) -> None:
         self.validation_label.clear()

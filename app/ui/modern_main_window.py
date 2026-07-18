@@ -385,7 +385,7 @@ class ModernMainWindow(QMainWindow):
         self.estimates_page.apply_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme.value)
 
-        self.workspace.topbar.theme_button.setText("☀" if self._theme == ThemeName.DARK else "🌙")
+        self.workspace.topbar.apply_theme(self._theme)
         self.workspace.topbar.theme_button.setToolTip(
             "Включить светлую тему" if self._theme == ThemeName.DARK else "Включить тёмную тему"
         )

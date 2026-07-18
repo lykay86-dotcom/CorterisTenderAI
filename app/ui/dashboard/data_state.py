@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
+from app.ui.theme.tokens import BorderWidth, Radius, Spacing
 
 
 class DataStateKind(StrEnum):
@@ -29,6 +30,7 @@ class DataStateKind(StrEnum):
     EMPTY = "empty"
     ERROR = "error"
     PARTIAL = "partial"
+    DISABLED = "disabled"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +49,7 @@ class DataState:
             DataStateKind.LOADING,
             DataStateKind.EMPTY,
             DataStateKind.ERROR,
+            DataStateKind.DISABLED,
         }
 
     @property
@@ -116,6 +119,14 @@ class DataState:
             action_key=action_key,
         )
 
+    @classmethod
+    def disabled(cls, message: str = "Данные недоступны.") -> DataState:
+        return cls(
+            DataStateKind.DISABLED,
+            title="Недоступно",
+            message=message,
+        )
+
 
 class DataStatePanel(QFrame):
     """Reusable semantic panel displayed above or instead of content."""
@@ -140,8 +151,8 @@ class DataStatePanel(QFrame):
         self.setAccessibleName("Состояние данных")
 
         root = QHBoxLayout(self)
-        root.setContentsMargins(14, 12, 14, 12)
-        root.setSpacing(11)
+        root.setContentsMargins(int(Spacing.L), int(Spacing.M), int(Spacing.L), int(Spacing.M))
+        root.setSpacing(int(Spacing.M))
 
         self.indicator_label = QLabel("i", self)
         self.indicator_label.setObjectName("DataStateIndicator")
@@ -222,6 +233,10 @@ class DataStatePanel(QFrame):
                 "Данные загружены частично",
                 "Часть информации временно недоступна.",
             ),
+            DataStateKind.DISABLED: (
+                "Недоступно",
+                "Эти данные сейчас недоступны.",
+            ),
         }
         default_title, default_message = defaults[state.kind]
 
@@ -276,6 +291,7 @@ class DataStatePanel(QFrame):
             DataStateKind.EMPTY: palette.text_secondary,
             DataStateKind.ERROR: palette.danger,
             DataStateKind.PARTIAL: palette.warning,
+            DataStateKind.DISABLED: palette.neutral,
         }[self._state.kind]
 
         indicator = {
@@ -284,6 +300,7 @@ class DataStatePanel(QFrame):
             DataStateKind.EMPTY: "—",
             DataStateKind.ERROR: "×",
             DataStateKind.PARTIAL: "!",
+            DataStateKind.DISABLED: "—",
         }[self._state.kind]
         self.indicator_label.setText(indicator)
 
@@ -291,8 +308,8 @@ class DataStatePanel(QFrame):
             f"""
             QFrame#DataStatePanel {{
                 background-color: {palette.elevated_background};
-                border: 1px solid {tone};
-                border-radius: 10px;
+                border: {int(BorderWidth.DEFAULT)}px solid {tone};
+                border-radius: {int(Radius.LARGE)}px;
             }}
             QLabel {{
                 background: transparent;
@@ -301,8 +318,8 @@ class DataStatePanel(QFrame):
             QLabel#DataStateIndicator {{
                 color: {tone};
                 background-color: {palette.input_background};
-                border: 1px solid {tone};
-                border-radius: 8px;
+                border: {int(BorderWidth.DEFAULT)}px solid {tone};
+                border-radius: {int(Radius.MEDIUM)}px;
                 {Typography.BUTTON.css()}
             }}
             QLabel#DataStateTitle {{
@@ -316,18 +333,18 @@ class DataStatePanel(QFrame):
             QProgressBar#DataStateProgress {{
                 background-color: {palette.border_subtle};
                 border: none;
-                border-radius: 4px;
+                border-radius: {int(Radius.SMALL)}px;
             }}
             QProgressBar#DataStateProgress::chunk {{
                 background-color: {tone};
-                border-radius: 4px;
+                border-radius: {int(Radius.SMALL)}px;
             }}
             QPushButton#DataStateAction {{
                 color: {tone};
                 background: transparent;
-                border: 1px solid {tone};
-                border-radius: 7px;
-                padding: 6px 10px;
+                border: {int(BorderWidth.DEFAULT)}px solid {tone};
+                border-radius: {int(Radius.MEDIUM)}px;
+                padding: {int(Spacing.S)}px {int(Spacing.M)}px;
                 {Typography.CAPTION.css()}
             }}
             QPushButton#DataStateAction:hover {{

@@ -188,7 +188,7 @@ DEFAULT_ROUTE_REGISTRY = RouteRegistry(
             aliases=("dashboard",),
             primary=True,
             journeys=("J01", "J03"),
-            icon="🏠",
+            icon="navigation.dashboard",
         ),
         _spec(
             RouteId.TENDERS,
@@ -200,7 +200,7 @@ DEFAULT_ROUTE_REGISTRY = RouteRegistry(
             aliases=("tenders",),
             primary=True,
             journeys=("J03", "J04", "J07", "J09"),
-            icon="🔎",
+            icon="navigation.tenders",
         ),
         _spec(
             RouteId.WORKFLOW,
@@ -211,7 +211,7 @@ DEFAULT_ROUTE_REGISTRY = RouteRegistry(
             allowed_context=_WORKFLOW_CONTEXT,
             primary=True,
             journeys=("J12", "J13"),
-            icon="📄",
+            icon="navigation.workflow",
         ),
         _spec(
             RouteId.WORKFLOW_PROPOSALS,

@@ -6,6 +6,8 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from app.ui.navigation import DEFAULT_ROUTE_REGISTRY, RouteRegistry, RouteSpec
+from app.ui.theme.icons import get_icon_provider
+from app.ui.theme.tokens import DESIGN_TOKENS
 
 
 @dataclass(slots=True, frozen=True)
@@ -24,7 +26,7 @@ class Sidebar(QWidget):
         super().__init__(parent)
         self._buttons: dict[str, QPushButton] = {}
         self._current = ""
-        self.setMinimumWidth(250)
+        self.setMinimumWidth(DESIGN_TOKENS.layout.sidebar_width)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -43,7 +45,10 @@ class Sidebar(QWidget):
         layout.addLayout(footer)
 
     def add_item(self, item: SidebarItem) -> None:
-        btn = QPushButton(f"{item.icon}  {item.title}")
+        btn = QPushButton(item.title)
+        btn.setIcon(get_icon_provider().icon(item.icon))
+        btn.setAccessibleName(item.title)
+        btn.setToolTip(item.title)
         btn.setCheckable(True)
         btn.clicked.connect(lambda _, k=item.key: self.select(k))
         self._buttons[item.key] = btn

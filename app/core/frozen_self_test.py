@@ -157,12 +157,23 @@ def _check_imports(modules: Iterable[str]) -> FrozenSelfTestCheck:
 
 def _check_resources(context: StartupContext) -> FrozenSelfTestCheck:
     templates = context.paths.templates_dir
+    icon_manifest = context.paths.assets_dir / "icons" / "manifest.json"
+    icon_files: list[str] = []
+    if icon_manifest.is_file():
+        try:
+            manifest_payload = json.loads(icon_manifest.read_text(encoding="utf-8"))
+            icon_files = [str(item) for item in manifest_payload.get("files", ())]
+        except (OSError, TypeError, ValueError):
+            icon_files = []
     template_files = (
         sorted(str(item.relative_to(templates)) for item in templates.rglob("*") if item.is_file())
         if templates.is_dir()
         else []
     )
-    ok = bool(template_files)
+    icons_ok = bool(icon_files) and all(
+        (icon_manifest.parent / filename).is_file() for filename in icon_files
+    )
+    ok = bool(template_files) and icons_ok
     return FrozenSelfTestCheck(
         name="bundled_resources",
         ok=ok,
@@ -174,6 +185,9 @@ def _check_resources(context: StartupContext) -> FrozenSelfTestCheck:
             "templates_dir": str(templates),
             "template_count": len(template_files),
             "assets_exists": context.paths.assets_dir.is_dir(),
+            "icon_manifest": str(icon_manifest),
+            "icon_count": len(icon_files),
+            "icons_ok": icons_ok,
         },
     )
 

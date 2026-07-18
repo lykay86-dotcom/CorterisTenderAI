@@ -1173,13 +1173,17 @@ class TenderWorkspacePage(QWidget):
             for row, (name, value) in enumerate(values):
                 self.db_diagnostics_table.setItem(row, 0, QTableWidgetItem(name))
                 self.db_diagnostics_table.setItem(row, 1, QTableWidgetItem(value))
+            self.db_status.setProperty("semanticTone", "success" if report.healthy else "danger")
             self.db_status.setText(
-                '<h3 style="color:#2e8b57">База данных исправна</h3>'
-                if report.healthy
-                else '<h3 style="color:#b22222">Обнаружены проблемы базы данных</h3>'
+                "База данных исправна" if report.healthy else "Обнаружены проблемы базы данных"
             )
+            self.db_status.style().unpolish(self.db_status)
+            self.db_status.style().polish(self.db_status)
         except Exception as exc:
-            self.db_status.setText(f'<h3 style="color:#b22222">Ошибка диагностики: {exc}</h3>')
+            self.db_status.setProperty("semanticTone", "danger")
+            self.db_status.setText(f"Ошибка диагностики ({type(exc).__name__})")
+            self.db_status.style().unpolish(self.db_status)
+            self.db_status.style().polish(self.db_status)
 
     def create_database_backup(self):
         try:

@@ -132,7 +132,7 @@ class DashboardLayout(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         label = QLabel(title)
-        label.setStyleSheet("font-size:24px;font-weight:600;")
+        label.setObjectName("DashboardPlaceholderTitle")
         layout.addStretch()
         layout.addWidget(label)
         layout.addStretch()
