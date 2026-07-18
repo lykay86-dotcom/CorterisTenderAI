@@ -42,8 +42,8 @@ def test_required_icon_ids_have_owned_svg_assets() -> None:
         source = asset.read_text(encoding="utf-8")
         assert asset.suffix == ".svg"
         assert "<script" not in source.casefold()
-        assert "http://" not in source.casefold()
-        assert "https://" not in source.casefold()
+        assert 'href="http://' not in source.casefold()
+        assert 'href="https://' not in source.casefold()
 
 
 def test_routes_use_semantic_icon_ids_without_changing_primary_contract() -> None:

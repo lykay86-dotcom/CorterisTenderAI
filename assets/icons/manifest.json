@@ -1,0 +1,12 @@
+{
+  "schema": "corteris-icon-assets-v1",
+  "license": "Corteris original assets",
+  "source": "Original geometric line icons authored for Corteris Tender AI RM-143",
+  "files": [
+    "add.svg", "ai.svg", "back.svg", "close.svg", "danger.svg", "dashboard.svg",
+    "delete.svg", "documents.svg", "edit.svg", "empty.svg", "export.svg", "fallback.svg",
+    "history.svg", "import.svg", "info.svg", "loading.svg", "notifications.svg",
+    "profile.svg", "refresh.svg", "schedule.svg", "search.svg", "settings.svg",
+    "success.svg", "tenders.svg", "theme.svg", "warning.svg", "workflow.svg"
+  ]
+}

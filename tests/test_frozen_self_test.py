@@ -15,6 +15,13 @@ def _context(tmp_path: Path) -> StartupContext:
     templates = bundle / "templates" / "company"
     templates.mkdir(parents=True)
     (templates / "sample.docx").write_bytes(b"template")
+    icons = bundle / "assets" / "icons"
+    icons.mkdir(parents=True)
+    (icons / "fallback.svg").write_text("<svg/>", encoding="utf-8")
+    (icons / "manifest.json").write_text(
+        json.dumps({"files": ["fallback.svg"]}),
+        encoding="utf-8",
+    )
 
     data = tmp_path / "data"
     config = tmp_path / "config"
