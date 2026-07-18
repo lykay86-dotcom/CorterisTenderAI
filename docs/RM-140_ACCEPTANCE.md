@@ -17,6 +17,7 @@
 - Локально принятый implementation SHA: `f9db188`.
 - Acceptance documentation SHA feature-ветки: `fddb160eed37687bf53089e2e6f21d0cc8b9c299`.
 - Feature PR: #88; merge SHA: `8c09ca6df469549b4ae50457b6924898a629c0d2`.
+- Docs-only closeout PR: #89.
 - Пакет закрывает C20 из `docs/RM-126_REQUIREMENTS.md` и не реализует RM-141+.
 
 ## Принятая реализация
