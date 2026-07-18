@@ -212,7 +212,36 @@ Cancellation baseline: ten offline slow providers, concurrency 4, ten runs. Task
 → 1 after terminal; cancel-to-terminal p50 18.421 ms, p95/max 29.348 ms. The first benchmark
 attempt exposed the SQLite handle leak described above; it is not counted as pipeline performance.
 
-## 9. Rollback and exact acceptance evidence
+## 9. Characterization и expected-red evidence
+
+Characterization command:
+
+```text
+python -m pytest -q tests/test_rm140_search_stabilization_characterization.py
+7 passed in 9.04s
+```
+
+Соседний unchanged owner contour после characterization: `28 passed in 14.41s`.
+
+Expected-red command на SHA `23d28ce` плюс uncommitted target tests:
+
+```text
+python -m pytest -q \
+  tests/test_rm140_search_stabilization_characterization.py \
+  tests/test_rm140_compatibility_retirement.py \
+  tests/test_rm140_timezone_contract.py \
+  tests/test_rm140_error_redaction.py \
+  tests/test_rm140_shutdown.py
+8 passed, 12 failed in 11.10s
+```
+
+Все 12 failures соответствуют отсутствующему контракту: два legacy production owners, три naive
+timestamp acceptance/coercion, три raw error/health/history leaks, два отсутствующих app shutdown
+owners и две незакрытые SQLite connection scopes. Collection/fixture/import/environment failures
+нет. Passing tests — семь characterization и public compatibility import. Application code на этом
+gate не менялся.
+
+## 10. Rollback and exact acceptance evidence
 
 Rollback:
 
@@ -235,7 +264,7 @@ Planned exact evidence:
 - full workflow-derived gates, same-machine performance rerun and five sequential race cycles;
 - Windows Actions Python 3.12/3.13, feature merge exact SHA, then separate docs-only closeout.
 
-## 10. Audit conclusion
+## 11. Audit conclusion
 
 **ACCEPTED FOR DOCS-ONLY AUDIT COMMIT.** Ownership of both search paths is proven. RM-140 will
 reuse the canonical async Collector and existing tender UI controller, remove legacy production
