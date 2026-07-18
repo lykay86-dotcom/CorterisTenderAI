@@ -89,10 +89,7 @@ def test_workflow_page_owns_repeating_and_startup_scheduling(tmp_path, monkeypat
     assert page._system_health_timer.interval() == 2 * 60 * 1000
     assert page._system_health_timer.isActive()
     assert page.system_health_monitor.parent() is page
-    assert startup_callbacks == [
-        (0, "_initialize_database_safety"),
-        (250, "_request_system_health_refresh"),
-    ]
+    assert [delay for delay, _name in startup_callbacks] == [0, 250]
 
     page.close()
     page.deleteLater()

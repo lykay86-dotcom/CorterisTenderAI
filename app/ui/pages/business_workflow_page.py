@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from pathlib import Path
 
 from PySide6.QtCore import QItemSelection, QTimer, Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QResizeEvent
+from PySide6.QtGui import QCloseEvent, QDesktopServices, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -140,6 +141,14 @@ class WorkflowNavigationState:
             raise ValueError("Workflow record identity must not be blank")
 
 
+class BusinessWorkflowLifecycleState(StrEnum):
+    """Terminal lifecycle for page-owned scheduling and health delivery."""
+
+    OPEN = "open"
+    CLOSING = "closing"
+    CLOSED = "closed"
+
+
 class BusinessWorkflowPage(QWidget):
     """Manage commercial proposals, estimates and projects."""
 
@@ -204,6 +213,7 @@ class BusinessWorkflowPage(QWidget):
         self._content_orientation: Qt.Orientation | None = None
         self._database_health_prompt_shown = False
         self._last_health_severity: SystemHealthSeverity | None = None
+        self._lifecycle_state = BusinessWorkflowLifecycleState.OPEN
 
         self.setObjectName("BusinessWorkflowPage")
 
@@ -236,8 +246,14 @@ class BusinessWorkflowPage(QWidget):
         self._system_health_timer.timeout.connect(self._request_system_health_refresh)
         self._system_health_timer.start()
 
-        QTimer.singleShot(0, self._initialize_database_safety)
-        QTimer.singleShot(250, self._request_system_health_refresh)
+        QTimer.singleShot(
+            0,
+            lambda: self._run_when_open(self._initialize_database_safety),
+        )
+        QTimer.singleShot(
+            250,
+            lambda: self._run_when_open(self._request_system_health_refresh),
+        )
 
     def _build_header(self, root: QVBoxLayout) -> None:
         header = QHBoxLayout()
@@ -709,6 +725,46 @@ class BusinessWorkflowPage(QWidget):
     def selected_record(self) -> BusinessWorkflowRecord | None:
         return self._selected_record
 
+    @property
+    def lifecycle_state(self) -> BusinessWorkflowLifecycleState:
+        return self._lifecycle_state
+
+    def _run_when_open(self, callback) -> None:
+        if self._lifecycle_state is BusinessWorkflowLifecycleState.OPEN:
+            callback()
+
+    def shutdown(self, timeout_ms: int = 1000) -> bool:
+        """Stop page scheduling and close its monitor within a fixed budget."""
+        if timeout_ms < 0:
+            raise ValueError("timeout_ms must be non-negative")
+        if self._lifecycle_state is BusinessWorkflowLifecycleState.CLOSED:
+            return True
+
+        self._lifecycle_state = BusinessWorkflowLifecycleState.CLOSING
+        self._auto_backup_timer.stop()
+        self._system_health_timer.stop()
+        for callback in (
+            self._check_automatic_backup,
+            self._request_system_health_refresh,
+        ):
+            try:
+                self.workflow_changed.disconnect(callback)
+            except (RuntimeError, TypeError):
+                pass
+
+        if not self.system_health_monitor.shutdown(timeout_ms=timeout_ms):
+            return False
+
+        self._lifecycle_state = BusinessWorkflowLifecycleState.CLOSED
+        return True
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Fail safe when the page is closed outside the production shell."""
+        if not self.shutdown():
+            event.ignore()
+            return
+        super().closeEvent(event)
+
     def capture_navigation_state(self) -> WorkflowNavigationState:
         """Capture current filters without retaining a repository record."""
         return WorkflowNavigationState(
@@ -1089,9 +1145,13 @@ class BusinessWorkflowPage(QWidget):
         )
 
     def _request_system_health_refresh(self) -> None:
+        if self._lifecycle_state is not BusinessWorkflowLifecycleState.OPEN:
+            return
         self.system_health_monitor.request_refresh()
 
     def _system_health_snapshot_ready(self, snapshot: object) -> None:
+        if self._lifecycle_state is not BusinessWorkflowLifecycleState.OPEN:
+            return
         if not hasattr(snapshot, "severity"):
             return
 
@@ -1129,6 +1189,8 @@ class BusinessWorkflowPage(QWidget):
             )
 
     def _system_health_check_failed(self, message: str) -> None:
+        if self._lifecycle_state is not BusinessWorkflowLifecycleState.OPEN:
+            return
         self.system_health_badge.set_error(message)
         self._record_system_event(
             severity=SystemHealthSeverity.WARNING,
@@ -1203,6 +1265,8 @@ class BusinessWorkflowPage(QWidget):
         appear frozen. Full backup discovery and recovery remain available
         through the explicit «Диагностика базы…» action.
         """
+        if self._lifecycle_state is not BusinessWorkflowLifecycleState.OPEN:
+            return
         report = self._inspect_database_health(include_backups=False)
         if report.requires_recovery:
             self._record_system_event(
@@ -1507,6 +1571,8 @@ class BusinessWorkflowPage(QWidget):
         force: bool = False,
         show_success: bool = False,
     ) -> None:
+        if self._lifecycle_state is not BusinessWorkflowLifecycleState.OPEN:
+            return
         health = self._inspect_database_health(include_backups=False)
         if not health.safe_for_backup:
             if health.requires_recovery:
@@ -2280,4 +2346,8 @@ class BusinessWorkflowPage(QWidget):
         return f"{amount:,.0f} ₽".replace(",", " ")
 
 
-__all__ = ["BusinessWorkflowPage", "WorkflowNavigationState"]
+__all__ = [
+    "BusinessWorkflowLifecycleState",
+    "BusinessWorkflowPage",
+    "WorkflowNavigationState",
+]

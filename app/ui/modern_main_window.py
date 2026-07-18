@@ -14,6 +14,7 @@ from app.repositories.business_metrics import (
 from app.ui.controllers.dashboard_controller import DashboardController
 from app.ui.navigation import (
     NavigationCause,
+    NavigationStatus,
     RouteContext,
     RouteId,
     RouteRequest,
@@ -45,6 +46,10 @@ class ModernMainWindow(QMainWindow):
         ai_provider_selection_service: "AiProviderSelectionService | None" = None,
     ) -> None:
         super().__init__()
+
+        self._close_started = False
+        self._close_complete = False
+        self._dashboard_shutdown = False
 
         self.setObjectName("ModernMainWindow")
         self.setWindowTitle("Corteris Tender AI 1.3 Alpha")
@@ -325,6 +330,13 @@ class ModernMainWindow(QMainWindow):
         context: RouteContext = RouteContext(),
         focus_token: str | None = None,
     ) -> RouteResult:
+        if self._close_started:
+            return RouteResult(
+                status=NavigationStatus.UNAVAILABLE,
+                reason_code="shell_closing",
+                message="Приложение завершает работу.",
+                snapshot=self.workspace.current_snapshot,
+            )
         result = self.workspace.navigate(
             RouteRequest(
                 target,
@@ -339,6 +351,8 @@ class ModernMainWindow(QMainWindow):
 
     def _business_workflow_changed(self) -> None:
         """Refresh the canonical workflow view and Dashboard KPI."""
+        if self._close_started:
+            return
         state = self.workflow_page.capture_navigation_state()
         self.workflow_page.refresh()
         self.workflow_page.apply_navigation_state(state)
@@ -410,15 +424,28 @@ class ModernMainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Stop the background work owned by the modern shell."""
+        if self._close_complete:
+            super().closeEvent(event)
+            return
+
         tender_search = getattr(self, "_tender_search_ui_controller", None)
         shutdown_tender_search = getattr(tender_search, "shutdown", None)
         if callable(shutdown_tender_search) and not shutdown_tender_search():
             event.ignore()
             return
-        try:
+
+        self._close_started = True
+        self.workspace.setEnabled(False)
+        if not self.workflow_page.shutdown():
+            event.ignore()
+            return
+
+        if not self._dashboard_shutdown:
             self.dashboard_controller.shutdown()
-        finally:
-            super().closeEvent(event)
+            self._dashboard_shutdown = True
+
+        self._close_complete = True
+        super().closeEvent(event)
 
 
 __all__ = ["ModernMainWindow"]
