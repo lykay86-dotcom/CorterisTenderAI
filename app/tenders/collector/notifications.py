@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
+import hashlib
 import json
 from pathlib import Path
 from threading import RLock
@@ -276,6 +277,64 @@ class CollectorNotificationService:
                 run_id=run_id,
             ),
         )
+
+    def for_monitoring_transitions(
+        self,
+        transitions: Iterable[object],
+        settings: CollectorScheduleSettings,
+    ) -> tuple[CollectorNotification, ...]:
+        """Build deduplicated safe alerts for RM-139 source-state transitions."""
+
+        if not settings.notify_failures:
+            return ()
+        from app.tenders.collector.source_monitoring import (
+            SourceMonitoringTransition,
+            SourceMonitoringTransitionKind,
+        )
+
+        presentation = {
+            SourceMonitoringTransitionKind.OPERATIONAL_DEGRADED: (
+                "Источник требует внимания",
+                "Сбор из источника завершился с ошибкой или временно ограничен.",
+                CollectorNotificationKind.WARNING,
+            ),
+            SourceMonitoringTransitionKind.OPERATIONAL_RECOVERED: (
+                "Источник восстановлен",
+                "Источник снова успешно участвует в сборе.",
+                CollectorNotificationKind.SUCCESS,
+            ),
+            SourceMonitoringTransitionKind.CHECKPOINT_STALE: (
+                "Checkpoint источника устарел",
+                "Инкрементальное состояние источника требует обновления.",
+                CollectorNotificationKind.WARNING,
+            ),
+            SourceMonitoringTransitionKind.VERIFICATION_LOST: (
+                "Проверка C19 требует внимания",
+                "Полная live-проверка источника больше не считается актуальной.",
+                CollectorNotificationKind.WARNING,
+            ),
+            SourceMonitoringTransitionKind.EVIDENCE_INVALID: (
+                "Состояние источника недостоверно",
+                "Локальное время наблюдения повреждено или находится в будущем.",
+                CollectorNotificationKind.ERROR,
+            ),
+        }
+        result: list[CollectorNotification] = []
+        for value in transitions:
+            if not isinstance(value, SourceMonitoringTransition):
+                continue
+            title, message, kind = presentation[value.kind]
+            digest = hashlib.sha256(value.evidence_id.encode("utf-8")).hexdigest()[:20]
+            result.append(
+                CollectorNotification(
+                    id=f"source:{value.provider_id}:{value.kind.value}:{digest}",
+                    created_at=value.observed_at.isoformat(timespec="seconds"),
+                    title=title,
+                    message=message,
+                    kind=kind,
+                )
+            )
+        return tuple(result)
 
 
 def _now_iso() -> str:

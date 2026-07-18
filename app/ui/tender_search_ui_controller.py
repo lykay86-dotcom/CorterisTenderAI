@@ -38,7 +38,6 @@ from app.tenders.collector.participation_score_service import (
 from app.tenders.collector.progress import CollectorProgressEvent
 from app.tenders.collector.provider_control import (
     CollectorProviderManager,
-    ProviderDisplayState,
 )
 from app.tenders.collector.manual_provider_registration import (
     ManualProviderCommandStatus,
@@ -51,9 +50,16 @@ from app.tenders.collector.manual_adapter import ManualAdapterCommandStatus
 from app.tenders.provider_credentials import CredentialErrorCategory
 from app.tenders.collector.run_session import CollectorRunSession
 from app.tenders.collector.search_errors import classify_search_error
+from app.tenders.collector.source_monitoring import (
+    SourceMonitoringService,
+    SourceMonitoringSnapshot,
+)
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.collector.verification_review import (
     TenderVerificationReviewService,
+)
+from app.tenders.collector.vertical_source_verification import (
+    VerticalSourceVerificationRepository,
 )
 from app.tenders.full_analysis import (
     FullAnalysisProgress,
@@ -535,6 +541,7 @@ class TenderSearchUiController(QObject):
         self._collector_dialog: TenderCollectorDialog | None = None
         self._unified_search_panel: TenderUnifiedSearchPanel | None = None
         self._collector_worker: _CollectorRunWorker | None = None
+        self._source_monitoring_snapshot: SourceMonitoringSnapshot | None = None
         self._collector_profile_id = ""
         self._result_dialogs: list[TenderSearchResultsDialog] = []
         self._document_dialogs: dict[str, TenderDocumentsDialog] = {}
@@ -652,6 +659,16 @@ class TenderSearchUiController(QObject):
             collector_failed_signal=self.collector_failed,
             theme=self._theme,
             parent=self,
+        )
+        self.source_monitoring_service = SourceMonitoringService(
+            state_repository=self.scheduler_ui_controller.freshness_repository,
+            schedule_repository=self.scheduler_ui_controller.scheduler.repository,
+            verification_repository=getattr(
+                self.provider_manager,
+                "vertical_verification_repository",
+                VerticalSourceVerificationRepository(registry_path),
+            ),
+            check_repository=getattr(self.provider_manager, "check_repository", None),
         )
 
     @property
@@ -1160,6 +1177,7 @@ class TenderSearchUiController(QObject):
             self._unified_search_panel.set_result(result)
         if self._registry_dialog is not None:
             self._registry_dialog.refresh_records()
+        self.refresh_provider_states()
         self.collector_finished.emit(result)
 
     @Slot(str, str)
@@ -1174,6 +1192,7 @@ class TenderSearchUiController(QObject):
             self._collector_dialog.set_error(f"Сбор завершился ошибкой: {rendered}")
         if self._unified_search_panel is not None:
             self._unified_search_panel.set_error(f"Поиск завершился ошибкой: {rendered}")
+        self.refresh_provider_states()
         self.collector_failed.emit(rendered)
 
     @Slot()
@@ -1211,8 +1230,14 @@ class TenderSearchUiController(QObject):
     @Slot()
     def refresh_provider_states(self) -> None:
         states = self.provider_manager.states()
+        monitoring = self.source_monitoring_service.snapshot(states)
+        previous = self._source_monitoring_snapshot
+        self._source_monitoring_snapshot = monitoring
+        if previous is not None:
+            self.scheduler_ui_controller.publish_monitoring_transitions(previous, monitoring)
         if self._provider_dialog is not None:
             self._provider_dialog.set_states(states)
+            self._provider_dialog.set_monitoring_snapshot(monitoring)
         if self._collector_dialog is not None and not self._collector_dialog.running:
             self._collector_dialog.set_provider_states(
                 states,
@@ -1586,6 +1611,13 @@ class TenderSearchUiController(QObject):
             if self._provider_dialog is not None:
                 self._provider_dialog.set_status("Проверка источников уже выполняется.")
             return
+        if self._collector_worker is not None:
+            if self._provider_dialog is not None:
+                self._provider_dialog.set_status(
+                    "Проверка подключения недоступна во время активного сбора.",
+                    error=True,
+                )
+            return
 
         worker = _ProviderCheckWorker(
             self.provider_manager,
@@ -1617,12 +1649,7 @@ class TenderSearchUiController(QObject):
                 checked,
                 False,
             )
-            if isinstance(states, tuple) and all(
-                isinstance(item, ProviderDisplayState) for item in states
-            ):
-                self._provider_dialog.set_states(states)
-            else:
-                self.refresh_provider_states()
+            self.refresh_provider_states()
             self._provider_dialog.set_status("Проверка источников завершена.")
 
     @Slot(str, str)

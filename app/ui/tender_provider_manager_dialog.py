@@ -33,6 +33,12 @@ from app.tenders.collector.provider_control import (
     ProviderDisplayState,
     ProviderUiState,
 )
+from app.tenders.collector.source_monitoring import (
+    SourceAttentionLevel,
+    SourceFreshness,
+    SourceMonitoringSnapshot,
+    SourceMonitoringState,
+)
 from app.tenders.collector.manual_provider_registration import (
     ManualProviderDraft,
     ManualProviderRegistration,
@@ -80,6 +86,7 @@ class TenderProviderManagerDialog(QDialog):
         self,
         states: Iterable[ProviderDisplayState] = (),
         *,
+        monitoring_snapshot: SourceMonitoringSnapshot | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
@@ -90,6 +97,10 @@ class TenderProviderManagerDialog(QDialog):
             self._theme = ThemeName.DARK
 
         self._states: tuple[ProviderDisplayState, ...] = ()
+        self._monitoring: dict[str, SourceMonitoringState] = {
+            item.provider_id: item
+            for item in (monitoring_snapshot.sources if monitoring_snapshot is not None else ())
+        }
         self._checking: set[str] = set()
         self._updating_table = False
         self._check_buttons: dict[str, QPushButton] = {}
@@ -123,16 +134,18 @@ class TenderProviderManagerDialog(QDialog):
 
         self.table = QTableWidget(self)
         self.table.setObjectName("TenderProviderTable")
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels(
             (
                 "Вкл.",
-                "Состояние",
+                "Подключение",
+                "Сбор/circuit",
+                "Checkpoint",
+                "C19",
                 "Источник",
-                "Режим подключения",
-                "Последняя успешная",
-                "Последняя ошибка",
                 "Проверка",
+                "Последний сбор",
+                "Внимание",
             )
         )
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -143,15 +156,11 @@ class TenderProviderManagerDialog(QDialog):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(
-            2,
-            QHeaderView.ResizeMode.Stretch,
-        )
-        header.setSectionResizeMode(
-            3,
-            QHeaderView.ResizeMode.Stretch,
-        )
-        header.setSectionResizeMode(
             5,
+            QHeaderView.ResizeMode.Stretch,
+        )
+        header.setSectionResizeMode(
+            8,
             QHeaderView.ResizeMode.Stretch,
         )
         self.table.itemChanged.connect(self._on_item_changed)
@@ -279,6 +288,10 @@ class TenderProviderManagerDialog(QDialog):
         self._render_selected_details()
         self._update_check_all_state()
 
+    def set_monitoring_snapshot(self, snapshot: SourceMonitoringSnapshot) -> None:
+        self._monitoring = {item.provider_id: item for item in snapshot.sources}
+        self.set_states(self._states)
+
     def set_checking(
         self,
         provider_ids: Iterable[str],
@@ -344,32 +357,40 @@ class TenderProviderManagerDialog(QDialog):
         )
         self.table.setItem(row, 0, enabled_item)
 
-        status_item = QTableWidgetItem(f"● {state.status_text}")
-        status_item.setForeground(QColor(self._status_color(state.ui_state)))
+        monitoring = self._monitoring.get(state.provider_id)
+        status_item = QTableWidgetItem(
+            _connection_text(monitoring) if monitoring is not None else f"● {state.status_text}"
+        )
+        status_item.setForeground(
+            QColor(
+                self._attention_color(monitoring.attention)
+                if monitoring is not None
+                else self._status_color(state.ui_state)
+            )
+        )
         status_item.setData(
             Qt.ItemDataRole.UserRole,
             state.provider_id,
         )
         self.table.setItem(row, 1, status_item)
 
-        self.table.setItem(
-            row,
-            2,
-            QTableWidgetItem(state.display_name),
+        self.table.setItem(row, 2, QTableWidgetItem(_operational_text(monitoring)))
+        self.table.setItem(row, 3, QTableWidgetItem(_checkpoint_text(monitoring)))
+        self.table.setItem(row, 4, QTableWidgetItem(_verification_text(monitoring)))
+        self.table.setItem(row, 5, QTableWidgetItem(state.display_name))
+        last_collection = (
+            monitoring.last_successful_collection_at.isoformat()
+            if monitoring is not None and monitoring.last_successful_collection_at is not None
+            else ""
         )
-        self.table.setItem(
-            row,
-            3,
-            QTableWidgetItem(state.connection_mode),
+        self.table.setItem(row, 7, QTableWidgetItem(_format_timestamp(last_collection)))
+        attention_item = QTableWidgetItem(_attention_text(monitoring))
+        attention_item.setToolTip(
+            "\n".join(reason.message for reason in monitoring.reasons)
+            if monitoring is not None
+            else ""
         )
-        self.table.setItem(
-            row,
-            4,
-            QTableWidgetItem(_format_timestamp(state.last_success_at)),
-        )
-        error_item = QTableWidgetItem(state.last_error or "—")
-        error_item.setToolTip(state.last_error)
-        self.table.setItem(row, 5, error_item)
+        self.table.setItem(row, 8, attention_item)
 
         button = QPushButton(
             "Проверить подключение" if state.registration_only else "Проверить",
@@ -433,6 +454,9 @@ class TenderProviderManagerDialog(QDialog):
 
         latency = f"{state.latency_ms} мс" if state.latency_ms is not None else "не измерена"
         configuration = "<br>".join(_escape_html(item) for item in state.configuration_details)
+        monitoring = self._monitoring.get(state.provider_id)
+        monitoring_details = _monitoring_details_html(monitoring)
+        safe_error = "Ошибка скрыта безопасно." if state.last_error else "—"
         self.details.setHtml(
             (
                 f"<b>{_escape_html(state.display_name)}</b><br>"
@@ -449,8 +473,8 @@ class TenderProviderManagerDialog(QDialog):
                 f"Последний успех: "
                 f"{_format_timestamp(state.last_success_at)}<br>"
                 f"Задержка: {_escape_html(latency)}<br>"
-                f"Последняя ошибка: "
-                f"{_escape_html(state.last_error or '—')}<br><br>"
+                f"Последняя ошибка подключения: {_escape_html(safe_error)}<br>"
+                f"{monitoring_details}<br><br>"
                 f"{configuration}<br><br>"
                 f'<a href="{_escape_html(state.homepage_url)}">'
                 "Открыть сайт источника</a>"
@@ -484,6 +508,15 @@ class TenderProviderManagerDialog(QDialog):
             ProviderUiState.UNKNOWN: palette.info,
             ProviderUiState.UNVERIFIED: palette.info,
         }[state]
+
+    def _attention_color(self, level: SourceAttentionLevel) -> str:
+        palette = get_palette(self._theme)
+        return {
+            SourceAttentionLevel.NONE: palette.success,
+            SourceAttentionLevel.INFO: palette.info,
+            SourceAttentionLevel.WARNING: palette.warning,
+            SourceAttentionLevel.CRITICAL: palette.danger,
+        }[level]
 
     def apply_theme(
         self,
@@ -1210,6 +1243,97 @@ class TenderProviderConfigurationDialog(QDialog):
             self.validation_label.setText(str(exc))
             return
         self.accept()
+
+
+def _connection_text(value: SourceMonitoringState | None) -> str:
+    if value is None:
+        return "—"
+    status = {
+        "available": "Доступно",
+        "degraded": "Ограничено",
+        "unavailable": "Недоступно",
+        "not_configured": "Не настроено",
+        "unknown": "Неизвестно",
+    }[value.connection.status.value]
+    return f"{status} · {_freshness_text(value.connection.freshness)}"
+
+
+def _operational_text(value: SourceMonitoringState | None) -> str:
+    if value is None:
+        return "—"
+    status = {
+        "available": "Успешно",
+        "degraded": "Сбой",
+        "cooldown": "Cooldown",
+        "unavailable": "Недоступно",
+        "not_configured": "Не настроено",
+        "disabled": "Отключено",
+        "unknown": "Нет запусков",
+    }[value.operational.status.value]
+    if value.operational.cooldown_remaining_seconds > 0:
+        status += f" · {round(value.operational.cooldown_remaining_seconds)} сек."
+    return status
+
+
+def _checkpoint_text(value: SourceMonitoringState | None) -> str:
+    if value is None:
+        return "—"
+    checkpoint = value.checkpoint
+    if not checkpoint.supported:
+        return "Не поддерживается"
+    if not checkpoint.present:
+        return "Нет данных"
+    return f"{checkpoint.scope_key} · {_freshness_text(checkpoint.freshness)}"
+
+
+def _verification_text(value: SourceMonitoringState | None) -> str:
+    if value is None:
+        return "—"
+    if value.verification.qualifies_as_working:
+        return "WORKING · актуально"
+    return {
+        "working": "WORKING · устарело",
+        "failed": "FAILED",
+        "not_configured": "Не настроено",
+        "unverified": "Не проверено",
+    }[value.verification.status.value]
+
+
+def _attention_text(value: SourceMonitoringState | None) -> str:
+    if value is None or value.attention is SourceAttentionLevel.NONE:
+        return "Нет"
+    return {
+        SourceAttentionLevel.INFO: "Информация",
+        SourceAttentionLevel.WARNING: "Требует внимания",
+        SourceAttentionLevel.CRITICAL: "Критично",
+    }[value.attention]
+
+
+def _freshness_text(value: SourceFreshness) -> str:
+    return {
+        SourceFreshness.CURRENT: "актуально",
+        SourceFreshness.STALE: "устарело",
+        SourceFreshness.UNKNOWN: "неизвестно",
+        SourceFreshness.INVALID: "некорректно",
+        SourceFreshness.NOT_APPLICABLE: "не применяется",
+    }[value]
+
+
+def _monitoring_details_html(value: SourceMonitoringState | None) -> str:
+    if value is None:
+        return "Мониторинг: нет локального snapshot."
+    observed = value.operational.observed_at.isoformat() if value.operational.observed_at else ""
+    reasons = "; ".join(reason.message for reason in value.reasons) or "нет"
+    return (
+        "<b>Мониторинг источника</b><br>"
+        f"Подключение: {_escape_html(_connection_text(value))}<br>"
+        f"Сбор/circuit: {_escape_html(_operational_text(value))}<br>"
+        f"Последнее наблюдение сбора: {_format_timestamp(observed)}<br>"
+        f"Checkpoint: {_escape_html(_checkpoint_text(value))}<br>"
+        f"C19: {_escape_html(_verification_text(value))}<br>"
+        f"Расписание: {'активно' if value.schedule.active else 'неактивно'}<br>"
+        f"Причины: {_escape_html(reasons)}"
+    )
 
 
 def _format_timestamp(value: str) -> str:

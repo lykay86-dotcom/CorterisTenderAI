@@ -59,6 +59,30 @@ class ProviderHealthSnapshot:
     disabled_by_user: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ProviderHealthRestoreState:
+    """Validated wall-clock state restored into the existing monotonic monitor."""
+
+    provider_id: str
+    status: ProviderOperationalStatus
+    checked_at: str = ""
+    last_success_at: str = ""
+    consecutive_failures: int = 0
+    total_successes: int = 0
+    total_failures: int = 0
+    last_error_type: str = ""
+    last_error_message: str = ""
+    cooldown_remaining_seconds: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.provider_id.strip():
+            raise ValueError("provider_id must not be empty")
+        if min(self.consecutive_failures, self.total_successes, self.total_failures) < 0:
+            raise ValueError("health counters must be non-negative")
+        if self.cooldown_remaining_seconds < 0:
+            raise ValueError("cooldown remaining must be non-negative")
+
+
 @dataclass(slots=True)
 class _ProviderHealthState:
     provider_id: str
@@ -249,6 +273,34 @@ class ProviderHealthMonitor:
                 self._refresh_cooldown(state)
             return tuple(self._snapshot(self._states[key]) for key in sorted(self._states))
 
+    def restore(self, value: ProviderHealthRestoreState) -> ProviderHealthSnapshot:
+        """Replace one state from validated persisted evidence without network activity."""
+
+        if not isinstance(value, ProviderHealthRestoreState):
+            raise TypeError("value must be ProviderHealthRestoreState")
+        normalized = self._normalize_id(value.provider_id)
+        with self._lock:
+            state = _ProviderHealthState(
+                provider_id=normalized,
+                status=value.status,
+                checked_at=value.checked_at,
+                last_success_at=value.last_success_at,
+                consecutive_failures=value.consecutive_failures,
+                total_successes=value.total_successes,
+                total_failures=value.total_failures,
+                last_error_type=value.last_error_type,
+                last_error_message=value.last_error_message,
+                cooldown_until=(
+                    self._clock() + value.cooldown_remaining_seconds
+                    if value.cooldown_remaining_seconds > 0
+                    else 0.0
+                ),
+                disabled_by_user=value.status is ProviderOperationalStatus.DISABLED,
+            )
+            self._states[normalized] = state
+            self._refresh_cooldown(state)
+            return self._snapshot(state)
+
     def _state(self, provider_id: str) -> _ProviderHealthState:
         normalized = self._normalize_id(provider_id)
         state = self._states.get(normalized)
@@ -314,6 +366,7 @@ __all__ = [
     "ProviderCircuitOpenError",
     "ProviderHealthMonitor",
     "ProviderHealthPolicy",
+    "ProviderHealthRestoreState",
     "ProviderHealthSnapshot",
     "ProviderOperationalStatus",
 ]
