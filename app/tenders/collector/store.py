@@ -88,11 +88,17 @@ class CollectorStateRepository:
         self.change_tracker = change_tracker or TenderChangeTracker()
         self.migrator = migrator or CollectorSchemaMigrator()
         self._lock = RLock()
+        self._initialized = False
 
     def initialize(self) -> None:
-        TenderRegistryRepository(self.path).initialize()
-        with self._lock, self._connect() as connection:
-            self.migrator.migrate(connection)
+        with self._lock:
+            if self._initialized:
+                return
+            TenderRegistryRepository(self.path).initialize()
+            with self._connect() as connection:
+                connection.execute("PRAGMA journal_mode = WAL")
+                self.migrator.migrate(connection)
+            self._initialized = True
 
     def start_run(
         self,
@@ -2582,7 +2588,6 @@ class CollectorStateRepository:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute("PRAGMA busy_timeout = 10000")
-            connection.execute("PRAGMA journal_mode = WAL")
             with connection:
                 yield connection
         finally:
