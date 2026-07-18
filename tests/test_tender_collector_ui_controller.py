@@ -277,15 +277,19 @@ def test_partial_failure_and_invalid_result_are_not_reported_as_success(tmp_path
     assert "ошибками" in dialog.status_label.text().casefold()
 
     assert controller.try_start_collector("all-corteris", ("eis",)) is True
-    controller._on_collector_failed("RuntimeError", "bounded failure")
+    controller._on_collector_failed(
+        "provider_internal_error",
+        "bounded failure ui-secret",
+    )
     assert controller._collector_worker is None
     assert "ошибкой" in panel.status_label.text().casefold()
-    assert "bounded failure" in dialog.status_label.text()
+    assert "безопасно скрытой ошибкой" in dialog.status_label.text()
+    assert "ui-secret" not in dialog.status_label.text()
 
     assert controller.try_start_collector("all-corteris", ("eis",)) is True
     controller._on_collector_succeeded(object())
     assert controller._collector_worker is None
-    assert "неподдерживаемый результат" in panel.status_label.text().casefold()
+    assert "безопасно скрытой ошибкой" in panel.status_label.text().casefold()
 
 
 def test_collector_worker_emits_only_safe_typed_failure() -> None:

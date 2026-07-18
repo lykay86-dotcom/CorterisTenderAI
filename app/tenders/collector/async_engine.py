@@ -70,6 +70,17 @@ class AsyncProviderSearchOutcome:
     attempt_count: int = 1
     retryable: bool = False
     http_status: int | None = None
+    error_at: str = ""
+
+    def __post_init__(self) -> None:
+        if len(self.error_type) > 120 or len(self.error_code) > 120:
+            raise ValueError("provider error code exceeds its public bound")
+        if len(self.error_message) > 300:
+            raise ValueError("provider error message exceeds its public bound")
+        if self.error_at:
+            parsed = datetime.fromisoformat(self.error_at.replace("Z", "+00:00"))
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("provider error timestamp must be timezone-aware")
 
     @property
     def successful(self) -> bool:
@@ -239,13 +250,14 @@ class _SearchLifecycle:
                 display_name=provider.descriptor.display_name,
                 status=terminal_provider_state,
                 elapsed_ms=0,
-                error_type=type(error).__name__,
+                error_type=failure.code,
                 error_message=failure.message,
                 error_category=failure.category,
                 error_code=failure.code,
                 attempt_count=failure.attempts,
                 retryable=failure.retryable,
                 http_status=failure.http_status,
+                error_at=failure.occurred_at,
             )
             self.executions[provider_id] = _Execution(provider, None, outcome)
             self.provider_snapshots[provider_id] = ProviderExecutionSnapshot(
@@ -559,11 +571,12 @@ class AsyncProviderSearchEngine:
                     display_name=display_name,
                     status=AsyncProviderSearchStatus.CIRCUIT_OPEN,
                     elapsed_ms=0,
-                    error_type="ProviderCircuitOpenError",
+                    error_type="provider_circuit_open",
                     error_message="Источник временно отключён после повторных ошибок.",
                     error_category=SearchErrorCategory.REMOTE_SERVICE,
                     error_code="provider_circuit_open",
                     retryable=True,
+                    error_at=self._utc_now(),
                 ),
             )
 
@@ -607,7 +620,6 @@ class AsyncProviderSearchEngine:
             elapsed_ms = self._elapsed_ms(started)
             self.health_monitor.register_not_configured(
                 provider_id,
-                str(exc),
             )
             return self._failure_execution(
                 provider,
@@ -681,13 +693,14 @@ class AsyncProviderSearchEngine:
                 display_name=provider.descriptor.display_name,
                 status=status,
                 elapsed_ms=elapsed_ms,
-                error_type=type(error).__name__,
+                error_type=failure.code,
                 error_message=message or failure.message,
                 error_category=failure.category,
                 error_code=failure.code,
                 attempt_count=failure.attempts,
                 retryable=failure.retryable,
                 http_status=failure.http_status,
+                error_at=failure.occurred_at,
             ),
         )
 

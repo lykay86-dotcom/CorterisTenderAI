@@ -68,7 +68,9 @@ def test_not_configured_provider_has_explicit_status() -> None:
     result = TenderSearchEngine(TenderProviderRegistry((provider,))).search(TenderSearchQuery())
 
     assert result.outcomes[0].status == (ProviderSearchStatus.NOT_CONFIGURED)
-    assert "credentials missing" in (result.outcomes[0].error_message)
+    assert result.outcomes[0].error_type == "provider_not_configured"
+    assert result.outcomes[0].error_message == "Источник не настроен."
+    assert "credentials missing" not in result.outcomes[0].error_message
 
 
 def test_slow_provider_is_marked_timed_out() -> None:

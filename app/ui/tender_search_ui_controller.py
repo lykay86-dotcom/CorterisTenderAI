@@ -54,7 +54,10 @@ from app.tenders.collector.manual_provider_protocol import (
 from app.tenders.collector.manual_adapter import ManualAdapterCommandStatus
 from app.tenders.provider_credentials import CredentialErrorCategory
 from app.tenders.collector.run_session import CollectorRunSession
-from app.tenders.collector.search_errors import classify_search_error
+from app.tenders.collector.search_errors import (
+    classify_search_error,
+    safe_search_error_fields,
+)
 from app.tenders.collector.source_monitoring import (
     SourceMonitoringService,
     SourceMonitoringSnapshot,
@@ -1071,9 +1074,11 @@ class TenderSearchUiController(QObject):
             return False
         try:
             profile = self.runtime.repository.get(normalized)
-        except Exception as exc:
+        except Exception:
             if self._collector_dialog is not None:
-                self._collector_dialog.set_error(f"Не удалось загрузить профиль: {exc}")
+                self._collector_dialog.set_error(
+                    "Не удалось безопасно загрузить выбранный профиль."
+                )
             return False
         if not profile.enabled:
             if self._collector_dialog is not None:
@@ -1318,30 +1323,31 @@ class TenderSearchUiController(QObject):
         generation = int(generation)
         if not self._accepts_generation(generation):
             return
+        safe_code, safe_message = safe_search_error_fields(error_type)
         terminal = (
             TenderSearchLifecycleState.CANCELLED
-            if error_type == "search_cancelled"
+            if safe_code == "search_cancelled"
             else (
                 TenderSearchLifecycleState.TIMED_OUT
-                if error_type == "provider_timeout"
+                if safe_code == "provider_timeout"
                 else TenderSearchLifecycleState.FAILED
             )
         )
         self._transition_lifecycle(
             terminal,
             generation=generation,
-            error_code=error_type,
-            message=message,
+            error_code=safe_code,
+            message=safe_message,
         )
         self._collector_worker = None
-        rendered = f"{error_type}: {message}"
+        rendered = f"{safe_code}: {safe_message}"
         if self._collector_dialog is not None:
             self._collector_dialog.set_error(f"Сбор завершился ошибкой: {rendered}")
         if self._unified_search_panel is not None:
             self._unified_search_panel.set_error(f"Поиск завершился ошибкой: {rendered}")
         self.refresh_provider_states()
         self.collector_failed.emit(rendered)
-        self._finish_profile_dialog_run(error=message)
+        self._finish_profile_dialog_run(error=safe_message)
 
     @Slot()
     def open_provider_manager_dialog(self) -> None:

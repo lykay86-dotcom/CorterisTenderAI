@@ -287,8 +287,8 @@ async def emit_collector_progress(
         if inspect.isawaitable(result):
             await result
     except Exception:
-        _LOGGER.exception(
-            "Collector progress callback failed during %s",
+        _LOGGER.warning(
+            "Collector progress callback failed safely during %s",
             event.phase.value,
         )
 

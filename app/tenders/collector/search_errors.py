@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import StrEnum
 
 from app.tenders.collector.async_http import (
@@ -30,6 +31,25 @@ class SearchErrorCategory(StrEnum):
     INTERNAL = "internal"
 
 
+SAFE_SEARCH_ERROR_MESSAGES = {
+    "search_cancelled": "Операция поиска отменена.",
+    "provider_not_configured": "Источник не настроен.",
+    "provider_search_unsupported": "Источник не поддерживает поиск.",
+    "provider_timeout": "Источник не завершил поиск за отведённое время.",
+    "remote_response_too_large": "Ответ источника превышает допустимый размер.",
+    "provider_authentication_failed": "Источник отклонил данные аутентификации.",
+    "provider_access_forbidden": "Источник запретил доступ к операции.",
+    "provider_rate_limited": "Источник временно ограничил частоту запросов.",
+    "provider_service_unavailable": "Сервис источника временно недоступен.",
+    "provider_http_error": "Источник вернул неподдерживаемый ответ.",
+    "provider_network_error": "Не удалось безопасно получить ответ источника.",
+    "provider_remote_error": "Источник завершил операцию с ошибкой.",
+    "provider_internal_error": "Источник завершил поиск с безопасно скрытой ошибкой.",
+    "provider_circuit_open": "Источник временно отключён после повторных ошибок.",
+    "collector_internal_error": "Сбор завершился с безопасно скрытой ошибкой.",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class SearchFailure:
     category: SearchErrorCategory
@@ -38,6 +58,7 @@ class SearchFailure:
     attempts: int = 1
     retryable: bool = False
     http_status: int | None = None
+    occurred_at: str = field(default_factory=lambda: _utc_now())
 
     def __post_init__(self) -> None:
         if self.category is SearchErrorCategory.NONE:
@@ -48,6 +69,14 @@ class SearchFailure:
             raise ValueError("SearchFailure attempts must be positive")
         if self.http_status is not None and not 100 <= self.http_status <= 599:
             raise ValueError("SearchFailure HTTP status is invalid")
+        if len(self.code) > 120 or len(self.message) > 300:
+            raise ValueError("SearchFailure public fields exceed their bounds")
+        try:
+            occurred = datetime.fromisoformat(self.occurred_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("SearchFailure timestamp is invalid") from exc
+        if occurred.tzinfo is None or occurred.utcoffset() is None:
+            raise ValueError("SearchFailure timestamp must be timezone-aware")
 
 
 def classify_search_error(error: BaseException) -> SearchFailure:
@@ -155,4 +184,27 @@ def _http_failure(
     )
 
 
-__all__ = ["SearchErrorCategory", "SearchFailure", "classify_search_error"]
+def safe_search_error_fields(
+    code: str,
+    *,
+    default_code: str = "provider_internal_error",
+) -> tuple[str, str]:
+    """Return only an allowlisted code and its fixed public message."""
+
+    normalized = code.strip().casefold()
+    if normalized not in SAFE_SEARCH_ERROR_MESSAGES:
+        normalized = default_code
+    return normalized, SAFE_SEARCH_ERROR_MESSAGES[normalized]
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+__all__ = [
+    "SAFE_SEARCH_ERROR_MESSAGES",
+    "SearchErrorCategory",
+    "SearchFailure",
+    "classify_search_error",
+    "safe_search_error_fields",
+]

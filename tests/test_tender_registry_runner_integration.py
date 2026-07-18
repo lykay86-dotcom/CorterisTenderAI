@@ -69,7 +69,9 @@ def test_optional_persistence_failure_does_not_hide_search_results(
     result = runner.run(sample.profile.id)
 
     assert result.result is sample.result
-    assert "disk unavailable" in runner.last_persistence_error(sample.profile.id)
+    error = runner.last_persistence_error(sample.profile.id)
+    assert "collector_internal_error" in error
+    assert "disk unavailable" not in error
 
 
 def test_required_persistence_failure_is_raised(tmp_path) -> None:

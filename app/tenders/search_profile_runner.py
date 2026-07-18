@@ -98,10 +98,12 @@ class TenderSearchProfileRunner:
         profile_id = run.profile.id.strip().casefold()
         try:
             summary = self.tender_registry.record_profile_run(run)
-        except Exception as exc:
+        except Exception:
             with self._persistence_lock:
                 self._last_save_summaries.pop(profile_id, None)
-                self._last_persistence_errors[profile_id] = f"{type(exc).__name__}: {exc}"
+                self._last_persistence_errors[profile_id] = (
+                    "collector_internal_error: Сохранение завершилось с безопасно скрытой ошибкой."
+                )
             if self.persistence_required:
                 raise
             return

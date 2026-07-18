@@ -26,6 +26,7 @@ from app.tenders.collector.participation_score import (
     CorterisParticipationScore,
     ParticipationRecommendation,
 )
+from app.tenders.collector.search_errors import safe_search_error_fields
 from app.tenders.collector.freshness import (
     DeadlineTimezoneStatus,
     FreshnessBatchResult,
@@ -410,6 +411,11 @@ class CollectorStateRepository:
         if error is not None and not safe_run_code:
             safe_run_code = "collector_internal_error"
             safe_run_message = "Сбор завершился с безопасно скрытой ошибкой."
+        if safe_run_code or safe_run_message:
+            safe_run_code, safe_run_message = safe_search_error_fields(
+                safe_run_code,
+                default_code="collector_internal_error",
+            )
 
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -521,20 +527,27 @@ class CollectorStateRepository:
                 ).fetchall()
         except sqlite3.Error:
             return ()
-        return tuple(
-            ProviderRunOutcomeRecord(
-                run_id=str(row["run_id"]),
-                provider_id=str(row["provider_id"]).strip().casefold(),
-                status=str(row["status"]),
-                completed_at=str(row["completed_at"]),
-                error_code=str(row["error_type"]),
-                error_message=str(row["error_message"]),
-                item_count=max(0, int(row["item_count"])),
-                elapsed_ms=max(0, int(row["elapsed_ms"])),
+        result: list[ProviderRunOutcomeRecord] = []
+        for row in rows:
+            if not str(row["run_id"]).strip() or not str(row["provider_id"]).strip():
+                continue
+            code = str(row["error_type"])
+            safe_code, safe_message = (
+                ("", "") if not code.strip() else safe_search_error_fields(code)
             )
-            for row in rows
-            if str(row["run_id"]).strip() and str(row["provider_id"]).strip()
-        )
+            result.append(
+                ProviderRunOutcomeRecord(
+                    run_id=str(row["run_id"]),
+                    provider_id=str(row["provider_id"]).strip().casefold(),
+                    status=str(row["status"]),
+                    completed_at=str(row["completed_at"]),
+                    error_code=safe_code,
+                    error_message=safe_message,
+                    item_count=max(0, int(row["item_count"])),
+                    elapsed_ms=max(0, int(row["elapsed_ms"])),
+                )
+            )
+        return tuple(result)
 
     def list_changes(
         self,
@@ -2766,10 +2779,7 @@ def _safe_outcome_error(outcome: object) -> tuple[str, str]:
     if bool(getattr(outcome, "successful", False)):
         return "", ""
     code = str(getattr(outcome, "error_code", "")).strip()
-    if not code:
-        return "provider_error", "Источник завершил поиск с безопасно скрытой ошибкой."
-    message = str(getattr(outcome, "error_message", "")).strip()
-    return code, message or "Источник завершил поиск с безопасно скрытой ошибкой."
+    return safe_search_error_fields(code, default_code="provider_internal_error")
 
 
 def _enum_value(value: object) -> str:

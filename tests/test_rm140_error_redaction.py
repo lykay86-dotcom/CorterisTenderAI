@@ -28,9 +28,9 @@ def _unsafe_error() -> BaseException:
     try:
         raise ValueError(f"nested {SECRET} {UNSAFE_URL}")
     except ValueError as cause:
-        return RM140_SECRET_SENTINEL(f"body={SECRET}; url={UNSAFE_URL}").with_traceback(
-            cause.__traceback__
-        )
+        error = RM140_SECRET_SENTINEL(f"body={SECRET}; url={UNSAFE_URL}")
+        error.__cause__ = cause
+        return error
 
 
 def test_health_monitor_discards_unknown_exception_type_text_and_nested_secret() -> None:

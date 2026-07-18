@@ -204,10 +204,10 @@ class TenderCollectorSchedulerUiController(QObject):
             return
         try:
             self.scheduler.update_settings(value)
-        except Exception as exc:
+        except Exception:
             if self._schedule_dialog is not None:
                 self._schedule_dialog.set_status(
-                    f"Не удалось сохранить: {exc}",
+                    "Не удалось безопасно сохранить расписание.",
                     error=True,
                 )
             return
@@ -256,12 +256,11 @@ class TenderCollectorSchedulerUiController(QObject):
             due_items = self.freshness_repository.list_due_reverification(limit=1)
             if due_items:
                 freshness_due_at = due_items[0].verification_due_at or due_items[0].updated_at
-        except Exception as exc:
+        except Exception:
             # The regular schedule must remain operational even when the
             # registry is temporarily locked or has not been created yet.
             LOGGER.warning(
-                "Freshness queue is temporarily unavailable: %s",
-                exc,
+                "Freshness queue is temporarily unavailable (safe_error).",
             )
             freshness_due_at = ""
         request = self.scheduler.poll(
