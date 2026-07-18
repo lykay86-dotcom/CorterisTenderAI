@@ -31,6 +31,10 @@ from app.tenders.collector.scheduler import (
     CollectorScheduler,
     ScheduledCollectorRequest,
 )
+from app.tenders.collector.source_monitoring import (
+    SourceMonitoringSnapshot,
+    monitoring_transitions,
+)
 from app.tenders.search_profile_repository import (
     TenderSearchProfileRepository,
 )
@@ -341,6 +345,15 @@ class TenderCollectorSchedulerUiController(QObject):
                 last.message,
                 15_000,
             )
+
+    def publish_monitoring_transitions(
+        self,
+        previous: SourceMonitoringSnapshot,
+        current: SourceMonitoringSnapshot,
+    ) -> None:
+        settings, _ = self.scheduler.snapshot()
+        transitions = monitoring_transitions(previous, current)
+        self._publish(self.notification_service.for_monitoring_transitions(transitions, settings))
 
     @Slot()
     def open_notifications_dialog(self) -> None:
