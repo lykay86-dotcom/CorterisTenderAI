@@ -22,9 +22,7 @@ def test_design_system_guard_covers_every_registered_site_and_raw_colour() -> No
 
 
 def test_matrix_has_exact_metadata_not_directory_globs() -> None:
-    source = (ROOT / "docs" / "RM-143_COMPONENT_MIGRATION_MATRIX.md").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "docs" / "RM-143_COMPONENT_MIGRATION_MATRIX.md").read_text(encoding="utf-8")
 
     assert source.count("| DS-143-") >= 49
     assert "| `app/ui/**` |" not in source

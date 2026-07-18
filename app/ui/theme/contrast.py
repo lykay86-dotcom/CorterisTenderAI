@@ -56,7 +56,9 @@ def approved_contrast_pairs(palette: ThemePalette) -> tuple[ContrastPair, ...]:
 
     return (
         ContrastPair("text_primary_on_app", palette.text_primary, palette.app_background, 4.5),
-        ContrastPair("text_secondary_on_panel", palette.text_secondary, palette.panel_background, 4.5),
+        ContrastPair(
+            "text_secondary_on_panel", palette.text_secondary, palette.panel_background, 4.5
+        ),
         ContrastPair("text_muted_on_card", palette.text_muted, palette.card_background, 4.5),
         ContrastPair("text_on_brand", palette.text_on_brand, palette.brand_primary, 4.5),
         ContrastPair("text_on_danger", palette.text_on_danger, palette.danger, 4.5),

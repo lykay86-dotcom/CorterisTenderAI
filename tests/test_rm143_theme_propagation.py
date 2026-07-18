@@ -30,9 +30,9 @@ def test_repeated_shell_theme_switch_preserves_route_and_one_owner(monkeypatch) 
 
     assert window.workspace.current_snapshot == snapshot
     assert window.findChildren(QMainWindow) == []
-    assert sum(
-        child is window.workspace.pages for child in window.findChildren(QStackedWidget)
-    ) == 1
+    assert (
+        sum(child is window.workspace.pages for child in window.findChildren(QStackedWidget)) == 1
+    )
     assert tuple(spec.route_id for spec in DEFAULT_ROUTE_REGISTRY.primary_routes) == (
         RouteId.DASHBOARD,
         RouteId.TENDERS,

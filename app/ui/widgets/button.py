@@ -172,14 +172,49 @@ class CorterisButton(QPushButton):
     def _variant_colors(self, palette: ThemePalette) -> tuple[str, str, str, str, str, str]:
         transparent = DESIGN_TOKENS.transparent
         if self._variant is ButtonVariant.PRIMARY:
-            return (palette.brand_primary, palette.text_on_brand, palette.brand_primary_hover, palette.brand_primary_pressed, palette.brand_primary, palette.text_on_brand)
+            return (
+                palette.brand_primary,
+                palette.text_on_brand,
+                palette.brand_primary_hover,
+                palette.brand_primary_pressed,
+                palette.brand_primary,
+                palette.text_on_brand,
+            )
         if self._variant is ButtonVariant.SECONDARY:
-            return (palette.elevated_background, palette.text_primary, palette.hover_background, palette.selected_background, palette.border_default, palette.text_disabled)
+            return (
+                palette.elevated_background,
+                palette.text_primary,
+                palette.hover_background,
+                palette.selected_background,
+                palette.border_default,
+                palette.text_disabled,
+            )
         if self._variant is ButtonVariant.OUTLINE:
-            return (transparent, palette.brand_primary, palette.brand_accent_soft, palette.selected_background, palette.brand_primary, palette.text_disabled)
+            return (
+                transparent,
+                palette.brand_primary,
+                palette.brand_accent_soft,
+                palette.selected_background,
+                palette.brand_primary,
+                palette.text_disabled,
+            )
         if self._variant in {ButtonVariant.GHOST, ButtonVariant.ICON_ONLY}:
-            return (transparent, palette.text_secondary, palette.hover_background, palette.selected_background, transparent, palette.text_disabled)
-        return (palette.danger, palette.text_on_danger, palette.danger_background, palette.danger, palette.danger, palette.text_on_danger)
+            return (
+                transparent,
+                palette.text_secondary,
+                palette.hover_background,
+                palette.selected_background,
+                transparent,
+                palette.text_disabled,
+            )
+        return (
+            palette.danger,
+            palette.text_on_danger,
+            palette.danger_background,
+            palette.danger,
+            palette.danger,
+            palette.text_on_danger,
+        )
 
     def _apply_theme(self) -> None:
         palette = get_palette(self._theme)
@@ -276,6 +311,13 @@ class IconButton(CorterisButton):
 
 
 __all__ = [
-    "ButtonSize", "ButtonVariant", "CorterisButton", "DangerButton", "GhostButton",
-    "IconButton", "OutlineButton", "PrimaryButton", "SecondaryButton",
+    "ButtonSize",
+    "ButtonVariant",
+    "CorterisButton",
+    "DangerButton",
+    "GhostButton",
+    "IconButton",
+    "OutlineButton",
+    "PrimaryButton",
+    "SecondaryButton",
 ]

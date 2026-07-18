@@ -87,7 +87,9 @@ class FormSection(QFrame):
         self._fields: list[FormField] = []
         self.setObjectName("CorterisFormSection")
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(int(Spacing.L), int(Spacing.L), int(Spacing.L), int(Spacing.L))
+        self._layout.setContentsMargins(
+            int(Spacing.L), int(Spacing.L), int(Spacing.L), int(Spacing.L)
+        )
         self._layout.setSpacing(int(Spacing.M))
         self.title_label = QLabel(title, self)
         self.title_label.setObjectName("FormSectionTitle")

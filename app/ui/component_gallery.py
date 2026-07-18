@@ -94,7 +94,9 @@ class ComponentGallery(QScrollArea):
                     )
                 else:
                     button = CorterisButton(
-                        self.synthetic_long_label if variant is ButtonVariant.PRIMARY else variant.value,
+                        self.synthetic_long_label
+                        if variant is ButtonVariant.PRIMARY
+                        else variant.value,
                         variant=variant,
                         size=size,
                         theme=self._theme,
@@ -107,7 +109,11 @@ class ComponentGallery(QScrollArea):
         row = QHBoxLayout()
         row.addWidget(self._remember(Card("Карточка", subtitle="Пояснение", theme=self._theme)))
         row.addWidget(self._remember(Card("Действие", clickable=True, theme=self._theme)))
-        row.addWidget(self._remember(KpiCard("Новые", "12", trend="+2", trend_tone=CardTone.SUCCESS, theme=self._theme)))
+        row.addWidget(
+            self._remember(
+                KpiCard("Новые", "12", trend="+2", trend_tone=CardTone.SUCCESS, theme=self._theme)
+            )
+        )
         group.addLayout(row)
 
     def _build_status(self) -> None:
@@ -116,11 +122,25 @@ class ComponentGallery(QScrollArea):
         for tone in SemanticColor:
             row.addWidget(self._remember(StatusBadge(tone.value, tone=tone, theme=self._theme)))
         group.addLayout(row)
-        group.addWidget(self._remember(InlineMessage("Требуется проверка", details="Смысл указан текстом.", tone=SemanticColor.WARNING, theme=self._theme)))
+        group.addWidget(
+            self._remember(
+                InlineMessage(
+                    "Требуется проверка",
+                    details="Смысл указан текстом.",
+                    tone=SemanticColor.WARNING,
+                    theme=self._theme,
+                )
+            )
+        )
 
     def _build_data_states(self) -> None:
         group = self._group("data_states", "Состояния данных")
-        for state in (DataState.loading(), DataState.empty(), DataState.error("Повторите попытку"), DataState.disabled()):
+        for state in (
+            DataState.loading(),
+            DataState.empty(),
+            DataState.error("Повторите попытку"),
+            DataState.disabled(),
+        ):
             panel = DataStatePanel(theme=self._theme)
             panel.set_state(state)
             group.addWidget(self._remember(panel))
@@ -128,7 +148,15 @@ class ComponentGallery(QScrollArea):
     def _build_forms(self) -> None:
         group = self._group("forms", "Формы")
         section = FormSection("Параметры", theme=self._theme)
-        section.add_field(FormField("Название", QLineEdit(), help_text="До 120 символов", required=True, theme=self._theme))
+        section.add_field(
+            FormField(
+                "Название",
+                QLineEdit(),
+                help_text="До 120 символов",
+                required=True,
+                theme=self._theme,
+            )
+        )
         group.addWidget(self._remember(section))
 
     def _build_icons(self) -> None:
@@ -137,7 +165,9 @@ class ComponentGallery(QScrollArea):
         provider = get_icon_provider()
         for icon_id in IconId:
             label = QLabel()
-            label.setPixmap(provider.icon(icon_id, theme=self._theme).pixmap(int(IconSize.L), int(IconSize.L)))
+            label.setPixmap(
+                provider.icon(icon_id, theme=self._theme).pixmap(int(IconSize.L), int(IconSize.L))
+            )
             label.setAccessibleName(icon_id.value)
             label.setToolTip(icon_id.value)
             row.addWidget(label)

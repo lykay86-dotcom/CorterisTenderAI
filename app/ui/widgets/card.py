@@ -70,9 +70,7 @@ class Card(QFrame):
         self.setObjectName("CorterisCard")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setFocusPolicy(
-            Qt.FocusPolicy.StrongFocus if clickable else Qt.FocusPolicy.NoFocus
-        )
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus if clickable else Qt.FocusPolicy.NoFocus)
         self.setCursor(
             QCursor(Qt.CursorShape.PointingHandCursor)
             if clickable
@@ -384,7 +382,11 @@ class Card(QFrame):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if self._clickable and event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}:
+        if self._clickable and event.key() in {
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Space,
+        }:
             self.clicked.emit()
             event.accept()
             return

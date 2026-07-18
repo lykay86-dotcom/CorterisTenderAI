@@ -1175,9 +1175,7 @@ class TenderWorkspacePage(QWidget):
                 self.db_diagnostics_table.setItem(row, 1, QTableWidgetItem(value))
             self.db_status.setProperty("semanticTone", "success" if report.healthy else "danger")
             self.db_status.setText(
-                "База данных исправна"
-                if report.healthy
-                else "Обнаружены проблемы базы данных"
+                "База данных исправна" if report.healthy else "Обнаружены проблемы базы данных"
             )
             self.db_status.style().unpolish(self.db_status)
             self.db_status.style().polish(self.db_status)

@@ -35,4 +35,6 @@ def test_typed_scales_are_monotonic_and_bounded() -> None:
     assert Radius.SMALL < Radius.MEDIUM < Radius.LARGE < Radius.PILL
     assert MotionDuration.INSTANT < MotionDuration.FAST < MotionDuration.STANDARD
     assert set(DESIGN_TOKENS.controls) == {size.value for size in ControlSize}
-    assert all(metric.height > 0 and metric.icon_size > 0 for metric in DESIGN_TOKENS.controls.values())
+    assert all(
+        metric.height > 0 and metric.icon_size > 0 for metric in DESIGN_TOKENS.controls.values()
+    )
