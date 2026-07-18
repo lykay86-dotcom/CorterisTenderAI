@@ -664,7 +664,10 @@ class TenderRegistryDialog(QDialog):
         self.history_table.setRowCount(len(occurrences))
         for row, occurrence in enumerate(occurrences):
             values = (
-                _format_timestamp(occurrence.executed_at),
+                _format_timestamp(
+                    occurrence.executed_at,
+                    timezone_status=occurrence.timezone_status,
+                ),
                 occurrence.profile_name,
                 str(occurrence.relevance_score),
                 "Подходит" if occurrence.accepted else "Отсеяно",
@@ -881,7 +884,7 @@ def _format_price(
     return f"{rendered} {symbol}"
 
 
-def _format_timestamp(value: str) -> str:
+def _format_timestamp(value: str, *, timezone_status: str = "") -> str:
     if not value:
         return "Не указано"
     normalized = value.replace("Z", "+00:00")
@@ -889,6 +892,9 @@ def _format_timestamp(value: str) -> str:
         parsed = datetime.fromisoformat(normalized)
     except ValueError:
         return value
+    if timezone_status == "unknown" or parsed.tzinfo is None or parsed.utcoffset() is None:
+        return f"{value} (часовой пояс неизвестен)"
+    parsed = parsed.astimezone()
     if parsed.hour == 0 and parsed.minute == 0 and "T" not in value:
         return parsed.strftime("%d.%m.%Y")
     return parsed.strftime("%d.%m.%Y %H:%M")

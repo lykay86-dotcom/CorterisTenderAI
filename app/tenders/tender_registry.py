@@ -81,6 +81,7 @@ class TenderSearchRunRecord:
     rejected_count: int
     provider_count: int
     elapsed_ms: int
+    timezone_status: str = "unknown"
 
 
 class TenderRegistrySort(StrEnum):
@@ -124,6 +125,7 @@ class TenderRegistryOccurrence:
     directions: tuple[str, ...]
     reasons: tuple[str, ...]
     rejection_reasons: tuple[str, ...]
+    timezone_status: str = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +261,9 @@ class TenderRegistryRepository:
         self.initialize()
         effective_run_id = run_id or uuid4().hex
         saved_timestamp = _iso_timestamp(saved_at)
-        executed_at = run.executed_at or saved_timestamp
+        executed_at = (
+            _aware_utc_timestamp_text(run.executed_at) if run.executed_at else saved_timestamp
+        )
 
         evaluated = _unique_evaluated(
             (
@@ -587,6 +591,7 @@ class TenderRegistryRepository:
                 rejected_count=int(row["rejected_count"]),
                 provider_count=int(row["provider_count"]),
                 elapsed_ms=int(row["elapsed_ms"]),
+                timezone_status=legacy_timestamp_status(str(row["executed_at"])),
             )
             for row in rows
         )
@@ -746,6 +751,7 @@ class TenderRegistryRepository:
                 directions=_json_string_tuple(row["directions_json"]),
                 reasons=_json_string_tuple(row["reasons_json"]),
                 rejection_reasons=_json_string_tuple(row["rejection_reasons_json"]),
+                timezone_status=legacy_timestamp_status(str(row["executed_at"])),
             )
             for row in rows
         )
@@ -1121,9 +1127,29 @@ def _optional_iso(value: datetime | date | None) -> str:
 
 def _iso_timestamp(value: datetime | None) -> str:
     moment = value or datetime.now(timezone.utc)
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("run timestamp must be timezone-aware")
     return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def _aware_utc_timestamp_text(value: str) -> str:
+    try:
+        moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("run timestamp must be a valid timezone-aware datetime") from exc
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("run timestamp must be timezone-aware")
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def legacy_timestamp_status(value: str) -> str:
+    try:
+        moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return "invalid"
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        return "unknown"
+    return "explicit"
 
 
 def _json_dumps(value: object) -> str:
@@ -1161,5 +1187,6 @@ __all__ = [
     "TenderRegistryStatistics",
     "TenderSearchRunRecord",
     "normalize_registry_component",
+    "legacy_timestamp_status",
     "tender_registry_key",
 ]

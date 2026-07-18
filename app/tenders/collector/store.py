@@ -101,7 +101,7 @@ class CollectorStateRepository:
     ) -> str:
         self.initialize()
         effective_id = run_id or uuid4().hex
-        moment = started_at or _utc_now()
+        moment = _aware_utc_timestamp(started_at or _utc_now())
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
@@ -138,7 +138,7 @@ class CollectorStateRepository:
         freshness: FreshnessBatchResult | None = None,
     ) -> CollectionPersistenceSummary:
         self.initialize()
-        moment = observed_at or _utc_now()
+        moment = _aware_utc_timestamp(observed_at or _utc_now())
         new_count = 0
         unchanged_count = 0
         changed_count = 0
@@ -404,7 +404,7 @@ class CollectorStateRepository:
         outcomes = tuple(provider_outcomes)
         successful = sum(bool(getattr(outcome, "successful", False)) for outcome in outcomes)
         failed = len(outcomes) - successful
-        moment = completed_at or _utc_now()
+        moment = _aware_utc_timestamp(completed_at or _utc_now())
         safe_run_code = error_code.strip()
         safe_run_message = error_message.strip()
         if error is not None and not safe_run_code:
@@ -2791,6 +2791,16 @@ def _verification_storage_id(
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _aware_utc_timestamp(value: str) -> str:
+    try:
+        moment = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("run timestamp must be a valid timezone-aware datetime") from exc
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("run timestamp must be timezone-aware")
+    return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
 
 
 __all__ = ["CollectorStateRepository"]

@@ -8,7 +8,7 @@ from concurrent.futures import (
     wait,
 )
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
 from time import perf_counter
 from typing import TYPE_CHECKING, Iterable, Mapping, Sequence
@@ -145,7 +145,7 @@ class TenderSearchEngine:
         include_disabled: bool = False,
         parallel: bool = True,
     ) -> AggregatedTenderSearchResult:
-        started = datetime.now()
+        started = datetime.now(timezone.utc)
         started_counter = perf_counter()
         entries = self._select_entries(
             provider_ids=provider_ids,
@@ -171,7 +171,7 @@ class TenderSearchEngine:
             provider_priorities={entry.id: entry.priority for entry in entries},
         )
 
-        completed = datetime.now()
+        completed = datetime.now(timezone.utc)
         elapsed_ms = max(
             0,
             int((perf_counter() - started_counter) * 1000),
