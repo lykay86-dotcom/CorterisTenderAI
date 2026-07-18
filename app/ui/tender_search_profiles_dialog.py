@@ -544,9 +544,9 @@ class TenderSearchProfilesPanel(QWidget):
         error: bool = False,
     ) -> None:
         self.status_label.setText(message)
-        palette = get_palette(self._theme)
-        color = palette.danger if error else palette.success
-        self.status_label.setStyleSheet(f"color: {color};")
+        self.status_label.setProperty("semanticTone", "danger" if error else "success")
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def apply_theme(
         self,
@@ -681,21 +681,6 @@ class TenderSearchProfilesDialog(QDialog):
         buttons.button(QDialogButtonBox.StandardButton.Close).setText("Закрыть")
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
-
-        palette = get_palette(theme)
-        self.setStyleSheet(
-            self.styleSheet()
-            + f"""
-            QDialog {{
-                background-color: {palette.app_background};
-            }}
-            QDialogButtonBox {{
-                background-color: {palette.topbar_background};
-                border-top: 1px solid {palette.border_default};
-                padding: 10px 16px;
-            }}
-            """
-        )
 
     def refresh_profiles(
         self,

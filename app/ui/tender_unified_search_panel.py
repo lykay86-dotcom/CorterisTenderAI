@@ -321,10 +321,9 @@ class TenderUnifiedSearchPanel(QFrame):
 
     def set_status(self, message: str, *, error: bool = False) -> None:
         self.status_label.setText(str(message))
-        palette = get_palette(self._theme)
-        self.status_label.setStyleSheet(
-            f"color: {palette.danger if error else palette.text_secondary};"
-        )
+        self.status_label.setProperty("semanticTone", "danger" if error else "neutral")
+        self.status_label.style().unpolish(self.status_label)
+        self.status_label.style().polish(self.status_label)
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)

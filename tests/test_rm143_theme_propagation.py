@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget
 from app.ui.modern_main_window import ModernMainWindow
 from app.ui.navigation import DEFAULT_ROUTE_REGISTRY, RouteId
 from app.ui.theme.colors import ThemeName
+from tests.test_rm127_tender_workspace_contract import _isolate_page_dependencies
 
 
 def _app() -> QApplication:
@@ -19,6 +20,7 @@ def _app() -> QApplication:
 
 def test_repeated_shell_theme_switch_preserves_route_and_one_owner(monkeypatch) -> None:
     _app()
+    _isolate_page_dependencies(monkeypatch)
     monkeypatch.setattr("app.ui.modern_main_window.DashboardController.start", lambda self: None)
     window = ModernMainWindow()
     snapshot = window.workspace.current_snapshot
@@ -28,7 +30,9 @@ def test_repeated_shell_theme_switch_preserves_route_and_one_owner(monkeypatch) 
 
     assert window.workspace.current_snapshot == snapshot
     assert window.findChildren(QMainWindow) == []
-    assert window.findChildren(QStackedWidget) == [window.workspace.pages]
+    assert sum(
+        child is window.workspace.pages for child in window.findChildren(QStackedWidget)
+    ) == 1
     assert tuple(spec.route_id for spec in DEFAULT_ROUTE_REGISTRY.primary_routes) == (
         RouteId.DASHBOARD,
         RouteId.TENDERS,

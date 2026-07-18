@@ -346,14 +346,15 @@ class SystemHealthCenterDialog(QDialog):
         self,
         snapshot: SystemHealthSnapshot,
     ) -> None:
-        palette = get_palette(self._theme)
-        color = {
-            SystemHealthSeverity.SUCCESS: palette.success,
-            SystemHealthSeverity.INFO: palette.info,
-            SystemHealthSeverity.WARNING: palette.warning,
-            SystemHealthSeverity.ERROR: palette.danger,
+        tone = {
+            SystemHealthSeverity.SUCCESS: "success",
+            SystemHealthSeverity.INFO: "info",
+            SystemHealthSeverity.WARNING: "warning",
+            SystemHealthSeverity.ERROR: "danger",
         }[snapshot.severity]
-        self.overall_value.setStyleSheet(f"color: {color}; {Typography.H3.css()}")
+        self.overall_value.setProperty("semanticTone", tone)
+        self.overall_value.style().unpolish(self.overall_value)
+        self.overall_value.style().polish(self.overall_value)
 
     def _request_database_diagnostics(self) -> None:
         self.accept()
