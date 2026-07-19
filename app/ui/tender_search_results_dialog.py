@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from html import escape
+from datetime import datetime
 from typing import Final
 
 from PySide6.QtCore import QUrl, Qt, Signal
@@ -19,17 +19,27 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
+from app.financial import CurrencyCode, FinancialValueState, MoneyAmount, format_money
 from app.tenders.corteris_filter import (
     EvaluatedTender,
     TenderDirection,
 )
+from app.tenders.detail import (
+    TenderDetailAssembler,
+    TenderDetailState,
+    TenderIdentity,
+    TenderIdentityKind,
+    validate_https_url,
+)
 from app.tenders.search_profile_runner import TenderSearchProfileRun
+from app.tenders.models import UnifiedTender
+from app.tenders.tender_registry import tender_registry_key
 from app.ui.theme.colors import ThemeName, get_palette
+from app.ui.widgets.tender_detail import TenderDetailHost
 
 
 _DIRECTION_LABELS: Final[dict[TenderDirection, str]] = {
@@ -50,11 +60,13 @@ class TenderSearchResultsDialog(QDialog):
     profiles_requested = Signal()
     documents_requested = Signal(object)
     full_analysis_requested = Signal(object)
+    registry_action_requested = Signal(str, str)
 
     def __init__(
         self,
         run: TenderSearchProfileRun,
         *,
+        detail_assembler: TenderDetailAssembler | None = None,
         theme: ThemeName | str = ThemeName.DARK,
         parent: QWidget | None = None,
     ) -> None:
@@ -62,6 +74,7 @@ class TenderSearchResultsDialog(QDialog):
 
         self.run = run
         self._theme = ThemeName(theme)
+        self._detail_assembler = detail_assembler
         self._evaluated = tuple(run.result.filter_result.accepted)
 
         self.setWindowTitle(f"Corteris Tender AI — {run.profile.name}")
@@ -116,7 +129,6 @@ class TenderSearchResultsDialog(QDialog):
             QHeaderView.ResizeMode.Stretch,
         )
         self.table.itemSelectionChanged.connect(self._show_selected_details)
-        self.table.cellDoubleClicked.connect(lambda _row, _column: self._open_selected_source())
         table_layout.addWidget(self.table, 1)
         splitter.addWidget(table_frame)
 
@@ -130,10 +142,9 @@ class TenderSearchResultsDialog(QDialog):
         details_heading.setObjectName("TenderResultsSectionTitle")
         details_layout.addWidget(details_heading)
 
-        self.details = QTextBrowser(details_frame)
+        self.details = TenderDetailHost(theme=self._theme, parent=details_frame)
         self.details.setObjectName("TenderResultsDetails")
-        self.details.setOpenExternalLinks(False)
-        self.details.anchorClicked.connect(QDesktopServices.openUrl)
+        self.details.action_requested.connect(self._request_registry_detail_action)
         details_layout.addWidget(self.details, 1)
 
         provider_heading = QLabel(
@@ -290,10 +301,9 @@ class TenderSearchResultsDialog(QDialog):
             self.full_analysis_button.setEnabled(True)
             self.documents_button.setEnabled(True)
         else:
-            self.details.setHtml(
-                "<h3>Подходящих закупок не найдено</h3>"
-                "<p>Измените профиль, период, регионы или "
-                "минимальную релевантность и повторите поиск.</p>"
+            self.details.set_transient_preview(
+                "Подходящих закупок не найдено. Измените профиль, период, "
+                "регионы или минимальную релевантность и повторите поиск."
             )
             self.open_source_button.setEnabled(False)
             self.full_analysis_button.setEnabled(False)
@@ -317,6 +327,22 @@ class TenderSearchResultsDialog(QDialog):
         self.full_analysis_button.setEnabled(True)
         self.documents_button.setEnabled(True)
         tender = evaluated.tender
+        safe_url = validate_https_url(tender.source_url)
+        self.open_source_button.setEnabled(safe_url is not None)
+        if self._detail_assembler is not None:
+            identity = TenderIdentity(
+                TenderIdentityKind.REGISTRY,
+                tender_registry_key(tender),
+            )
+            snapshot = self._detail_assembler.assemble(identity)
+            if snapshot.state not in {TenderDetailState.NOT_FOUND, TenderDetailState.ERROR}:
+                self.details.set_entry_context(
+                    f"Поисковая релевантность: {evaluated.relevance.score}/100 "
+                    "(не решение об участии)"
+                )
+                self.details.set_snapshot(snapshot)
+                return
+        self.details.set_entry_context("")
         relevance = evaluated.relevance
         directions = (
             ", ".join(
@@ -326,35 +352,29 @@ class TenderSearchResultsDialog(QDialog):
             or "Не определено"
         )
         strong_terms = ", ".join(relevance.matched_strong_terms) or "—"
-        reasons = (
-            "".join(f"<li>{escape(reason)}</li>" for reason in relevance.reasons)
-            or "<li>Дополнительные причины не сформированы.</li>"
-        )
+        reasons = "; ".join(relevance.reasons) or "Дополнительные причины не сформированы."
         description = tender.description.strip() or (
             "Описание отсутствует в поисковой выдаче. Откройте официальную карточку закупки."
         )
 
-        self.details.setHtml(
-            f"<h2>{escape(tender.title)}</h2>"
-            f"<p><b>Номер:</b> "
-            f"{escape(tender.procurement_number)}</p>"
-            f"<p><b>Заказчик:</b> "
-            f"{escape(tender.customer.name)}</p>"
-            f"<p><b>Регион:</b> "
-            f"{escape(tender.region or tender.customer.region or '—')}</p>"
-            f"<p><b>Цена:</b> {escape(_format_price(tender))}</p>"
-            f"<p><b>Срок подачи:</b> "
-            f"{escape(_format_deadline(tender.application_deadline))}</p>"
-            f"<p><b>Закон:</b> {escape(tender.law or '—')}</p>"
-            f"<p><b>Релевантность:</b> "
-            f"{relevance.score}/100</p>"
-            f"<p><b>Направления:</b> {escape(directions)}</p>"
-            f"<p><b>Ключевые совпадения:</b> "
-            f"{escape(strong_terms)}</p>"
-            f"<h3>Описание</h3><p>{escape(description)}</p>"
-            f"<h3>Почему закупка подходит</h3><ul>{reasons}</ul>"
-            f'<p><a href="{escape(tender.source_url)}">'
-            "Открыть официальную карточку</a></p>"
+        self.details.set_transient_preview(
+            "\n".join(
+                (
+                    tender.title,
+                    f"Номер: {tender.procurement_number}",
+                    f"Заказчик: {tender.customer.name}",
+                    f"Регион: {tender.region or tender.customer.region or '—'}",
+                    f"Цена: {_format_price(tender)}",
+                    f"Срок подачи: {_format_deadline(tender.application_deadline)}",
+                    f"Закон: {tender.law or '—'}",
+                    f"Поисковая релевантность: {relevance.score}/100",
+                    "Решение об участии: не загружено",
+                    f"Направления: {directions}",
+                    f"Ключевые совпадения: {strong_terms}",
+                    f"Описание: {description}",
+                    f"Почему результат релевантен: {reasons}",
+                )
+            )
         )
 
     def _provider_status_text(self) -> str:
@@ -368,6 +388,11 @@ class TenderSearchResultsDialog(QDialog):
             details = outcome.error_message or (f"результатов: {outcome.item_count}")
             lines.append(f"• {outcome.display_name}: {status}; {details}")
         return "\n".join(lines)
+
+    def _request_registry_detail_action(self, action_id: str) -> None:
+        snapshot = self.details.snapshot
+        if snapshot is not None:
+            self.registry_action_requested.emit(snapshot.identity.value, action_id)
 
     def _request_selected_full_analysis(self) -> None:
         evaluated = self.selected_evaluated()
@@ -385,10 +410,13 @@ class TenderSearchResultsDialog(QDialog):
         evaluated = self.selected_evaluated()
         if evaluated is None:
             return
-        QDesktopServices.openUrl(QUrl(evaluated.tender.source_url))
+        safe_url = validate_https_url(evaluated.tender.source_url)
+        if safe_url is not None:
+            QDesktopServices.openUrl(QUrl(safe_url))
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)
+        self.details.apply_theme(self._theme)
         palette = get_palette(self._theme)
         self.setStyleSheet(
             f"""
@@ -480,17 +508,23 @@ class TenderSearchResultsDialog(QDialog):
         )
 
 
-def _format_price(tender) -> str:
+def _format_price(tender: UnifiedTender) -> str:
     if tender.price is None:
         return "Не указана"
-    amount = f"{tender.price.amount:,.2f}"
-    amount = amount.replace(",", " ").replace(".00", "")
-    currency = tender.price.currency or "RUB"
-    symbol = "₽" if currency.upper() == "RUB" else currency.upper()
-    return f"{amount} {symbol}"
+    currency = (
+        CurrencyCode.RUB
+        if tender.price.currency.strip().upper() == CurrencyCode.RUB.value
+        else CurrencyCode.UNKNOWN
+    )
+    state = (
+        FinancialValueState.AVAILABLE
+        if currency is CurrencyCode.RUB
+        else FinancialValueState.UNSUPPORTED_CURRENCY
+    )
+    return format_money(MoneyAmount(tender.price.amount, currency, state))
 
 
-def _format_deadline(value) -> str:
+def _format_deadline(value: datetime | None) -> str:
     if value is None:
         return "Не указан"
     return value.strftime("%d.%m.%Y %H:%M")

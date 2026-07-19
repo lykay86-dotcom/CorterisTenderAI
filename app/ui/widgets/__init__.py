@@ -12,6 +12,7 @@ from app.ui.widgets.button import (
     SecondaryButton,
 )
 from app.ui.widgets.card import Card, CardTone, KpiCard
+from app.ui.widgets.tender_detail import TenderCard, TenderDetailHost, TenderDetailPanel
 
 __all__ = [
     "ButtonSize",
@@ -26,4 +27,7 @@ __all__ = [
     "OutlineButton",
     "PrimaryButton",
     "SecondaryButton",
+    "TenderCard",
+    "TenderDetailHost",
+    "TenderDetailPanel",
 ]

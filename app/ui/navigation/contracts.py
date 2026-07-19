@@ -128,6 +128,7 @@ class RouteContext:
     """Closed presentation-only context carried between routes."""
 
     tender_id: str | None = None
+    tender_identity_kind: str | None = None
     workflow_kind: str | None = None
     workflow_status: str | None = None
     workflow_archive_mode: str | None = None
@@ -145,6 +146,11 @@ class RouteContext:
                 self.tender_id,
                 field_name="tender_id",
                 limit=256,
+            ),
+            "tender_identity_kind": _normalize_text(
+                self.tender_identity_kind,
+                field_name="tender_identity_kind",
+                limit=32,
             ),
             "workflow_kind": _normalize_text(
                 self.workflow_kind,
@@ -201,6 +207,8 @@ class RouteContext:
         }
         if values["workflow_kind"] not in {None, "proposal", "estimate", "project"}:
             raise ValueError("Invalid workflow_kind")
+        if values["tender_identity_kind"] not in {None, "registry", "legacy_orm"}:
+            raise ValueError("Invalid tender_identity_kind")
         if values["dashboard_filter"] is not None:
             try:
                 values["dashboard_filter"] = DashboardFilterId(values["dashboard_filter"]).value

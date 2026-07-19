@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSettings
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QMainWindow, QMessageBox
 
 from app.repositories.business_metrics import (
@@ -348,10 +349,17 @@ class ModernMainWindow(QMainWindow):
             "settings",
         }:
             return False
-        if context.tender_id is not None and not self.tender_workspace_page.open_tender(
-            context.tender_id
-        ):
-            return False
+        if context.tender_id is not None:
+            if context.tender_identity_kind == "registry":
+                controller = getattr(self, "_tender_search_ui_controller", None)
+                opener = getattr(controller, "open_registry_record", None)
+                if not callable(opener) or not bool(opener(context.tender_id)):
+                    return False
+            elif context.tender_identity_kind in {None, "legacy_orm"}:
+                if not self.tender_workspace_page.open_tender(context.tender_id):
+                    return False
+            else:
+                return False
         if context.settings_section is not None:
             return self.tender_workspace_page.select_settings_section(context.settings_section)
         if context.tender_section is not None:
@@ -437,7 +445,7 @@ class ModernMainWindow(QMainWindow):
         result = self._navigate(
             RouteId.TENDERS,
             cause=NavigationCause.DEEP_LINK,
-            context=RouteContext(tender_id=tender_id),
+            context=RouteContext(tender_id=tender_id, tender_identity_kind="legacy_orm"),
         )
         if result.succeeded:
             self.statusBar().showMessage(
@@ -492,7 +500,7 @@ class ModernMainWindow(QMainWindow):
             "ООО «КОРТЕРИС»\nCorteris Tender AI 1.3 Alpha",
         )
 
-    def closeEvent(self, event) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Stop the background work owned by the modern shell."""
         if self._close_complete:
             super().closeEvent(event)
