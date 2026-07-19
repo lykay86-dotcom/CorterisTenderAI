@@ -42,11 +42,12 @@ class _LegacyTender:
     analyses: tuple[object, ...] = ()
 
 
-def test_legacy_route_context_carries_an_untyped_tender_string() -> None:
+def test_legacy_route_context_remains_compatible_but_has_no_registry_admission() -> None:
     context = RouteContext(tender_id="42")
 
     assert context.tender_id == "42"
-    assert "tender_identity_kind" not in RouteContext.field_names()
+    assert "tender_identity_kind" in RouteContext.field_names()
+    assert context.tender_identity_kind is None
 
 
 def test_dashboard_feed_maps_display_number_to_legacy_orm_id() -> None:
@@ -59,7 +60,7 @@ def test_dashboard_feed_maps_display_number_to_legacy_orm_id() -> None:
     assert snapshot.tenders[0].number == "0373100000126000001"
 
 
-def test_registry_detail_uses_exact_registry_key_but_local_html(tmp_path) -> None:
+def test_registry_detail_uses_exact_registry_key_and_common_snapshot(tmp_path) -> None:
     app = _app()
     repository = TenderRegistryRepository(tmp_path / "tender_registry.sqlite3")
     repository.record_profile_run(_run(_evaluated_tender()), run_id="run-1")
@@ -72,8 +73,10 @@ def test_registry_detail_uses_exact_registry_key_but_local_html(tmp_path) -> Non
     assert dialog.selected_record() == record
     text = dialog.details.toPlainText()
     assert record.title in text
-    assert "Последняя релевантность" in text
-    assert "Достоверность данных" in text
+    assert dialog.details.snapshot is not None
+    assert dialog.details.snapshot.identity.value == record.registry_key
+    assert "Verification:" in text
+    assert "Decision: not loaded" in text
     app.processEvents()
 
 
@@ -82,9 +85,9 @@ def test_search_result_renders_relevance_without_persisted_decision() -> None:
     dialog = TenderSearchResultsDialog(make_profile_run())
 
     text = dialog.details.toPlainText()
-    assert "Релевантность: 88/100" in text
-    assert "Почему закупка подходит" in text
-    assert "Решение об участии" not in text
+    assert "Поисковая релевантность: 88/100" in text
+    assert "Почему результат релевантен" in text
+    assert "Решение об участии: не загружено" in text
 
 
 def test_existing_controller_remains_the_single_registry_action_owner() -> None:

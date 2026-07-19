@@ -151,7 +151,9 @@ def _verification(*, unresolved: int = 0) -> TenderVerificationState:
         registry_key="registry-key",
         verification_run_id="verify-1",
         status=(
-            TenderVerificationStatus.CONFLICTED if unresolved else TenderVerificationStatus.VERIFIED
+            TenderVerificationStatus.CONFLICT
+            if unresolved
+            else TenderVerificationStatus.VERIFIED_EIS
         ),
         last_verified_at="2026-07-19T08:15:00+00:00",
         critical_field_count=3,
@@ -287,3 +289,53 @@ def test_snapshot_and_card_are_deterministic_and_card_never_reads_repositories()
     assert (len(registry.calls), len(state.calls)) == calls_before_projection
     assert "<script>" in card.title
     assert "Supply" in card.accessible_summary
+
+
+def test_action_catalog_is_complete_and_conflict_dominates_primary_focus() -> None:
+    snapshot = TenderDetailAssembler(
+        RegistryFake(_record()),
+        StateFake(
+            score=_score(hard_excluded=True),
+            verification=_verification(unresolved=1),
+            freshness=_freshness(),
+        ),
+        clock=lambda: NOW,
+    ).assemble(TenderIdentity(TenderIdentityKind.REGISTRY, "registry-key"))
+
+    assert {item.action_id for item in snapshot.actions} == {
+        "open_detail",
+        "open_official_source",
+        "download_documents",
+        "view_documents",
+        "run_requirements_analysis",
+        "view_requirements_analysis",
+        "run_full_analysis",
+        "view_full_analysis",
+        "view_participation_decision",
+        "recalculate_participation_decision",
+        "view_verification",
+        "resolve_verification",
+        "open_commercial_estimate",
+        "archive_tender",
+        "return_to_origin",
+    }
+    assert snapshot.primary_action.action_id == "view_verification"
+    assert snapshot.primary_action.state.value == "available"
+
+
+def test_domain_text_is_bounded_and_control_or_bidi_characters_are_neutralized() -> None:
+    snapshot = TenderDetailAssembler(
+        RegistryFake(
+            _record(
+                title="Unsafe\x00title\u202e.exe" + "x" * 5000,
+                customer_name="Customer\nName",
+            )
+        ),
+        StateFake(verification=_verification(), freshness=_freshness()),
+        clock=lambda: NOW,
+    ).assemble(TenderIdentity(TenderIdentityKind.REGISTRY, "registry-key"))
+
+    assert "\x00" not in snapshot.title
+    assert "\u202e" not in snapshot.title
+    assert len(snapshot.title) == 4096
+    assert "\n" not in snapshot.fact("customer").value

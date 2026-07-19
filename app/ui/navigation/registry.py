@@ -29,6 +29,7 @@ _WORKFLOW_CONTEXT = frozenset(
 _TENDER_CONTEXT = frozenset(
     {
         "tender_id",
+        "tender_identity_kind",
         "search_query",
         "tender_section",
         "settings_section",
@@ -282,7 +283,7 @@ DEFAULT_ROUTE_REGISTRY = RouteRegistry(
             order=42,
             destination="tender_documents",
             parent=RouteId.TENDERS,
-            allowed_context=frozenset({"tender_id", "focus_token"}),
+            allowed_context=frozenset({"tender_id", "tender_identity_kind", "focus_token"}),
             aliases=("documents",),
             capability="tender_id_required",
             history=False,

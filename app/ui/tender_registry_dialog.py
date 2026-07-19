@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from html import escape
 
 from PySide6.QtCore import QUrl, Qt, Signal
 from PySide6.QtGui import QColor, QDesktopServices
@@ -18,12 +17,13 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
-    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -39,13 +39,23 @@ from app.tenders.collector.verification import (
     TenderVerificationStatus,
 )
 from app.tenders.collector.verification_review import STATUS_LABELS
+from app.tenders.detail import (
+    TenderActionState,
+    TenderDetailAssembler,
+    TenderDetailSnapshot,
+    TenderIdentity,
+    TenderIdentityKind,
+    validate_action_request,
+    validate_https_url,
+)
 from app.tenders.tender_registry import (
     TenderRegistryQuery,
     TenderRegistryRecord,
     TenderRegistryRepository,
     TenderRegistrySort,
 )
-from app.ui.theme.colors import ThemeName, get_palette
+from app.ui.theme.colors import ThemeName, ThemePalette, get_palette
+from app.ui.widgets.tender_detail import TenderDetailPanel
 
 
 _STATE_ACTIVE_ACCEPTED = "active_accepted"
@@ -79,6 +89,11 @@ class TenderRegistryDialog(QDialog):
         self.verification_repository = verification_repository or CollectorStateRepository(
             repository.path
         )
+        self._detail_assembler = TenderDetailAssembler(
+            self.repository,
+            self.verification_repository,
+        )
+        self._detail_snapshot: TenderDetailSnapshot | None = None
         try:
             self._theme = ThemeName(theme)
         except (TypeError, ValueError, AttributeError):
@@ -157,11 +172,14 @@ class TenderRegistryDialog(QDialog):
         details_title.setObjectName("TenderRegistrySectionTitle")
         details_layout.addWidget(details_title)
 
-        self.details = QTextBrowser(details_frame)
-        self.details.setObjectName("TenderRegistryDetails")
-        self.details.setOpenExternalLinks(False)
-        self.details.anchorClicked.connect(QDesktopServices.openUrl)
-        details_layout.addWidget(self.details, 1)
+        self.details = TenderDetailPanel(theme=self._theme, parent=details_frame)
+        self.details.action_requested.connect(self._dispatch_detail_action)
+        details_scroll = QScrollArea(details_frame)
+        details_scroll.setObjectName("TenderRegistryDetailsScroll")
+        details_scroll.setWidgetResizable(True)
+        details_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        details_scroll.setWidget(self.details)
+        details_layout.addWidget(details_scroll, 1)
 
         history_title = QLabel(
             "История обнаружений",
@@ -250,7 +268,7 @@ class TenderRegistryDialog(QDialog):
             "В архив",
             self,
         )
-        self.archive_button.clicked.connect(self._toggle_selected_archive)
+        self.archive_button.clicked.connect(lambda: self._toggle_selected_archive(confirm=True))
 
         self.refresh_button = QPushButton(
             "Обновить",
@@ -451,9 +469,8 @@ class TenderRegistryDialog(QDialog):
         )
 
     def refresh_records(self) -> None:
-        selected_key = (
-            self.selected_record().registry_key if self.selected_record() is not None else ""
-        )
+        selected = self.selected_record()
+        selected_key = selected.registry_key if selected is not None else ""
         try:
             statistics = self.repository.statistics()
             query = self.current_query()
@@ -556,11 +573,9 @@ class TenderRegistryDialog(QDialog):
             self.table.selectRow(target_row)
             self._show_selected_record()
         else:
-            self.details.setHtml(
-                "<h3>Записи не найдены</h3>"
-                "<p>Измените строку поиска, состояние или минимальный "
-                "балл. Новые результаты появляются после запуска "
-                "поискового профиля.</p>"
+            self._detail_snapshot = None
+            self.details.clear(
+                "Записи не найдены. Измените строку поиска, состояние или минимальный балл."
             )
             self.history_table.setRowCount(0)
             self.open_source_button.setEnabled(False)
@@ -612,6 +627,8 @@ class TenderRegistryDialog(QDialog):
     def _show_selected_record(self) -> None:
         record = self.selected_record()
         if record is None:
+            self._detail_snapshot = None
+            self.details.clear()
             self.open_source_button.setEnabled(False)
             self.full_analysis_button.setEnabled(False)
             self.analysis_button.setEnabled(False)
@@ -621,52 +638,58 @@ class TenderRegistryDialog(QDialog):
             self.archive_button.setEnabled(False)
             return
 
-        self.open_source_button.setEnabled(bool(record.source_url))
-        self.full_analysis_button.setEnabled(True)
-        self.analysis_button.setEnabled(True)
-        self.documents_button.setEnabled(True)
-        self.verification_button.setEnabled(True)
-        self.commercial_button.setEnabled(True)
-        self.archive_button.setEnabled(True)
-        self.archive_button.setText("Вернуть из архива" if record.archived else "В архив")
-
-        verification_state = self._verification_states.get(record.registry_key)
-        freshness_state = self._freshness_states.get(record.registry_key)
-        state = "Архив" if record.archived else ("Подходит" if record.last_accepted else "Отсеяно")
-        self.details.setHtml(
-            f"<h2>{escape(record.title)}</h2>"
-            f"<p><b>Номер:</b> "
-            f"{escape(record.procurement_number or '—')}</p>"
-            f"<p><b>Заказчик:</b> "
-            f"{escape(record.customer_name or '—')}</p>"
-            f"<p><b>ИНН:</b> "
-            f"{escape(record.customer_inn or '—')}</p>"
-            f"<p><b>Регион:</b> "
-            f"{escape(record.region or '—')}</p>"
-            f"<p><b>Цена:</b> "
-            f"{escape(_format_price(record.price_amount, record.currency))}</p>"
-            f"<p><b>Срок подачи:</b> "
-            f"{escape(_deadline_display(record.application_deadline, freshness_state))}</p>"
-            f"<p><b>Состояние:</b> {escape(state)}</p>"
-            f"<p><b>Достоверность данных:</b> "
-            f"{escape(_verification_text(verification_state))}</p>"
-            f"<p><b>Свежесть данных:</b> "
-            f"{escape(_freshness_text(freshness_state))}</p>"
-            f"<p><b>Следующая проверка:</b> "
-            f"{escape(_freshness_due_text(freshness_state))}</p>"
-            f"<p><b>Последняя релевантность:</b> "
-            f"{record.relevance_score}/100 "
-            f"({escape(record.relevance_grade)})</p>"
-            f"<p><b>Обнаружено:</b> {record.seen_count} раз</p>"
-            f"<p><b>Первое обнаружение:</b> "
-            f"{escape(_format_timestamp(record.first_seen_at))}</p>"
-            f"<p><b>Последнее обнаружение:</b> "
-            f"{escape(_format_timestamp(record.last_seen_at))}</p>"
-            f"<p><b>Источник:</b> {escape(record.source)}</p>"
-            f'<p><a href="{escape(record.source_url)}">'
-            "Открыть официальную карточку закупки</a></p>"
+        try:
+            snapshot = self._detail_assembler.assemble(
+                TenderIdentity(TenderIdentityKind.REGISTRY, record.registry_key)
+            )
+        except Exception:
+            self._detail_snapshot = None
+            self.details.clear("Tender details could not be loaded safely.")
+            self.set_status("Карточка тендера не загружена.", error=True)
+            return
+        self._detail_snapshot = snapshot
+        self.details.set_snapshot(snapshot)
+        action_states = {item.action_id: item.state for item in snapshot.actions}
+        self.open_source_button.setEnabled(
+            action_states.get("open_official_source") is TenderActionState.AVAILABLE
         )
-        self._populate_history(record.registry_key)
+        self.full_analysis_button.setEnabled(
+            action_states.get("run_full_analysis") is TenderActionState.AVAILABLE
+        )
+        self.analysis_button.setEnabled(
+            action_states.get("run_requirements_analysis") is TenderActionState.AVAILABLE
+        )
+        self.score_button.setEnabled(
+            action_states.get("recalculate_participation_decision") is TenderActionState.AVAILABLE
+        )
+        self.documents_button.setEnabled(
+            action_states.get("download_documents") is TenderActionState.AVAILABLE
+        )
+        self.verification_button.setEnabled(
+            action_states.get("view_verification") is TenderActionState.AVAILABLE
+        )
+        self.commercial_button.setEnabled(
+            action_states.get("open_commercial_estimate") is TenderActionState.AVAILABLE
+        )
+        archive_action = "restore_tender" if record.archived else "archive_tender"
+        self.archive_button.setEnabled(
+            action_states.get(archive_action) is TenderActionState.AVAILABLE
+        )
+        self.archive_button.setText("Вернуть из архива" if record.archived else "В архив")
+        self._populate_snapshot_history(snapshot)
+
+    def _populate_snapshot_history(self, snapshot: TenderDetailSnapshot) -> None:
+        self.history_table.setRowCount(len(snapshot.history))
+        for row, item in enumerate(snapshot.history):
+            values = (
+                item.occurred_at,
+                item.title,
+                item.detail,
+                "Подходит" if item.accepted else "Отсеяно",
+                "",
+            )
+            for column, value in enumerate(values):
+                self.history_table.setItem(row, column, QTableWidgetItem(value))
 
     def _populate_history(self, registry_key: str) -> None:
         try:
@@ -701,9 +724,54 @@ class TenderRegistryDialog(QDialog):
                     QTableWidgetItem(value),
                 )
 
-    def _toggle_selected_archive(self) -> None:
+    def _validated_detail_action(self, action_id: str) -> bool:
+        record = self.selected_record()
+        previous = self._detail_snapshot
+        if record is None or previous is None or previous.identity.value != record.registry_key:
+            return False
+        action = next((item for item in previous.actions if item.action_id == action_id), None)
+        if action is None:
+            return False
+        try:
+            current = self._detail_assembler.assemble(previous.identity)
+        except Exception:
+            self.set_status("Не удалось безопасно проверить действие.", error=True)
+            return False
+        validation = validate_action_request(
+            action,
+            identity=current.identity,
+            current_snapshot_fingerprint=current.fingerprint,
+            current_source_revision=current.source_revision,
+        )
+        if not validation.allowed:
+            self._detail_snapshot = current
+            self.details.set_snapshot(current)
+            self.set_status(
+                "Карточка изменилась. Проверьте данные и повторите действие.", error=True
+            )
+            return False
+        return True
+
+    def _confirm_archive_change(self, record: TenderRegistryRecord) -> bool:
+        action = "Вернуть из архива" if record.archived else "Переместить в архив"
+        target = record.procurement_number or record.title
+        answer = QMessageBox.question(
+            self,
+            action,
+            f"{action} точную закупку {target}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return answer is QMessageBox.StandardButton.Yes
+
+    def _toggle_selected_archive(self, *, confirm: bool = False) -> None:
         record = self.selected_record()
         if record is None:
+            return
+        action_id = "restore_tender" if record.archived else "archive_tender"
+        if not self._validated_detail_action(action_id):
+            return
+        if confirm and not self._confirm_archive_change(record):
             return
         new_state = not record.archived
         try:
@@ -732,45 +800,70 @@ class TenderRegistryDialog(QDialog):
 
     def _request_selected_full_analysis(self) -> None:
         record = self.selected_record()
-        if record is None:
+        if record is None or not self._validated_detail_action("run_full_analysis"):
             return
         self.full_analysis_requested.emit(record.registry_key)
 
     def _request_selected_analysis(self) -> None:
         record = self.selected_record()
-        if record is None:
+        if record is None or not self._validated_detail_action("run_requirements_analysis"):
             return
         self.analysis_requested.emit(record.registry_key)
 
-    def _request_selected_score(self) -> None:
+    def _request_selected_score(
+        self,
+        *,
+        action_id: str = "recalculate_participation_decision",
+    ) -> None:
         record = self.selected_record()
-        if record is None:
+        if record is None or not self._validated_detail_action(action_id):
             return
         self.score_requested.emit(record.registry_key)
 
     def _request_selected_commercial_estimate(self) -> None:
         record = self.selected_record()
-        if record is None:
+        if record is None or not self._validated_detail_action("open_commercial_estimate"):
             return
         self.commercial_estimate_requested.emit(record.registry_key)
 
     def _request_selected_verification(self) -> None:
         record = self.selected_record()
-        if record is None:
+        if record is None or not self._validated_detail_action("view_verification"):
             return
         self.verification_requested.emit(record.registry_key)
 
     def _request_selected_documents(self) -> None:
         record = self.selected_record()
-        if record is None:
+        if record is None or not self._validated_detail_action("download_documents"):
             return
         self.documents_requested.emit(record.registry_key)
 
     def _open_selected_source(self) -> None:
         record = self.selected_record()
-        if record is None or not record.source_url:
+        if record is None or not self._validated_detail_action("open_official_source"):
             return
-        QDesktopServices.openUrl(QUrl(record.source_url))
+        safe_url = validate_https_url(record.source_url)
+        if safe_url is not None:
+            QDesktopServices.openUrl(QUrl(safe_url))
+
+    def _dispatch_detail_action(self, action_id: str) -> None:
+        handlers = {
+            "open_official_source": self._open_selected_source,
+            "download_documents": self._request_selected_documents,
+            "run_requirements_analysis": self._request_selected_analysis,
+            "run_full_analysis": self._request_selected_full_analysis,
+            "view_participation_decision": lambda: self._request_selected_score(
+                action_id="view_participation_decision"
+            ),
+            "recalculate_participation_decision": self._request_selected_score,
+            "view_verification": self._request_selected_verification,
+            "open_commercial_estimate": self._request_selected_commercial_estimate,
+            "archive_tender": lambda: self._toggle_selected_archive(confirm=True),
+            "restore_tender": lambda: self._toggle_selected_archive(confirm=True),
+        }
+        handler = handlers.get(action_id)
+        if handler is not None:
+            handler()
 
     def set_status(self, message: str, *, error: bool = False) -> None:
         self.status_label.setText(message)
@@ -780,6 +873,7 @@ class TenderRegistryDialog(QDialog):
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)
+        self.details.apply_theme(self._theme)
         palette = get_palette(self._theme)
         self.setStyleSheet(
             f"""
@@ -984,7 +1078,10 @@ def _freshness_tooltip(
     )
 
 
-def _freshness_color(state, palette) -> str:
+def _freshness_color(
+    state: TenderFreshnessState | None,
+    palette: ThemePalette,
+) -> str:
     if state is None:
         return palette.neutral
     if state.status in {
@@ -1026,7 +1123,10 @@ def _verification_tooltip(
     )
 
 
-def _verification_color(state, palette) -> str:
+def _verification_color(
+    state: TenderVerificationState | None,
+    palette: ThemePalette,
+) -> str:
     if state is None:
         return palette.neutral
     if state.status == TenderVerificationStatus.CONFLICT:
