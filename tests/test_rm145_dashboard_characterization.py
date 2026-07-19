@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from app.repositories.business_metrics import BusinessMetricsSnapshot
@@ -25,7 +25,14 @@ KPI_KEYS = (
     "active_projects",
     "attention",
 )
-NOW = datetime(2026, 7, 19, 12, 0)
+NOW = datetime(
+    2026,
+    7,
+    19,
+    12,
+    0,
+    tzinfo=timezone(timedelta(hours=3), name="Europe/Moscow"),
+)
 
 
 @dataclass

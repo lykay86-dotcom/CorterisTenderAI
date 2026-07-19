@@ -46,16 +46,17 @@ class TenderRepository:
     def list_for_dashboard(
         self,
         *,
-        limit: int = 100,
+        limit: int | None = 100,
     ) -> list[Tender]:
-        normalized_limit = max(1, min(int(limit), 500))
         with session_scope() as session:
             stmt = (
                 select(Tender)
                 .options(selectinload(Tender.analyses))
                 .order_by(Tender.created_at.desc())
-                .limit(normalized_limit)
             )
+            if limit is not None:
+                normalized_limit = max(1, min(int(limit), 500))
+                stmt = stmt.limit(normalized_limit)
             active = _active_filter(Tender)
             if active is not None:
                 stmt = stmt.where(active)

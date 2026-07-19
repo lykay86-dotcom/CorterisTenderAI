@@ -28,9 +28,14 @@ from app.ui.dashboard.activity_feed import (
 )
 from app.ui.dashboard.data_state import DataState
 from app.ui.viewmodels.dashboard_viewmodel import (
+    APP_TIMEZONE,
+    DASHBOARD_KPI_BY_KEY,
     AiRecommendation,
     DashboardKpi,
+    DashboardKpiState,
+    DashboardSourceEvidence,
     RecentTender,
+    aware_dashboard_time,
 )
 
 
@@ -65,20 +70,6 @@ class DashboardSnapshotBuilder:
     ATTENTION_DAYS = 3
     RECENT_LIMIT = 8
 
-    PROPOSAL_STATUS_WORDS = (
-        "кп",
-        "коммерческ",
-        "предложен",
-        "подготовка заявки",
-    )
-    PROJECT_STATUS_WORDS = (
-        "побед",
-        "контракт",
-        "исполн",
-        "монтаж",
-        "проект",
-        "в работе",
-    )
     ATTENTION_STATUS_WORDS = (
         "вниман",
         "риск",
@@ -94,7 +85,7 @@ class DashboardSnapshotBuilder:
         now: datetime | None = None,
         business: BusinessMetricsSnapshot | None = None,
     ) -> DashboardSnapshot:
-        loaded_at = now or datetime.now()
+        loaded_at = aware_dashboard_time(now or datetime.now(APP_TIMEZONE))
         rows = list(entities)
         sorted_rows = sorted(
             rows,
@@ -115,36 +106,20 @@ class DashboardSnapshotBuilder:
         }
 
         today = loaded_at.date()
-        new_today = sum(1 for entity in rows if self._created_date(entity) == today)
+        new_today_rows = [entity for entity in rows if self._created_date(entity) == today]
         recommended = [entity for entity in rows if self._score(entity) >= self.RECOMMENDED_SCORE]
-        attention = [entity for entity in rows if self._requires_attention(entity, today)]
-        proposal_count = business.proposals_in_work if business is not None else 0
-        estimate_count = business.estimates_in_work if business is not None else 0
-        project_count = business.active_projects if business is not None else 0
-
-        analysis_profit, analysis_sources = self._potential_profit(rows)
-        if business is not None and business.profit_sources > 0:
-            profit = business.potential_profit
-            profit_sources = business.profit_sources
-        else:
-            profit = analysis_profit
-            profit_sources = analysis_sources
-
-        business_attention = business.attention if business is not None else 0
+        tender_attention = [entity for entity in rows if self._requires_attention(entity, today)]
 
         kpis = self._build_kpis(
-            profit=profit,
-            profit_sources=profit_sources,
-            new_today=new_today,
-            recommended=len(recommended),
-            proposals=proposal_count,
-            estimates=estimate_count,
-            projects=project_count,
-            attention=len(attention) + business_attention,
+            loaded_at=loaded_at,
+            rows=rows,
+            new_today_rows=new_today_rows,
+            recommended_rows=recommended,
+            business=business,
         )
         recommendations = self._build_recommendations(
             rows,
-            attention=attention,
+            attention=tender_attention,
         )
         activities = self._build_activities(
             sorted_rows,
@@ -157,7 +132,7 @@ class DashboardSnapshotBuilder:
                         *activities,
                         *(self._business_activity(item) for item in business.recent_activities),
                     ],
-                    key=lambda item: item.timestamp or datetime.min,
+                    key=lambda item: aware_dashboard_time(item.timestamp or datetime.min),
                     reverse=True,
                 )[:8]
             )
@@ -174,79 +149,103 @@ class DashboardSnapshotBuilder:
     def _build_kpis(
         self,
         *,
-        profit: Decimal,
-        profit_sources: int,
-        new_today: int,
-        recommended: int,
-        proposals: int,
-        estimates: int,
-        projects: int,
-        attention: int,
+        loaded_at: datetime,
+        rows: Sequence[Any],
+        new_today_rows: Sequence[Any],
+        recommended_rows: Sequence[Any],
+        business: BusinessMetricsSnapshot | None,
     ) -> tuple[DashboardKpi, ...]:
-        profit_trend = (
-            f"По {profit_sources} проанализированным тендерам"
-            if profit_sources
-            else "Нет сохранённых расчётов прибыли"
-        )
-        return (
-            DashboardKpi(
-                key="potential_profit",
-                title="Потенциальная прибыль",
-                value=self._format_money(profit),
-                trend=profit_trend,
-                tone="success" if profit > 0 else "info",
-                icon_text="₽",
+        def ids(values: Sequence[Any]) -> tuple[str, ...]:
+            return tuple(str(self._value(item, "id", "")) for item in values)
+
+        tender_record_count = len(rows)
+        tender_evidence = {
+            "new_tenders": DashboardSourceEvidence(
+                source_id="tenders",
+                generation=1,
+                observed_at=loaded_at,
+                record_count=tender_record_count,
+                contributor_ids=ids(new_today_rows),
             ),
-            DashboardKpi(
-                key="new_tenders",
-                title="Новые тендеры",
-                value=str(new_today),
-                trend="Добавлены сегодня",
-                tone="info",
-                icon_text="T",
+            "recommended": DashboardSourceEvidence(
+                source_id="tenders",
+                generation=1,
+                observed_at=loaded_at,
+                record_count=tender_record_count,
+                contributor_ids=ids(recommended_rows),
             ),
-            DashboardKpi(
-                key="recommended",
-                title="AI рекомендует",
-                value=str(recommended),
-                trend=f"AI Score от {self.RECOMMENDED_SCORE}",
-                tone="success",
-                icon_text="AI",
-            ),
-            DashboardKpi(
-                key="proposals_in_work",
-                title="КП в работе",
-                value=str(proposals),
-                trend=(
-                    f"Смет в работе: {estimates}"
-                    if proposals or estimates
-                    else "КП и сметы в работе не найдены"
+        }
+        business_record_count = business.record_count if business is not None else 0
+
+        def business_evidence(
+            contributor_ids: tuple[str, ...],
+        ) -> tuple[DashboardSourceEvidence, ...]:
+            if business is None:
+                return ()
+            return (
+                DashboardSourceEvidence(
+                    source_id="business_workflow",
+                    generation=1,
+                    observed_at=loaded_at,
+                    record_count=business_record_count,
+                    contributor_ids=contributor_ids,
                 ),
-                tone=("warning" if proposals or estimates else "default"),
-                icon_text="КП",
+            )
+
+        raw_values: dict[str, int | Decimal | None] = {
+            "potential_profit": business.potential_profit if business is not None else None,
+            "new_tenders": len(new_today_rows),
+            "recommended": len(recommended_rows),
+            "proposals_in_work": business.proposals_in_work if business is not None else None,
+            "active_projects": business.active_projects if business is not None else None,
+            "attention": business.attention if business is not None else None,
+        }
+        evidence = {
+            "potential_profit": business_evidence(
+                business.profit_contributor_ids if business is not None else ()
             ),
-            DashboardKpi(
-                key="active_projects",
-                title="Активные проекты",
-                value=str(projects),
-                trend=(
-                    "Контракты и проекты в работе" if projects else "Активные проекты не найдены"
+            "new_tenders": (tender_evidence["new_tenders"],),
+            "recommended": (tender_evidence["recommended"],),
+            "proposals_in_work": business_evidence(
+                business.proposal_ids if business is not None else ()
+            ),
+            "active_projects": business_evidence(
+                business.project_ids if business is not None else ()
+            ),
+            "attention": business_evidence(business.attention_ids if business is not None else ()),
+        }
+        trends = {
+            "potential_profit": (
+                f"Источников расчёта: {business.profit_sources}"
+                if business is not None
+                else "Источник workflow недоступен"
+            ),
+            "proposals_in_work": (
+                f"Смет в работе: {business.estimates_in_work}"
+                if business is not None
+                else "Источник workflow недоступен"
+            ),
+        }
+
+        def state_for(value: int | Decimal | None) -> DashboardKpiState:
+            if value is None:
+                return DashboardKpiState.ERROR
+            if value == 0:
+                return DashboardKpiState.ZERO
+            return DashboardKpiState.READY
+
+        return tuple(
+            DashboardKpi.from_definition(
+                DASHBOARD_KPI_BY_KEY[key],
+                raw_value=raw_values[key],
+                state=state_for(raw_values[key]),
+                source_evidence=evidence[key],
+                state_reason=(
+                    "Источник workflow не загрузил значение." if raw_values[key] is None else ""
                 ),
-                tone="info",
-                icon_text="P",
-            ),
-            DashboardKpi(
-                key="attention",
-                title="Требуют внимания",
-                value=str(attention),
-                trend=(
-                    f"Срок до {self.ATTENTION_DAYS} дней или риск"
-                    if attention
-                    else "Срочных рисков не найдено"
-                ),
-                tone="warning",
-                icon_text="!",
-            ),
+                trend=trends.get(key),
+            )
+            for key in DASHBOARD_KPI_BY_KEY
         )
 
     def _build_recommendations(
@@ -394,29 +393,6 @@ class DashboardSnapshotBuilder:
             platform=str(self._value(entity, "platform", "Ручной импорт")),
         )
 
-    def _potential_profit(
-        self,
-        rows: Sequence[Any],
-    ) -> tuple[Decimal, int]:
-        total = Decimal("0")
-        sources = 0
-
-        for entity in rows:
-            analyses = self._value(entity, "analyses", ()) or ()
-            if not analyses:
-                continue
-
-            latest = max(
-                analyses,
-                key=lambda analysis: self._created_at(analysis) or datetime.min,
-            )
-            amount = self._decimal(self._value(latest, "estimated_profit", 0))
-            if amount > 0:
-                total += amount
-                sources += 1
-
-        return total, sources
-
     def _requires_attention(
         self,
         entity: Any,
@@ -473,7 +449,7 @@ class DashboardSnapshotBuilder:
 
     def _created_date(self, entity: Any) -> date | None:
         value = self._created_at(entity)
-        return value.date() if value is not None else None
+        return aware_dashboard_time(value).date() if value is not None else None
 
     def _created_at(self, entity: Any) -> datetime | None:
         value = self._value(entity, "created_at", None)
@@ -564,7 +540,7 @@ class DashboardController(QObject):
         *,
         repository: TenderRepositoryLike | None = None,
         business_repository: BusinessMetricsRepositoryLike | None = None,
-        clock: Callable[[], datetime] = datetime.now,
+        clock: Callable[[], datetime] | None = None,
         auto_refresh_ms: int = DEFAULT_AUTO_REFRESH_MS,
         parent: QObject | None = None,
     ) -> None:
@@ -573,7 +549,7 @@ class DashboardController(QObject):
         self.page = page
         self.repository = repository or TenderRepository()
         self.business_repository = business_repository or BusinessMetricsRepository()
-        self.clock = clock
+        self.clock = clock or (lambda: datetime.now(APP_TIMEZONE))
         self.builder = DashboardSnapshotBuilder()
 
         self._number_to_id: dict[str, str] = {}
@@ -663,7 +639,7 @@ class DashboardController(QObject):
                 None,
             )
             if callable(dashboard_loader):
-                entities = dashboard_loader(limit=100)
+                entities = dashboard_loader(limit=None)
             else:
                 entities = repository.list()
 
@@ -766,19 +742,12 @@ class DashboardController(QObject):
         snapshot: DashboardSnapshot,
     ) -> None:
         self._number_to_id = dict(snapshot.number_to_id)
-
-        for kpi in snapshot.kpis:
-            self.page.viewmodel.set_kpi(
-                kpi.key,
-                value=kpi.value,
-                trend=kpi.trend,
-                tone=kpi.tone,
-                title=kpi.title,
-                icon_text=kpi.icon_text,
-            )
-
-        self.page.viewmodel.set_recent_tenders(snapshot.tenders)
-        self.page.viewmodel.set_ai_recommendations(snapshot.recommendations)
+        self.page.viewmodel.apply_snapshot(
+            snapshot.kpis,
+            recent_tenders=snapshot.tenders,
+            ai_recommendations=snapshot.recommendations,
+            loaded_at=snapshot.loaded_at,
+        )
         self.page.set_activities(snapshot.activities)
 
         self.page.set_data_state(

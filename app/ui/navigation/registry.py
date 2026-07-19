@@ -6,6 +6,7 @@ from types import MappingProxyType
 from typing import Iterable, Mapping
 
 from app.ui.navigation.contracts import (
+    DashboardFilterId,
     RouteAvailability,
     RouteContext,
     RouteId,
@@ -22,6 +23,7 @@ _WORKFLOW_CONTEXT = frozenset(
         "workflow_search",
         "workflow_record_id",
         "focus_token",
+        "dashboard_filter",
     }
 )
 _TENDER_CONTEXT = frozenset(
@@ -31,6 +33,7 @@ _TENDER_CONTEXT = frozenset(
         "tender_section",
         "settings_section",
         "focus_token",
+        "dashboard_filter",
     }
 )
 
@@ -137,6 +140,10 @@ class RouteRegistry:
             and not context.tender_id
         ):
             return "tender_id_required"
+        if context.dashboard_filter is not None:
+            dashboard_filter = DashboardFilterId(context.dashboard_filter)
+            if dashboard_filter.route_id is not spec.route_id:
+                return "dashboard_filter_route_mismatch"
         return None
 
 

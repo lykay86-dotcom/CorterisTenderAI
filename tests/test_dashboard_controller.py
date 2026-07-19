@@ -63,7 +63,7 @@ def test_snapshot_maps_real_tender_fields() -> None:
     assert snapshot.number_to_id["0123456789"] == "uuid-1"
 
 
-def test_snapshot_uses_latest_analysis_profit() -> None:
+def test_snapshot_does_not_mix_tender_analysis_into_workflow_profit() -> None:
     builder = DashboardSnapshotBuilder()
     snapshot = builder.build(
         [
@@ -87,10 +87,11 @@ def test_snapshot_uses_latest_analysis_profit() -> None:
     )
 
     profit = next(item for item in snapshot.kpis if item.key == "potential_profit")
-    assert profit.value == "240 000 ₽"
+    assert profit.raw_value is None
+    assert profit.value == "—"
 
 
-def test_snapshot_counts_recommended_and_attention() -> None:
+def test_snapshot_counts_score_cohort_but_not_tender_attention() -> None:
     builder = DashboardSnapshotBuilder()
     snapshot = builder.build(
         [
@@ -115,7 +116,7 @@ def test_snapshot_counts_recommended_and_attention() -> None:
 
     values = {item.key: item.value for item in snapshot.kpis}
     assert values["recommended"] == "1"
-    assert values["attention"] == "1"
+    assert values["attention"] == "—"
 
 
 def test_snapshot_creates_priority_recommendation() -> None:

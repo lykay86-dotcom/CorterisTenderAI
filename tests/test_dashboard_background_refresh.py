@@ -32,6 +32,18 @@ class FakeViewModel(QObject):
     def set_ai_recommendations(self, recommendations) -> None:
         self.recommendations = list(recommendations)
 
+    def apply_snapshot(
+        self,
+        kpis,
+        *,
+        recent_tenders,
+        ai_recommendations,
+        loaded_at,
+    ) -> None:
+        self.kpis = {item.key: item.value for item in kpis}
+        self.tenders = list(recent_tenders)
+        self.recommendations = list(ai_recommendations)
+
 
 class FakePage(QObject):
     tender_open_requested = Signal(str)
@@ -74,8 +86,8 @@ class FakeRepository:
         self.raise_error = False
         self.delay = 0.0
 
-    def list_for_dashboard(self, *, limit: int):
-        assert limit == 100
+    def list_for_dashboard(self, *, limit: int | None):
+        assert limit is None
         self.thread_ids.append(threading.get_ident())
         if self.delay:
             sleep(self.delay)

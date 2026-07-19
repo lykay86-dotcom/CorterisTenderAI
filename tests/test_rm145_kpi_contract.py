@@ -72,7 +72,7 @@ def test_builder_publishes_typed_values_evidence_states_and_actions() -> None:
     assert values["new_tenders"].state is kpi_state.ZERO
     assert values["new_tenders"].raw_value == 0
     assert values["recommended"].title == "Оценка 80+"
-    assert "рекомендац" not in values["recommended"].accessible_description.lower()
+    assert "не является рекомендацией" in values["recommended"].accessible_description.lower()
     assert all(
         evidence.observed_at.tzinfo is not None
         for item in snapshot.kpis
