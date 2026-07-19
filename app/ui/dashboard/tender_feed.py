@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+import hashlib
 from typing import Sequence
 
 from PySide6.QtCore import (
@@ -32,6 +33,7 @@ from app.ui.dashboard.data_state import (
 )
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
+from app.ui.tables import TableColumnId, TableRevision, TableRole, TableRowId, TableState
 from app.ui.viewmodels.dashboard_viewmodel import RecentTender
 
 
@@ -259,6 +261,40 @@ class TenderFeedModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.UserRole:
             return tender.number
+
+        if role == TableRole.ROW_ID:
+            namespace = tender.identity_kind.strip() or "dashboard_tender_number"
+            identity = tender.identity_value.strip() or tender.number
+            return TableRowId(namespace, identity)
+
+        if role == TableRole.ROW_REVISION:
+            revision_material = "|".join(
+                (
+                    tender.number,
+                    tender.title,
+                    tender.customer,
+                    tender.deadline,
+                    str(tender.score),
+                    tender.status,
+                )
+            )
+            return TableRevision(hashlib.sha256(revision_material.encode("utf-8")).hexdigest())
+
+        if role == TableRole.COLUMN_ID:
+            return TableColumnId(column.key)
+
+        if role in {TableRole.SORT_VALUE, TableRole.EXPORT_VALUE}:
+            return value
+
+        if role == TableRole.ACTION_IDS:
+            return ("open",)
+
+        if role == TableRole.STATE:
+            return TableState.READY
+
+        if role == Qt.ItemDataRole.AccessibleTextRole:
+            display = "—" if value in {None, ""} else str(value)
+            return f"{column.title}: {display}"
 
         if role == Qt.ItemDataRole.ToolTipRole:
             return (

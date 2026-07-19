@@ -486,6 +486,8 @@ class DashboardSnapshotBuilder:
                 )
             ),
             nmck=self._format_money(self._decimal(self._value(entity, "nmck", 0))),
+            identity_kind="legacy_orm",
+            identity_value=str(self._value(entity, "id", self._display_number(entity))),
             status=str(self._value(entity, "status", "Новый")),
             platform=str(self._value(entity, "platform", "Ручной импорт")),
         )

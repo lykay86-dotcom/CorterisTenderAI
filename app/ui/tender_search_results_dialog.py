@@ -38,6 +38,7 @@ from app.tenders.detail import (
 from app.tenders.search_profile_runner import TenderSearchProfileRun
 from app.tenders.models import UnifiedTender
 from app.tenders.tender_registry import tender_registry_key
+from app.ui.tables import TableRevision, TableRole, TableRowId, TableState
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.widgets.tender_detail import TenderDetailHost
 
@@ -292,6 +293,18 @@ class TenderSearchResultsDialog(QDialog):
                         Qt.ItemDataRole.UserRole,
                         row,
                     )
+                    item.setData(
+                        TableRole.ROW_ID,
+                        TableRowId("registry", tender_registry_key(tender)),
+                    )
+                    item.setData(
+                        TableRole.ROW_REVISION,
+                        TableRevision(
+                            f"{tender_registry_key(tender)}:{relevance.score}:{tender.status.value}"
+                        ),
+                    )
+                    item.setData(TableRole.ACTION_IDS, ("open", "open_source"))
+                    item.setData(TableRole.STATE, TableState.READY)
                 self.table.setItem(row, column, item)
 
         if self._evaluated:
@@ -313,7 +326,18 @@ class TenderSearchResultsDialog(QDialog):
         row = self.table.currentRow()
         if not 0 <= row < len(self._evaluated):
             return None
-        return self._evaluated[row]
+        item = self.table.item(row, 0)
+        row_id = item.data(TableRole.ROW_ID) if item is not None else None
+        if not isinstance(row_id, TableRowId):
+            return None
+        return next(
+            (
+                evaluated
+                for evaluated in self._evaluated
+                if tender_registry_key(evaluated.tender) == row_id.value
+            ),
+            None,
+        )
 
     def _show_selected_details(self) -> None:
         evaluated = self.selected_evaluated()

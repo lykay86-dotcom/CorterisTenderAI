@@ -461,7 +461,12 @@ class BusinessWorkflowPage(QWidget):
 
         self.table = QTableView(self.table_frame)
         self.table.setObjectName("WorkflowTable")
+        self.table.setAccessibleName("Business workflow records")
+        self.table.setAccessibleDescription(
+            "Estimates, proposals and projects with exact record identity and Decimal values."
+        )
         self.table.setModel(self.proxy)
+        self.model.modelReset.connect(self._restore_exact_selection_after_model_change)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -815,6 +820,7 @@ class BusinessWorkflowPage(QWidget):
         self,
         preferred_record_id: str | None = None,
     ) -> None:
+        previous_record_id = self._selected_record.id if self._selected_record is not None else None
         try:
             records = self.repository.list_records(include_archived=True)
             summary = self.repository.summary(activity_limit=0)
@@ -831,8 +837,12 @@ class BusinessWorkflowPage(QWidget):
         self._update_summary(summary)
         self.updated_label.setText(datetime.now().strftime("Обновлено %H:%M"))
         self._restore_initial_filter()
-        if preferred_record_id and self._select_record_id(preferred_record_id):
+        target_record_id = preferred_record_id or previous_record_id
+        if target_record_id and self._select_record_id(target_record_id):
             pass
+        elif target_record_id:
+            self.table.clearSelection()
+            self._set_selected_record(None)
         else:
             self._select_first_visible()
         self.status_banner.clear()
@@ -2294,22 +2304,22 @@ class BusinessWorkflowPage(QWidget):
 
     def _on_search_changed(self, text: str) -> None:
         self.proxy.set_search(text)
-        self._select_first_visible()
+        self._reconcile_visible_selection()
 
     def _on_kind_filter_changed(self) -> None:
         value = self.kind_filter.currentData()
         self.proxy.set_kind(value or None)
-        self._select_first_visible()
+        self._reconcile_visible_selection()
 
     def _on_archive_filter_changed(self) -> None:
         value = str(self.archive_filter.currentData() or WorkflowArchiveMode.ACTIVE.value)
         self.proxy.set_archive_mode(value)
-        self._select_first_visible()
+        self._reconcile_visible_selection()
 
     def _on_status_filter_changed(self) -> None:
         value = self.status_filter.currentData()
         self.proxy.set_status(value or None)
-        self._select_first_visible()
+        self._reconcile_visible_selection()
 
     def _reset_filters(self) -> None:
         self.search_edit.clear()
@@ -2382,6 +2392,19 @@ class BusinessWorkflowPage(QWidget):
         index = self.proxy.index(0, 0)
         self.table.setCurrentIndex(index)
         self.table.selectRow(0)
+
+    def _reconcile_visible_selection(self) -> None:
+        record = self._selected_record
+        if record is not None and self._select_record_id(record.id):
+            return
+        self.table.clearSelection()
+        self._set_selected_record(None)
+
+    def _restore_exact_selection_after_model_change(self) -> None:
+        record = self._selected_record
+        if record is not None and not self._select_record_id(record.id):
+            self.table.clearSelection()
+            self._set_selected_record(None)
 
     @staticmethod
     def _money(value: Decimal | float) -> str:

@@ -287,6 +287,8 @@ class RecentTender:
     nmck: str = ""
     status: str = ""
     platform: str = ""
+    identity_kind: str = ""
+    identity_value: str = ""
 
 
 @dataclass(frozen=True, slots=True)

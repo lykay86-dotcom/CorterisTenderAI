@@ -12,11 +12,16 @@ from pathlib import Path
 from platform import platform, python_version
 import statistics
 import subprocess
+import sys
 from time import perf_counter_ns
 import tracemalloc
 from typing import Final
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from PySide6 import __version__ as pyside_version  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
@@ -42,7 +47,7 @@ DEFAULT_SIZES: Final[tuple[int, ...]] = (0, 100, 1_000, 10_000)
 def _git_head() -> str:
     completed = subprocess.run(
         ("git", "rev-parse", "HEAD"),
-        cwd=Path(__file__).resolve().parents[1],
+        cwd=ROOT,
         check=True,
         capture_output=True,
         text=True,
@@ -201,6 +206,7 @@ def main() -> int:
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--production-baseline", default=_git_head())
+    parser.add_argument("--label", default="pre-implementation")
     arguments = parser.parse_args()
     if arguments.warmups < 0 or arguments.repeats < 1:
         parser.error("warmups must be >= 0 and repeats must be >= 1")
@@ -218,7 +224,7 @@ def main() -> int:
         )
     ]
     payload = {
-        "baseline": "pre-implementation",
+        "baseline": arguments.label,
         "measurement_head": _git_head(),
         "production_baseline_commit": arguments.production_baseline,
         "environment": {

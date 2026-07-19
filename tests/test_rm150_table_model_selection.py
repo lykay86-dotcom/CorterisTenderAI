@@ -20,7 +20,12 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-def _snapshot(*, row_ids: tuple[str, ...] = ("b", "a"), fingerprint: str = "one"):
+def _snapshot(
+    *,
+    row_ids: tuple[str, ...] = ("b", "a"),
+    fingerprint: str = "one",
+    surface_id: str = "TBL-150-014",
+):
     table = _tables()
     columns = (
         table.TableColumn(
@@ -31,7 +36,7 @@ def _snapshot(*, row_ids: tuple[str, ...] = ("b", "a"), fingerprint: str = "one"
         ),
     )
     return table.TableSnapshot(
-        table.TableSurfaceId("TBL-150-014"),
+        table.TableSurfaceId(surface_id),
         fingerprint,
         table.TableState.READY if row_ids else table.TableState.EMPTY,
         columns,
@@ -98,7 +103,7 @@ def test_state_host_renders_sibling_status_and_never_inserts_fake_rows() -> None
         accessible_name="Tender providers",
         accessible_description="Provider health and availability",
     )
-    empty = _snapshot(row_ids=(), fingerprint="empty")
+    empty = _snapshot(row_ids=(), fingerprint="empty", surface_id="TBL-150-008")
     host.set_snapshot(empty)
 
     assert host.model.rowCount() == 0
@@ -117,7 +122,7 @@ def test_keyboard_activation_dispatches_token_for_exact_selected_identity() -> N
         accessible_description="Enter opens the selected tender",
         primary_action_id="open",
     )
-    host.set_snapshot(_snapshot())
+    host.set_snapshot(_snapshot(surface_id="TBL-150-010"))
     tokens = []
     host.action_requested.connect(tokens.append)
     host.selection.select_row_id(table.TableRowId("workflow_record", "a"))

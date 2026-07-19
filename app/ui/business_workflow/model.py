@@ -29,6 +29,7 @@ from app.repositories.business_metrics import (
     BusinessWorkflowRecord,
 )
 from app.ui.theme.colors import ThemeName, get_palette
+from app.ui.tables import TableColumnId, TableRevision, TableRole, TableRowId, TableState
 
 
 KIND_LABELS: dict[BusinessRecordKind, str] = {
@@ -264,8 +265,9 @@ class WorkflowTableModel(QAbstractTableModel):
         records: list[BusinessWorkflowRecord],
     ) -> None:
         self.beginResetModel()
+        stable_records = sorted(records, key=lambda record: record.id)
         self._records = sorted(
-            records,
+            stable_records,
             key=self._updated_datetime,
             reverse=True,
         )
@@ -275,6 +277,19 @@ class WorkflowTableModel(QAbstractTableModel):
         if 0 <= row < len(self._records):
             return self._records[row]
         return None
+
+    def sort_records(self, column: int, order: Qt.SortOrder) -> None:
+        if not 0 <= column < len(WORKFLOW_COLUMNS):
+            return
+        key = WORKFLOW_COLUMNS[column].key
+        stable_records = sorted(self._records, key=lambda record: record.id)
+        self.beginResetModel()
+        self._records = sorted(
+            stable_records,
+            key=lambda record: self._sort_value(record, key),
+            reverse=order is Qt.SortOrder.DescendingOrder,
+        )
+        self.endResetModel()
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._records)
@@ -322,6 +337,24 @@ class WorkflowTableModel(QAbstractTableModel):
             return self._sort_value(record, column.key)
         if role == WorkflowRole.ARCHIVED:
             return record.is_archived
+        if role == TableRole.ROW_ID:
+            return TableRowId("workflow_record", record.id)
+        if role == TableRole.ROW_REVISION:
+            return TableRevision(
+                f"{record.updated_at}|{record.archived_at}|{int(record.is_archived)}"
+            )
+        if role == TableRole.COLUMN_ID:
+            return TableColumnId(column.key)
+        if role == TableRole.SORT_VALUE:
+            return self._sort_value(record, column.key)
+        if role == TableRole.EXPORT_VALUE:
+            return self._export_value(record, column.key)
+        if role == TableRole.ACTION_IDS:
+            return ("open", "restore" if record.is_archived else "archive")
+        if role == TableRole.STATE:
+            return TableState.READY
+        if role == Qt.ItemDataRole.AccessibleTextRole:
+            return f"{column.title}: {self._display_value(record, column.key)}"
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return int(
@@ -336,6 +369,11 @@ class WorkflowTableModel(QAbstractTableModel):
         if role != Qt.ItemDataRole.DisplayRole:
             return None
 
+        return self._display_value(record, column.key)
+
+    def _display_value(self, record: BusinessWorkflowRecord, key: str) -> str:
+        kind = self._kind(record)
+        status = self._status(record)
         values: dict[str, str] = {
             "kind": kind_label(kind),
             "title": record.title,
@@ -349,7 +387,7 @@ class WorkflowTableModel(QAbstractTableModel):
             "due_date": record.due_date or "—",
             "updated_at": self._format_datetime(record.updated_at),
         }
-        return values[column.key]
+        return values[key]
 
     @staticmethod
     def _kind(record: BusinessWorkflowRecord) -> BusinessRecordKind:
@@ -400,7 +438,12 @@ class WorkflowTableModel(QAbstractTableModel):
             return kind_label(record.kind)
         if key == "status":
             return status_label(record.status)
-        return str(getattr(record, key, "")).lower()
+        return str(getattr(record, key, "")).casefold()
+
+    def _export_value(self, record: BusinessWorkflowRecord, key: str) -> Any:
+        if key in {"total", "profit", "margin"}:
+            return self._sort_value(record, key)
+        return str(getattr(record, key, ""))
 
     @staticmethod
     def _tooltip(record: BusinessWorkflowRecord) -> str:
@@ -433,7 +476,7 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         self.setSortRole(WorkflowRole.SORT)
 
     def set_search(self, text: str) -> None:
-        self._search = text.strip().lower()
+        self._search = text.strip().casefold()
         self._refresh_rows()
 
     def set_kind(
@@ -486,6 +529,18 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         # beginFilterChange()/endFilterChange().
         self.invalidateFilter()
 
+    def sort(
+        self,
+        column: int,
+        order: Qt.SortOrder = Qt.SortOrder.AscendingOrder,
+    ) -> None:
+        model = self.sourceModel()
+        if isinstance(model, WorkflowTableModel):
+            model.sort_records(column, order)
+            self.invalidate()
+            return
+        super().sort(column, order)
+
     def filterAcceptsRow(
         self,
         source_row: int,
@@ -524,7 +579,7 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
                 kind_label(record.kind),
                 status_label(record.status),
             )
-        ).lower()
+        ).casefold()
         return self._search in haystack
 
 

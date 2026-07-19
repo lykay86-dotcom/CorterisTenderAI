@@ -25,10 +25,12 @@ from PySide6.QtWidgets import (
 from app.financial import (
     FinancialAnalyticsSnapshot,
     FinancialChartAdapter,
+    FinancialValueState,
     canonical_money,
     canonical_percentage,
 )
 from app.tenders.analytics import (
+    AnalyticsState,
     AnalyticsTenderFact,
     TenderAnalyticsChartAdapter,
     TenderAnalyticsSnapshot,
@@ -42,6 +44,7 @@ from app.ui.charts import (
     ChartState,
     ChartWidget,
 )
+from app.ui.tables import TableColumnId, TableRevision, TableRole, TableRowId, TableState
 from app.ui.theme.colors import ThemeName, get_palette
 
 
@@ -199,6 +202,10 @@ class TenderAnalyticsPage(QWidget):
         financial_layout.addLayout(financial_charts)
         self.financial_table = QTableWidget(financial)
         self.financial_table.setObjectName("TenderAnalyticsFinancialTextTable")
+        self.financial_table.setAccessibleName("Workflow financial analytics")
+        self.financial_table.setAccessibleDescription(
+            "Exact Decimal metrics, state and contributor identities from one financial snapshot."
+        )
         self.financial_table.setColumnCount(5)
         self.financial_table.setHorizontalHeaderLabels(
             ("Метрика", "Точное значение", "Единица", "Состояние", "Участники")
@@ -257,6 +264,10 @@ class TenderAnalyticsPage(QWidget):
 
         self.text_table = QTableWidget(self)
         self.text_table.setObjectName("TenderAnalyticsTextTable")
+        self.text_table.setAccessibleName("Tender analytics text equivalent")
+        self.text_table.setAccessibleDescription(
+            "Metric points, source state and contributor counts from one immutable analytics snapshot."
+        )
         self.text_table.setColumnCount(5)
         self.text_table.setHorizontalHeaderLabels(
             ("Метрика", "Категория", "Значение", "Состояние", "Участники")
@@ -340,7 +351,35 @@ class TenderAnalyticsPage(QWidget):
                 ", ".join(metric.contributor_ids),
             )
             for column, value in enumerate(values):
-                self.financial_table.setItem(row, column, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                item.setData(
+                    TableRole.ROW_ID, TableRowId("financial_metric", metric.metric_id.value)
+                )
+                item.setData(TableRole.ROW_REVISION, TableRevision(snapshot.fingerprint))
+                item.setData(
+                    TableRole.COLUMN_ID,
+                    TableColumnId(
+                        ("metric", "exact_value", "unit", "state", "contributors")[column]
+                    ),
+                )
+                typed_value = (
+                    metric.metric_id.value,
+                    metric.exact_value,
+                    metric.unit.value,
+                    metric.state.value,
+                    ", ".join(metric.contributor_ids),
+                )[column]
+                item.setData(TableRole.SORT_VALUE, typed_value)
+                item.setData(TableRole.EXPORT_VALUE, typed_value)
+                item.setData(TableRole.ACTION_IDS, ("export",))
+                item.setData(
+                    TableRole.STATE,
+                    TableState.READY
+                    if metric.state is FinancialValueState.AVAILABLE
+                    else TableState.PARTIAL,
+                )
+                item.setData(Qt.ItemDataRole.AccessibleTextRole, f"{values[0]}: {value}")
+                self.financial_table.setItem(row, column, item)
 
     def filter_values(
         self,
@@ -416,7 +455,34 @@ class TenderAnalyticsPage(QWidget):
                 str(len(point.contributor_ids)),
             )
             for column, value in enumerate(values):
-                self.text_table.setItem(row, column, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                item.setData(
+                    TableRole.ROW_ID,
+                    TableRowId("analytics_point", f"{metric.metric_id}:{point.point_id}"),
+                )
+                item.setData(TableRole.ROW_REVISION, TableRevision(snapshot.fingerprint))
+                item.setData(
+                    TableRole.COLUMN_ID,
+                    TableColumnId(("metric", "bucket", "value", "state", "contributors")[column]),
+                )
+                typed_value = (
+                    metric.title,
+                    point.bucket_label,
+                    point.value,
+                    metric.state.value,
+                    len(point.contributor_ids),
+                )[column]
+                item.setData(TableRole.SORT_VALUE, typed_value)
+                item.setData(TableRole.EXPORT_VALUE, typed_value)
+                item.setData(TableRole.ACTION_IDS, ("select", "export"))
+                item.setData(
+                    TableRole.STATE,
+                    TableState.READY
+                    if metric.state is AnalyticsState.READY
+                    else TableState.PARTIAL,
+                )
+                item.setData(Qt.ItemDataRole.AccessibleTextRole, f"{metric.title}: {value}")
+                self.text_table.setItem(row, column, item)
 
     def set_error(self, reason_code: str, *, stale: bool) -> None:
         self.refresh_button.setEnabled(True)

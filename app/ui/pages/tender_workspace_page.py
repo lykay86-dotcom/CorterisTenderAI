@@ -3,9 +3,12 @@
 from __future__ import annotations
 from collections.abc import Iterable
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 import json
+import hashlib
 from typing import TYPE_CHECKING
+from uuid import uuid4
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -56,6 +59,7 @@ from app.database.session import get_engine
 from app.core.json_serialization import json_dumps
 from app.ui.ai_provider_settings import AiProviderSettingsWidget
 from app.ui.navigation.contracts import DashboardFilterId, RouteId
+from app.ui.tables import TableColumnId, TableRevision, TableRole, TableRowId, TableState
 from app.ui.viewmodels.dashboard_viewmodel import APP_TIMEZONE
 
 if TYPE_CHECKING:
@@ -373,6 +377,10 @@ class TenderWorkspacePage(QWidget):
             bar.addWidget(b)
         layout.addLayout(bar)
         self.estimate_table = QTableWidget(0, 7)
+        self.estimate_table.setAccessibleName("Tender estimate lines")
+        self.estimate_table.setAccessibleDescription(
+            "Editable estimate lines with stable identity and exact selected-row actions."
+        )
         self.estimate_table.setHorizontalHeaderLabels(
             ["Наименование", "Кол-во", "Ед.", "Себестоимость", "Наценка %", "НДС %", "Цена с НДС"]
         )
@@ -394,6 +402,10 @@ class TenderWorkspacePage(QWidget):
         q.addWidget(b)
         layout.addLayout(q)
         self.catalog_table = QTableWidget(0, 6)
+        self.catalog_table.setAccessibleName("Equipment catalog")
+        self.catalog_table.setAccessibleDescription(
+            "Catalog results with stable identity; adding uses the exact selected item."
+        )
         self.catalog_table.setHorizontalHeaderLabels(
             ["Категория", "Позиция", "Ед.", "Себестоимость", "Мин. рынок", "Макс. рынок"]
         )
@@ -952,11 +964,21 @@ class TenderWorkspacePage(QWidget):
         r = self.estimate_table.rowCount()
         self.estimate_table.insertRow(r)
         vals = [name, qty, unit, cost, self.prefs.profit_percent, self.prefs.vat_percent, 0]
+        row_id = TableRowId("estimate_line", uuid4().hex)
         for c, v in enumerate(vals):
-            self.estimate_table.setItem(r, c, QTableWidgetItem(str(v)))
+            item = QTableWidgetItem(str(v))
+            self._set_workspace_item_roles(
+                item,
+                row_id=row_id,
+                revision=TableRevision(f"created:{row_id.value}"),
+                column_id=("name", "quantity", "unit", "cost", "profit", "vat", "total")[c],
+                typed_value=self._workspace_typed_value(c, v),
+                action_ids=("edit", "remove"),
+            )
+            self.estimate_table.setItem(r, c, item)
 
     def add_from_catalog(self):
-        row = self.catalog_table.currentRow()
+        row = self._selected_workspace_row(self.catalog_table, "catalog_line")
         if row < 0:
             QMessageBox.warning(
                 self, "Прайс", "Выберите позицию во вкладке «Оборудование и бренды»"
@@ -970,7 +992,7 @@ class TenderWorkspacePage(QWidget):
         )
 
     def remove_estimate_row(self):
-        r = self.estimate_table.currentRow()
+        r = self._selected_workspace_row(self.estimate_table, "estimate_line")
         if r >= 0:
             self.estimate_table.removeRow(r)
             self.recalculate_estimate()
@@ -998,7 +1020,21 @@ class TenderWorkspacePage(QWidget):
     def recalculate_estimate(self):
         rows = self._estimate_rows()
         for r, x in enumerate(rows):
-            self.estimate_table.setItem(r, 6, QTableWidgetItem(f"{x.price_with_vat:,.2f}"))
+            existing = self.estimate_table.item(r, 0)
+            row_id = existing.data(TableRole.ROW_ID) if existing is not None else None
+            if not isinstance(row_id, TableRowId):
+                row_id = TableRowId("estimate_line", uuid4().hex)
+            item = QTableWidgetItem(f"{x.price_with_vat:,.2f}")
+            self._set_workspace_item_roles(
+                item,
+                row_id=row_id,
+                revision=self._workspace_row_revision(self.estimate_table, r),
+                column_id="total",
+                typed_value=Decimal(str(x.price_with_vat)),
+                action_ids=("edit", "remove"),
+            )
+            self.estimate_table.setItem(r, 6, item)
+            self._refresh_workspace_row_roles(self.estimate_table, r, "estimate_line")
         t = totals(rows)
         self.estimate_totals.setText(
             f"<b>Себестоимость: {t['cost']:,.2f} ₽ | Прибыль: {t['profit']:,.2f} ₽ | Рентабельность: {t['margin']:.2f}% | Итого с НДС: {t['gross']:,.2f} ₽</b>"
@@ -1010,6 +1046,13 @@ class TenderWorkspacePage(QWidget):
         )
         self.catalog_table.setRowCount(len(items))
         for r, x in enumerate(items):
+            identity_material = (
+                f"{x.category}|{x.name}|{x.unit}|{x.base_cost}|{x.market_min}|{x.market_max}|{r}"
+            )
+            row_id = TableRowId(
+                "catalog_line",
+                hashlib.sha256(identity_material.encode("utf-8")).hexdigest(),
+            )
             for c, v in enumerate(
                 [
                     x.category,
@@ -1020,7 +1063,104 @@ class TenderWorkspacePage(QWidget):
                     f"{x.market_max:.2f}",
                 ]
             ):
-                self.catalog_table.setItem(r, c, QTableWidgetItem(str(v)))
+                item = QTableWidgetItem(str(v))
+                self._set_workspace_item_roles(
+                    item,
+                    row_id=row_id,
+                    revision=TableRevision(row_id.value),
+                    column_id=(
+                        "category",
+                        "name",
+                        "unit",
+                        "base_cost",
+                        "market_min",
+                        "market_max",
+                    )[c],
+                    typed_value=self._workspace_typed_value(c, v, catalog=True),
+                    action_ids=("add_to_estimate",),
+                )
+                self.catalog_table.setItem(r, c, item)
+
+    @staticmethod
+    def _workspace_typed_value(column: int, value: object, *, catalog: bool = False) -> object:
+        numeric = {3, 4, 5} if catalog else {1, 3, 4, 5, 6}
+        if column in numeric:
+            try:
+                return Decimal(str(value).replace(" ", "").replace(",", "."))
+            except Exception:
+                return None
+        return str(value)
+
+    @staticmethod
+    def _set_workspace_item_roles(
+        item: QTableWidgetItem,
+        *,
+        row_id: TableRowId,
+        revision: TableRevision,
+        column_id: str,
+        typed_value: object,
+        action_ids: tuple[str, ...],
+    ) -> None:
+        item.setData(TableRole.ROW_ID, row_id)
+        item.setData(TableRole.ROW_REVISION, revision)
+        item.setData(TableRole.COLUMN_ID, TableColumnId(column_id))
+        item.setData(TableRole.SORT_VALUE, typed_value)
+        item.setData(TableRole.EXPORT_VALUE, typed_value)
+        item.setData(TableRole.ACTION_IDS, action_ids)
+        item.setData(TableRole.STATE, TableState.READY)
+        item.setData(Qt.ItemDataRole.AccessibleTextRole, item.text())
+
+    @staticmethod
+    def _selected_workspace_row(table: QTableWidget, namespace: str) -> int:
+        current = table.currentRow()
+        item = table.item(current, 0) if current >= 0 else None
+        selected_id = item.data(TableRole.ROW_ID) if item is not None else None
+        if item is not None and not isinstance(selected_id, TableRowId):
+            material = "|".join(
+                table.item(current, column).text()
+                if table.item(current, column) is not None
+                else ""
+                for column in range(table.columnCount())
+            )
+            selected_id = TableRowId(
+                namespace,
+                hashlib.sha256(material.encode("utf-8")).hexdigest(),
+            )
+            for column in range(table.columnCount()):
+                candidate = table.item(current, column)
+                if candidate is not None:
+                    candidate.setData(TableRole.ROW_ID, selected_id)
+        if not isinstance(selected_id, TableRowId) or selected_id.namespace != namespace:
+            return -1
+        for row in range(table.rowCount()):
+            candidate = table.item(row, 0)
+            if candidate is not None and candidate.data(TableRole.ROW_ID) == selected_id:
+                return row
+        return -1
+
+    @staticmethod
+    def _workspace_row_revision(table: QTableWidget, row: int) -> TableRevision:
+        material = "|".join(
+            table.item(row, column).text() if table.item(row, column) is not None else ""
+            for column in range(table.columnCount())
+        )
+        return TableRevision(hashlib.sha256(material.encode("utf-8")).hexdigest())
+
+    def _refresh_workspace_row_roles(
+        self,
+        table: QTableWidget,
+        row: int,
+        namespace: str,
+    ) -> None:
+        first = table.item(row, 0)
+        row_id = first.data(TableRole.ROW_ID) if first is not None else None
+        if not isinstance(row_id, TableRowId) or row_id.namespace != namespace:
+            return
+        revision = self._workspace_row_revision(table, row)
+        for column in range(table.columnCount()):
+            item = table.item(row, column)
+            if item is not None:
+                item.setData(TableRole.ROW_REVISION, revision)
 
     def show_brands(self, cat):
         self.brand_list.clear()
