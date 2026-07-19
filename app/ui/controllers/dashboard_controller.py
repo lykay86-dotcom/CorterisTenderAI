@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Iterable, Protocol, Sequence
 
@@ -21,7 +21,7 @@ from app.repositories.business_metrics import (
     BusinessMetricsRepository,
     BusinessMetricsSnapshot,
 )
-from app.repositories.tenders import TenderRepository
+from app.repositories.tenders import TenderRepository, select_dashboard_tenders
 from app.ui.dashboard.activity_feed import (
     ActivityEntry,
     ActivityTone,
@@ -48,7 +48,7 @@ class TenderRepositoryLike(Protocol):
 class BusinessMetricsRepositoryLike(Protocol):
     """Minimum business workflow repository contract."""
 
-    def summary(self) -> BusinessMetricsSnapshot: ...
+    def summary(self, *, today: date | None = None) -> BusinessMetricsSnapshot: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +61,7 @@ class DashboardSnapshot:
     activities: tuple[ActivityEntry, ...]
     number_to_id: dict[str, str]
     loaded_at: datetime
+    source_errors: tuple[str, ...] = ()
 
 
 class DashboardSnapshotBuilder:
@@ -69,6 +70,7 @@ class DashboardSnapshotBuilder:
     RECOMMENDED_SCORE = 80
     ATTENTION_DAYS = 3
     RECENT_LIMIT = 8
+    FRESHNESS_THRESHOLD = timedelta(minutes=10)
 
     ATTENTION_STATUS_WORDS = (
         "вниман",
@@ -84,6 +86,10 @@ class DashboardSnapshotBuilder:
         *,
         now: datetime | None = None,
         business: BusinessMetricsSnapshot | None = None,
+        generation: int = 1,
+        previous: DashboardSnapshot | None = None,
+        tender_error: str = "",
+        business_error: str = "",
     ) -> DashboardSnapshot:
         loaded_at = aware_dashboard_time(now or datetime.now(APP_TIMEZONE))
         rows = list(entities)
@@ -93,21 +99,33 @@ class DashboardSnapshotBuilder:
             reverse=True,
         )
 
-        recent = tuple(
-            self._to_recent_tender(entity) for entity in sorted_rows[: self.RECENT_LIMIT]
-        )
-        number_to_id = {
-            tender.number: str(self._value(entity, "id", tender.number))
-            for entity, tender in zip(
-                sorted_rows[: self.RECENT_LIMIT],
-                recent,
-                strict=False,
+        if tender_error and previous is not None:
+            recent = previous.tenders
+            number_to_id = dict(previous.number_to_id)
+        else:
+            recent = tuple(
+                self._to_recent_tender(entity) for entity in sorted_rows[: self.RECENT_LIMIT]
             )
-        }
+            number_to_id = {
+                tender.number: str(self._value(entity, "id", tender.number))
+                for entity, tender in zip(
+                    sorted_rows[: self.RECENT_LIMIT],
+                    recent,
+                    strict=False,
+                )
+            }
 
         today = loaded_at.date()
-        new_today_rows = [entity for entity in rows if self._created_date(entity) == today]
-        recommended = [entity for entity in rows if self._score(entity) >= self.RECOMMENDED_SCORE]
+        new_today_rows = select_dashboard_tenders(
+            rows,
+            "tenders_created_today",
+            at=loaded_at,
+        )
+        recommended = select_dashboard_tenders(
+            rows,
+            "tenders_score_80_plus",
+            at=loaded_at,
+        )
         tender_attention = [entity for entity in rows if self._requires_attention(entity, today)]
 
         kpis = self._build_kpis(
@@ -116,15 +134,23 @@ class DashboardSnapshotBuilder:
             new_today_rows=new_today_rows,
             recommended_rows=recommended,
             business=business,
+            generation=generation,
+            previous=previous,
+            tender_error=tender_error,
+            business_error=business_error,
         )
-        recommendations = self._build_recommendations(
-            rows,
-            attention=tender_attention,
-        )
-        activities = self._build_activities(
-            sorted_rows,
-            loaded_at=loaded_at,
-        )
+        if tender_error and previous is not None:
+            recommendations = previous.recommendations
+            activities = previous.activities
+        else:
+            recommendations = self._build_recommendations(
+                rows,
+                attention=tender_attention,
+            )
+            activities = self._build_activities(
+                sorted_rows,
+                loaded_at=loaded_at,
+            )
         if business is not None and business.recent_activities:
             activities = tuple(
                 sorted(
@@ -144,6 +170,7 @@ class DashboardSnapshotBuilder:
             activities=activities,
             number_to_id=number_to_id,
             loaded_at=loaded_at,
+            source_errors=tuple(message for message in (tender_error, business_error) if message),
         )
 
     def _build_kpis(
@@ -154,6 +181,10 @@ class DashboardSnapshotBuilder:
         new_today_rows: Sequence[Any],
         recommended_rows: Sequence[Any],
         business: BusinessMetricsSnapshot | None,
+        generation: int,
+        previous: DashboardSnapshot | None,
+        tender_error: str,
+        business_error: str,
     ) -> tuple[DashboardKpi, ...]:
         def ids(values: Sequence[Any]) -> tuple[str, ...]:
             return tuple(str(self._value(item, "id", "")) for item in values)
@@ -162,14 +193,14 @@ class DashboardSnapshotBuilder:
         tender_evidence = {
             "new_tenders": DashboardSourceEvidence(
                 source_id="tenders",
-                generation=1,
+                generation=generation,
                 observed_at=loaded_at,
                 record_count=tender_record_count,
                 contributor_ids=ids(new_today_rows),
             ),
             "recommended": DashboardSourceEvidence(
                 source_id="tenders",
-                generation=1,
+                generation=generation,
                 observed_at=loaded_at,
                 record_count=tender_record_count,
                 contributor_ids=ids(recommended_rows),
@@ -185,7 +216,7 @@ class DashboardSnapshotBuilder:
             return (
                 DashboardSourceEvidence(
                     source_id="business_workflow",
-                    generation=1,
+                    generation=generation,
                     observed_at=loaded_at,
                     record_count=business_record_count,
                     contributor_ids=contributor_ids,
@@ -234,8 +265,8 @@ class DashboardSnapshotBuilder:
                 return DashboardKpiState.ZERO
             return DashboardKpiState.READY
 
-        return tuple(
-            DashboardKpi.from_definition(
+        fresh = {
+            key: DashboardKpi.from_definition(
                 DASHBOARD_KPI_BY_KEY[key],
                 raw_value=raw_values[key],
                 state=state_for(raw_values[key]),
@@ -246,7 +277,76 @@ class DashboardSnapshotBuilder:
                 trend=trends.get(key),
             )
             for key in DASHBOARD_KPI_BY_KEY
-        )
+        }
+        previous_by_key = {item.key: item for item in previous.kpis} if previous is not None else {}
+
+        def failed_value(key: str, reason: str) -> DashboardKpi:
+            prior = previous_by_key.get(key)
+            if prior is None or prior.raw_value is None:
+                failed_evidence = DashboardSourceEvidence(
+                    source_id=(
+                        "tenders" if key in {"new_tenders", "recommended"} else "business_workflow"
+                    ),
+                    generation=generation,
+                    observed_at=loaded_at,
+                    record_count=0,
+                    complete=False,
+                    refresh_failed=True,
+                    reason=reason,
+                )
+                return DashboardKpi.from_definition(
+                    DASHBOARD_KPI_BY_KEY[key],
+                    raw_value=None,
+                    state=DashboardKpiState.ERROR,
+                    source_evidence=(failed_evidence,),
+                    state_reason=reason,
+                )
+
+            prior_observed_at = min(
+                (
+                    evidence.observed_at
+                    for evidence in prior.source_evidence
+                    if not evidence.refresh_failed
+                ),
+                default=loaded_at,
+            )
+            age = loaded_at - aware_dashboard_time(prior_observed_at)
+            state = (
+                DashboardKpiState.STALE
+                if age > self.FRESHNESS_THRESHOLD
+                else DashboardKpiState.PARTIAL
+            )
+            retained_evidence = tuple(
+                replace(
+                    evidence,
+                    refresh_failed=True,
+                    reason=reason,
+                )
+                for evidence in prior.source_evidence
+            )
+            return DashboardKpi.from_definition(
+                DASHBOARD_KPI_BY_KEY[key],
+                raw_value=prior.raw_value,
+                state=state,
+                source_evidence=retained_evidence,
+                state_reason=reason,
+                trend=prior.trend,
+                tone=prior.tone,
+            )
+
+        if tender_error:
+            for key in ("new_tenders", "recommended"):
+                fresh[key] = failed_value(key, tender_error)
+        if business_error or business is None:
+            reason = business_error or "Источник workflow недоступен."
+            for key in (
+                "potential_profit",
+                "proposals_in_work",
+                "active_projects",
+                "attention",
+            ):
+                fresh[key] = failed_value(key, reason)
+        return tuple(fresh[key] for key in DASHBOARD_KPI_BY_KEY)
 
     def _build_recommendations(
         self,
@@ -557,6 +657,8 @@ class DashboardController(QObject):
         self._refreshing = False
         self._has_loaded_once = False
         self._preserve_content_during_refresh = False
+        self._generation = 0
+        self._last_snapshot: DashboardSnapshot | None = None
 
         self._refresh_thread: QThread | None = None
         self._refresh_worker: DashboardRefreshWorker | None = None
@@ -631,23 +733,42 @@ class DashboardController(QObject):
         business_repository = self.business_repository
         builder = self.builder
         clock = self.clock
+        self._generation += 1
+        generation = self._generation
+        previous = self._last_snapshot
 
         def load_snapshot() -> DashboardSnapshot:
-            dashboard_loader = getattr(
-                repository,
-                "list_for_dashboard",
-                None,
-            )
-            if callable(dashboard_loader):
-                entities = dashboard_loader(limit=None)
-            else:
-                entities = repository.list()
+            observed_at = aware_dashboard_time(clock())
+            tender_error = ""
+            business_error = ""
+            try:
+                dashboard_loader = getattr(
+                    repository,
+                    "list_for_dashboard",
+                    None,
+                )
+                if callable(dashboard_loader):
+                    entities = dashboard_loader(limit=None)
+                else:
+                    entities = repository.list()
+            except Exception as exc:
+                entities = []
+                tender_error = f"Тендеры: {exc}"
 
-            business = business_repository.summary()
+            try:
+                business = business_repository.summary(today=observed_at.date())
+            except Exception as exc:
+                business = None
+                business_error = f"Workflow: {exc}"
+
             return builder.build(
                 entities,
-                now=clock(),
+                now=observed_at,
                 business=business,
+                generation=generation,
+                previous=previous,
+                tender_error=tender_error,
+                business_error=business_error,
             )
 
         thread = QThread(self)
@@ -678,13 +799,20 @@ class DashboardController(QObject):
             except Exception as exc:
                 self._handle_refresh_failure(exc)
             else:
+                has_source_errors = bool(snapshot.source_errors)
                 self.page.set_refreshing(
                     False,
                     preserve_content=self._preserve_content_during_refresh,
-                    successful=True,
+                    successful=not has_source_errors,
                 )
-                self._has_loaded_once = True
-                self.refresh_succeeded.emit(snapshot)
+                self._last_snapshot = snapshot
+                self._has_loaded_once = any(item.raw_value is not None for item in snapshot.kpis)
+                if has_source_errors:
+                    message = "Часть источников не обновлена: " + "; ".join(snapshot.source_errors)
+                    self.page.set_partial_data(message)
+                    self.refresh_failed.emit(message)
+                else:
+                    self.refresh_succeeded.emit(snapshot)
 
         worker = self._refresh_worker
         thread = self._refresh_thread
@@ -750,10 +878,9 @@ class DashboardController(QObject):
         )
         self.page.set_activities(snapshot.activities)
 
+        all_failed = all(item.state is DashboardKpiState.ERROR for item in snapshot.kpis)
         self.page.set_data_state(
-            DataState.ready()
-            if snapshot.tenders
-            else DataState.empty("В локальной базе пока нет тендеров.")
+            DataState.error("Источники Dashboard недоступны.") if all_failed else DataState.ready()
         )
 
     def _select_tender_by_number(self, number: str) -> None:

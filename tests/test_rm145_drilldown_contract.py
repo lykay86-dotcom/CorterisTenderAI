@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -11,6 +12,7 @@ from app.repositories.business_metrics import (
     BusinessMetricsRepository,
     BusinessStatus,
 )
+from app.repositories.tenders import select_dashboard_tenders
 from app.ui.navigation import contracts as navigation_contracts
 from app.ui.navigation.contracts import RouteContext, RouteId
 from app.ui.navigation.registry import DEFAULT_ROUTE_REGISTRY
@@ -77,7 +79,7 @@ def test_workflow_snapshot_exposes_exact_count_and_profit_contributors(tmp_path)
     assert snapshot.proposal_ids == (proposal.id, active_proposal.id)
     assert snapshot.project_ids == (project.id,)
     assert snapshot.attention_ids == (proposal.id, blocked.id)
-    assert snapshot.profit_contributor_ids == (project.id, blocked.id)
+    assert set(snapshot.profit_contributor_ids) == {project.id, blocked.id}
     assert snapshot.proposals_in_work == len(snapshot.proposal_ids)
     assert snapshot.active_projects == len(snapshot.project_ids)
     assert snapshot.attention == len(snapshot.attention_ids)
@@ -93,3 +95,63 @@ def test_all_six_filters_have_one_route_family() -> None:
     assert filter_type.WORKFLOW_ACTIVE_PROPOSALS.route_id is RouteId.WORKFLOW
     assert filter_type.WORKFLOW_ACTIVE_PROJECTS.route_id is RouteId.WORKFLOW
     assert filter_type.WORKFLOW_ATTENTION.route_id is RouteId.WORKFLOW
+
+
+@dataclass
+class _Tender:
+    id: str
+    created_at: datetime
+    score: object = None
+
+
+def test_tender_filters_are_uncapped_and_use_the_injected_local_day() -> None:
+    filter_type = _filter_type()
+    moscow = timezone(timedelta(hours=3), name="Europe/Moscow")
+    observed_at = datetime(2026, 7, 19, 0, 30, tzinfo=moscow)
+    tenders = [
+        _Tender(
+            id=f"today-{index}",
+            created_at=datetime(2026, 7, 19, 0, 1),
+            score=80 if index == 0 else 79.99,
+        )
+        for index in range(101)
+    ]
+    tenders.extend(
+        (
+            _Tender(
+                id="utc-boundary",
+                created_at=datetime(
+                    2026,
+                    7,
+                    18,
+                    21,
+                    15,
+                    tzinfo=timezone.utc,
+                ),
+                score=None,
+            ),
+            _Tender(
+                id="yesterday",
+                created_at=datetime(2026, 7, 18, 23, 59),
+                score="not-a-number",
+            ),
+        )
+    )
+
+    today = select_dashboard_tenders(
+        tenders,
+        filter_type.TENDERS_CREATED_TODAY,
+        at=observed_at,
+    )
+    score_80 = select_dashboard_tenders(
+        tenders,
+        filter_type.TENDERS_SCORE_80_PLUS,
+        at=observed_at,
+    )
+
+    assert len(today) == 102
+    assert {item.id for item in today} == {
+        *(f"today-{index}" for index in range(101)),
+        "utc-boundary",
+    }
+    assert [item.id for item in score_80] == ["today-0"]

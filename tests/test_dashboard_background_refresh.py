@@ -171,7 +171,7 @@ def test_background_error_keeps_previous_data() -> None:
     _wait_for_cycle(controller)
 
     assert page.partial_messages
-    assert "ранее загруженные данные" in page.partial_messages[-1]
+    assert "Тендеры: database unavailable" in page.partial_messages[-1]
     assert page.refresh_calls[-1] == (False, True, False)
 
 
