@@ -20,6 +20,12 @@ from openpyxl.styles import (
 )
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+from app.financial import (
+    MARGIN_CONTRACT_VERSION,
+    NUMERIC_CONTRACT_VERSION,
+    canonical_money,
+    canonical_percentage,
+)
 from app.repositories.business_metrics import (
     BusinessAuditAction,
     BusinessAuditEvent,
@@ -157,6 +163,7 @@ class WorkflowExcelExporter:
         summary.title = "Сводка"
         registry = workbook.create_sheet("Реестр")
         history = workbook.create_sheet("Журнал изменений")
+        exact = workbook.create_sheet("FinancialExact")
 
         self._build_summary(
             summary,
@@ -171,6 +178,7 @@ class WorkflowExcelExporter:
             ordered_events,
             record_by_id,
         )
+        self._build_exact(exact, ordered_records)
 
         workbook.properties.title = "Реестр КП, смет и проектов — CORTERIS"
         workbook.properties.subject = "Выгрузка бизнес-процессов и журнала изменений"
@@ -186,6 +194,41 @@ class WorkflowExcelExporter:
             event_count=len(ordered_events),
             exported_at=timestamp,
         )
+
+    @staticmethod
+    def _build_exact(sheet, records: Sequence[BusinessWorkflowRecord]) -> None:
+        """Embed authoritative fixed-point text beside Excel's numeric projection."""
+        sheet.append(
+            (
+                "record_id",
+                "total_exact",
+                "profit_exact",
+                "margin_exact",
+                "currency",
+                "money_unit",
+                "margin_unit",
+                "numeric_contract",
+                "margin_contract",
+            )
+        )
+        for record in records:
+            sheet.append(
+                (
+                    record.id,
+                    canonical_money(record.total),
+                    canonical_money(record.profit),
+                    canonical_percentage(record.margin_percent),
+                    record.currency,
+                    "money",
+                    "percentage_point",
+                    NUMERIC_CONTRACT_VERSION,
+                    MARGIN_CONTRACT_VERSION,
+                )
+            )
+        for row in sheet.iter_rows():
+            for cell in row:
+                cell.number_format = "@"
+        sheet.sheet_state = "hidden"
 
     def _build_summary(
         self,
@@ -508,7 +551,7 @@ class WorkflowExcelExporter:
             record = record_by_id[event.record_id]
             sheet.append(
                 [
-                    event.timestamp,
+                    event.timestamp.replace(tzinfo=None),
                     event.record_id,
                     record.tender_id,
                     record.title,
@@ -622,7 +665,7 @@ class WorkflowExcelExporter:
         if not text:
             return None
         try:
-            return datetime.fromisoformat(text)
+            return datetime.fromisoformat(text).replace(tzinfo=None)
         except ValueError:
             return None
 

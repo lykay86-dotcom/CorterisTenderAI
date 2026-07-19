@@ -22,6 +22,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.financial import (
+    FinancialAnalyticsSnapshot,
+    FinancialChartAdapter,
+    canonical_money,
+    canonical_percentage,
+)
 from app.tenders.analytics import (
     AnalyticsTenderFact,
     TenderAnalyticsChartAdapter,
@@ -60,6 +66,7 @@ class TenderAnalyticsPage(QWidget):
     filters_applied = Signal()
     filters_reset = Signal()
     export_requested = Signal(str)
+    financial_export_requested = Signal(str)
     contributor_activated = Signal(str)
 
     def __init__(
@@ -71,8 +78,11 @@ class TenderAnalyticsPage(QWidget):
         super().__init__(parent)
         self._theme = ThemeName(theme)
         self._snapshot: TenderAnalyticsSnapshot | None = None
+        self._financial_snapshot: FinancialAnalyticsSnapshot | None = None
         self._adapter = TenderAnalyticsChartAdapter()
+        self._financial_adapter = FinancialChartAdapter()
         self._charts: dict[str, ChartWidget] = {}
+        self._financial_charts: dict[str, ChartWidget] = {}
         self.setObjectName("TenderAnalyticsPage")
 
         root = QVBoxLayout(self)
@@ -160,11 +170,47 @@ class TenderAnalyticsPage(QWidget):
         self.coverage_label.setWordWrap(True)
         root.addWidget(self.coverage_label)
 
+        financial = QFrame(self)
+        financial.setObjectName("TenderAnalyticsFinancial")
+        financial_layout = QVBoxLayout(financial)
+        financial_title = QLabel("Финансовая аналитика workflow", financial)
+        financial_title.setAccessibleName("Финансовая аналитика workflow в RUB")
+        financial_layout.addWidget(financial_title)
+        financial_charts = QHBoxLayout()
+        palette = get_palette(self._theme)
+        for metric_id, title_text in (
+            ("fa-01", "Текущая сумма"),
+            ("fa-02", "Потенциальная прибыль"),
+            ("fa-03", "Взвешенная маржа"),
+        ):
+            spec = ChartSpec(
+                chart_id=metric_id,
+                kind=ChartKind.BAR,
+                title=title_text,
+                x_axis=ChartAxis(ChartAxisScale.CATEGORY),
+                y_axis=ChartAxis(ChartAxisScale.NUMERIC),
+                series=(),
+                state=ChartState.LOADING,
+            )
+            chart = ChartWidget(spec, palette=palette, parent=financial)
+            chart.setMinimumHeight(180)
+            self._financial_charts[metric_id] = chart
+            financial_charts.addWidget(chart)
+        financial_layout.addLayout(financial_charts)
+        self.financial_table = QTableWidget(financial)
+        self.financial_table.setObjectName("TenderAnalyticsFinancialTextTable")
+        self.financial_table.setColumnCount(5)
+        self.financial_table.setHorizontalHeaderLabels(
+            ("Метрика", "Точное значение", "Единица", "Состояние", "Участники")
+        )
+        self.financial_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        financial_layout.addWidget(self.financial_table)
+        root.addWidget(financial)
+
         splitter = QSplitter(self)
         chart_host = QWidget(splitter)
         chart_grid = QGridLayout(chart_host)
         chart_grid.setContentsMargins(0, 0, 0, 0)
-        palette = get_palette(self._theme)
         for index, (metric_id, metric_title) in enumerate(
             zip(_METRIC_IDS, _METRIC_TITLES, strict=True)
         ):
@@ -222,10 +268,22 @@ class TenderAnalyticsPage(QWidget):
         exports.addStretch(1)
         self.export_json_button = QPushButton("Экспорт JSON", self)
         self.export_csv_button = QPushButton("Экспорт CSV", self)
+        self.financial_export_json_button = QPushButton("Финансы JSON", self)
+        self.financial_export_csv_button = QPushButton("Финансы CSV", self)
         self.export_json_button.clicked.connect(lambda: self.export_requested.emit("json"))
         self.export_csv_button.clicked.connect(lambda: self.export_requested.emit("csv"))
+        self.financial_export_json_button.clicked.connect(
+            lambda: self.financial_export_requested.emit("json")
+        )
+        self.financial_export_csv_button.clicked.connect(
+            lambda: self.financial_export_requested.emit("csv")
+        )
         self.export_json_button.setEnabled(False)
         self.export_csv_button.setEnabled(False)
+        self.financial_export_json_button.setEnabled(False)
+        self.financial_export_csv_button.setEnabled(False)
+        exports.addWidget(self.financial_export_json_button)
+        exports.addWidget(self.financial_export_csv_button)
         exports.addWidget(self.export_json_button)
         exports.addWidget(self.export_csv_button)
         root.addLayout(exports)
@@ -254,6 +312,35 @@ class TenderAnalyticsPage(QWidget):
     @property
     def snapshot(self) -> TenderAnalyticsSnapshot | None:
         return self._snapshot
+
+    @property
+    def financial_snapshot(self) -> FinancialAnalyticsSnapshot | None:
+        return self._financial_snapshot
+
+    def set_financial_snapshot(self, snapshot: FinancialAnalyticsSnapshot) -> None:
+        self._financial_snapshot = snapshot
+        self.financial_export_json_button.setEnabled(True)
+        self.financial_export_csv_button.setEnabled(True)
+        self.financial_table.setRowCount(len(snapshot.metrics))
+        for row, metric in enumerate(snapshot.metrics):
+            chart = self._financial_charts.get(metric.metric_id.value)
+            if chart is not None:
+                chart.set_chart(self._financial_adapter.adapt(metric))
+            if metric.exact_value is None:
+                exact = "—"
+            elif metric.unit.value == "money":
+                exact = canonical_money(metric.exact_value)
+            else:
+                exact = canonical_percentage(metric.exact_value)
+            values = (
+                metric.metric_id.value,
+                exact,
+                metric.unit.value,
+                metric.state.value,
+                ", ".join(metric.contributor_ids),
+            )
+            for column, value in enumerate(values):
+                self.financial_table.setItem(row, column, QTableWidgetItem(value))
 
     def filter_values(
         self,
@@ -342,6 +429,8 @@ class TenderAnalyticsPage(QWidget):
         self._theme = ThemeName(theme)
         palette = get_palette(self._theme)
         for chart in self._charts.values():
+            chart.set_palette(palette)
+        for chart in self._financial_charts.values():
             chart.set_palette(palette)
 
     def _reset_filters(self) -> None:

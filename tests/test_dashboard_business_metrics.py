@@ -35,7 +35,7 @@ def test_business_metrics_drive_kpi_values() -> None:
     values = {item.key: item.value for item in snapshot.kpis}
     trends = {item.key: item.trend for item in snapshot.kpis}
 
-    assert values["potential_profit"] == "870 000 ₽"
+    assert values["potential_profit"] == "870 000.00 ₽"
     assert values["proposals_in_work"] == "4"
     assert values["active_projects"] == "2"
     assert values["attention"] == "1"
@@ -70,4 +70,4 @@ def test_analysis_profit_is_not_a_fallback_for_workflow_profit() -> None:
     profit = next(item for item in snapshot.kpis if item.key == "potential_profit")
 
     assert profit.raw_value == Decimal("0")
-    assert profit.value == "0 ₽"
+    assert profit.value == "0.00 ₽"

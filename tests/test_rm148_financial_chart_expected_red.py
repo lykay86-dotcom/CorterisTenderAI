@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from zoneinfo import ZoneInfo
 
 from app.financial import (
     FinancialAnalyticsService,
@@ -13,10 +12,11 @@ from app.financial import (
     WorkflowFinancialFact,
     parse_money,
 )
+from app.tenders.analytics.time_contract import resolve_timezone
 
 
 def test_chart_uses_exact_snapshot_value_without_recalculation() -> None:
-    now = datetime(2026, 7, 19, 12, 0, tzinfo=ZoneInfo("Europe/Moscow"))
+    now = datetime(2026, 7, 19, 12, 0, tzinfo=resolve_timezone("Europe/Moscow"))
     fact = WorkflowFinancialFact(
         record_id="record-1",
         tender_id="T-1",

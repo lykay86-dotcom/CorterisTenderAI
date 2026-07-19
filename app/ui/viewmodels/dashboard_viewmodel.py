@@ -11,6 +11,7 @@ from typing import Callable, Iterable, Mapping
 
 from PySide6.QtCore import QObject, Signal
 
+from app.financial import MoneyAmount, format_money
 from app.ui.navigation.contracts import DashboardFilterId, RouteId
 
 
@@ -206,8 +207,7 @@ def _format_raw_value(
         return "—"
     if unit is DashboardKpiUnit.RUB:
         amount = raw_value if isinstance(raw_value, Decimal) else Decimal(raw_value)
-        rounded = amount.quantize(Decimal("1"))
-        return f"{rounded:,.0f} ₽".replace(",", " ")
+        return format_money(MoneyAmount(amount))
     return str(int(raw_value))
 
 

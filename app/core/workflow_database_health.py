@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import json
 from pathlib import Path
@@ -17,6 +18,12 @@ from app.core.workflow_backup import (
 from app.core.workflow_backup_catalog import (
     WorkflowBackupCatalogService,
     WorkflowBackupEntry,
+)
+from app.financial import (
+    MARGIN_CONTRACT_VERSION,
+    CurrencyCode,
+    FinancialValueState,
+    parse_money,
 )
 from app.repositories.business_metrics import (
     BusinessAuditAction,
@@ -168,7 +175,7 @@ class WorkflowDatabaseHealthService:
             )
 
         try:
-            payload = json.loads(raw)
+            payload = json.loads(raw, parse_float=Decimal, parse_int=Decimal)
         except json.JSONDecodeError as exc:
             return self._failure_report(
                 path,
@@ -209,6 +216,17 @@ class WorkflowDatabaseHealthService:
                         f"Схема {schema_version} новее поддерживаемой "
                         f"схемы {repository.SCHEMA_VERSION}."
                     ),
+                )
+            )
+        elif schema_version < repository.SCHEMA_VERSION:
+            issues.append(
+                WorkflowDatabaseIssue(
+                    "schema_legacy",
+                    (
+                        f"Схема {schema_version} требует управляемой миграции "
+                        f"до схемы {repository.SCHEMA_VERSION}."
+                    ),
+                    fatal=False,
                 )
             )
 
@@ -288,14 +306,44 @@ class WorkflowDatabaseHealthService:
                         )
                     )
 
-            for field in ("total", "profit", "margin_percent"):
-                try:
-                    float(record.get(field, 0))
-                except (TypeError, ValueError):
+            for field in ("total", "profit"):
+                parsed = parse_money(record.get(field, 0))
+                if parsed.state is not FinancialValueState.AVAILABLE:
                     issues.append(
                         WorkflowDatabaseIssue(
                             f"record_{field}_invalid",
-                            f"{prefix}: поле {field} должно быть числом.",
+                            f"{prefix}: поле {field} должно быть точной конечной суммой.",
+                        )
+                    )
+            try:
+                margin = Decimal(str(record.get("margin_percent", 0)))
+                if (
+                    not margin.is_finite()
+                    or margin < 0
+                    or margin > Decimal("1000")
+                    or max(0, -margin.as_tuple().exponent) > 2
+                ):
+                    raise InvalidOperation
+            except (InvalidOperation, TypeError, ValueError):
+                issues.append(
+                    WorkflowDatabaseIssue(
+                        "record_margin_percent_invalid",
+                        f"{prefix}: поле margin_percent должно быть точным процентом.",
+                    )
+                )
+            if schema_version >= repository.SCHEMA_VERSION:
+                if record.get("currency") != CurrencyCode.RUB.value:
+                    issues.append(
+                        WorkflowDatabaseIssue(
+                            "record_currency_invalid",
+                            f"{prefix}: поле currency должно быть RUB.",
+                        )
+                    )
+                if record.get("margin_version") != MARGIN_CONTRACT_VERSION:
+                    issues.append(
+                        WorkflowDatabaseIssue(
+                            "record_margin_version_invalid",
+                            f"{prefix}: неизвестная версия формулы маржи.",
                         )
                     )
 
@@ -370,7 +418,7 @@ class WorkflowDatabaseHealthService:
 
         if any(issue.code == "schema_newer" for issue in issues):
             status = WorkflowDatabaseHealthStatus.INCOMPATIBLE
-        elif issues:
+        elif any(issue.fatal for issue in issues):
             status = WorkflowDatabaseHealthStatus.INVALID
         elif records or events:
             status = WorkflowDatabaseHealthStatus.HEALTHY
@@ -435,11 +483,18 @@ class WorkflowDatabaseHealthService:
             directory=quarantine_directory,
             timestamp=timestamp,
         )
-        restored: WorkflowBackupRestoreResult = self.backup_service.restore_backup(
-            source,
-            repository,
-            restored_at=timestamp,
-        )
+        if quarantine is not None:
+            repository.path.unlink(missing_ok=True)
+        try:
+            restored: WorkflowBackupRestoreResult = self.backup_service.restore_backup(
+                source,
+                repository,
+                restored_at=timestamp,
+            )
+        except Exception:
+            if quarantine is not None:
+                shutil.copy2(quarantine, repository.path)
+            raise
         final_report = self.inspect(
             repository,
             backup_directories=backup_directories,

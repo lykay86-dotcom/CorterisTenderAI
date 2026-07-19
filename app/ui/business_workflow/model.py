@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.financial import MoneyAmount, canonical_percentage, format_money
 from app.repositories.business_metrics import (
     BusinessRecordKind,
     BusinessStatus,
@@ -344,7 +345,7 @@ class WorkflowTableModel(QAbstractTableModel):
             ),
             "total": self._money(record.total),
             "profit": self._money(record.profit),
-            "margin": (f"{record.margin_percent:.1f}%" if record.margin_percent else "—"),
+            "margin": f"{canonical_percentage(record.margin_percent)}%",
             "due_date": record.due_date or "—",
             "updated_at": self._format_datetime(record.updated_at),
         }
@@ -365,8 +366,8 @@ class WorkflowTableModel(QAbstractTableModel):
             return BusinessStatus.DRAFT
 
     @staticmethod
-    def _money(value: float) -> str:
-        return f"{value:,.0f} ₽".replace(",", " ")
+    def _money(value: object) -> str:
+        return format_money(MoneyAmount(value))
 
     @staticmethod
     def _format_datetime(value: str) -> str:
@@ -390,9 +391,9 @@ class WorkflowTableModel(QAbstractTableModel):
         key: str,
     ) -> Any:
         if key in {"total", "profit"}:
-            return float(getattr(record, key))
+            return getattr(record, key)
         if key == "margin":
-            return float(record.margin_percent)
+            return record.margin_percent
         if key == "updated_at":
             return self._updated_datetime(record)
         if key == "kind":
@@ -407,6 +408,9 @@ class WorkflowTableModel(QAbstractTableModel):
             record.title,
             f"Тендер: {record.tender_id or 'не указан'}",
             f"Статус: {status_label(record.status)}",
+            f"Сумма: {WorkflowTableModel._money(record.total)} ({record.currency})",
+            f"Прибыль: {WorkflowTableModel._money(record.profit)} ({record.currency})",
+            f"Маржа: {canonical_percentage(record.margin_percent)} п.п.",
         ]
         if record.is_archived:
             parts.append(f"В архиве с: {record.archived_at or '—'}")

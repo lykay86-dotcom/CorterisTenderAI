@@ -5,12 +5,11 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -22,6 +21,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.financial import (
+    MAX_MARGIN,
+    MAX_MONEY,
+    canonical_money,
+    canonical_percentage,
+    derive_margin,
+    parse_money,
+)
 from app.repositories.business_metrics import (
     BusinessRecordKind,
     BusinessStatus,
@@ -34,6 +41,66 @@ from app.ui.business_workflow.model import (
 )
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
+
+
+class DecimalValueEdit(QLineEdit):
+    """Fixed-point editor that never exposes a binary floating-point value."""
+
+    valueChanged = Signal(object)
+
+    def __init__(
+        self,
+        *,
+        maximum: Decimal,
+        percentage: bool = False,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._minimum = Decimal("0")
+        self._maximum = maximum
+        self._percentage = percentage
+        self._decimals = 2
+        self.setText("0.00")
+        self.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.textChanged.connect(self._emit_value_changed)
+        self.editingFinished.connect(self._canonicalize)
+
+    def value(self) -> Decimal:
+        source = self.text().strip().replace(" ", "").replace("\u00a0", "").replace(",", ".")
+        try:
+            value = Decimal(source)
+        except Exception as exc:
+            raise ValueError("invalid decimal value") from exc
+        if not value.is_finite() or value < self._minimum or value > self._maximum:
+            raise ValueError("decimal value is out of range")
+        if max(0, -value.as_tuple().exponent) > self._decimals:
+            raise ValueError("decimal value has too many fractional digits")
+        return value
+
+    def setValue(self, value: Decimal | int | str) -> None:  # noqa: N802
+        if isinstance(value, float):
+            raise TypeError("binary float is not accepted by DecimalValueEdit")
+        parsed = Decimal(str(value))
+        if not parsed.is_finite() or parsed < self._minimum or parsed > self._maximum:
+            raise ValueError("decimal value is out of range")
+        text = canonical_percentage(parsed) if self._percentage else canonical_money(parsed)
+        self.setText(text)
+
+    def decimals(self) -> int:
+        return self._decimals
+
+    def _emit_value_changed(self) -> None:
+        try:
+            value = self.value()
+        except ValueError:
+            return
+        self.valueChanged.emit(value)
+
+    def _canonicalize(self) -> None:
+        try:
+            self.setValue(self.value())
+        except ValueError:
+            return
 
 
 class BusinessRecordDialog(QDialog):
@@ -102,10 +169,13 @@ class BusinessRecordDialog(QDialog):
         self.total_spin = self._money_spin()
         self.profit_spin = self._money_spin()
 
-        self.margin_spin = QDoubleSpinBox(self)
-        self.margin_spin.setRange(-100.0, 1000.0)
-        self.margin_spin.setDecimals(2)
-        self.margin_spin.setSuffix(" %")
+        self.margin_spin = DecimalValueEdit(
+            maximum=MAX_MARGIN,
+            percentage=True,
+            parent=self,
+        )
+        self.margin_spin.setReadOnly(True)
+        self.margin_spin.setAccessibleName("Derived margin percentage points")
 
         self.due_edit = QLineEdit(self)
         self.due_edit.setPlaceholderText("YYYY-MM-DD или ДД.ММ.ГГГГ")
@@ -172,9 +242,9 @@ class BusinessRecordDialog(QDialog):
             "tender_id": self.tender_edit.text().strip(),
             "title": self.title_edit.text().strip(),
             "status": BusinessStatus(str(self.status_combo.currentData())),
-            "total": Decimal(str(self.total_spin.value())),
-            "profit": Decimal(str(self.profit_spin.value())),
-            "margin_percent": Decimal(str(self.margin_spin.value())),
+            "total": self.total_spin.value(),
+            "profit": self.profit_spin.value(),
+            "margin_percent": self.margin_spin.value(),
             "due_date": self.due_edit.text().strip(),
             "file_path": self.file_edit.text().strip(),
         }
@@ -200,7 +270,7 @@ class BusinessRecordDialog(QDialog):
                 color: {palette.text_secondary};
                 {Typography.BODY_S.css()}
             }}
-            QLineEdit, QComboBox, QDoubleSpinBox {{
+            QLineEdit, QComboBox {{
                 min-height: 34px;
                 color: {palette.text_primary};
                 background-color: {palette.input_background};
@@ -209,7 +279,7 @@ class BusinessRecordDialog(QDialog):
                 padding: 4px 8px;
                 {Typography.BODY_S.css()}
             }}
-            QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus {{
+            QLineEdit:focus, QComboBox:focus {{
                 border: 2px solid {palette.focus_ring};
             }}
             QToolButton {{
@@ -228,13 +298,11 @@ class BusinessRecordDialog(QDialog):
         )
 
     @staticmethod
-    def _money_spin() -> QDoubleSpinBox:
-        spin = QDoubleSpinBox()
-        spin.setRange(0, 10_000_000_000)
-        spin.setDecimals(2)
-        spin.setSingleStep(10_000)
-        spin.setSuffix(" ₽")
-        return spin
+    def _money_spin() -> DecimalValueEdit:
+        editor = DecimalValueEdit(maximum=MAX_MONEY)
+        editor.setAccessibleName("Money amount in RUB")
+        editor.setPlaceholderText("0.00 RUB")
+        return editor
 
     def _load_record(
         self,
@@ -259,7 +327,7 @@ class BusinessRecordDialog(QDialog):
             (self.margin_spin, record.margin_percent),
         ):
             spin.blockSignals(True)
-            spin.setValue(float(value))
+            spin.setValue(value)
             spin.blockSignals(False)
 
         self.due_edit.setText(record.due_date)
@@ -270,12 +338,15 @@ class BusinessRecordDialog(QDialog):
             self._recalculate_margin()
 
     def _recalculate_margin(self) -> None:
-        total = Decimal(str(self.total_spin.value()))
-        profit = Decimal(str(self.profit_spin.value()))
-
-        margin = (profit / total * Decimal("100")) if total > 0 else Decimal("0")
+        try:
+            total = self.total_spin.value()
+            profit = self.profit_spin.value()
+        except ValueError:
+            return
+        result = derive_margin(parse_money(total), parse_money(profit))
+        margin = result.value if result.value is not None else Decimal("0")
         self.margin_spin.blockSignals(True)
-        self.margin_spin.setValue(float(margin))
+        self.margin_spin.setValue(margin)
         self.margin_spin.blockSignals(False)
 
     def _set_initial_kind(
@@ -339,7 +410,17 @@ class BusinessRecordDialog(QDialog):
             self.title_edit.setFocus()
             return
 
+        try:
+            self.payload()
+        except ValueError as exc:
+            QMessageBox.warning(
+                self,
+                "Некорректное финансовое значение",
+                str(exc),
+            )
+            return
+
         self.accept()
 
 
-__all__ = ["BusinessRecordDialog"]
+__all__ = ["BusinessRecordDialog", "DecimalValueEdit"]

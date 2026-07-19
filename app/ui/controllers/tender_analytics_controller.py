@@ -7,6 +7,8 @@ from datetime import datetime, time, timedelta, timezone
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QFileDialog
 
+from app.financial import snapshot_to_csv_bytes, snapshot_to_json_bytes
+from app.repositories.business_metrics import BusinessMetricsRepository
 from app.tenders.analytics import (
     AnalyticsGrain,
     AnalyticsInterval,
@@ -47,6 +49,7 @@ class TenderAnalyticsController(QObject):
         registry: TenderRegistryRepository,
         collector: CollectorStateRepository,
         *,
+        business_repository: BusinessMetricsRepository | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -55,6 +58,7 @@ class TenderAnalyticsController(QObject):
         self.page = page
         self.registry = registry
         self.collector = collector
+        self.business_repository = business_repository
         self.service = TenderAnalyticsService()
         self.view_model = TenderAnalyticsViewModel()
         self._generation = 0
@@ -63,6 +67,7 @@ class TenderAnalyticsController(QObject):
         page.filters_applied.connect(self.refresh)
         page.filters_reset.connect(self.refresh)
         page.export_requested.connect(self.export_displayed)
+        page.financial_export_requested.connect(self.export_financial_displayed)
 
     def start(self) -> None:
         self.refresh()
@@ -107,6 +112,11 @@ class TenderAnalyticsController(QObject):
                 as_of=as_of,
                 generation=generation,
             )
+            financial_snapshot = (
+                self.business_repository.financial_snapshot(generated_at=as_of)
+                if self.business_repository is not None
+                else None
+            )
         except Exception:
             self.view_model.fail(generation=generation, reason_code="analytics_read_failed")
             self.page.set_error(
@@ -116,6 +126,8 @@ class TenderAnalyticsController(QObject):
             return
         if self.view_model.accept(snapshot, generation=generation):
             self.page.set_snapshot(snapshot)
+            if financial_snapshot is not None:
+                self.page.set_financial_snapshot(financial_snapshot)
 
     def export_displayed(self, export_format: str) -> None:
         snapshot = self.view_model.displayed_snapshot
@@ -144,6 +156,33 @@ class TenderAnalyticsController(QObject):
             write_export_atomically(path, payload)
         except OSError:
             self.page.set_error("export_failed", stale=True)
+
+    def export_financial_displayed(self, export_format: str) -> None:
+        snapshot = self.page.financial_snapshot
+        normalized = export_format.strip().casefold()
+        if snapshot is None or normalized not in {"json", "csv"}:
+            self.page.set_error(
+                "financial_export_unavailable", stale=self.page.snapshot is not None
+            )
+            return
+        payload = (
+            snapshot_to_json_bytes(snapshot)
+            if normalized == "json"
+            else snapshot_to_csv_bytes(snapshot)
+        )
+        suggested = f"workflow-financial-{snapshot.fingerprint[:12]}.{normalized}"
+        path, _selected_filter = QFileDialog.getSaveFileName(
+            self.page,
+            "Экспорт финансового снимка",
+            suggested,
+            "JSON (*.json)" if normalized == "json" else "CSV (*.csv)",
+        )
+        if not path:
+            return
+        try:
+            write_export_atomically(path, payload)
+        except OSError:
+            self.page.set_error("financial_export_failed", stale=True)
 
     def shutdown(self) -> bool:
         if self._shutdown:

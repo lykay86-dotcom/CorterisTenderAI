@@ -13,12 +13,30 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 import json
+import math
+import os
 from pathlib import Path
 from threading import RLock
 from typing import Any, Iterable
 from uuid import uuid4
 
 from app.config.settings import get_settings
+from app.financial import (
+    MARGIN_CONTRACT_VERSION,
+    CurrencyCode,
+    FinancialAnalyticsService,
+    FinancialAnalyticsSnapshot,
+    FinancialMetricId,
+    FinancialMigrationError,
+    FinancialValueState,
+    MoneyAmount,
+    WorkflowFinancialFact,
+    canonical_money,
+    canonical_percentage,
+    derive_margin,
+    parse_money,
+    quantize_percentage,
+)
 
 
 _UNSET = object()
@@ -61,14 +79,35 @@ class BusinessWorkflowRecord:
     tender_id: str
     title: str
     status: str
-    total: float = 0.0
-    profit: float = 0.0
-    margin_percent: float = 0.0
+    total: Decimal = Decimal("0.00")
+    profit: Decimal = Decimal("0.00")
+    margin_percent: Decimal = Decimal("0.00")
+    currency: str = CurrencyCode.RUB.value
+    margin_version: str = MARGIN_CONTRACT_VERSION
     file_path: str = ""
     due_date: str = ""
     created_at: str = ""
     updated_at: str = ""
     archived_at: str = ""
+
+    def __post_init__(self) -> None:
+        for field_name in ("total", "profit"):
+            value = getattr(self, field_name)
+            if isinstance(value, float):
+                raise TypeError(f"{field_name} must not be binary float")
+            parsed = parse_money(value)
+            if not parsed.is_available or parsed.amount is None:
+                raise ValueError(f"invalid {field_name}: {parsed.issue or parsed.state.value}")
+            object.__setattr__(self, field_name, Decimal(canonical_money(parsed.amount)))
+        if isinstance(self.margin_percent, float):
+            raise TypeError("margin_percent must not be binary float")
+        margin = Decimal(str(self.margin_percent))
+        if not margin.is_finite() or margin < 0 or margin > Decimal("1000"):
+            raise ValueError("invalid margin_percent")
+        object.__setattr__(self, "margin_percent", quantize_percentage(margin))
+        object.__setattr__(self, "currency", CurrencyCode(self.currency).value)
+        if self.margin_version not in {MARGIN_CONTRACT_VERSION, "legacy-v2"}:
+            raise ValueError("unsupported margin contract version")
 
     @property
     def is_archived(self) -> bool:
@@ -89,9 +128,11 @@ class BusinessAuditEvent:
     @property
     def timestamp(self) -> datetime:
         try:
-            return datetime.fromisoformat(self.occurred_at)
+            return BusinessMetricsRepository._aware_datetime(
+                datetime.fromisoformat(self.occurred_at)
+            )
         except ValueError:
-            return datetime.min
+            return BusinessMetricsRepository._aware_datetime(datetime.min)
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,7 +165,7 @@ class BusinessMetricsSnapshot:
 class BusinessMetricsRepository:
     """Atomic JSON repository for estimates, proposals and projects."""
 
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     PROPOSAL_IN_WORK = {
         BusinessStatus.DRAFT,
@@ -204,7 +245,13 @@ class BusinessMetricsRepository:
         """Return an isolated JSON-compatible copy of the full store."""
         with self._lock:
             payload = self._read_payload_unlocked()
-            return json.loads(json.dumps(payload, ensure_ascii=False))
+            return self._json_compatible(payload)
+
+    @property
+    def requires_migration(self) -> bool:
+        with self._lock:
+            payload = self._read_payload_unlocked()
+            return int(payload.get("schema_version", self.SCHEMA_VERSION)) < self.SCHEMA_VERSION
 
     def replace_payload(self, payload: dict[str, Any]) -> None:
         """Atomically replace the store with a validated snapshot."""
@@ -214,15 +261,22 @@ class BusinessMetricsRepository:
         with self._lock:
             temporary = self.path.with_suffix(self.path.suffix + ".restore.tmp")
             try:
-                temporary.write_text(
-                    json.dumps(
-                        payload,
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    encoding="utf-8",
+                candidate = self._json_compatible(payload)
+                schema = int(candidate.get("schema_version", 1))
+                if schema > self.SCHEMA_VERSION:
+                    raise ValueError(f"unsupported workflow schema: {schema}")
+                self._write_json_fsynced(temporary, candidate)
+                readback = json.loads(
+                    temporary.read_text(encoding="utf-8"),
+                    parse_float=Decimal,
+                    parse_int=Decimal,
                 )
-                temporary.replace(self.path)
+                if (
+                    not isinstance(readback, dict)
+                    or int(readback.get("schema_version", 1)) != schema
+                ):
+                    raise ValueError("workflow snapshot readback validation failed")
+                os.replace(temporary, self.path)
             finally:
                 temporary.unlink(missing_ok=True)
 
@@ -233,9 +287,9 @@ class BusinessMetricsRepository:
         tender_id: str | int,
         title: str,
         status: BusinessStatus | str,
-        total: float | Decimal = 0,
-        profit: float | Decimal = 0,
-        margin_percent: float | Decimal = 0,
+        total: float | Decimal | int | str = 0,
+        profit: float | Decimal | int | str = 0,
+        margin_percent: float | Decimal | int | str = 0,
         file_path: str | Path = "",
         due_date: str = "",
     ) -> BusinessWorkflowRecord:
@@ -247,7 +301,7 @@ class BusinessMetricsRepository:
             status=status,
             total=self._number(total),
             profit=self._number(profit),
-            margin_percent=self._number(margin_percent),
+            margin_percent=self._percentage(margin_percent),
             file_path=str(file_path),
             due_date=due_date,
         )
@@ -271,7 +325,7 @@ class BusinessMetricsRepository:
             )
         )
         profit = self._number(estimate.get("profit", 0))
-        margin = self._number(
+        margin = self._percentage(
             estimate.get(
                 "margin_percent",
                 estimate.get("margin", 0),
@@ -293,8 +347,8 @@ class BusinessMetricsRepository:
         tender_id: str | int,
         *,
         file_path: str | Path = "",
-        total: float | Decimal = 0,
-        profit: float | Decimal = 0,
+        total: float | Decimal | int | str = 0,
+        profit: float | Decimal | int | str = 0,
         status: BusinessStatus | str = BusinessStatus.READY,
         title: str = "Коммерческое предложение",
         due_date: str = "",
@@ -316,8 +370,8 @@ class BusinessMetricsRepository:
         *,
         title: str,
         status: BusinessStatus | str = BusinessStatus.PLANNED,
-        total: float | Decimal = 0,
-        expected_profit: float | Decimal = 0,
+        total: float | Decimal | int | str = 0,
+        expected_profit: float | Decimal | int | str = 0,
         due_date: str = "",
     ) -> BusinessWorkflowRecord:
         return self._upsert(
@@ -362,7 +416,7 @@ class BusinessMetricsRepository:
             next_margin = (
                 existing.margin_percent
                 if margin_percent is _UNSET
-                else self._number(margin_percent)
+                else self._percentage(margin_percent)
             )
             next_file = existing.file_path if file_path is _UNSET else str(file_path).strip()
             next_due = existing.due_date if due_date is _UNSET else str(due_date).strip()
@@ -376,12 +430,12 @@ class BusinessMetricsRepository:
                 **{
                     **asdict(existing),
                     "title": next_title,
-                    "total": float(next_total),
-                    "profit": float(next_profit),
-                    "margin_percent": float(next_margin),
+                    "total": next_total,
+                    "profit": next_profit,
+                    "margin_percent": self._derived_margin(next_total, next_profit, next_margin),
                     "file_path": next_file,
                     "due_date": next_due,
-                    "updated_at": datetime.now().isoformat(timespec="seconds"),
+                    "updated_at": self._now_text(),
                 }
             )
 
@@ -415,7 +469,7 @@ class BusinessMetricsRepository:
             records = self._read_records_unlocked()
             existing: BusinessWorkflowRecord | None = None
             updated: BusinessWorkflowRecord | None = None
-            now = datetime.now().isoformat(timespec="seconds")
+            now = self._now_text()
 
             result: list[BusinessWorkflowRecord] = []
             for record in records:
@@ -486,7 +540,7 @@ class BusinessMetricsRepository:
             if existing is None:
                 raise KeyError(record_id)
 
-            now = datetime.now().isoformat(timespec="seconds")
+            now = self._now_text()
             updated = BusinessWorkflowRecord(
                 **{
                     **asdict(existing),
@@ -544,7 +598,15 @@ class BusinessMetricsRepository:
         ]
 
         attention = [record for record in records if self._requires_attention(record, current_date)]
-        potential_profit, profit_contributors = self._potential_profit(records)
+        financial = self._financial_snapshot(records)
+        profit_metric = financial.metric(FinancialMetricId.POTENTIAL_PROFIT)
+        potential_profit = profit_metric.exact_value or Decimal("0.00")
+        record_by_id = {record.id: record for record in records}
+        profit_contributors = tuple(
+            record_by_id[record_id]
+            for record_id in profit_metric.contributor_ids
+            if record_id in record_by_id
+        )
         activities = tuple(
             self._activity(record)
             for record in sorted(
@@ -570,6 +632,39 @@ class BusinessMetricsRepository:
             profit_contributor_ids=tuple(record.id for record in profit_contributors),
         )
 
+    def financial_snapshot(
+        self,
+        *,
+        generated_at: datetime | None = None,
+    ) -> FinancialAnalyticsSnapshot:
+        """Return the immutable financial source for KPIs, charts and exports."""
+        records = [record for record in self._read_records() if not record.is_archived]
+        return self._financial_snapshot(records, generated_at=generated_at)
+
+    def _financial_snapshot(
+        self,
+        records: Iterable[BusinessWorkflowRecord],
+        *,
+        generated_at: datetime | None = None,
+    ) -> FinancialAnalyticsSnapshot:
+        facts = tuple(
+            WorkflowFinancialFact(
+                record_id=record.id,
+                tender_id=record.tender_id,
+                kind=record.kind,
+                status=record.status,
+                total=MoneyAmount(record.total, CurrencyCode(record.currency)),
+                profit=MoneyAmount(record.profit, CurrencyCode(record.currency)),
+                created_at=self._record_datetime(record.created_at),
+                archived=record.is_archived,
+            )
+            for record in records
+        )
+        return FinancialAnalyticsService().build(
+            facts,
+            generated_at=generated_at or datetime.now().astimezone(),
+        )
+
     def _upsert(
         self,
         *,
@@ -577,16 +672,16 @@ class BusinessMetricsRepository:
         tender_id: str | int,
         title: str,
         status: BusinessStatus | str,
-        total: float,
-        profit: float,
-        margin_percent: float = 0,
+        total: Decimal,
+        profit: Decimal,
+        margin_percent: Decimal = Decimal("0.00"),
         file_path: str = "",
         due_date: str = "",
     ) -> BusinessWorkflowRecord:
         normalized_kind = BusinessRecordKind(kind).value
         normalized_status = BusinessStatus(status).value
         normalized_tender_id = str(tender_id)
-        now = datetime.now().isoformat(timespec="seconds")
+        now = self._now_text()
 
         with self._lock:
             records = self._read_records_unlocked()
@@ -609,9 +704,11 @@ class BusinessMetricsRepository:
                 tender_id=normalized_tender_id,
                 title=title.strip() or normalized_kind,
                 status=normalized_status,
-                total=float(total),
-                profit=float(profit),
-                margin_percent=float(margin_percent),
+                total=total,
+                profit=profit,
+                margin_percent=self._derived_margin(total, profit, margin_percent),
+                currency=CurrencyCode.RUB.value,
+                margin_version=MARGIN_CONTRACT_VERSION,
                 file_path=file_path,
                 due_date=due_date.strip(),
                 created_at=existing.created_at if existing else now,
@@ -666,36 +763,54 @@ class BusinessMetricsRepository:
             }
 
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {
-                "schema_version": self.SCHEMA_VERSION,
-                "records": [],
-                "events": [],
-            }
+            payload = json.loads(
+                self.path.read_text(encoding="utf-8"),
+                parse_float=Decimal,
+                parse_int=Decimal,
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            raise FinancialMigrationError(
+                "workflow store is unreadable; original bytes preserved"
+            ) from exc
 
         if not isinstance(payload, dict):
-            return {
-                "schema_version": self.SCHEMA_VERSION,
-                "records": [],
-                "events": [],
-            }
+            raise FinancialMigrationError("workflow payload must be an object")
 
         payload.setdefault("records", [])
         payload.setdefault("events", [])
+        schema = int(payload.get("schema_version", 1))
+        if schema > self.SCHEMA_VERSION:
+            raise ValueError(f"unsupported workflow schema: {schema}")
         return payload
 
     def _read_records_unlocked(self) -> list[BusinessWorkflowRecord]:
         payload = self._read_payload_unlocked()
+        schema = int(payload.get("schema_version", 1))
         result: list[BusinessWorkflowRecord] = []
 
         for raw in payload.get("records", []):
             if not isinstance(raw, dict):
                 continue
             try:
-                result.append(BusinessWorkflowRecord(**raw))
-            except (TypeError, ValueError):
-                continue
+                values = dict(raw)
+                values["total"] = self._number(values.get("total", 0))
+                values["profit"] = self._number(values.get("profit", 0))
+                values["margin_percent"] = self._percentage(values.get("margin_percent", 0))
+                values["currency"] = (
+                    str(values.get("currency", CurrencyCode.RUB.value))
+                    if schema >= self.SCHEMA_VERSION
+                    else CurrencyCode.RUB.value
+                )
+                values["margin_version"] = (
+                    str(values.get("margin_version", MARGIN_CONTRACT_VERSION))
+                    if schema >= self.SCHEMA_VERSION
+                    else "legacy-v2"
+                )
+                result.append(BusinessWorkflowRecord(**values))
+            except (TypeError, ValueError) as exc:
+                raise FinancialMigrationError(
+                    f"workflow record {values.get('id', '<unknown>')} is invalid"
+                ) from exc
         return result
 
     def _read_events_unlocked(self) -> list[BusinessAuditEvent]:
@@ -734,22 +849,16 @@ class BusinessMetricsRepository:
         records: Iterable[BusinessWorkflowRecord],
         events: Iterable[BusinessAuditEvent],
     ) -> None:
+        self._ensure_current_schema_unlocked()
         payload = {
             "schema_version": self.SCHEMA_VERSION,
-            "updated_at": datetime.now().isoformat(timespec="seconds"),
-            "records": [asdict(record) for record in records],
+            "updated_at": self._now_text(),
+            "records": [self._record_payload(record) for record in records],
             "events": [asdict(event) for event in events],
         }
         temporary = self.path.with_suffix(self.path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(
-                payload,
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        temporary.replace(self.path)
+        self._write_json_fsynced(temporary, payload)
+        os.replace(temporary, self.path)
 
     def _field_change_events(
         self,
@@ -797,7 +906,7 @@ class BusinessMetricsRepository:
             id=str(uuid4()),
             record_id=record_id,
             action=BusinessAuditAction(action).value,
-            occurred_at=(occurred_at or datetime.now().isoformat(timespec="seconds")),
+            occurred_at=(occurred_at or BusinessMetricsRepository._now_text()),
             field=field,
             old_value=BusinessMetricsRepository._audit_value(old_value),
             new_value=BusinessMetricsRepository._audit_value(new_value),
@@ -808,47 +917,8 @@ class BusinessMetricsRepository:
         if value is None:
             return ""
         if isinstance(value, Decimal):
-            return format(value, "f")
+            return format(value, ".2f")
         return str(value)
-
-    def _potential_profit(
-        self,
-        records: list[BusinessWorkflowRecord],
-    ) -> tuple[Decimal, tuple[BusinessWorkflowRecord, ...]]:
-        by_tender: dict[str, BusinessWorkflowRecord] = {}
-
-        for record in sorted(
-            records,
-            key=self._updated_at,
-            reverse=True,
-        ):
-            status = self._status(record)
-            if status in {
-                BusinessStatus.CANCELLED,
-                BusinessStatus.COMPLETED,
-            }:
-                continue
-            if record.profit <= 0:
-                continue
-
-            current = by_tender.get(record.tender_id)
-            if current is None:
-                by_tender[record.tender_id] = record
-                continue
-
-            # Active project profit has priority over an estimate/proposal.
-            if (
-                record.kind == BusinessRecordKind.PROJECT.value
-                and current.kind != BusinessRecordKind.PROJECT.value
-            ):
-                by_tender[record.tender_id] = record
-
-        contributors = tuple(by_tender.values())
-        total = sum(
-            (Decimal(str(record.profit)) for record in contributors),
-            Decimal("0"),
-        )
-        return total, contributors
 
     def _requires_attention(
         self,
@@ -907,11 +977,96 @@ class BusinessMetricsRepository:
         )
 
     @staticmethod
-    def _number(value: Any) -> float:
+    def _number(value: Any) -> Decimal:
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                raise ValueError("financial value must be finite")
+            value = Decimal(str(value))
+        parsed = parse_money(value)
+        if not parsed.is_available or parsed.amount is None:
+            raise ValueError(f"invalid financial value: {parsed.issue or parsed.state.value}")
+        return Decimal(canonical_money(parsed.amount))
+
+    @staticmethod
+    def _percentage(value: Any) -> Decimal:
         try:
-            return float(Decimal(str(value or 0)))
-        except (InvalidOperation, TypeError, ValueError):
-            return 0.0
+            parsed = Decimal(str(value if value not in {None, ""} else 0))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValueError("invalid percentage value") from exc
+        if not parsed.is_finite() or parsed < 0 or parsed > Decimal("1000"):
+            raise ValueError("percentage value is out of range")
+        if max(0, -parsed.as_tuple().exponent) > 2:
+            raise ValueError("percentage has more than two fractional digits")
+        return quantize_percentage(parsed)
+
+    @staticmethod
+    def _derived_margin(total: Decimal, profit: Decimal, supplied: Decimal) -> Decimal:
+        del supplied  # Legacy/manual margin is evidence, never an authoritative operand.
+        derived = derive_margin(MoneyAmount(total), MoneyAmount(profit))
+        if derived.state is FinancialValueState.AVAILABLE and derived.value is not None:
+            return quantize_percentage(derived.value)
+        return Decimal("0.00")
+
+    def _ensure_current_schema_unlocked(self) -> None:
+        if not self.path.exists():
+            return
+        payload = self._read_payload_unlocked()
+        schema = int(payload.get("schema_version", 1))
+        if schema < self.SCHEMA_VERSION:
+            raise FinancialMigrationError(
+                f"workflow schema {schema} requires controlled migration to {self.SCHEMA_VERSION}"
+            )
+
+    @staticmethod
+    def _now_text() -> str:
+        return datetime.now().astimezone().isoformat(timespec="seconds")
+
+    @staticmethod
+    def _aware_datetime(value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            return value.replace(tzinfo=datetime.now().astimezone().tzinfo)
+        return value
+
+    @classmethod
+    def _record_datetime(cls, value: str) -> datetime | None:
+        if not value.strip():
+            return None
+        try:
+            return cls._aware_datetime(datetime.fromisoformat(value))
+        except ValueError:
+            return None
+
+    @classmethod
+    def _write_json_fsynced(cls, path: Path, payload: dict[str, Any]) -> None:
+        encoded = json.dumps(
+            cls._json_compatible(payload),
+            ensure_ascii=False,
+            indent=2,
+        ).encode("utf-8")
+        with path.open("wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    @staticmethod
+    def _record_payload(record: BusinessWorkflowRecord) -> dict[str, Any]:
+        payload = asdict(record)
+        payload["total"] = canonical_money(record.total)
+        payload["profit"] = canonical_money(record.profit)
+        payload["margin_percent"] = canonical_percentage(record.margin_percent)
+        payload["currency"] = record.currency
+        payload["margin_version"] = record.margin_version
+        return payload
+
+    @classmethod
+    def _json_compatible(cls, value: Any) -> Any:
+        if isinstance(value, Decimal):
+            return int(value) if value == value.to_integral_value() else float(value)
+        if isinstance(value, dict):
+            return {str(key): cls._json_compatible(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [cls._json_compatible(item) for item in value]
+        return value
 
     @staticmethod
     def _status(
@@ -927,9 +1082,11 @@ class BusinessMetricsRepository:
         record: BusinessWorkflowRecord,
     ) -> datetime:
         try:
-            return datetime.fromisoformat(record.updated_at)
+            return BusinessMetricsRepository._aware_datetime(
+                datetime.fromisoformat(record.updated_at)
+            )
         except ValueError:
-            return datetime.min
+            return BusinessMetricsRepository._aware_datetime(datetime.min)
 
 
 __all__ = [

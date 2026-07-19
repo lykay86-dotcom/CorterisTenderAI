@@ -6,7 +6,6 @@ from datetime import datetime
 from decimal import Decimal
 import json
 import random
-from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -28,9 +27,10 @@ from app.financial import (
     snapshot_to_csv_bytes,
     snapshot_to_json_bytes,
 )
+from app.tenders.analytics.time_contract import resolve_timezone
 
 
-MOSCOW = ZoneInfo("Europe/Moscow")
+MOSCOW = resolve_timezone("Europe/Moscow")
 NOW = datetime(2026, 7, 19, 12, 0, tzinfo=MOSCOW)
 
 

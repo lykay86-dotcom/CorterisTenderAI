@@ -1,4 +1,4 @@
-"""RM-148 baseline characterization; assertions intentionally describe v2 defects."""
+"""RM-148 financial-boundary characterization and regression guards."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from zipfile import ZipFile
 
 from openpyxl import load_workbook
 from PySide6.QtWidgets import QApplication
+import pytest
 
 from app.core.workflow_database_health import (
     WorkflowDatabaseHealthService,
@@ -28,8 +29,8 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-def test_v2_repository_round_trips_decimal_through_json_float(tmp_path) -> None:
-    """Expected-red will replace the float types and ordinary JSON-number lexemes."""
+def test_v3_repository_preserves_decimal_as_fixed_point_strings(tmp_path) -> None:
+    """The v2 float baseline is replaced by exact v3 persistence."""
     path = tmp_path / "business_workflow.json"
     repository = BusinessMetricsRepository(path)
 
@@ -44,32 +45,32 @@ def test_v2_repository_round_trips_decimal_through_json_float(tmp_path) -> None:
     )
     payload = json.loads(path.read_text(encoding="utf-8"))
 
-    assert repository.SCHEMA_VERSION == 2
-    assert isinstance(record.total, float)
-    assert isinstance(record.profit, float)
-    assert isinstance(record.margin_percent, float)
-    assert payload["records"][0]["total"] == 0.1
-    assert '"total": 0.1' in path.read_text(encoding="utf-8")
+    assert repository.SCHEMA_VERSION == 3
+    assert record.total == Decimal("0.10")
+    assert record.profit == Decimal("0.01")
+    assert record.margin_percent == Decimal("10.00")
+    assert payload["records"][0]["total"] == "0.10"
+    assert payload["records"][0]["currency"] == "RUB"
 
 
-def test_v2_invalid_number_silently_becomes_zero() -> None:
-    """Expected-red will require a typed INVALID state instead of zero."""
-    assert BusinessMetricsRepository._number("not-a-number") == 0.0
+def test_invalid_repository_number_is_rejected() -> None:
+    """Invalid input can no longer become an available zero."""
+    with pytest.raises(ValueError):
+        BusinessMetricsRepository._number("not-a-number")
 
 
-def test_baseline_ui_financial_precision_is_inconsistent() -> None:
-    """Expected-red will route all projections through one formatter."""
+def test_ui_financial_precision_uses_one_fixed_point_projection() -> None:
+    """Table and dashboard projections preserve the approved two-decimal scale."""
     _app()
     money_spin = BusinessRecordDialog._money_spin()
 
     assert money_spin.decimals() == 2
-    assert WorkflowTableModel._money(Decimal("1.50")) == "2 ₽"
-    assert _format_raw_value(Decimal("1.50"), DashboardKpiUnit.RUB) == "2 ₽"
-    assert f"{Decimal('1.25'):.1f}%" == "1.2%"
+    assert WorkflowTableModel._money(Decimal("1.50")) == "1.50 ₽"
+    assert _format_raw_value(Decimal("1.50"), DashboardKpiUnit.RUB) == "1.50 ₽"
 
 
-def test_baseline_health_accepts_nonfinite_float_text(tmp_path) -> None:
-    """Expected-red will reject non-finite persisted values through Decimal validation."""
+def test_health_rejects_nonfinite_financial_text(tmp_path) -> None:
+    """RM-148 health diagnostics fail closed on non-finite financial values."""
     repository = BusinessMetricsRepository(tmp_path / "business_workflow.json")
     repository.path.write_text(
         json.dumps(
@@ -95,11 +96,11 @@ def test_baseline_health_accepts_nonfinite_float_text(tmp_path) -> None:
 
     report = WorkflowDatabaseHealthService().inspect(repository)
 
-    assert report.status is WorkflowDatabaseHealthStatus.HEALTHY
+    assert report.status is WorkflowDatabaseHealthStatus.INVALID
+    assert any(issue.code == "record_total_invalid" for issue in report.issues)
 
 
-def test_baseline_xlsx_uses_only_binary_numeric_cell(tmp_path) -> None:
-    """Expected-red will add an exact fixed-point metadata representation."""
+def test_xlsx_keeps_numeric_projection_and_exact_fixed_point_metadata(tmp_path) -> None:
     repository = BusinessMetricsRepository(tmp_path / "source.json")
     record = repository.save_record(
         kind=BusinessRecordKind.PROPOSAL,
@@ -121,4 +122,7 @@ def test_baseline_xlsx_uses_only_binary_numeric_cell(tmp_path) -> None:
     assert registry["F2"].value == 0.1
     assert isinstance(registry["F2"].value, float)
     assert '<c r="F2" s="12" t="n"><v>0.1</v></c>' in xml
-    assert "FinancialExact" not in workbook.sheetnames
+    assert workbook["FinancialExact"]["B2"].value == "0.10"
+    assert workbook["FinancialExact"]["C2"].value == "0.01"
+    assert workbook["FinancialExact"]["E2"].value == "RUB"
+    assert workbook["FinancialExact"].sheet_state == "hidden"

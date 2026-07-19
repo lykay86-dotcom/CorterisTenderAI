@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+from app.financial import FinancialMigrationError
+
 from app.repositories.business_metrics import (
     BusinessAuditAction,
     BusinessMetricsRepository,
@@ -53,10 +57,11 @@ def test_edit_writes_one_event_per_changed_field(tmp_path) -> None:
         "title",
         "total",
         "profit",
+        "margin_percent",
     }
     total_event = next(event for event in updated if event.field == "total")
-    assert total_event.old_value == "100000.0"
-    assert total_event.new_value == "120000.0"
+    assert total_event.old_value == "100000.00"
+    assert total_event.new_value == "120000.00"
 
 
 def test_status_archive_and_restore_are_audited(tmp_path) -> None:
@@ -103,8 +108,9 @@ def test_legacy_json_without_events_is_supported(tmp_path) -> None:
     repository = BusinessMetricsRepository(path)
 
     assert repository.list_history("legacy") == []
-    repository.update_record("legacy", title="Новое КП")
+    with pytest.raises(FinancialMigrationError):
+        repository.update_record("legacy", title="Новое КП")
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
-    assert payload["events"]
+    assert payload["schema_version"] == 1
+    assert "events" not in payload
