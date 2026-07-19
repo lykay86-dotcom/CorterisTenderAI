@@ -1,5 +1,41 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-20 — RM-149 завершён, RM-150 активирован
+
+- Audit/source-of-truth/hierarchy/critical/action/navigation/parity/implementation decisions
+  зафиксированы commit `1540d75` до production code; characterization — `cb4fd56`, expected-red —
+  `f37bef9`, основной implementation — `632d5aa`, final hardening/acceptance — `d7a6896`.
+- Один Qt-free `app.tenders.detail` owner предоставляет typed registry/legacy identity, immutable
+  detail/card contracts, bounded read-only assembler, reason codes, complete action catalog,
+  deterministic fingerprint и fail-closed HTTPS/stale-action policy.
+- Native RM-143 detail/card widgets интегрированы с exact registry и persisted-search surfaces;
+  RM-147 drill-down переиспользует тот же registry owner, legacy Dashboard остаётся отдельным
+  `legacy_orm`, а RM-148 сохраняет price/currency projection ownership.
+- Critical warning физически предшествует decision, approved persisted recommendation не
+  пересчитывается, unresolved verification conflict получает приоритет действия, а missing
+  decision не превращается в negative recommendation.
+- Benchmark: 10,000 card projections p50 `502.915 ms`, p95 `505.788 ms`, peak `1,608 bytes`, reads
+  `0`; 25 post-warm-up publications имеют zero QObject/QThread/QTimer growth.
+- Локальная acceptance: focused `36 passed`, neighboring `358 passed`, full pytest
+  `2245 passed, 2 warnings in 185.80s`; secret scan, Ruff/format (`735 files`), mypy,
+  offline/migration/import/composition/build/frozen smokes и dependency audit успешны.
+- Feature PR #106 на head `d7a6896b9fa2daf94e760b0fcf1ae030089adcb1` слит merge commit
+  `219e7c43527ca230a61de8cdeb3f191288fc3f87`.
+- PR-head Quality Gate `29703943804` успешен: Python 3.12 job `88238135602` —
+  `2245 passed, 2 warnings in 95.59s`; Python 3.13 job `88238146684` —
+  `2245 passed, 2 warnings in 125.70s`. Первая Python 3.12 попытка завершилась native Windows
+  access violation без assertion; rerun того же head SHA прошёл без code/doc изменений.
+- Exact merge-SHA push-run `29704404132` подтверждён с
+  `headSha=219e7c43527ca230a61de8cdeb3f191288fc3f87`: Python 3.12 job `88239262921` —
+  `2245 passed, 2 warnings in 209.10s`; Python 3.13 job `88239263398` —
+  `2245 passed, 2 warnings in 141.43s`; все обязательные steps — `success`. Первая Python 3.12
+  попытка также завершилась native heap violation без assertion; rerun того же merge SHA прошёл.
+- Единственные annotations — existing non-blocking official-actions Node.js 20/24 migration
+  notices. DB/schema/migration, dependencies, provider/network/AI paths, generic-table scope и
+  RM-107 score/recommendation/critical stop-factor priority не изменены. Rollback — revert feature
+  merge без DB/data/settings downgrade. RM-149 переведён в `DONE`; RM-150 назначен единственным
+  `IN PROGRESS`, RM-151–RM-200 остаются `PLANNED`.
+
 ## 2026-07-19 — RM-148 завершён, RM-149 активирован
 
 - Audit/numeric/currency/unit/rounding/margin/schema/parity/implementation contracts зафиксированы

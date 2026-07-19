@@ -1,67 +1,61 @@
 # Текущее состояние CorterisTenderAI
 
-Обновлено: 19 июля 2026 года.
+Обновлено: 20 июля 2026 года.
 
 ## Активный этап
 
-**RM-149 — новая карточка тендера**
+**RM-150 — современные таблицы**
 
 Статус: `IN PROGRESS`
 
-RM-148 завершён feature PR #104, merge commit
-`1116216cf00fc74dad2b870617c496242cd659c2` и успешным exact merge-SHA Windows Quality Gate
-run `29699279963`. RM-149 — единственный активный этап; RM-150–RM-200 остаются `PLANNED` и не
-выполняются параллельно. RM-149 должен начаться отдельным audit-first пакетом и переиспользовать
-принятые shell/navigation/theme/lifecycle, tender source-of-truth, RM-146 chart, RM-147 analytics и
-RM-148 financial contracts без создания дублирующих owners.
-
-Feature-пакет RM-149 локально реализован и готов к feature PR: введены typed registry/legacy
-identity, immutable `tender-detail-v1`/`tender-card-v1`, один read-only assembler, native reusable
-detail/card widgets, versioned action policy и exact registry/search/analytics integrations.
-Локально: focused `36 passed`, neighboring `358 passed`, full pytest `2245 passed, 2 warnings`;
-Ruff/format, mypy, secret scan, offline/migration/composition/build/frozen smokes, dependency audit и
-benchmark 0/1/100/1,000/10,000 успешны. RM-149 остаётся `IN PROGRESS` до feature merge, exact
-merge-SHA Windows gate и отдельного docs-only closeout.
+RM-149 завершён feature PR #106 на head
+`d7a6896b9fa2daf94e760b0fcf1ae030089adcb1`, merge commit
+`219e7c43527ca230a61de8cdeb3f191288fc3f87` и успешным exact merge-SHA Windows Quality Gate
+run `29704404132`. Этот отдельный docs-only closeout переводит RM-149 в `DONE`. RM-150 —
+единственный активный этап; RM-151–RM-200 остаются `PLANNED` и не выполняются параллельно.
+RM-150 должен начаться отдельным audit-first пакетом и переиспользовать принятые
+shell/navigation/theme/lifecycle, tender-detail/card, RM-146 chart, RM-147 analytics и RM-148
+financial contracts без создания дублирующих owners.
 
 ## Завершённый этап
 
-**RM-148 — финансовая аналитика**
+**RM-149 — новая карточка тендера**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- один Qt-free `app.financial` owner определяет finite Decimal, explicit RUB/currency, units,
-  value states, HALF_UP rounding, derived revenue margin, immutable metrics/snapshots и exact
-  JSON/CSV projections;
-- existing workflow repository эволюционирован до explicit schema v3 fixed-point strings;
-  controlled v2→v3 migration имеет dry-run, exact safety bytes/hash, validation, fsync, atomic
-  replace, all-record readback и rollback без silent ordinary-read rewrite;
-- workflow table/detail/editor/audit, Dashboard, RM-147 analytics, RM-146 chart/accessibility,
-  JSON/CSV/XLSX, import, backup/restore и health используют общий exact contract;
-- локально: focused `38 passed`, XLSX contour `16 passed`, full pytest
-  `2209 passed, 2 warnings`; secret scan, Ruff/format (`722 files`), mypy, workflow smokes,
-  frozen/build и dependency audit успешны;
-- feature PR #104 на head `7af94361f47660a44256751126a5871b34851202` слит merge commit
-  `1116216cf00fc74dad2b870617c496242cd659c2`;
-- PR-head Quality Gate `29698349596` и exact merge-SHA run `29699279963` успешны на Python
-  3.12/3.13; exact full suites — `2209 passed, 2 warnings` на обеих версиях;
-- dependency, FX/network/provider/AI paths, second repository/chart/route, RM-149 card scope и
-  RM-107 score/recommendation/critical stop-factor priority не изменены.
+- один Qt-free `app.tenders.detail` owner определяет typed registry/legacy identity, immutable
+  detail/card contracts, bounded read-only assembler, reason codes, action catalog, deterministic
+  fingerprint и fail-closed HTTPS/stale-action policy;
+- native RM-143 detail/card widgets интегрированы с exact registry и persisted-search surfaces;
+  RM-147 drill-down переиспользует тот же registry owner, а legacy Dashboard не получает
+  выдуманный ORM↔registry bridge; RM-148 остаётся владельцем price/currency projection;
+- локально: focused `36 passed`, neighboring `358 passed`, full pytest
+  `2245 passed, 2 warnings`; secret scan, Ruff/format (`735 files`), mypy,
+  offline/migration/import/composition/build/frozen smokes, benchmark и dependency audit успешны;
+- feature PR #106 на head `d7a6896b9fa2daf94e760b0fcf1ae030089adcb1` слит merge commit
+  `219e7c43527ca230a61de8cdeb3f191288fc3f87`;
+- PR-head Quality Gate `29703943804` и exact merge-SHA push-run `29704404132` успешны на Python
+  3.12/3.13; final full suites — `2245 passed, 2 warnings` на обеих версиях;
+- первые Python 3.12 попытки обоих runs завершились native Windows heap/access violation без test
+  assertion; повтор того же неизменного SHA прошёл полностью;
+- DB/schema/migration, dependencies, provider/network/AI paths, generic-table scope и RM-107
+  score/recommendation/critical stop-factor priority не изменены.
 
 ## Ранее завершённый этап
 
-**RM-147 — аналитика тендеров**
+**RM-148 — финансовая аналитика**
 
 Статус: `DONE`
 
-- Один Qt-free owner `app.tenders.analytics` предоставляет immutable aware query/snapshot,
-  deterministic aggregation, provenance/partial states и exact export contracts.
-- Feature PR #102 слит merge commit `d85cf8c99f8ee72279bbb8054942a0f4d5675ac2`.
-- Exact merge-SHA Quality Gate run `29693165086` успешен на Python 3.12/3.13.
+- Один Qt-free `app.financial` owner предоставляет finite Decimal, explicit currency/unit/state,
+  derived metrics, immutable snapshots и exact projections.
+- Feature PR #104 слит merge commit `1116216cf00fc74dad2b870617c496242cd659c2`.
+- Exact merge-SHA Quality Gate run `29699279963` успешен на Python 3.12/3.13.
 
 ## Текущее действие
 
-Опубликовать feature PR RM-149, получить Windows Python 3.12/3.13 PR-head gate, затем после merge
-проверить exact merge-SHA gate. Не начинать RM-150+ и не переводить RM-149 в `DONE` до отдельного
-docs-only closeout.
+Слить этот docs-only closeout, после чего начать RM-150 отдельным audit-first пакетом. Не начинать
+production-реализацию RM-150 до его аудита и не начинать RM-151+ до выполнения RM-150 Definition
+of Done и следующего отдельного канонического closeout.

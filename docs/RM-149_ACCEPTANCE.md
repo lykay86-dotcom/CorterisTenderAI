@@ -2,10 +2,9 @@
 
 ## Verdict and publication status
 
-The feature package is **READY FOR FEATURE PR**. It is not yet published or complete: RM-149
-remains the sole `IN PROGRESS` stage until the feature PR is merged, the exact feature merge SHA
-passes the Windows Python 3.12/3.13 Quality Gate, and a separate docs-only closeout is merged.
-RM-150–RM-200 remain `PLANNED`.
+Feature implementation, PR-head gate, merge, and exact merge-SHA gate are complete. This separate
+docs-only package records canonical closeout: RM-149 is `DONE`, RM-150 becomes the sole
+`IN PROGRESS` stage, and RM-151–RM-200 remain `PLANNED`.
 
 ## Entry gate and traceability
 
@@ -176,10 +175,28 @@ from `test_rm132_legacy_credentials_handoff.py`; RM-149 adds no warning.
 Automated build/release contract and frozen self-test coverage pass. A newly packaged EXE, native
 Narrator, high-contrast, physical 100/125/150/200% DPI and screenshot certification were not run
 locally and are not claimed; per the RM-149 specification those bounded manual residuals remain for
-RM-152/RM-154. Windows Python 3.12/3.13 evidence must come from the feature PR and exact merge-SHA
-Quality Gate before closeout.
+RM-152/RM-154. Windows Python 3.12/3.13 evidence from the feature PR and exact merge-SHA Quality
+Gate is recorded below.
 
-## Scope, rollback and remaining publication gate
+## GitHub acceptance and closeout
+
+- Feature PR #106 on head `d7a6896b9fa2daf94e760b0fcf1ae030089adcb1` was merged as
+  `219e7c43527ca230a61de8cdeb3f191288fc3f87`.
+- PR-head Quality Gate run `29703943804` succeeded. Python 3.12 job `88238135602` reported
+  `2245 passed, 2 warnings in 95.59s`; Python 3.13 job `88238146684` reported
+  `2245 passed, 2 warnings in 125.70s`. The first Python 3.12 attempt ended in a native Windows
+  access violation without a test assertion; rerun of the unchanged head SHA passed completely.
+- Automatic push-run `29704404132` reported exact
+  `headSha=219e7c43527ca230a61de8cdeb3f191288fc3f87`.
+- In that exact merge-SHA run, Python 3.12 job `88239262921` reported
+  `2245 passed, 2 warnings in 209.10s`, and Python 3.13 job `88239263398` reported
+  `2245 passed, 2 warnings in 141.43s`. The first Python 3.12 attempt ended in native Windows heap
+  violation `0xc0000374` without a test assertion; rerun of the unchanged merge SHA passed. Every
+  required step, including dependency audit, succeeded.
+- This closeout is documentation-only: no application code, dependency, schema, migration,
+  deterministic decision logic, score, recommendation, or critical stop-factor priority changes.
+
+## Scope, rollback and next action
 
 - No DB/schema/migration, dependency, provider/network/AI, credential, analytics aggregation,
   scoring/decision formula, critical precedence, generic table or second router/repository change.
@@ -187,6 +204,6 @@ Quality Gate before closeout.
   schema, settings or dependency rollback.
 - Stop publication on any identity/fingerprint/parity change, lost verification evidence, unsafe
   URL/text outcome, new owner/network/dependency, full/Windows failure or changed RM-107 decision.
-- Remaining sequence: push feature branch → feature PR → PR-head Windows Python 3.12/3.13 Quality
-  Gate → merge with exact SHA → exact merge-SHA Quality Gate → separate docs-only closeout marking
-  RM-149 `DONE` and activating RM-150.
+- All feature and publication conditions are satisfied. This separate canonical docs-only closeout
+  records RM-149 as `DONE` and activates RM-150. RM-151 must not start until RM-150 satisfies the
+  Definition of Done and its canonical status is updated.
