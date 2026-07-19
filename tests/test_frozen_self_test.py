@@ -75,3 +75,4 @@ def test_self_test_writes_successful_json_report(tmp_path) -> None:
     assert "collector_database" in names
     assert "provider_composition" in names
     assert "safe_archive" in names
+    assert "chart_rendering" in names
