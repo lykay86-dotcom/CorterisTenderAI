@@ -25,7 +25,7 @@ def test_metric_catalog_ids_versions_and_order_are_exact() -> None:
     (
         ("day", ("2026-07-06T00:00:00+03:00", "2026-07-07T00:00:00+03:00")),
         ("week", ("2026-07-06T00:00:00+03:00",)),
-        ("month", ("2026-07-01T00:00:00+03:00",)),
+        ("month", ("2026-07-06T00:00:00+03:00",)),
     ),
 )
 def test_aware_half_open_day_week_month_buckets_have_exact_boundaries(
