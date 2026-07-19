@@ -67,6 +67,7 @@ from app.tenders.collector.manual_adapter import (
     parse_restricted_path,
 )
 from app.ui.theme.colors import ThemeName, get_palette
+from app.ui.tables import TableRevision, TableRole, TableRowId, TableState
 
 
 class TenderProviderManagerDialog(QDialog):
@@ -134,6 +135,10 @@ class TenderProviderManagerDialog(QDialog):
 
         self.table = QTableWidget(self)
         self.table.setObjectName("TenderProviderTable")
+        self.table.setAccessibleName("Tender providers")
+        self.table.setAccessibleDescription(
+            "Provider status, availability and actions resolved by exact provider identity."
+        )
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels(
             (
@@ -355,6 +360,7 @@ class TenderProviderManagerDialog(QDialog):
             Qt.ItemDataRole.UserRole,
             state.provider_id,
         )
+        self._set_common_row_roles(enabled_item, state)
         self.table.setItem(row, 0, enabled_item)
 
         monitoring = self._monitoring.get(state.provider_id)
@@ -371,6 +377,11 @@ class TenderProviderManagerDialog(QDialog):
         status_item.setData(
             Qt.ItemDataRole.UserRole,
             state.provider_id,
+        )
+        self._set_common_row_roles(status_item, state)
+        status_item.setData(
+            Qt.ItemDataRole.AccessibleTextRole,
+            f"{state.display_name}: {state.status_text}",
         )
         self.table.setItem(row, 1, status_item)
 
@@ -409,6 +420,24 @@ class TenderProviderManagerDialog(QDialog):
         )
         self._check_buttons[state.provider_id] = button
         self.table.setCellWidget(row, 6, button)
+
+    @staticmethod
+    def _set_common_row_roles(item: QTableWidgetItem, state: ProviderDisplayState) -> None:
+        item.setData(TableRole.ROW_ID, TableRowId("provider", state.provider_id))
+        item.setData(
+            TableRole.ROW_REVISION,
+            TableRevision(
+                f"{state.provider_id}:{state.ui_state.value}:{int(state.enabled)}:"
+                f"{state.last_checked_at or 'not_checked'}"
+            ),
+        )
+        item.setData(TableRole.ACTION_IDS, ("check", "configure"))
+        item.setData(
+            TableRole.STATE,
+            TableState.PARTIAL
+            if state.ui_state in {ProviderUiState.LIMITED, ProviderUiState.ERROR}
+            else TableState.READY,
+        )
 
     def _on_item_changed(
         self,

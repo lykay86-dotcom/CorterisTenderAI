@@ -34,6 +34,20 @@ from app.repositories.business_metrics import (
     BusinessMetricsRepository,
 )
 from app.ui.theme.colors import ThemeName, get_palette
+from app.ui.tables import (
+    TableActionToken,
+    TableCell,
+    TableColumn,
+    TableColumnId,
+    TableRevision,
+    TableRole,
+    TableRow,
+    TableRowId,
+    TableSnapshot,
+    TableState,
+    TableSurfaceId,
+    validate_action_token,
+)
 from app.ui.theme.typography import Typography
 
 
@@ -125,6 +139,10 @@ class WorkflowBackupCenterDialog(QDialog):
 
         self.table = QTableWidget(0, len(self.COLUMNS), self)
         self.table.setObjectName("BackupCenterTable")
+        self.table.setAccessibleName("Workflow backups")
+        self.table.setAccessibleDescription(
+            "Backup files with exact path identity; restore and delete are revalidated after confirmation."
+        )
         self.table.setHorizontalHeaderLabels(self.COLUMNS)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -216,7 +234,13 @@ class WorkflowBackupCenterDialog(QDialog):
     def selected_entry(self) -> WorkflowBackupEntry | None:
         row = self.table.currentRow()
         if 0 <= row < len(self.entries):
-            return self.entries[row]
+            item = self.table.item(row, 0)
+            row_id = item.data(TableRole.ROW_ID) if item is not None else None
+            if isinstance(row_id, TableRowId):
+                return next(
+                    (entry for entry in self.entries if str(entry.path) == row_id.value),
+                    None,
+                )
         return None
 
     def refresh(self) -> None:
@@ -256,6 +280,19 @@ class WorkflowBackupCenterDialog(QDialog):
                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
                     )
                 item.setToolTip(str(entry.path))
+                if column == 0:
+                    item.setData(TableRole.ROW_ID, self._entry_row_id(entry))
+                    item.setData(TableRole.ROW_REVISION, self._entry_revision(entry))
+                    item.setData(TableRole.ACTION_IDS, self._entry_action_ids(entry))
+                    item.setData(
+                        TableRole.STATE,
+                        TableState.READY if entry.valid else TableState.PARTIAL,
+                    )
+                    item.setData(
+                        Qt.ItemDataRole.AccessibleTextRole,
+                        f"{entry.path.name}; {entry.display_kind}; "
+                        f"{'valid' if entry.valid else 'damaged'}",
+                    )
                 self.table.setItem(row, column, item)
 
         valid_count = sum(1 for entry in self.entries if entry.valid)
@@ -272,13 +309,15 @@ class WorkflowBackupCenterDialog(QDialog):
                 if entry.path == current_path:
                     selected_row = row
                     break
-        if selected_row < 0 and self.entries:
+        if selected_row < 0 and self.entries and current_path is None:
             selected_row = 0
 
         if selected_row >= 0:
             self.table.selectRow(selected_row)
             self.table.setCurrentCell(selected_row, 0)
         else:
+            self.table.clearSelection()
+            self.table.setCurrentCell(-1, -1)
             self._selection_changed()
 
     def _selection_changed(self) -> None:
@@ -355,6 +394,7 @@ class WorkflowBackupCenterDialog(QDialog):
         entry = self.selected_entry
         if entry is None or not entry.valid:
             return
+        token = self._action_token(entry, "restore")
 
         answer = QMessageBox.warning(
             self,
@@ -372,6 +412,10 @@ class WorkflowBackupCenterDialog(QDialog):
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        entry = self._revalidate_action(token)
+        if entry is None:
             return
 
         try:
@@ -394,6 +438,7 @@ class WorkflowBackupCenterDialog(QDialog):
         entry = self.selected_entry
         if entry is None:
             return
+        token = self._action_token(entry, "delete")
 
         external_text = "\n\nЭто внешний файл, добавленный вручную." if not entry.managed else ""
         answer = QMessageBox.warning(
@@ -404,6 +449,10 @@ class WorkflowBackupCenterDialog(QDialog):
             QMessageBox.StandardButton.Cancel,
         )
         if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        entry = self._revalidate_action(token)
+        if entry is None:
             return
 
         try:
@@ -422,6 +471,70 @@ class WorkflowBackupCenterDialog(QDialog):
 
         self.external_files = [path for path in self.external_files if path != deleted]
         self.refresh()
+
+    @staticmethod
+    def _entry_row_id(entry: WorkflowBackupEntry) -> TableRowId:
+        return TableRowId("backup", str(entry.path))
+
+    @staticmethod
+    def _entry_revision(entry: WorkflowBackupEntry) -> TableRevision:
+        return TableRevision(
+            f"{entry.modified_at.isoformat()}:{entry.size_bytes}:{int(entry.valid)}:"
+            f"{entry.inspection.schema_version}"
+        )
+
+    @staticmethod
+    def _entry_action_ids(entry: WorkflowBackupEntry) -> tuple[str, ...]:
+        return ("verify", "delete", "restore") if entry.valid else ("verify", "delete")
+
+    def _entry_snapshot(self, entry: WorkflowBackupEntry) -> TableSnapshot:
+        revision = self._entry_revision(entry)
+        return TableSnapshot(
+            TableSurfaceId("TBL-150-003"),
+            revision.value,
+            TableState.READY,
+            (TableColumn(TableColumnId("file"), "File", filterable=True),),
+            (
+                TableRow(
+                    self._entry_row_id(entry),
+                    revision,
+                    (
+                        TableCell(
+                            entry.path.name,
+                            sort_value=entry.path.name,
+                            export_value=str(entry.path),
+                            accessible_text=str(entry.path),
+                        ),
+                    ),
+                    self._entry_action_ids(entry),
+                ),
+            ),
+        )
+
+    def _action_token(self, entry: WorkflowBackupEntry, action_id: str) -> TableActionToken:
+        snapshot = self._entry_snapshot(entry)
+        return TableActionToken(
+            snapshot.surface_id,
+            action_id,
+            self._entry_row_id(entry),
+            self._entry_revision(entry),
+            snapshot.fingerprint,
+        )
+
+    def _revalidate_action(self, token: TableActionToken) -> WorkflowBackupEntry | None:
+        try:
+            current = self.catalog_service.refresh_entry(
+                Path(token.row_id.value),
+                managed_directories=self.directories,
+            )
+        except Exception:
+            self.refresh()
+            return None
+        validation = validate_action_token(token, self._entry_snapshot(current))
+        if not validation.allowed:
+            self.refresh()
+            return None
+        return current
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         self._theme = ThemeName(theme)

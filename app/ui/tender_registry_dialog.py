@@ -55,6 +55,7 @@ from app.tenders.tender_registry import (
     TenderRegistrySort,
 )
 from app.ui.theme.colors import ThemeName, ThemePalette, get_palette
+from app.ui.tables import TableRevision, TableRole, TableRowId, TableState
 from app.ui.widgets.tender_detail import TenderDetailPanel
 
 
@@ -99,6 +100,7 @@ class TenderRegistryDialog(QDialog):
         except (TypeError, ValueError, AttributeError):
             self._theme = ThemeName.DARK
         self._records: tuple[TenderRegistryRecord, ...] = ()
+        self._selection_key = ""
         self._verification_states: dict[str, TenderVerificationState] = {}
         self._freshness_states: dict[str, TenderFreshnessState] = {}
 
@@ -129,6 +131,10 @@ class TenderRegistryDialog(QDialog):
 
         self.table = QTableWidget(table_frame)
         self.table.setObjectName("TenderRegistryTable")
+        self.table.setAccessibleName("Tender registry")
+        self.table.setAccessibleDescription(
+            "Saved tenders with exact registry identity, verification, freshness and actions."
+        )
         self.table.setColumnCount(13)
         self.table.setHorizontalHeaderLabels(
             (
@@ -469,11 +475,20 @@ class TenderRegistryDialog(QDialog):
 
     def refresh_records(self) -> None:
         selected = self.selected_record()
-        selected_key = selected.registry_key if selected is not None else ""
+        if selected is not None:
+            self._selection_key = selected.registry_key
+        selected_key = self._selection_key
         try:
             statistics = self.repository.statistics()
             query = self.current_query()
             records = self.repository.search_tenders(query)
+            if (
+                selected_key
+                and all(record.registry_key != selected_key for record in records)
+                and self.repository.get_record(selected_key) is None
+            ):
+                self._selection_key = ""
+                selected_key = ""
             total_matches = self.repository.count_search_results(query)
             registry_keys = tuple(item.registry_key for item in records)
             self._verification_states = dict(
@@ -502,6 +517,7 @@ class TenderRegistryDialog(QDialog):
         )
 
     def _populate_table(self, selected_key: str = "") -> None:
+        previous_signal_state = self.table.blockSignals(True)
         self.table.setRowCount(len(self._records))
         selected_row = -1
 
@@ -535,6 +551,35 @@ class TenderRegistryDialog(QDialog):
                         Qt.ItemDataRole.UserRole,
                         record.registry_key,
                     )
+                    item.setData(TableRole.ROW_ID, TableRowId("registry", record.registry_key))
+                    item.setData(
+                        TableRole.ROW_REVISION,
+                        TableRevision(
+                            f"{record.last_seen_at}:{record.seen_count}:{int(record.archived)}"
+                        ),
+                    )
+                    item.setData(
+                        TableRole.ACTION_IDS,
+                        (
+                            "open",
+                            "restore_tender" if record.archived else "archive_tender",
+                        ),
+                    )
+                    item.setData(
+                        TableRole.STATE,
+                        TableState.PARTIAL
+                        if (
+                            verification_state is not None
+                            and verification_state.status is TenderVerificationStatus.CONFLICT
+                        )
+                        or (freshness_state is not None and freshness_state.is_stale)
+                        else TableState.READY,
+                    )
+                    item.setData(
+                        Qt.ItemDataRole.AccessibleTextRole,
+                        f"{record.procurement_number}: {record.title}; "
+                        f"verification {verification_text}; freshness {freshness_text}",
+                    )
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if column == 2:
                     item.setForeground(
@@ -561,7 +606,8 @@ class TenderRegistryDialog(QDialog):
             if record.registry_key == selected_key:
                 selected_row = row
 
-        if self._records:
+        self.table.blockSignals(previous_signal_state)
+        if self._records and (selected_row >= 0 or not selected_key):
             target_row = selected_row if selected_row >= 0 else 0
             # QTableWidget.selectRow() may update only the selection
             # model without establishing a current index in offscreen
@@ -570,6 +616,13 @@ class TenderRegistryDialog(QDialog):
             # immediately, even before the event loop processes events.
             self.table.setCurrentCell(target_row, 0)
             self.table.selectRow(target_row)
+            self._selection_key = self._records[target_row].registry_key
+            self._show_selected_record()
+        elif self._records:
+            previous_signal_state = self.table.blockSignals(True)
+            self.table.clearSelection()
+            self.table.setCurrentCell(-1, -1)
+            self.table.blockSignals(previous_signal_state)
             self._show_selected_record()
         else:
             self._detail_snapshot = None
@@ -600,7 +653,14 @@ class TenderRegistryDialog(QDialog):
 
         if not 0 <= row < len(self._records):
             return None
-        return self._records[row]
+        item = self.table.item(row, 0)
+        row_id = item.data(TableRole.ROW_ID) if item is not None else None
+        if not isinstance(row_id, TableRowId):
+            return None
+        return next(
+            (record for record in self._records if record.registry_key == row_id.value),
+            None,
+        )
 
     def select_registry_key(self, registry_key: str) -> bool:
         """Show and select one exact canonical registry identity, or fail closed."""
@@ -611,6 +671,7 @@ class TenderRegistryDialog(QDialog):
         record = self.repository.get_record(normalized)
         if record is None:
             return False
+        self._selection_key = normalized
         if all(item.registry_key != normalized for item in self._records):
             self._records = (record,)
             self._verification_states = dict(
@@ -636,6 +697,8 @@ class TenderRegistryDialog(QDialog):
             self.commercial_button.setEnabled(False)
             self.archive_button.setEnabled(False)
             return
+
+        self._selection_key = record.registry_key
 
         try:
             snapshot = self._detail_assembler.assemble(

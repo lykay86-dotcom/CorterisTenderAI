@@ -8,7 +8,8 @@ from decimal import Decimal
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 
-from app.ui.charts.contracts import ChartSpec, ChartXValue
+from app.ui.charts.contracts import ChartSpec, ChartState, ChartXValue
+from app.ui.tables import TableColumnId, TableRevision, TableRole, TableRowId, TableState
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,14 @@ def _display(value: ChartXValue | Decimal) -> str:
     return value.isoformat() if isinstance(value, datetime) else str(value)
 
 
+def _table_state(state: ChartState) -> TableState:
+    if state in {ChartState.STALE}:
+        return TableState.PARTIAL
+    if state in {ChartState.TOO_LARGE, ChartState.UNAVAILABLE}:
+        return TableState.ERROR
+    return TableState(state.value)
+
+
 class ChartTableModel(QAbstractTableModel):
     """Read-only complete textual representation of a `ChartSpec`."""
 
@@ -41,6 +50,7 @@ class ChartTableModel(QAbstractTableModel):
     UNIT_COLUMN = 6
 
     _HEADERS = ("State", "Series ID", "Series", "Point ID", "X", "Y", "Unit")
+    _COLUMN_IDS = ("state", "series_id", "series_label", "point_id", "x", "y", "unit")
 
     def __init__(self, spec: ChartSpec, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -93,8 +103,6 @@ class ChartTableModel(QAbstractTableModel):
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
         row = self._rows[index.row()]
-        if role not in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
-            return None
         values = (
             row.state,
             row.series_id,
@@ -104,7 +112,33 @@ class ChartTableModel(QAbstractTableModel):
             "Missing" if row.y is None else str(row.y),
             row.unit,
         )
-        return values[index.column()]
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
+            return values[index.column()]
+        if role == TableRole.ROW_ID:
+            return TableRowId("chart_point", f"{row.series_id}:{row.point_id}")
+        if role == TableRole.ROW_REVISION:
+            return TableRevision(
+                f"{self._spec.chart_id}:{self._spec.state.value}:{row.series_id}:"
+                f"{row.point_id}:{row.x}:{row.y}"
+            )
+        if role == TableRole.COLUMN_ID:
+            return TableColumnId(self._COLUMN_IDS[index.column()])
+        if role in {TableRole.SORT_VALUE, TableRole.EXPORT_VALUE}:
+            raw_values = (
+                row.state,
+                row.series_id,
+                row.series_label,
+                row.point_id,
+                row.x,
+                row.y,
+                row.unit,
+            )
+            return raw_values[index.column()]
+        if role == TableRole.ACTION_IDS:
+            return ("select",)
+        if role == TableRole.STATE:
+            return _table_state(self._spec.state)
+        return None
 
     def headerData(  # noqa: N802
         self,
@@ -112,11 +146,12 @@ class ChartTableModel(QAbstractTableModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> object | None:
-        if role != Qt.ItemDataRole.DisplayRole:
-            return None
         if orientation is Qt.Orientation.Horizontal and 0 <= section < len(self._HEADERS):
-            return self._HEADERS[section]
-        if orientation is Qt.Orientation.Vertical:
+            if role in {Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole}:
+                return self._HEADERS[section]
+            if role == TableRole.COLUMN_ID:
+                return TableColumnId(self._COLUMN_IDS[section])
+        if orientation is Qt.Orientation.Vertical and role == Qt.ItemDataRole.DisplayRole:
             return section + 1
         return None
 
