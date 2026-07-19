@@ -588,6 +588,27 @@ class TenderRegistryDialog(QDialog):
             return None
         return self._records[row]
 
+    def select_registry_key(self, registry_key: str) -> bool:
+        """Show and select one exact canonical registry identity, or fail closed."""
+
+        normalized = registry_key.strip()
+        if not normalized:
+            return False
+        record = self.repository.get_record(normalized)
+        if record is None:
+            return False
+        if all(item.registry_key != normalized for item in self._records):
+            self._records = (record,)
+            self._verification_states = dict(
+                self.verification_repository.list_verification_states((normalized,))
+            )
+            self._freshness_states = dict(
+                self.verification_repository.list_freshness_states((normalized,))
+            )
+        self._populate_table(normalized)
+        selected = self.selected_record()
+        return selected is not None and selected.registry_key == normalized
+
     def _show_selected_record(self) -> None:
         record = self.selected_record()
         if record is None:

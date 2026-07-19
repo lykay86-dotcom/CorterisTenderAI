@@ -20,6 +20,7 @@ class IconId(StrEnum):
     NAV_DASHBOARD = "navigation.dashboard"
     NAV_TENDERS = "navigation.tenders"
     NAV_WORKFLOW = "navigation.workflow"
+    NAV_ANALYTICS = "navigation.analytics"
     TOPBAR_SEARCH = "topbar.search"
     TOPBAR_AI = "topbar.ai"
     TOPBAR_NOTIFICATIONS = "topbar.notifications"
@@ -56,6 +57,7 @@ _SPECS: Final[dict[IconId, IconSpec]] = {
     IconId.NAV_DASHBOARD: IconSpec("dashboard.svg", "Рабочий стол"),
     IconId.NAV_TENDERS: IconSpec("tenders.svg", "Тендеры"),
     IconId.NAV_WORKFLOW: IconSpec("workflow.svg", "Рабочие процессы"),
+    IconId.NAV_ANALYTICS: IconSpec("analytics.svg", "Аналитика тендеров"),
     IconId.TOPBAR_SEARCH: IconSpec("search.svg", "Поиск"),
     IconId.TOPBAR_AI: IconSpec("ai.svg", "AI-помощник"),
     IconId.TOPBAR_NOTIFICATIONS: IconSpec("notifications.svg", "Уведомления"),

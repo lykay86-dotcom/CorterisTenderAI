@@ -66,6 +66,7 @@ DEFAULT_REQUIRED_MODULES = (
     "cryptography",
     "py7zr",
     "rarfile",
+    "app.tenders.analytics",
     "app.ui.charts",
 )
 
@@ -91,6 +92,7 @@ def run_frozen_self_test(
     checks.append(_check_collector_database(context))
     checks.append(_check_provider_composition(context))
     checks.append(_check_safe_archive(context))
+    checks.append(_check_tender_analytics())
     checks.append(_check_chart_rendering())
 
     report = FrozenSelfTestReport(
@@ -399,6 +401,77 @@ def _check_safe_archive(
         )
     finally:
         shutil.rmtree(test_root, ignore_errors=True)
+
+
+def _check_tender_analytics() -> FrozenSelfTestCheck:
+    """Aggregate, adapt, and export one synthetic local-only analytics fixture."""
+
+    try:
+        from datetime import timezone
+
+        from app.tenders.analytics import (
+            AnalyticsGrain,
+            AnalyticsInterval,
+            AnalyticsTenderFact,
+            TenderAnalyticsChartAdapter,
+            TenderAnalyticsQuery,
+            TenderAnalyticsService,
+            export_snapshot_csv,
+            export_snapshot_json,
+        )
+
+        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
+        end = datetime(2026, 8, 1, tzinfo=timezone.utc)
+        snapshot = TenderAnalyticsService().aggregate(
+            TenderAnalyticsQuery(
+                AnalyticsInterval(start, end, "UTC"),
+                AnalyticsGrain.DAY,
+            ),
+            (
+                AnalyticsTenderFact(
+                    registry_key="frozen:one",
+                    source_id="synthetic",
+                    external_id="one",
+                    status="published",
+                    first_seen_at="2026-07-18T09:00:00+00:00",
+                    last_seen_at="2026-07-18T10:00:00+00:00",
+                ),
+            ),
+            as_of=datetime(2026, 7, 19, 9, tzinfo=timezone.utc),
+            generation=1,
+        )
+        adapter = TenderAnalyticsChartAdapter()
+        specs = tuple(adapter.adapt(metric, snapshot.coverage) for metric in snapshot.metrics)
+        json_data = export_snapshot_json(snapshot)
+        csv_data = export_snapshot_csv(snapshot)
+        ok = (
+            len(specs) == 4
+            and json_data.endswith(b"\n")
+            and csv_data.startswith(b"metric_id,")
+            and snapshot.metrics[0].metric_id == "tenders_discovered"
+        )
+        return FrozenSelfTestCheck(
+            name="tender_analytics",
+            ok=ok,
+            message=(
+                "Synthetic tender analytics aggregation and export succeeded."
+                if ok
+                else "Synthetic tender analytics artifacts were invalid."
+            ),
+            details={
+                "metric_count": len(snapshot.metrics),
+                "chart_count": len(specs),
+                "json_bytes": len(json_data),
+                "csv_bytes": len(csv_data),
+            },
+        )
+    except Exception as exc:
+        return FrozenSelfTestCheck(
+            name="tender_analytics",
+            ok=False,
+            message="Synthetic tender analytics check failed.",
+            details={"error": f"{type(exc).__name__}: {exc}"},
+        )
 
 
 def _check_chart_rendering() -> FrozenSelfTestCheck:

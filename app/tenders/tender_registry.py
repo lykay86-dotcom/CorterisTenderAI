@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, tzinfo
 from decimal import Decimal
 from enum import Enum, StrEnum
 import json
@@ -27,6 +27,7 @@ from app.tenders.models import (
 )
 
 if TYPE_CHECKING:
+    from app.tenders.analytics.contracts import AnalyticsTenderFact
     from app.tenders.search_profile_runner import TenderSearchProfileRun
 
 
@@ -714,6 +715,66 @@ class TenderRegistryRepository:
             return _payload_to_tender(payload)
         except (KeyError, TypeError, ValueError):
             return None
+
+    def list_analytics_facts(
+        self,
+        *,
+        include_archived: bool = False,
+        limit: int = 10_001,
+        deadline_now: datetime | None = None,
+        deadline_user_timezone: tzinfo | None = None,
+    ) -> tuple[AnalyticsTenderFact, ...]:
+        """Read deterministic RM-147 facts without UI pagination or ORM identity."""
+
+        if not 1 <= limit <= 100_001:
+            raise ValueError("limit must be between 1 and 100001")
+        self.initialize()
+        where = "" if include_archived else "WHERE archived = 0"
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT registry_key, source, external_id, status,
+                       first_seen_at, last_seen_at, published_at,
+                       application_deadline, law, archived, payload_json
+                FROM tender_records
+                {where}
+                ORDER BY registry_key ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        from app.tenders.analytics.contracts import AnalyticsTenderFact
+        from app.tenders.collector.freshness import normalize_application_deadline
+
+        result: list[AnalyticsTenderFact] = []
+        for row in rows:
+            deadline = str(row["application_deadline"])
+            if deadline_now is not None and deadline_user_timezone is not None:
+                try:
+                    tender = _payload_to_tender(json.loads(str(row["payload_json"])))
+                    normalization = normalize_application_deadline(
+                        tender,
+                        now=deadline_now,
+                        user_timezone=deadline_user_timezone,
+                    )
+                    deadline = normalization.deadline_utc
+                except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                    deadline = ""
+            result.append(
+                AnalyticsTenderFact(
+                    registry_key=str(row["registry_key"]),
+                    source_id=str(row["source"]).strip().casefold() or "unknown",
+                    external_id=str(row["external_id"]) or str(row["registry_key"]),
+                    status=str(row["status"]),
+                    first_seen_at=str(row["first_seen_at"]),
+                    last_seen_at=str(row["last_seen_at"]),
+                    published_at=str(row["published_at"]),
+                    application_deadline=deadline,
+                    law=str(row["law"]),
+                    archived=bool(row["archived"]),
+                )
+            )
+        return tuple(result)
 
     def list_tender_occurrences(
         self,

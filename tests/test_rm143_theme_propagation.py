@@ -37,6 +37,7 @@ def test_repeated_shell_theme_switch_preserves_route_and_one_owner(monkeypatch) 
         RouteId.DASHBOARD,
         RouteId.TENDERS,
         RouteId.WORKFLOW,
+        RouteId.FUTURE_ANALYTICS,
     )
     window.dashboard_controller.shutdown()
     window.deleteLater()

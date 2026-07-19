@@ -44,17 +44,24 @@ def _layout() -> tuple[DashboardLayout, dict[str, QWidget]]:
         "dashboard": QWidget(),
         "tenders": QWidget(),
         "workflow": QWidget(),
+        "analytics": QWidget(),
     }
     layout.add_page("dashboard", "Рабочий стол", pages["dashboard"])
     layout.add_page("tenders", "Тендеры и рабочие модули", pages["tenders"])
     layout.add_page("workflow", "КП, сметы и проекты", pages["workflow"])
+    layout.add_page("analytics", "Аналитика", pages["analytics"])
     return layout, pages
 
 
 def test_sidebar_is_registry_driven_and_legacy_select_uses_one_owner() -> None:
     layout, pages = _layout()
 
-    assert tuple(layout.sidebar._buttons) == ("dashboard", "tenders", "workflow")
+    assert tuple(layout.sidebar._buttons) == (
+        "dashboard",
+        "tenders",
+        "workflow",
+        "analytics",
+    )
     layout.sidebar.select("tenders")
 
     assert layout.pages.currentWidget() is pages["tenders"]
@@ -65,19 +72,19 @@ def test_sidebar_is_registry_driven_and_legacy_select_uses_one_owner() -> None:
     assert layout.findChildren(QStackedWidget) == [layout.pages]
 
 
-def test_unknown_and_planned_routes_do_not_change_current_page_or_history() -> None:
+def test_unknown_route_is_rejected_and_analytics_is_available() -> None:
     layout, pages = _layout()
     layout.navigate(RouteRequest("dashboard"))
     history_size = len(layout.navigation_history)
 
     unknown = layout.navigate(RouteRequest("definitely-unknown"))
-    planned = layout.navigate(RouteRequest("analytics"))
+    analytics = layout.navigate(RouteRequest("analytics"))
 
     assert unknown.status is NavigationStatus.UNKNOWN_ROUTE
-    assert planned.status is NavigationStatus.UNAVAILABLE
-    assert planned.resolved_route is RouteId.FUTURE_ANALYTICS
-    assert layout.pages.currentWidget() is pages["dashboard"]
-    assert len(layout.navigation_history) == history_size
+    assert analytics.status is NavigationStatus.NAVIGATED
+    assert analytics.resolved_route is RouteId.FUTURE_ANALYTICS
+    assert layout.pages.currentWidget() is pages["analytics"]
+    assert len(layout.navigation_history) == history_size + 1
 
 
 def test_embedded_alias_activates_real_parent_and_back_restores_origin() -> None:
@@ -113,17 +120,23 @@ def test_registry_and_layout_composition_are_offline(monkeypatch) -> None:
     assert result.status is NavigationStatus.NAVIGATED
 
 
-def test_production_shell_has_three_primary_areas_and_no_placeholder_pages(monkeypatch) -> None:
+def test_production_shell_has_four_primary_areas_and_no_placeholder_pages(monkeypatch) -> None:
     app = _app()
     window = _window(monkeypatch)
 
-    assert tuple(window.workspace.sidebar._buttons) == ("dashboard", "tenders", "workflow")
+    assert tuple(window.workspace.sidebar._buttons) == (
+        "dashboard",
+        "tenders",
+        "workflow",
+        "analytics",
+    )
     assert tuple(window.workspace._page_index) == (
         "dashboard",
         "tenders",
         "workflow",
+        "analytics",
     )
-    assert window.workspace.pages.count() == 3
+    assert window.workspace.pages.count() == 4
 
     window.workspace.sidebar.select("ai")
     assert window.workspace.current_snapshot is not None
@@ -139,8 +152,8 @@ def test_production_shell_has_three_primary_areas_and_no_placeholder_pages(monke
     )
 
     window.workspace.sidebar.select("analytics")
-    assert window.workspace.last_navigation_result.status is NavigationStatus.UNAVAILABLE
-    assert window.workspace.pages.currentWidget() is window.tender_workspace_page
+    assert window.workspace.last_navigation_result.status is NavigationStatus.NAVIGATED
+    assert window.workspace.pages.currentWidget() is window.analytics_page
 
     window.close()
     window.deleteLater()

@@ -127,7 +127,7 @@ def test_selected_existing_qt_primitives_render_offscreen_png_and_svg() -> None:
     assert b"<svg" in bytes(svg_buffer.data())
 
 
-def test_no_existing_application_consumer_imports_a_chart_package() -> None:
+def test_only_rm147_approved_consumers_import_the_chart_package() -> None:
     consumers = []
     for path in (ROOT / "app").rglob("*.py"):
         if path.parts[-2:] == ("charts", "__init__.py") or "charts" in path.parts:
@@ -138,4 +138,7 @@ def test_no_existing_application_consumer_imports_a_chart_package() -> None:
         if "app.ui.charts" in source or "qtcharts" in source or "qtgraphs" in source:
             consumers.append(path.relative_to(ROOT).as_posix())
 
-    assert consumers == []
+    assert sorted(consumers) == [
+        "app/tenders/analytics/chart_adapter.py",
+        "app/ui/pages/tender_analytics_page.py",
+    ]

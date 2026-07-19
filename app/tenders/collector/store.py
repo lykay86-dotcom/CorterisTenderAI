@@ -69,6 +69,7 @@ from app.tenders.provider_base import TenderSearchQuery
 from app.tenders.tender_registry import TenderRegistryRepository
 
 if TYPE_CHECKING:
+    from app.tenders.analytics.contracts import AnalyticsConflict, AnalyticsSourceObservation
     from app.tenders.participation_decision import ParticipationDecision
     from app.tenders.tender_summary import TenderSummary
 
@@ -620,6 +621,85 @@ class CollectorStateRepository:
             )
             for row in rows
         )
+
+    def list_analytics_source_observations(
+        self,
+        *,
+        limit: int = 100_000,
+    ) -> tuple[AnalyticsSourceObservation, ...]:
+        """Read exact persisted source-reference identities without creating the DB."""
+
+        if not 1 <= limit <= 100_000:
+            raise ValueError("limit must be between 1 and 100000")
+        if not self.path.is_file():
+            return ()
+        try:
+            with self._lock, self._connect_readonly() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT registry_key, source, external_id, first_seen_at
+                    FROM collector_tender_sources
+                    ORDER BY source ASC, external_id ASC, registry_key ASC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+        except sqlite3.Error:
+            return ()
+        from app.tenders.analytics.contracts import AnalyticsSourceObservation
+
+        return tuple(
+            AnalyticsSourceObservation(
+                registry_key=str(row["registry_key"]),
+                source_id=str(row["source"]).strip().casefold() or "unknown",
+                external_id=str(row["external_id"]),
+                first_seen_at=str(row["first_seen_at"]),
+            )
+            for row in rows
+        )
+
+    def list_analytics_conflicts(
+        self,
+        *,
+        limit: int = 100_000,
+    ) -> tuple[AnalyticsConflict, ...]:
+        """Read unresolved, non-manually-resolved bucket conflicts in stable order."""
+
+        if not 1 <= limit <= 100_000:
+            raise ValueError("limit must be between 1 and 100000")
+        if not self.path.is_file():
+            return ()
+        try:
+            with self._lock, self._connect_readonly() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT conflicts.registry_key, conflicts.field_name
+                    FROM collector_tender_field_conflicts AS conflicts
+                    LEFT JOIN collector_tender_field_manual_selections AS manual
+                      ON manual.registry_key = conflicts.registry_key
+                     AND manual.field_name = conflicts.field_name
+                    WHERE conflicts.unresolved = 1
+                      AND manual.candidate_id IS NULL
+                    ORDER BY conflicts.registry_key ASC,
+                             conflicts.field_name ASC,
+                             conflicts.detected_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+        except sqlite3.Error:
+            return ()
+        from app.tenders.analytics.contracts import AnalyticsConflict
+
+        identities: set[tuple[str, str]] = set()
+        result: list[AnalyticsConflict] = []
+        for row in rows:
+            identity = (str(row["registry_key"]), str(row["field_name"]))
+            if identity in identities:
+                continue
+            identities.add(identity)
+            result.append(AnalyticsConflict(identity[0], identity[1], True))
+        return tuple(result)
 
     def get_verification_history(
         self,

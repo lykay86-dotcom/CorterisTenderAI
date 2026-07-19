@@ -51,6 +51,7 @@ def test_routes_use_semantic_icon_ids_without_changing_primary_contract() -> Non
         "workspace.dashboard",
         "workspace.tenders",
         "workspace.workflow",
+        "future.analytics",
     )
     assert all(IconId(spec.icon) in ICON_REGISTRY for spec in DEFAULT_ROUTE_REGISTRY.primary_routes)
 

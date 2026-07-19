@@ -25,6 +25,7 @@ from app.ui.pages.business_workflow_page import (
     WorkflowNavigationState,
 )
 from app.ui.pages.dashboard_page import DashboardPage
+from app.ui.pages.tender_analytics_page import TenderAnalyticsPage
 from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 from app.ui.theme.colors import ThemeName
 from app.ui.theme.stylesheet import build_stylesheet
@@ -33,6 +34,8 @@ from app.ui.widgets.dashboard_layout import DashboardLayout
 
 if TYPE_CHECKING:
     from app.core.ai.provider_selection import AiProviderSelectionService
+    from app.ui.controllers.tender_analytics_controller import TenderAnalyticsController
+    from app.ui.tender_search_ui_controller import TenderSearchUiController
 
 
 class ModernMainWindow(QMainWindow):
@@ -51,6 +54,7 @@ class ModernMainWindow(QMainWindow):
         self._close_started = False
         self._close_complete = False
         self._dashboard_shutdown = False
+        self._analytics_shutdown = False
 
         self.setObjectName("ModernMainWindow")
         self.setWindowTitle("Corteris Tender AI 1.3 Alpha")
@@ -100,6 +104,17 @@ class ModernMainWindow(QMainWindow):
             "КП, сметы и проекты",
             self.workflow_page,
         )
+
+        self.analytics_page = TenderAnalyticsPage(
+            theme=self._theme,
+            parent=self.workspace.pages,
+        )
+        self.workspace.add_page(
+            "analytics",
+            "Аналитика",
+            self.analytics_page,
+        )
+        self.analytics_controller: TenderAnalyticsController | None = None
 
         # RM-127/RM-142 compatibility names intentionally reference the same
         # canonical object. RM-155 owns their eventual retirement.
@@ -205,6 +220,10 @@ class ModernMainWindow(QMainWindow):
 
     def _register_navigation_destinations(self) -> None:
         """Bind canonical routes to the existing page and controller owners."""
+        self.workspace.register_route_handler(
+            RouteId.FUTURE_ANALYTICS,
+            self._show_analytics_page,
+        )
         self.workspace.register_route_handler(RouteId.TENDERS, self._activate_tender_route)
         self.workspace.register_route_handler(RouteId.TENDER_AI, self._activate_tender_route)
         self.workspace.register_route_handler(RouteId.TENDER_SETTINGS, self._activate_tender_route)
@@ -246,6 +265,39 @@ class ModernMainWindow(QMainWindow):
             RouteId.PROFILE,
             self._open_profile,
         )
+
+    def _show_analytics_page(self, _context: RouteContext) -> bool:
+        controller = self.analytics_controller
+        if controller is not None:
+            controller.refresh()
+        return True
+
+    def bind_tender_analytics_runtime(
+        self,
+        tender_search_controller: TenderSearchUiController,
+    ) -> None:
+        """Bind analytics to the already installed tender runtime exactly once."""
+
+        if self.analytics_controller is not None:
+            return
+        registry = tender_search_controller.runtime.tender_registry
+        if registry is None:
+            return
+        from app.tenders.collector.store import CollectorStateRepository
+        from app.ui.controllers.tender_analytics_controller import (
+            TenderAnalyticsController,
+        )
+
+        self.analytics_controller = TenderAnalyticsController(
+            self.analytics_page,
+            registry,
+            CollectorStateRepository(registry.path),
+            parent=self,
+        )
+        self.analytics_page.contributor_activated.connect(
+            tender_search_controller.open_registry_record
+        )
+        self.analytics_controller.start()
 
     @staticmethod
     def _workflow_route_context(page: BusinessWorkflowPage) -> RouteContext:
@@ -400,6 +452,7 @@ class ModernMainWindow(QMainWindow):
         self.setStyleSheet(build_stylesheet(self._theme.value))
         self.dashboard_page.set_theme(self._theme)
         self.workflow_page.apply_theme(self._theme)
+        self.analytics_page.apply_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme.value)
 
         self.workspace.topbar.apply_theme(self._theme)
@@ -459,6 +512,12 @@ class ModernMainWindow(QMainWindow):
         if not self._dashboard_shutdown:
             self.dashboard_controller.shutdown()
             self._dashboard_shutdown = True
+
+        if not self._analytics_shutdown and self.analytics_controller is not None:
+            if not self.analytics_controller.shutdown():
+                event.ignore()
+                return
+            self._analytics_shutdown = True
 
         self._close_complete = True
         super().closeEvent(event)
