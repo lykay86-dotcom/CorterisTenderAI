@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
+from app.reporting.workflow_excel import WorkflowExcelExporter
 from app.reporting.workflow_excel_import import WorkflowExcelImporter
 from app.repositories.business_metrics import (
     BusinessMetricsRepository,
@@ -188,3 +189,73 @@ def test_duplicate_kind_and_tender_rows_are_rejected(tmp_path) -> None:
 
     assert len(preview.invalid_rows) == 2
     assert not preview.can_import
+
+
+def test_export_import_round_trip_prefers_exact_financial_metadata(tmp_path) -> None:
+    repository = BusinessMetricsRepository(tmp_path / "source.json")
+    record = repository.save_record(
+        kind=BusinessRecordKind.PROPOSAL,
+        tender_id="T-EXACT",
+        title="Exact",
+        status=BusinessStatus.READY,
+        total=Decimal("0.10"),
+        profit=Decimal("0.01"),
+    )
+    path = tmp_path / "exact.xlsx"
+    WorkflowExcelExporter().export(path, records=[record])
+
+    preview = WorkflowExcelImporter().preview(path)
+
+    assert preview.can_import
+    assert preview.rows[0].total == Decimal("0.10")
+    assert preview.rows[0].profit == Decimal("0.01")
+    assert preview.rows[0].margin_percent == Decimal("10.00")
+
+
+def test_import_rejects_numeric_cell_conflicting_with_exact_metadata(tmp_path) -> None:
+    repository = BusinessMetricsRepository(tmp_path / "source.json")
+    record = repository.save_record(
+        kind=BusinessRecordKind.PROPOSAL,
+        tender_id="T-TAMPER",
+        title="Tamper",
+        status=BusinessStatus.READY,
+        total=Decimal("0.10"),
+        profit=Decimal("0.01"),
+    )
+    path = tmp_path / "tampered.xlsx"
+    WorkflowExcelExporter().export(path, records=[record])
+    workbook = load_workbook(path)
+    workbook["Реестр"]["F2"] = 0.11
+    workbook.save(path)
+
+    preview = WorkflowExcelImporter().preview(path)
+
+    assert not preview.can_import
+    assert any("FinancialExact" in issue.message for issue in preview.rows[0].issues)
+
+
+def test_import_rejects_manual_margin_conflict(tmp_path) -> None:
+    path = tmp_path / "margin-conflict.xlsx"
+    _workbook(
+        path,
+        [
+            [
+                "",
+                "Коммерческое предложение",
+                "T-MARGIN",
+                "Conflict",
+                "Готово к отправке",
+                100,
+                10,
+                25,
+                "",
+                "",
+                "Нет",
+            ]
+        ],
+    )
+
+    preview = WorkflowExcelImporter().preview(path)
+
+    assert not preview.can_import
+    assert any("Маржа не совпадает" in issue.message for issue in preview.rows[0].issues)
