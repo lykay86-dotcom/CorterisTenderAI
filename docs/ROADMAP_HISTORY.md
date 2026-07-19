@@ -1,5 +1,33 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-19 — RM-145 завершён, RM-146 активирован
+
+- Audit-first contract зафиксирован commit `89d8346`; characterization — `3e2ae9a`,
+  expected-red contract — `3db1cbe`.
+- Один immutable six-entry registry определяет truthful Dashboard KPI lineage: typed raw values,
+  source/evidence/state/action, `Decimal` для денег и `None` для отсутствующих данных.
+- Видимый KPI `Оценка 80+` является числовым score cohort, а не AI recommendation; workflow
+  attention и profit опираются на exact repository contributors без analysis/deadline fallback.
+- Tender/workflow source failures изолированы. Последнее usable значение сохраняет original
+  observation time, переходит `PARTIAL`/`STALE`, а atomic ViewModel apply публикует одну generation.
+- Closed typed filters и существующие destinations обеспечивают exact tender stable-ID и workflow
+  contributor/Decimal parity. Mouse/Enter/Space, disabled loading/error и accessibility evidence
+  semantics используют одну typed action.
+- Локальная acceptance: RM-145 contract `13 passed in 4.70s`, neighboring contour
+  `53 passed in 16.33s`, full pytest `2095 passed, 2 warnings in 166.94s`; secret scan,
+  Ruff/format (`670 files`), mypy, frozen/build smoke, design-system guard и dependency audit
+  успешны.
+- Feature PR #98 на head `ac846e9e6cfa6c8ab77c445810cd081097478bc8` слит merge commit
+  `ac8d2662911e8a0e450fcb20677f99082187793a`.
+- PR-head Quality Gate `29676604619` успешен: Python 3.12 — `3m19s`, Python 3.13 — `4m36s`.
+  Exact merge-SHA run `29680204767` успешен: Python 3.12 — `4m31s`, Python 3.13 — `3m41s`;
+  full suite, dependency audit и все обязательные jobs завершились `success`.
+- Единственная annotation — existing non-blocking official-actions Node.js 20/24 migration notice.
+  DB/schema/migration, runtime dependencies и RM-107 score/recommendation/critical stop-factor
+  priority не изменены. Rollback — revert feature merge без DB/data/settings downgrade.
+  RM-145 переведён в `DONE`; RM-146 назначен единственным `IN PROGRESS`, RM-147–RM-200 остаются
+  `PLANNED`.
+
 ## 2026-07-19 — RM-144 завершён, RM-145 активирован
 
 - Audit/contract/plan зафиксированы commit `70d06f3` до application changes;

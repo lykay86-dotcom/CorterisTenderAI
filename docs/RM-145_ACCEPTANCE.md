@@ -2,10 +2,9 @@
 
 ## Package status
 
-Local feature implementation and acceptance for `UI-141-006` are complete on dedicated branch
-`feat/rm-145-modern-dashboard`. Publication, PR-head CI, merge, exact merge-SHA CI, and the separate
-docs-only canonical closeout remain pending explicit authorization. RM-145 therefore remains the
-sole `IN PROGRESS` stage; RM-146 has not started.
+Feature implementation, publication, PR-head gate, merge and exact merge-SHA gate for
+`UI-141-006` are complete. This separate docs-only package records canonical closeout and activates
+RM-146.
 
 ## Entry gate and traceability
 
@@ -155,6 +154,17 @@ Rollback is a revert of the RM-145 feature commits to exact baseline `78141ff`; 
 does not require conversion. Stop publication on any parity mismatch, duplicate owner, new warning,
 secret/vulnerability, failed Python 3.12/3.13 gate, or unexplained lifecycle/navigation regression.
 
-Local DoD verdict: the feature implementation satisfies the local RM-145 acceptance contract.
-Final Definition of Done remains pending feature PR-head CI, explicit merge authorization, exact
-merge-SHA CI, and the separate docs-only canonical closeout.
+## GitHub acceptance and closeout
+
+- Feature PR #98 head: `ac846e9e6cfa6c8ab77c445810cd081097478bc8`.
+- PR-head Quality Gate run `29676604619`: `success`; Python 3.12 — `3m19s`, Python 3.13 —
+  `4m36s`. Full suite, dependency audit and every required step succeeded.
+- Feature merge SHA: `ac8d2662911e8a0e450fcb20677f99082187793a`.
+- Exact merge-SHA push run `29680204767`: `success`; Python 3.12 — `4m31s`, Python 3.13 —
+  `3m41s`. Full suite, dependency audit and every required step succeeded.
+- The only annotation is the existing non-blocking official-actions Node.js 20/24 migration notice.
+- This docs-only closeout changes only `ROADMAP.md`, `STATUS.md`, `ROADMAP_HISTORY.md` and this
+  acceptance file. It marks RM-145 `DONE` and activates RM-146 as the sole `IN PROGRESS` stage.
+
+Final DoD verdict: RM-145 satisfies the Definition of Done. Feature and exact merge-SHA gates are
+green; `UI-141-006` is closed; DB/data/settings downgrade is unnecessary.
