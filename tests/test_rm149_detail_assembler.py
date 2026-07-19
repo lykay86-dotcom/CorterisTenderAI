@@ -219,10 +219,27 @@ def test_unknown_and_legacy_identity_fail_closed_without_guessing() -> None:
     legacy = assembler.assemble(TenderIdentity(TenderIdentityKind.LEGACY_ORM, "missing"))
 
     assert missing.state is TenderDetailState.NOT_FOUND
+    assert missing.reason_code == "tender_not_found"
     assert legacy.state is TenderDetailState.ERROR
-    assert legacy.reason_code == "unsupported_identity_kind"
+    assert legacy.reason_code == "identity_kind_unsupported"
     assert registry.calls == [("get_record", "missing")]
     assert state.calls == []
+
+
+def test_repository_read_error_returns_typed_safe_snapshot() -> None:
+    class FailingRegistry(RegistryFake):
+        def get_record(self, registry_key: str) -> TenderRegistryRecord | None:
+            raise OSError(f"do not expose local path for {registry_key}")
+
+    snapshot = TenderDetailAssembler(
+        FailingRegistry(None),
+        StateFake(),
+        clock=lambda: NOW,
+    ).assemble(TenderIdentity(TenderIdentityKind.REGISTRY, "registry-key"))
+
+    assert snapshot.state is TenderDetailState.ERROR
+    assert snapshot.reason_code == "detail_read_failed"
+    assert "local path" not in snapshot.accessible_summary
 
 
 def test_persisted_critical_stop_factor_dominates_recommendation_and_actions() -> None:

@@ -68,6 +68,20 @@ class TenderDetailState(StrEnum):
     CLOSED = "closed"
 
 
+class TenderDetailReasonCode(StrEnum):
+    TENDER_NOT_FOUND = "tender_not_found"
+    IDENTITY_AMBIGUOUS = "identity_ambiguous"
+    IDENTITY_KIND_UNSUPPORTED = "identity_kind_unsupported"
+    DETAIL_READ_FAILED = "detail_read_failed"
+    DECISION_UNAVAILABLE = "decision_unavailable"
+    DECISION_STALE = "decision_stale"
+    VERIFICATION_CONFLICTED = "verification_conflicted"
+    ACTION_UNAVAILABLE = "action_unavailable"
+    ACTION_STALE = "action_stale"
+    UNSAFE_SOURCE_URL = "unsafe_source_url"
+    DETAIL_CLOSED = "detail_closed"
+
+
 class TenderValueState(StrEnum):
     AVAILABLE = "available"
     MISSING = "missing"
@@ -265,6 +279,7 @@ __all__ = [
     "TenderCriticalWarning",
     "TenderDecisionSummary",
     "TenderDetailSnapshot",
+    "TenderDetailReasonCode",
     "TenderDetailState",
     "TenderFact",
     "TenderHistoryItem",

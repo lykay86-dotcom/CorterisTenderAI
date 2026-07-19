@@ -129,7 +129,6 @@ class TenderSearchResultsDialog(QDialog):
             QHeaderView.ResizeMode.Stretch,
         )
         self.table.itemSelectionChanged.connect(self._show_selected_details)
-        self.table.cellDoubleClicked.connect(lambda _row, _column: self._open_selected_source())
         table_layout.addWidget(self.table, 1)
         splitter.addWidget(table_frame)
 

@@ -15,6 +15,14 @@ run `29699279963`. RM-149 — единственный активный этап
 принятые shell/navigation/theme/lifecycle, tender source-of-truth, RM-146 chart, RM-147 analytics и
 RM-148 financial contracts без создания дублирующих owners.
 
+Feature-пакет RM-149 локально реализован и готов к feature PR: введены typed registry/legacy
+identity, immutable `tender-detail-v1`/`tender-card-v1`, один read-only assembler, native reusable
+detail/card widgets, versioned action policy и exact registry/search/analytics integrations.
+Локально: focused `36 passed`, neighboring `358 passed`, full pytest `2245 passed, 2 warnings`;
+Ruff/format, mypy, secret scan, offline/migration/composition/build/frozen smokes, dependency audit и
+benchmark 0/1/100/1,000/10,000 успешны. RM-149 остаётся `IN PROGRESS` до feature merge, exact
+merge-SHA Windows gate и отдельного docs-only closeout.
+
 ## Завершённый этап
 
 **RM-148 — финансовая аналитика**
@@ -54,7 +62,6 @@ RM-148 financial contracts без создания дублирующих owners
 
 ## Текущее действие
 
-Начать RM-149 с отдельного audit-first пакета. Не начинать RM-150+, не создавать второй
-tender/workflow/chart/analytics/KPI/theme/navigation/shell/financial owner и не изменять
-deterministic decision/scoring/critical stop-factor priority без отдельного аудита и Definition of
-Done.
+Опубликовать feature PR RM-149, получить Windows Python 3.12/3.13 PR-head gate, затем после merge
+проверить exact merge-SHA gate. Не начинать RM-150+ и не переводить RM-149 в `DONE` до отдельного
+docs-only closeout.

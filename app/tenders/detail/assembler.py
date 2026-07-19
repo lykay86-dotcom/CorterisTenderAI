@@ -23,6 +23,7 @@ from app.tenders.detail.contracts import (
     TenderCriticalWarning,
     TenderDecisionSummary,
     TenderDetailSnapshot,
+    TenderDetailReasonCode,
     TenderDetailState,
     TenderFact,
     TenderHistoryItem,
@@ -114,23 +115,45 @@ class TenderDetailAssembler:
             raise ValueError("detail clock must return a timezone-aware datetime")
         if identity.kind is not TenderIdentityKind.REGISTRY:
             return _terminal(
-                identity, generated_at, TenderDetailState.ERROR, "unsupported_identity_kind"
+                identity,
+                generated_at,
+                TenderDetailState.ERROR,
+                TenderDetailReasonCode.IDENTITY_KIND_UNSUPPORTED.value,
             )
 
-        record = self._registry.get_record(identity.value)
+        try:
+            record = self._registry.get_record(identity.value)
+        except Exception:
+            return _terminal(
+                identity,
+                generated_at,
+                TenderDetailState.ERROR,
+                TenderDetailReasonCode.DETAIL_READ_FAILED.value,
+            )
         if record is None:
             return _terminal(
-                identity, generated_at, TenderDetailState.NOT_FOUND, "record_not_found"
+                identity,
+                generated_at,
+                TenderDetailState.NOT_FOUND,
+                TenderDetailReasonCode.TENDER_NOT_FOUND.value,
             )
 
-        verification = self._state.get_verification_state(identity.value)
-        freshness = self._state.get_freshness_state(
-            identity.value,
-            now=generated_at.astimezone(timezone.utc).isoformat(),
-        )
-        score = self._state.get_latest_score(identity.value)
-        payload = self._state.get_latest_participation_decision_payload(identity.value)
-        occurrences = self._registry.list_tender_occurrences(identity.value, limit=100)
+        try:
+            verification = self._state.get_verification_state(identity.value)
+            freshness = self._state.get_freshness_state(
+                identity.value,
+                now=generated_at.astimezone(timezone.utc).isoformat(),
+            )
+            score = self._state.get_latest_score(identity.value)
+            payload = self._state.get_latest_participation_decision_payload(identity.value)
+            occurrences = self._registry.list_tender_occurrences(identity.value, limit=100)
+        except Exception:
+            return _terminal(
+                identity,
+                generated_at,
+                TenderDetailState.ERROR,
+                TenderDetailReasonCode.DETAIL_READ_FAILED.value,
+            )
 
         decision = _decision(identity.value, payload, score)
         warnings = _warnings(score, payload, verification)
@@ -160,6 +183,11 @@ class TenderDetailAssembler:
             history=history,
             fingerprint=fingerprint,
             accessible_summary=_summary(record, facts, statuses, warnings, decision),
+            reason_code=(
+                TenderDetailReasonCode.VERIFICATION_CONFLICTED.value
+                if state is TenderDetailState.CONFLICTED
+                else ""
+            ),
         )
 
 
@@ -504,7 +532,7 @@ def _actions(
                 action_id,
                 _ACTION_LABELS[action_id],
                 TenderActionState.AVAILABLE if available else TenderActionState.CONTEXT_REQUIRED,
-                "" if available else "required_context_not_loaded",
+                _action_reason(action_id, available),
                 identity,
                 action_id.replace("_", "."),
                 TenderActionRole.PRIMARY if action_id == primary else TenderActionRole.SECONDARY,
@@ -519,6 +547,16 @@ def _actions(
     return tuple(
         sorted(result, key=lambda item: (item.role is TenderActionRole.SECONDARY, item.action_id))
     )
+
+
+def _action_reason(action_id: str, available: bool) -> str:
+    if available:
+        return ""
+    if action_id == "open_official_source":
+        return TenderDetailReasonCode.UNSAFE_SOURCE_URL.value
+    if action_id == "view_participation_decision":
+        return TenderDetailReasonCode.DECISION_UNAVAILABLE.value
+    return TenderDetailReasonCode.ACTION_UNAVAILABLE.value
 
 
 def _history(items: Sequence[TenderRegistryOccurrence]) -> tuple[TenderHistoryItem, ...]:
