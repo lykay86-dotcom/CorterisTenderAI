@@ -56,6 +56,6 @@ financial contracts без создания дублирующих owners.
 
 ## Текущее действие
 
-Слить этот docs-only closeout, после чего начать RM-150 отдельным audit-first пакетом. Не начинать
-production-реализацию RM-150 до его аудита и не начинать RM-151+ до выполнения RM-150 Definition
+Завершить и зафиксировать отдельный audit-first пакет RM-150, затем выполнить characterization и
+expected-red до production-реализации. Не начинать RM-151+ до выполнения RM-150 Definition
 of Done и следующего отдельного канонического closeout.
