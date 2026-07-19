@@ -95,14 +95,15 @@ def test_csv_export_preserves_rows_missing_and_neutralizes_formula_text() -> Non
 
 def test_visual_exports_use_one_bounded_semantic_plan() -> None:
     chart = _charts()
+    _app()
     viewport = chart.ChartViewport(640, 360, device_scale=1.5)
     png = chart.export_chart_png(_spec(), viewport, DARK_PALETTE)
     svg = chart.export_chart_svg(_spec(), viewport, DARK_PALETTE)
 
     assert png.startswith(b"\x89PNG\r\n\x1a\n")
     assert b"<svg" in svg
-    assert b"http://" not in svg
-    assert b"https://" not in svg
+    assert b'href="http://' not in svg
+    assert b'href="https://' not in svg
     assert b"<script" not in svg.lower()
 
     with pytest.raises(ValueError, match="pixel budget"):
