@@ -1,5 +1,39 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-19 — RM-147 завершён, RM-148 активирован
+
+- Audit/source-of-truth/metric/time/provenance/drill-down/export/plan contracts зафиксированы
+  commit `2eea4ee`; characterization — `486dd04`, expected-red contract — `150d8b9`.
+- Один Qt-free `app.tenders.analytics` owner предоставляет immutable aware-time query/snapshot
+  contracts, four-metric catalog, deterministic aggregation, provenance/partial states и exact
+  JSON/CSV export вне UI.
+- Existing tender registry и collector-state repositories предоставляют bounded bulk read-only
+  facts. Analytics route/page/controller переиспользует RM-146 charts, modern shell lifecycle и
+  exact stable-ID tender drill-down без второго repository/router/chart/KPI/business owner.
+- Preset/custom/all-available intervals, grain/source/status/law/archive filters, complete textual
+  tables и contributor identity покрыты unit/integration/UI/accessibility/frozen tests. Missing,
+  unknown-time, conflicted, stale и unavailable data не выдумываются.
+- Exact-data limit — 10,000 records; 10,001 fail closed как `TOO_LARGE` без sampling. Benchmark до
+  10,000 records сохранил ordered/shuffled equality, service query count 0, application read-query
+  count 4 и p95 aggregation `295.1390 ms`.
+- Локальная acceptance: RM-147 focused `40 passed in 7.30s`, full pytest
+  `2163 passed, 2 warnings in 165.42s`; secret scan, Ruff/format (`705 files`), mypy,
+  offline/migration/import/composition/build/frozen smokes, design-system guard и dependency audit
+  успешны.
+- Feature PR #102 на head `ea84b068d437cf2e4e2e366aa94bb079938587e5` слит merge commit
+  `d85cf8c99f8ee72279bbb8054942a0f4d5675ac2`.
+- PR-head Quality Gate `29692568668` успешен: Python 3.12 — `4m36s`,
+  `2163 passed, 2 warnings in 146.82s`; Python 3.13 — `4m40s`,
+  `2163 passed, 2 warnings in 151.95s`.
+- Exact merge-SHA run `29693165086` успешен: Python 3.12 — `6m36s`,
+  `2163 passed, 2 warnings in 257.05s`; Python 3.13 — `4m48s`,
+  `2163 passed, 2 warnings in 150.21s`; dependency audit и все обязательные jobs — `success`.
+- Единственные annotations — existing non-blocking official-actions Node.js 20/24 migration
+  notices. DB/schema/migration, dependencies, provider/network/AI paths, financial semantics и
+  RM-107 score/recommendation/critical stop-factor priority не изменены. Rollback — revert feature
+  merge без DB/data/settings downgrade. RM-147 переведён в `DONE`; RM-148 назначен единственным
+  `IN PROGRESS`, RM-149–RM-200 остаются `PLANNED`.
+
 ## 2026-07-19 — RM-146 завершён, RM-147 активирован
 
 - Audit/contract/plan зафиксированы commit `aeb02e7`; characterization — `0d1584b`,

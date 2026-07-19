@@ -1,15 +1,13 @@
-# RM-147 tender analytics local acceptance
+# RM-147 tender analytics acceptance
 
 ## Verdict and publication status
 
-The RM-147 feature package is implemented and locally accepted on Windows Python 3.12. The
-deterministic tender analytics page, filters, drill-down, exact export, provenance/partial states,
-and bounded performance contract are covered by the complete repository suite.
+Feature implementation, publication, PR-head gate, merge, and exact merge-SHA gate are complete.
+The deterministic tender analytics page, filters, drill-down, exact export, provenance/partial
+states, and bounded performance contract are covered locally and on Windows Python 3.12/3.13.
 
-This is local feature evidence only. The branch has not been pushed, no feature PR has been opened,
-and no PR-head or exact merge-SHA Windows Python 3.12/3.13 Quality Gate exists yet. Therefore
-RM-147 remains the sole `IN PROGRESS` stage in `STATUS.md`/`ROADMAP.md`; this document does not claim
-Definition of Done or activate RM-148.
+This separate docs-only package records canonical closeout. RM-147 is `DONE` and RM-148 becomes the
+sole `IN PROGRESS` stage; RM-149–RM-200 remain `PLANNED`.
 
 ## Entry gate and traceability
 
@@ -38,6 +36,7 @@ Local implementation lineage:
 | `40b8339` | production route/page/controller, exact drill-down, lifecycle, icon and frozen coverage |
 | `b3f9a5b` | complete preset/custom/source/status/law/archive filter contract |
 | `0fd1ca6` | audited RM-146 chart-consumer allowlist |
+| `ea84b06` | local acceptance evidence |
 
 The characterization contour passed 7 tests. The expected-red commit produced exactly 18 failures,
 all caused by the intentionally absent RM-147 package, route, or seam; it exposed no inherited
@@ -137,6 +136,24 @@ suite had one failure in the inherited RM-146 characterization because it still 
 production chart consumer existed. The fix narrows that assertion to the two audited RM-147
 consumer files; its focused rerun passed 6 tests and the subsequent complete suite passed all 2,163.
 
+## GitHub acceptance and closeout
+
+- Feature PR #102 head: `ea84b068d437cf2e4e2e366aa94bb079938587e5`.
+- PR-head Quality Gate run `29692568668`: success. Python 3.12 job `88207743289` completed in
+  `4m36s` with `2163 passed, 2 warnings in 146.82s`; Python 3.13 job `88207743293` completed in
+  `4m40s` with `2163 passed, 2 warnings in 151.95s`.
+- Feature merge SHA: `d85cf8c99f8ee72279bbb8054942a0f4d5675ac2`.
+- Exact merge-SHA Quality Gate run `29693165086`: success. Python 3.12 job `88209342677` completed
+  in `6m36s` with `2163 passed, 2 warnings in 257.05s`; Python 3.13 job `88209342717` completed in
+  `4m48s` with `2163 passed, 2 warnings in 150.21s`.
+- Both runs passed secret scan, Ruff check/format (`705 files`), canonical mypy (`20 source files`),
+  offline/migration/import/composition/build/frozen smokes, full pytest, and dependency audit with
+  no known vulnerabilities.
+- The only annotations are existing non-blocking notices that GitHub is forcing official actions
+  from Node.js 20 to Node.js 24. They did not change either job conclusion.
+- This docs-only closeout updates `STATUS.md`, `ROADMAP.md`, and `ROADMAP_HISTORY.md`; it changes no
+  application code, dependency, database, schema, migration, setting, or user data.
+
 ## Rollback, residual risks, and closeout gate
 
 Rollback is a revert of the RM-147 branch commits to exact baseline `570ef10b`. No dependency,
@@ -147,8 +164,6 @@ non-deterministic shuffled result, missing contributor/provenance, hidden sampli
 unexpected network/collector access, export mismatch, frozen failure, or changed business-decision
 semantics.
 
-To complete RM-147 under `DEFINITION_OF_DONE.md`, the feature branch still requires explicit
-authorization to push/open a PR, successful Windows Python 3.12 and 3.13 PR-head Quality Gate,
-merge to `main`, successful exact merge-SHA Quality Gate, and a separate canonical docs-only
-closeout that updates `STATUS.md`, `ROADMAP.md`, and `ROADMAP_HISTORY.md`. Until those steps succeed,
-RM-148 must not start.
+All feature conditions in `DEFINITION_OF_DONE.md` are satisfied. The feature PR and exact merge-SHA
+gate are complete, and this separate canonical docs-only closeout records RM-147 as `DONE` and
+activates RM-148. RM-149 must not start until RM-148 separately satisfies Definition of Done.
