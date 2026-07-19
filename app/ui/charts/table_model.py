@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 
 from app.ui.charts.contracts import ChartSpec, ChartXValue
 
@@ -42,7 +42,7 @@ class ChartTableModel(QAbstractTableModel):
 
     _HEADERS = ("State", "Series ID", "Series", "Point ID", "X", "Y", "Unit")
 
-    def __init__(self, spec: ChartSpec, parent=None) -> None:
+    def __init__(self, spec: ChartSpec, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._spec = spec
         self._rows = self._build_rows(spec)
@@ -85,7 +85,11 @@ class ChartTableModel(QAbstractTableModel):
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802
         return 0 if parent.isValid() else len(self._HEADERS)
 
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole):
+    def data(
+        self,
+        index: QModelIndex,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> object | None:
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
         row = self._rows[index.row()]
@@ -107,7 +111,7 @@ class ChartTableModel(QAbstractTableModel):
         section: int,
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
-    ):
+    ) -> object | None:
         if role != Qt.ItemDataRole.DisplayRole:
             return None
         if orientation is Qt.Orientation.Horizontal and 0 <= section < len(self._HEADERS):

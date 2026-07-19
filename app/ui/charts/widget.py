@@ -5,7 +5,14 @@ from __future__ import annotations
 from html import escape
 
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QKeyEvent, QMouseEvent, QPaintEvent, QPainter, QResizeEvent
+from PySide6.QtGui import (
+    QFocusEvent,
+    QKeyEvent,
+    QMouseEvent,
+    QPaintEvent,
+    QPainter,
+    QResizeEvent,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
@@ -226,11 +233,11 @@ class ChartCanvas(QWidget):
         self._rebuild_plan()
         self._update_accessibility()
 
-    def focusInEvent(self, event) -> None:  # noqa: N802
+    def focusInEvent(self, event: QFocusEvent) -> None:  # noqa: N802
         super().focusInEvent(event)
         self.update()
 
-    def focusOutEvent(self, event) -> None:  # noqa: N802
+    def focusOutEvent(self, event: QFocusEvent) -> None:  # noqa: N802
         super().focusOutEvent(event)
         self.update()
 

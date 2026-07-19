@@ -17,6 +17,7 @@ from app.ui.charts.contracts import ChartSpec, ChartViewport, ChartXValue
 from app.ui.charts.painter import paint_chart
 from app.ui.charts.render_plan import normalize_chart
 from app.ui.theme.colors import ThemePalette
+from app.ui.viewmodels.dashboard_viewmodel import DashboardSourceEvidence
 
 
 MIN_EXPORT_WIDTH: Final = 320
@@ -61,7 +62,7 @@ def _exact_scalar(value: ChartXValue | Decimal | None) -> str | int | None:
     return value
 
 
-def _evidence_dict(evidence) -> dict[str, object]:
+def _evidence_dict(evidence: DashboardSourceEvidence) -> dict[str, object]:
     return {
         "source_id": evidence.source_id,
         "generation": evidence.generation,
@@ -197,7 +198,11 @@ def export_chart_png(spec: ChartSpec, viewport: ChartViewport, palette: ThemePal
     paint_chart(painter, plan)
     painter.end()
     buffer = QBuffer()
-    if not buffer.open(QIODevice.OpenModeFlag.WriteOnly) or not image.save(buffer, "PNG"):
+    # Qt for Python documents and the 6.11 runtime require `str`; its stub says bytes.
+    if not buffer.open(QIODevice.OpenModeFlag.WriteOnly) or not image.save(
+        buffer,
+        "PNG",  # type: ignore[call-overload]
+    ):
         raise RuntimeError("Could not encode PNG")
     return bytes(buffer.data())
 
