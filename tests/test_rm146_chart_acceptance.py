@@ -10,7 +10,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QPoint, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget
@@ -194,7 +194,9 @@ def test_security_fixture_rejects_controls_and_bidi_and_escapes_tooltip_html() -
     widget.show()
     app.processEvents()
     mark = widget.canvas.render_plan.marks[0]
+    QTest.mouseMove(widget.canvas, QPoint(1, 1))
     QTest.mouseMove(widget.canvas, mark.hit_rect.center().to_point())
+    app.processEvents()
 
     assert widget.selection is None
     assert "<b>synthetic</b>" in widget.canvas.tooltip_text
