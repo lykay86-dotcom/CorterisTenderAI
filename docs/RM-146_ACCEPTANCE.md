@@ -2,12 +2,9 @@
 
 ## Verdict and publication status
 
-Local feature acceptance for `UI-141-007` is **PASSED** at implementation head
-`06323f279ba0b67352e3d234bd8cd7c7f42abc21`. The reusable chart presentation layer is complete,
-bounded, synthetic-fixture tested, and frozen-build verified. Feature PR, PR-head CI, merge,
-exact merge-SHA Windows Python 3.12/3.13 CI, and docs-only closeout are still pending. Therefore
-RM-146 correctly remains the sole `IN PROGRESS` stage; this document does not mark it `DONE` or
-activate RM-147.
+Feature implementation, publication, PR-head gate, merge and exact merge-SHA gate for
+`UI-141-007` are complete. This separate docs-only package records canonical closeout and activates
+RM-147.
 
 ## Entry gate and traceability
 
@@ -229,12 +226,22 @@ schema, setting, credential, or persisted user data requires downgrade. Stop pub
 failed PR/head or exact merge-SHA gate, new warning/vulnerability, duplicate owner, artifact/privacy
 leak, unexplained Python 3.13/frozen failure, or changed business-decision semantics.
 
-## GitHub and closeout fields
+## GitHub acceptance and closeout
 
-- Feature PR: `PENDING`.
-- Feature PR head Quality Gate: `PENDING`.
-- Feature merge SHA: `PENDING`.
-- Exact feature merge-SHA Windows Python 3.12/3.13 gate: `PENDING`.
-- Docs-only closeout PR/merge/exact gate: `PENDING`.
-- Canonical closure of `UI-141-007`: `PENDING CLOSEOUT`.
-- RM-146 `DONE` / RM-147 sole `IN PROGRESS`: `NOT YET AUTHORIZED`.
+- Feature PR #100 head: `72118c31a31f16b524c79ee83bc82a9daf7071fb`.
+- PR-head Quality Gate run `29685966343`: `success`; Python 3.12 — `6m18s`, Python 3.13 —
+  `4m16s`. The first Python 3.12 job ended in a native Windows access violation without a test
+  assertion; the failed-job rerun on the same SHA passed without code or documentation changes.
+- Final PR-head full suites: Python 3.12 — `2123 passed, 2 warnings in 247.36s`; Python 3.13 —
+  `2123 passed, 2 warnings in 138.55s`.
+- Feature merge SHA: `e09af67931c3a63874e259bed08efc5ce3a14284`.
+- Exact merge-SHA push run `29686798140`: `success`; Python 3.12 — `5m8s`,
+  `2123 passed, 2 warnings in 178.36s`; Python 3.13 — `4m54s`,
+  `2123 passed, 2 warnings in 168.63s`. Dependency audit and every required step succeeded.
+- The only annotations are the existing non-blocking official-actions Node.js 20/24 migration
+  notices.
+- This docs-only closeout changes only `ROADMAP.md`, `STATUS.md`, `ROADMAP_HISTORY.md` and this
+  acceptance file. It marks RM-146 `DONE` and activates RM-147 as the sole `IN PROGRESS` stage.
+
+Final DoD verdict: RM-146 satisfies the Definition of Done. Feature and exact merge-SHA gates are
+green; `UI-141-007` is closed; DB/data/settings downgrade is unnecessary.

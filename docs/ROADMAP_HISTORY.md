@@ -1,5 +1,34 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-19 — RM-146 завершён, RM-147 активирован
+
+- Audit/contract/plan зафиксированы commit `aeb02e7`; characterization — `0d1584b`,
+  expected-red contract — `162bd08`.
+- Один dependency-free QPainter owner `app.ui.charts` предоставляет immutable bar/line contracts,
+  deterministic normalized render plan, typed selection и один semantic path для UI и exports.
+- Восемь honest states, aware-time/Decimal/missing rules, complete-data accessible table,
+  mouse/keyboard interaction и PNG/SVG/JSON/CSV exports не вводят второй theme/router/DI или
+  business owner.
+- Six-series/1,000-render/10,000-data limits, resize/DPI behavior и isolated hidden frozen smoke
+  измерены. Native Narrator/high-contrast/per-monitor DPI observations остаются честно переданными
+  RM-152, optimization — RM-153, cross-platform pixel-golden work — RM-154.
+- Локальная acceptance: focused `27 passed`, neighboring contour `203 passed`, full pytest
+  `2123 passed, 2 warnings in 133.56s`; secret scan, Ruff/format (`682 files`), required/strict
+  mypy, frozen/build smoke, design-system guard и dependency audit успешны.
+- Feature PR #100 на head `72118c31a31f16b524c79ee83bc82a9daf7071fb` слит merge commit
+  `e09af67931c3a63874e259bed08efc5ce3a14284`.
+- PR-head Quality Gate `29685966343` успешен: Python 3.12 — `6m18s`, Python 3.13 — `4m16s`.
+  Первый Python 3.12 job завершился native Windows access violation без test assertion; rerun того
+  же SHA прошёл без code/doc изменений. Финальные full suites — `2123 passed, 2 warnings` на обеих
+  версиях.
+- Exact merge-SHA run `29686798140` успешен: Python 3.12 — `5m8s`, Python 3.13 — `4m54s`;
+  full suite, dependency audit и все обязательные jobs завершились `success`.
+- Единственные annotations — existing non-blocking official-actions Node.js 20/24 migration
+  notices. DB/schema/migration, runtime dependencies, KPI/tender/financial semantics и RM-107
+  score/recommendation/critical stop-factor priority не изменены. Rollback — revert feature merge
+  без DB/data/settings downgrade. RM-146 переведён в `DONE`; RM-147 назначен единственным
+  `IN PROGRESS`, RM-148–RM-200 остаются `PLANNED`.
+
 ## 2026-07-19 — RM-145 завершён, RM-146 активирован
 
 - Audit-first contract зафиксирован commit `89d8346`; characterization — `3e2ae9a`,
