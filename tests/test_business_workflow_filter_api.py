@@ -52,3 +52,32 @@ def test_filter_changes_do_not_emit_deprecation_warning() -> None:
     ]
     assert deprecated == []
     assert proxy.rowCount() == 1
+
+
+def test_record_scope_uses_exact_stable_ids_and_can_be_cleared() -> None:
+    _app()
+    model = WorkflowTableModel(
+        [
+            BusinessWorkflowRecord(
+                id=record_id,
+                kind=BusinessRecordKind.PROPOSAL.value,
+                tender_id=record_id,
+                title=record_id,
+                status=BusinessStatus.READY.value,
+                updated_at="2026-07-19T12:00:00",
+            )
+            for record_id in ("included", "excluded")
+        ]
+    )
+    proxy = WorkflowFilterProxyModel()
+    proxy.setSourceModel(model)
+
+    proxy.set_record_scope(("included",))
+    assert proxy.rowCount() == 1
+    assert proxy.index(0, 1).data() == "included"
+
+    proxy.set_record_scope(())
+    assert proxy.rowCount() == 0
+
+    proxy.set_record_scope(None)
+    assert proxy.rowCount() == 2

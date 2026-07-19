@@ -17,6 +17,7 @@ from app.ui.pages.business_workflow_page import (
     BusinessWorkflowPage,
     WorkflowNavigationState,
 )
+from app.ui.navigation.contracts import DashboardFilterId
 
 
 def _app() -> QApplication:
@@ -98,3 +99,41 @@ def test_workflow_navigation_state_is_presentation_only() -> None:
     assert not hasattr(state, "repository")
     assert not hasattr(state, "record")
     assert state.record_id is None
+
+
+def test_workflow_navigation_round_trips_dashboard_scope(tmp_path, monkeypatch) -> None:
+    _app()
+    monkeypatch.setattr(
+        "app.ui.pages.business_workflow_page.SystemHealthMonitor.request_refresh",
+        lambda _self: False,
+    )
+    repository = BusinessMetricsRepository(tmp_path / "workflow-filter.json")
+    active = repository.record_proposal(
+        "T-1",
+        title="Активное КП",
+        status=BusinessStatus.READY,
+    )
+    repository.record_proposal(
+        "T-2",
+        title="Заблокированное КП",
+        status=BusinessStatus.BLOCKED,
+    )
+    page = BusinessWorkflowPage(repository=repository)
+
+    page.apply_navigation_state(
+        WorkflowNavigationState(
+            dashboard_filter=(DashboardFilterId.WORKFLOW_ACTIVE_PROPOSALS.value),
+        )
+    )
+
+    assert page.proxy.rowCount() == 1
+    source_index = page.proxy.mapToSource(page.proxy.index(0, 0))
+    assert page.model.record_at(source_index.row()).id == active.id
+    assert (
+        page.capture_navigation_state().dashboard_filter
+        == DashboardFilterId.WORKFLOW_ACTIVE_PROPOSALS.value
+    )
+
+    page.apply_navigation_state(WorkflowNavigationState())
+    assert page.dashboard_filter is None
+    assert page.proxy.rowCount() == 2
