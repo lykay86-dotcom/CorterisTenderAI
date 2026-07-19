@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -15,7 +16,7 @@ from app.ui.dashboard.data_state import (
 )
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.tender_feed import TenderFeed
-from app.ui.viewmodels.dashboard_viewmodel import DashboardKpi
+from app.ui.viewmodels.dashboard_viewmodel import DashboardKpiState, DashboardViewModel
 
 
 def _app() -> QApplication:
@@ -62,17 +63,14 @@ def test_tender_feed_hides_table_for_blocking_state() -> None:
 
 def test_kpi_center_renders_loading_and_restores_values() -> None:
     _app()
-    center = KpiCenter(
-        [
-            DashboardKpi(
-                key="new_tenders",
-                title="Новые тендеры",
-                value="24",
-                trend="+5 сегодня",
-                tone="info",
-            )
-        ]
+    kpi = replace(
+        DashboardViewModel().state.kpis["new_tenders"],
+        value="24",
+        raw_value=24,
+        trend="+5 сегодня",
+        state=DashboardKpiState.READY,
     )
+    center = KpiCenter([kpi])
     card = center.cards["new_tenders"]
 
     center.set_data_state(DataState.loading())

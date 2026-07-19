@@ -226,7 +226,7 @@ class DashboardKpi:
     formula_version: str = "legacy"
     owner: str = "DashboardViewModel"
     source_evidence: tuple[DashboardSourceEvidence, ...] = ()
-    state: DashboardKpiState = DashboardKpiState.LOADING
+    state: DashboardKpiState = DashboardKpiState.READY
     state_reason: str = ""
     action: DashboardKpiAction | None = None
     accessible_description: str = ""
