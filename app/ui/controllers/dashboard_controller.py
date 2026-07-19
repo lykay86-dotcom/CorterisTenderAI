@@ -303,11 +303,7 @@ class DashboardSnapshotBuilder:
                 )
 
             prior_observed_at = min(
-                (
-                    evidence.observed_at
-                    for evidence in prior.source_evidence
-                    if not evidence.refresh_failed
-                ),
+                (evidence.observed_at for evidence in prior.source_evidence),
                 default=loaded_at,
             )
             age = loaded_at - aware_dashboard_time(prior_observed_at)

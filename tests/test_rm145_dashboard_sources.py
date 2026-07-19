@@ -85,6 +85,32 @@ def test_retained_value_becomes_stale_after_ten_minutes() -> None:
     assert _values(refreshed)["new_tenders"].state is DashboardKpiState.STALE
 
 
+def test_repeated_failed_refresh_keeps_original_source_age() -> None:
+    builder = DashboardSnapshotBuilder()
+    fresh = builder.build([_Tender()], now=NOW, business=_business(), generation=1)
+    partial = builder.build(
+        [],
+        now=NOW + timedelta(minutes=5),
+        business=_business(),
+        generation=2,
+        previous=fresh,
+        tender_error="first failure",
+    )
+
+    stale = builder.build(
+        [],
+        now=NOW + timedelta(minutes=11),
+        business=_business(),
+        generation=3,
+        previous=partial,
+        tender_error="second failure",
+    )
+
+    value = _values(stale)["new_tenders"]
+    assert value.state is DashboardKpiState.STALE
+    assert value.source_evidence[0].observed_at == NOW
+
+
 def test_failed_source_without_prior_value_is_error_not_zero() -> None:
     snapshot = DashboardSnapshotBuilder().build(
         [_Tender()],
