@@ -99,11 +99,12 @@ repositories/fake adapters, and isolated repository-local pytest bases.
 | source isolation/freshness final selection | `5 passed in 1.25s` |
 | typed destination/navigation selection | `27 passed in 18.23s` |
 | final Dashboard/source/drill-down selection | `31 passed in 6.66s` |
-| full `python -m pytest tests -q` | `2094 passed, 2 warnings in 187.89s (0:03:07)` |
+| full implementation rerun | `2094 passed, 2 warnings in 187.89s (0:03:07)` |
+| exact acceptance commit `e42308f` | `2095 passed, 2 warnings in 166.94s (0:02:46)` |
 
 The two warnings are the unchanged openpyxl unsupported-extension and conditional-formatting
 warnings in `test_rm132_legacy_credentials_handoff.py`. RM-145 adds no warning. The suite increased
-by 21 tests covering characterization, expected-red contracts now green, state/freshness, exact
+by 22 tests covering characterization, expected-red contracts now green, state/freshness, exact
 contributors, uncapped timezone-aware tender filtering, typed routing, scope restoration, and
 keyboard activation.
 
@@ -127,7 +128,8 @@ The first full-suite command was intentionally bounded at 120 seconds and was te
 after exposing one compatibility failure. A focused reproduction identified a legacy manually
 constructed card whose explicit value remained disabled after global loading. Commit `f15cdda`
 restored safe compatibility, the focused contour passed `9/9`, and the complete rerun passed all
-2094 tests. This was a real acceptance finding, not omitted evidence.
+2094 tests. A later repeated-failure freshness regression test raised the final exact acceptance
+count to 2095. This was a real acceptance finding, not omitted evidence.
 
 ## No-duplicate and change-surface evidence
 
