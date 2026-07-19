@@ -66,6 +66,7 @@ DEFAULT_REQUIRED_MODULES = (
     "cryptography",
     "py7zr",
     "rarfile",
+    "app.ui.charts",
 )
 
 
@@ -85,6 +86,7 @@ def run_frozen_self_test(
     checks.append(_check_collector_database(context))
     checks.append(_check_provider_composition(context))
     checks.append(_check_safe_archive(context))
+    checks.append(_check_chart_rendering())
 
     report = FrozenSelfTestReport(
         application=APP_NAME,
@@ -397,6 +399,91 @@ def _check_safe_archive(
         )
     finally:
         shutil.rmtree(test_root, ignore_errors=True)
+
+
+def _check_chart_rendering() -> FrozenSelfTestCheck:
+    """Render bounded synthetic chart artifacts without data or network access."""
+    try:
+        from decimal import Decimal
+        import os
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+        from PySide6.QtWidgets import QApplication
+
+        from app.ui.charts import (
+            ChartAxis,
+            ChartAxisScale,
+            ChartKind,
+            ChartPoint,
+            ChartSeries,
+            ChartSpec,
+            ChartViewport,
+            export_chart_csv,
+            export_chart_json,
+            export_chart_png,
+            export_chart_svg,
+        )
+        from app.ui.theme.colors import DARK_PALETTE, LIGHT_PALETTE
+
+        application = QApplication.instance() or QApplication(["corteris-chart-self-test"])
+        spec = ChartSpec(
+            chart_id="frozen-self-test",
+            kind=ChartKind.BAR,
+            title="Synthetic frozen chart",
+            x_axis=ChartAxis(ChartAxisScale.CATEGORY),
+            y_axis=ChartAxis(ChartAxisScale.NUMERIC, unit="units"),
+            series=(
+                ChartSeries(
+                    "synthetic",
+                    "Synthetic",
+                    (
+                        ChartPoint("one", "One", Decimal("1.25")),
+                        ChartPoint("two", "Two", Decimal("0")),
+                    ),
+                ),
+            ),
+        )
+        viewport = ChartViewport(320, 200)
+        json_data = export_chart_json(spec)
+        csv_data = export_chart_csv(spec)
+        dark_png = export_chart_png(spec, viewport, DARK_PALETTE)
+        light_png = export_chart_png(spec, viewport, LIGHT_PALETTE)
+        svg = export_chart_svg(spec, viewport, DARK_PALETTE)
+        ok = (
+            json_data.endswith(b"\n")
+            and csv_data.startswith(b"contract_version,")
+            and dark_png.startswith(b"\x89PNG\r\n\x1a\n")
+            and light_png.startswith(b"\x89PNG\r\n\x1a\n")
+            and b"<svg" in svg
+        )
+        application.processEvents()
+        return FrozenSelfTestCheck(
+            name="chart_rendering",
+            ok=ok,
+            message=(
+                "Synthetic chart import and data/PNG/SVG rendering succeeded."
+                if ok
+                else "Synthetic chart artifact signatures were invalid."
+            ),
+            details={
+                "backend": "QWidget/QPainter",
+                "viewport": "320x200",
+                "json_bytes": len(json_data),
+                "csv_bytes": len(csv_data),
+                "dark_png_bytes": len(dark_png),
+                "light_png_bytes": len(light_png),
+                "svg_bytes": len(svg),
+                "qt_platform": os.environ.get("QT_QPA_PLATFORM", ""),
+            },
+        )
+    except Exception as exc:
+        return FrozenSelfTestCheck(
+            name="chart_rendering",
+            ok=False,
+            message="Synthetic chart rendering failed.",
+            details={"error": f"{type(exc).__name__}: {exc}"},
+        )
 
 
 __all__ = [

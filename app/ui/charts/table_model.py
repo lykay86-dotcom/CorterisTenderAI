@@ -108,7 +108,7 @@ class ChartTableModel(QAbstractTableModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ):
-        if role is not Qt.ItemDataRole.DisplayRole:
+        if role != Qt.ItemDataRole.DisplayRole:
             return None
         if orientation is Qt.Orientation.Horizontal and 0 <= section < len(self._HEADERS):
             return self._HEADERS[section]

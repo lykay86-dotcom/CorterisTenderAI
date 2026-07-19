@@ -20,6 +20,9 @@ MAX_POINTS_PER_SERIES: Final = 10_000
 MAX_RENDER_POINTS: Final = 1_000
 
 _ID_PATTERN: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
+_BIDI_CONTROLS: Final = frozenset(
+    "\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
+)
 
 ChartSourceEvidence = DashboardSourceEvidence
 ChartXValue: TypeAlias = str | int | Decimal | datetime
@@ -111,8 +114,11 @@ def _checked_text(
         raise ValueError(f"{field_name} must not be blank")
     if len(value) > maximum:
         raise ValueError(f"{field_name} must not exceed {maximum} characters")
-    if any(unicodedata.category(character) == "Cc" for character in value):
-        raise ValueError(f"{field_name} must not contain control characters")
+    if any(
+        unicodedata.category(character) == "Cc" or character in _BIDI_CONTROLS
+        for character in value
+    ):
+        raise ValueError(f"{field_name} must not contain control or bidi characters")
     return value
 
 

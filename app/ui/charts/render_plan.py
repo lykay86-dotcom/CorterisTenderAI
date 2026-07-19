@@ -184,12 +184,25 @@ def _x_text(value: ChartXValue) -> str:
 
 def _numeric_x(value: ChartXValue) -> float:
     if isinstance(value, datetime):
-        return value.timestamp()
+        result = value.timestamp()
+        if not math.isfinite(result):
+            raise ValueError("Chart X value is outside the renderable coordinate range")
+        return result
     if isinstance(value, Decimal):
-        return float(value)
+        result = float(value)
+        if not math.isfinite(result):
+            raise ValueError("Chart X value is outside the renderable coordinate range")
+        return result
     if isinstance(value, int) and not isinstance(value, bool):
         return float(value)
     raise TypeError("Expected numeric or datetime X value")
+
+
+def _numeric_y(value: Decimal) -> float:
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError("Chart Y value is outside the renderable coordinate range")
+    return result
 
 
 def _validate_order(spec: ChartSpec) -> None:
@@ -280,7 +293,7 @@ def normalize_chart(
             selectable_ids=(),
         )
 
-    y_values = tuple(float(point.y) for _series, point in present if point.y is not None)
+    y_values = tuple(_numeric_y(point.y) for _series, point in present if point.y is not None)
     y_min = min((*y_values, 0.0))
     y_max = max((*y_values, 0.0))
     if math.isclose(y_min, y_max):
@@ -327,7 +340,7 @@ def _bar_marks(
         ticks.append(RenderTick(point.label or _x_text(point.x), round(center_x, 4)))
         if point.y is None:
             continue
-        value_y = plot.y + plot.height - _scale(float(point.y), y_min, y_max, 0.0, plot.height)
+        value_y = plot.y + plot.height - _scale(_numeric_y(point.y), y_min, y_max, 0.0, plot.height)
         top = min(value_y, zero_y)
         height = abs(zero_y - value_y)
         rect = GeometryRect(
@@ -389,7 +402,7 @@ def _line_marks(
                     current_points = []
                 continue
             x = _scale(_numeric_x(point.x), x_min, x_max, plot.x, plot.width)
-            y = plot.y + plot.height - _scale(float(point.y), y_min, y_max, 0.0, plot.height)
+            y = plot.y + plot.height - _scale(_numeric_y(point.y), y_min, y_max, 0.0, plot.height)
             logical = GeometryPoint(round(x, 4), round(y, 4))
             current_ids.append(point.point_id)
             current_points.append(logical)

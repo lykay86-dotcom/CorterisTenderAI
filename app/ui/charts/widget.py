@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from html import escape
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QKeyEvent, QMouseEvent, QPaintEvent, QPainter, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -279,6 +279,35 @@ class ChartCanvas(QWidget):
             )
             self._select(selected.series_id, selected.point_id, ChartSelectionCause.MOUSE)
         event.accept()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        position = event.position()
+        candidates = tuple(
+            mark
+            for mark in self._render_plan.marks
+            if mark.hit_rect.contains(position.x(), position.y())
+        )
+        if candidates:
+            hovered = min(
+                candidates,
+                key=lambda mark: ((mark.x - position.x()) ** 2) + ((mark.y - position.y()) ** 2),
+            )
+            self._tooltip_text = self._tooltip_for(hovered)
+            self.setToolTip(escape(self._tooltip_text))
+        elif self._selection is None:
+            self._tooltip_text = ""
+            self.setToolTip("")
+        event.accept()
+
+    def leaveEvent(self, event: QEvent) -> None:  # noqa: N802
+        if self._selection is None:
+            self._tooltip_text = ""
+            self.setToolTip("")
+        else:
+            mark = self._mark(self._selection.series_id, self._selection.point_id)
+            self._tooltip_text = "" if mark is None else self._tooltip_for(mark)
+            self.setToolTip(escape(self._tooltip_text))
+        super().leaveEvent(event)
 
 
 class ChartWidget(QWidget):
