@@ -65,4 +65,4 @@ def test_empty_kpis_have_stable_order_and_zero_values() -> None:
         "attention",
     ]
     assert kpis[1].value == "0"
-    assert kpis[0].value == "0 ₽"
+    assert kpis[0].value == "0.00 ₽"

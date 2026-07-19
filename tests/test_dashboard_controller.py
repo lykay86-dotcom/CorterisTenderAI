@@ -58,7 +58,7 @@ def test_snapshot_maps_real_tender_fields() -> None:
 
     tender = snapshot.tenders[0]
     assert tender.number == "0123456789"
-    assert tender.nmck == "1 250 000 ₽"
+    assert tender.nmck == "1 250 000.00 ₽"
     assert tender.score == 91
     assert snapshot.number_to_id["0123456789"] == "uuid-1"
 

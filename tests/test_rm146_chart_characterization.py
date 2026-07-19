@@ -139,6 +139,7 @@ def test_only_rm147_approved_consumers_import_the_chart_package() -> None:
             consumers.append(path.relative_to(ROOT).as_posix())
 
     assert sorted(consumers) == [
+        "app/financial/chart_adapter.py",
         "app/tenders/analytics/chart_adapter.py",
         "app/ui/pages/tender_analytics_page.py",
     ]

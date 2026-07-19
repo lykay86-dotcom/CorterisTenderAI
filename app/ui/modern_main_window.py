@@ -292,6 +292,7 @@ class ModernMainWindow(QMainWindow):
             self.analytics_page,
             registry,
             CollectorStateRepository(registry.path),
+            business_repository=self.business_repository,
             parent=self,
         )
         self.analytics_page.contributor_activated.connect(

@@ -12,6 +12,15 @@ from typing import Any, Iterable, Sequence
 
 from openpyxl import load_workbook
 
+from app.financial import (
+    MARGIN_CONTRACT_VERSION,
+    NUMERIC_CONTRACT_VERSION,
+    FinancialValueState,
+    canonical_money,
+    canonical_percentage,
+    derive_margin,
+    parse_money,
+)
 from app.repositories.business_metrics import (
     BusinessMetricsRepository,
     BusinessRecordKind,
@@ -319,6 +328,23 @@ class WorkflowExcelImporter:
                     fatal_issues=tuple(fatal),
                 )
 
+            exact_present = "FinancialExact" in workbook.sheetnames
+            try:
+                exact = self._exact_metadata(workbook)
+            except ValueError as exc:
+                fatal.append(
+                    WorkflowImportIssue(
+                        WorkflowImportLevel.ERROR,
+                        f"Повреждены точные финансовые метаданные: {exc}",
+                    )
+                )
+                return WorkflowImportPreview(
+                    path=target,
+                    sheet_name=sheet.title,
+                    rows=(),
+                    fatal_issues=tuple(fatal),
+                )
+
             rows: list[WorkflowImportRow] = []
             for excel_row in range(header_row + 1, sheet.max_row + 1):
                 values = {
@@ -330,7 +356,20 @@ class WorkflowExcelImporter:
                 }
                 if self._is_empty_row(values.values()):
                     continue
-                rows.append(self._parse_row(excel_row, values))
+                record_id = self._text(values.get("record_id"))
+                exact_values = exact.get(record_id)
+                row = self._parse_row(excel_row, values)
+                if exact_present and exact_values is None:
+                    row.issues.append(
+                        WorkflowImportIssue(
+                            WorkflowImportLevel.ERROR,
+                            "Для записи нет строки в FinancialExact.",
+                            "record_id",
+                        )
+                    )
+                elif exact_values is not None:
+                    self._apply_exact_metadata(row, exact_values)
+                rows.append(row)
 
             self._validate_duplicates(rows)
             self._validate_existing(rows, existing_records)
@@ -449,6 +488,99 @@ class WorkflowExcelImporter:
             imported_ids=tuple(imported_ids),
         )
 
+    @staticmethod
+    def _exact_metadata(workbook) -> dict[str, tuple[Decimal, Decimal, Decimal]]:
+        if "FinancialExact" not in workbook.sheetnames:
+            return {}
+        sheet = workbook["FinancialExact"]
+        headers = {
+            str(sheet.cell(1, column).value or "").strip(): column
+            for column in range(1, sheet.max_column + 1)
+        }
+        required = {
+            "record_id",
+            "total_exact",
+            "profit_exact",
+            "margin_exact",
+            "currency",
+            "money_unit",
+            "margin_unit",
+            "numeric_contract",
+            "margin_contract",
+        }
+        missing = required - set(headers)
+        if missing:
+            raise ValueError(f"missing columns: {', '.join(sorted(missing))}")
+
+        result: dict[str, tuple[Decimal, Decimal, Decimal]] = {}
+        for row_number in range(2, sheet.max_row + 1):
+            record_id = str(sheet.cell(row_number, headers["record_id"]).value or "").strip()
+            if not record_id:
+                raise ValueError(f"row {row_number}: empty record_id")
+            if record_id in result:
+                raise ValueError(f"row {row_number}: duplicate record_id")
+            if sheet.cell(row_number, headers["currency"]).value != "RUB":
+                raise ValueError(f"row {row_number}: unsupported currency")
+            if sheet.cell(row_number, headers["money_unit"]).value != "money":
+                raise ValueError(f"row {row_number}: invalid money unit")
+            if sheet.cell(row_number, headers["margin_unit"]).value != "percentage_point":
+                raise ValueError(f"row {row_number}: invalid margin unit")
+            if (
+                sheet.cell(row_number, headers["numeric_contract"]).value
+                != NUMERIC_CONTRACT_VERSION
+            ):
+                raise ValueError(f"row {row_number}: unsupported numeric contract")
+            if sheet.cell(row_number, headers["margin_contract"]).value != MARGIN_CONTRACT_VERSION:
+                raise ValueError(f"row {row_number}: unsupported margin contract")
+
+            money: list[Decimal] = []
+            for exact_field in ("total_exact", "profit_exact"):
+                parsed = parse_money(sheet.cell(row_number, headers[exact_field]).value)
+                if not parsed.is_available or parsed.amount is None:
+                    raise ValueError(f"row {row_number}: invalid {exact_field}")
+                money.append(parsed.amount)
+            try:
+                margin = Decimal(str(sheet.cell(row_number, headers["margin_exact"]).value))
+            except (InvalidOperation, TypeError, ValueError) as exc:
+                raise ValueError(f"row {row_number}: invalid margin_exact") from exc
+            if (
+                not margin.is_finite()
+                or margin < 0
+                or margin > Decimal("1000")
+                or max(0, -margin.as_tuple().exponent) > 2
+            ):
+                raise ValueError(f"row {row_number}: invalid margin_exact")
+            result[record_id] = (money[0], money[1], margin)
+        return result
+
+    @staticmethod
+    def _apply_exact_metadata(
+        row: WorkflowImportRow,
+        exact: tuple[Decimal, Decimal, Decimal],
+    ) -> None:
+        projections = (row.total, row.profit, row.margin_percent)
+        labels = ("total", "profit", "margin_percent")
+        for label, projected, authoritative in zip(labels, projections, exact, strict=True):
+            projected_text = (
+                canonical_percentage(projected)
+                if label == "margin_percent"
+                else canonical_money(projected)
+            )
+            authoritative_text = (
+                canonical_percentage(authoritative)
+                if label == "margin_percent"
+                else canonical_money(authoritative)
+            )
+            if projected_text != authoritative_text:
+                row.issues.append(
+                    WorkflowImportIssue(
+                        WorkflowImportLevel.ERROR,
+                        f"Числовая ячейка {label} не совпадает с FinancialExact.",
+                        label,
+                    )
+                )
+        row.total, row.profit, row.margin_percent = exact
+
     def _find_header(
         self,
         sheet,
@@ -495,23 +627,21 @@ class WorkflowExcelImporter:
             row.issues,
         )
 
-        row.total = self._parse_decimal(
+        row.total = self._parse_money(
             values.get("total"),
             field_name="Сумма",
             issues=row.issues,
-            minimum=Decimal("0"),
         )
-        row.profit = self._parse_decimal(
+        row.profit = self._parse_money(
             values.get("profit"),
             field_name="Прибыль",
             issues=row.issues,
-            minimum=Decimal("0"),
         )
         row.margin_percent = self._parse_decimal(
             values.get("margin_percent"),
             field_name="Маржа",
             issues=row.issues,
-            minimum=Decimal("-100"),
+            minimum=Decimal("0"),
             maximum=Decimal("1000"),
         )
         row.due_date = self._parse_date(
@@ -562,12 +692,32 @@ class WorkflowExcelImporter:
                 )
             )
 
-        if row.total > 0 and row.margin_percent == 0 and row.profit > 0:
-            row.margin_percent = (row.profit / row.total * Decimal("100")).quantize(Decimal("0.01"))
+        derived = derive_margin(parse_money(row.total), parse_money(row.profit))
+        if derived.state is FinancialValueState.AVAILABLE and derived.value is not None:
+            supplied = canonical_percentage(row.margin_percent)
+            calculated = canonical_percentage(derived.value)
+            if row.margin_percent != 0 and supplied != calculated:
+                row.issues.append(
+                    WorkflowImportIssue(
+                        WorkflowImportLevel.ERROR,
+                        "Маржа не совпадает с суммой и прибылью.",
+                        "margin_percent",
+                    )
+                )
+            if row.margin_percent == 0 and row.profit > 0:
+                row.issues.append(
+                    WorkflowImportIssue(
+                        WorkflowImportLevel.INFO,
+                        "Маржа рассчитана автоматически.",
+                        "margin_percent",
+                    )
+                )
+            row.margin_percent = derived.value
+        elif row.margin_percent != 0:
             row.issues.append(
                 WorkflowImportIssue(
-                    WorkflowImportLevel.INFO,
-                    "Маржа рассчитана автоматически.",
+                    WorkflowImportLevel.ERROR,
+                    "Маржа не определена для указанных суммы и прибыли.",
                     "margin_percent",
                 )
             )
@@ -780,7 +930,45 @@ class WorkflowExcelImporter:
                     f"{field_name}: значение больше {maximum}.",
                 )
             )
+        if not result.is_finite():
+            issues.append(
+                WorkflowImportIssue(
+                    WorkflowImportLevel.ERROR,
+                    f"{field_name}: значение должно быть конечным.",
+                )
+            )
+        elif max(0, -result.as_tuple().exponent) > 2:
+            issues.append(
+                WorkflowImportIssue(
+                    WorkflowImportLevel.ERROR,
+                    f"{field_name}: допускается не более двух знаков после запятой.",
+                )
+            )
         return result
+
+    @staticmethod
+    def _parse_money(
+        value: Any,
+        *,
+        field_name: str,
+        issues: list[WorkflowImportIssue],
+    ) -> Decimal:
+        if value in {None, ""}:
+            return Decimal("0.00")
+        candidate: object = Decimal(str(value)) if isinstance(value, float) else value
+        try:
+            parsed = parse_money(candidate)
+        except Exception:
+            parsed = None
+        if parsed is None or not parsed.is_available or parsed.amount is None:
+            issues.append(
+                WorkflowImportIssue(
+                    WorkflowImportLevel.ERROR,
+                    f"{field_name}: требуется точная конечная сумма с двумя знаками.",
+                )
+            )
+            return Decimal("0.00")
+        return parsed.amount
 
     def _parse_date(
         self,

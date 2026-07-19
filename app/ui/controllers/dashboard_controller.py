@@ -16,6 +16,7 @@ from PySide6.QtCore import (
     Slot,
 )
 
+from app.financial import MoneyAmount, format_money
 from app.repositories.business_metrics import (
     BusinessActivity,
     BusinessMetricsRepository,
@@ -584,8 +585,7 @@ class DashboardSnapshotBuilder:
 
     @staticmethod
     def _format_money(value: Decimal) -> str:
-        rounded = value.quantize(Decimal("1"))
-        return f"{rounded:,.0f} ₽".replace(",", " ")
+        return format_money(MoneyAmount(value))
 
     @staticmethod
     def _value(entity: Any, name: str, default: Any) -> Any:

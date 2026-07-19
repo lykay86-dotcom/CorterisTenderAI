@@ -4,12 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 from pathlib import Path
 from typing import Any
 from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
+from app.financial import (
+    MARGIN_CONTRACT_VERSION,
+    CurrencyCode,
+    FinancialValueState,
+    parse_money,
+)
 from app.repositories.business_metrics import (
     BusinessAuditAction,
     BusinessMetricsRepository,
@@ -202,7 +209,11 @@ class WorkflowBackupService:
             errors.append(f"Повреждён manifest.json: {exc}")
 
         try:
-            value = json.loads(payload_bytes.decode("utf-8"))
+            value = json.loads(
+                payload_bytes.decode("utf-8"),
+                parse_float=Decimal,
+                parse_int=Decimal,
+            )
             if isinstance(value, dict):
                 payload = value
             else:
@@ -329,7 +340,11 @@ class WorkflowBackupService:
                 + "\n".join(f"• {error}" for error in inspection.errors)
             )
         with ZipFile(path, "r") as archive:
-            payload = json.loads(archive.read(self.PAYLOAD_NAME).decode("utf-8"))
+            payload = json.loads(
+                archive.read(self.PAYLOAD_NAME).decode("utf-8"),
+                parse_float=Decimal,
+                parse_int=Decimal,
+            )
         return inspection, payload
 
     def _validate_payload(
@@ -391,15 +406,26 @@ class WorkflowBackupService:
             for field in ("tender_id", "title"):
                 if not str(record.get(field, "")).strip():
                     errors.append(f"{prefix}: поле {field} не заполнено.")
-            for field in (
-                "total",
-                "profit",
-                "margin_percent",
-            ):
-                try:
-                    float(record.get(field, 0))
-                except (TypeError, ValueError):
-                    errors.append(f"{prefix}: поле {field} должно быть числом.")
+            for field in ("total", "profit"):
+                parsed = parse_money(record.get(field, 0))
+                if parsed.state is not FinancialValueState.AVAILABLE:
+                    errors.append(f"{prefix}: поле {field} должно быть точной конечной суммой.")
+            try:
+                margin = Decimal(str(record.get("margin_percent", 0)))
+                if (
+                    not margin.is_finite()
+                    or margin < 0
+                    or margin > Decimal("1000")
+                    or max(0, -margin.as_tuple().exponent) > 2
+                ):
+                    raise InvalidOperation
+            except (InvalidOperation, TypeError, ValueError):
+                errors.append(f"{prefix}: поле margin_percent должно быть точным процентом.")
+            if schema >= BusinessMetricsRepository.SCHEMA_VERSION:
+                if record.get("currency") != CurrencyCode.RUB.value:
+                    errors.append(f"{prefix}: поле currency должно быть RUB.")
+                if record.get("margin_version") != MARGIN_CONTRACT_VERSION:
+                    errors.append(f"{prefix}: неизвестная версия формулы маржи.")
 
         event_ids: set[str] = set()
         for index, event in enumerate(events, start=1):

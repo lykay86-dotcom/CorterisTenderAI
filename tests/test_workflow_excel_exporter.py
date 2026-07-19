@@ -98,7 +98,9 @@ def test_export_creates_summary_registry_and_history(tmp_path) -> None:
         "Сводка",
         "Реестр",
         "Журнал изменений",
+        "FinancialExact",
     ]
+    assert workbook["FinancialExact"].sheet_state == "hidden"
 
     registry = workbook["Реестр"]
     assert registry.max_row == 3

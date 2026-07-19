@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.financial import MoneyAmount, format_money
 from app.core.crash_report_catalog import (
     CrashReportCatalogService,
 )
@@ -2385,7 +2386,7 @@ class BusinessWorkflowPage(QWidget):
     @staticmethod
     def _money(value: Decimal | float) -> str:
         amount = Decimal(str(value or 0))
-        return f"{amount:,.0f} ₽".replace(",", " ")
+        return format_money(MoneyAmount(amount))
 
 
 __all__ = [
