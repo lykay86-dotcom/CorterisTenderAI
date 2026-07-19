@@ -570,7 +570,7 @@ class TenderRegistryDialog(QDialog):
                         TableState.PARTIAL
                         if (
                             verification_state is not None
-                            and verification_state.status is TenderVerificationStatus.CONFLICTED
+                            and verification_state.status is TenderVerificationStatus.CONFLICT
                         )
                         or (freshness_state is not None and freshness_state.is_stale)
                         else TableState.READY,
