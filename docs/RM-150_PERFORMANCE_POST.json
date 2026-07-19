@@ -1,0 +1,187 @@
+{
+  "baseline": "post-implementation",
+  "environment": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "pyside": "6.11.1",
+    "python": "3.12.7",
+    "qt_qpa_platform": "offscreen"
+  },
+  "measurement_head": "3e37a7c91046042edac17c588769ad628ec857f9",
+  "measurements": [
+    {
+      "maximum_ms": 0.007,
+      "minimum_ms": 0.004,
+      "p50_ms": 0.005,
+      "p95_ms": 0.007,
+      "peak_bytes": 288,
+      "repeats": 20,
+      "rows": 0,
+      "scenario": "workflow_model_reset"
+    },
+    {
+      "maximum_ms": 0.01,
+      "minimum_ms": 0.006,
+      "p50_ms": 0.007,
+      "p95_ms": 0.009,
+      "peak_bytes": 500,
+      "repeats": 20,
+      "rows": 0,
+      "scenario": "workflow_filter_missing_text"
+    },
+    {
+      "maximum_ms": 0.027,
+      "minimum_ms": 0.017,
+      "p50_ms": 0.019,
+      "p95_ms": 0.025,
+      "peak_bytes": 536,
+      "repeats": 20,
+      "rows": 0,
+      "scenario": "workflow_sort_decimal"
+    },
+    {
+      "maximum_ms": 0.009,
+      "minimum_ms": 0.003,
+      "p50_ms": 0.006,
+      "p95_ms": 0.008,
+      "peak_bytes": 128,
+      "repeats": 20,
+      "rows": 0,
+      "scenario": "dashboard_model_reset"
+    },
+    {
+      "maximum_ms": 0.092,
+      "minimum_ms": 0.069,
+      "p50_ms": 0.075,
+      "p95_ms": 0.087,
+      "peak_bytes": 6600,
+      "repeats": 20,
+      "rows": 100,
+      "scenario": "workflow_model_reset"
+    },
+    {
+      "maximum_ms": 1.549,
+      "minimum_ms": 0.889,
+      "p50_ms": 0.959,
+      "p95_ms": 1.235,
+      "peak_bytes": 2402,
+      "repeats": 20,
+      "rows": 100,
+      "scenario": "workflow_filter_missing_text"
+    },
+    {
+      "maximum_ms": 1.054,
+      "minimum_ms": 0.492,
+      "p50_ms": 0.685,
+      "p95_ms": 1.015,
+      "peak_bytes": 3255,
+      "repeats": 20,
+      "rows": 100,
+      "scenario": "workflow_sort_decimal"
+    },
+    {
+      "maximum_ms": 0.006,
+      "minimum_ms": 0.003,
+      "p50_ms": 0.004,
+      "p95_ms": 0.005,
+      "peak_bytes": 928,
+      "repeats": 20,
+      "rows": 100,
+      "scenario": "dashboard_model_reset"
+    },
+    {
+      "maximum_ms": 2.287,
+      "minimum_ms": 0.762,
+      "p50_ms": 0.9,
+      "p95_ms": 1.983,
+      "peak_bytes": 79792,
+      "repeats": 20,
+      "rows": 1000,
+      "scenario": "workflow_model_reset"
+    },
+    {
+      "maximum_ms": 13.549,
+      "minimum_ms": 8.148,
+      "p50_ms": 10.223,
+      "p95_ms": 13.415,
+      "peak_bytes": 2480,
+      "repeats": 20,
+      "rows": 1000,
+      "scenario": "workflow_filter_missing_text"
+    },
+    {
+      "maximum_ms": 9.476,
+      "minimum_ms": 5.316,
+      "p50_ms": 5.95,
+      "p95_ms": 8.279,
+      "peak_bytes": 24600,
+      "repeats": 20,
+      "rows": 1000,
+      "scenario": "workflow_sort_decimal"
+    },
+    {
+      "maximum_ms": 0.011,
+      "minimum_ms": 0.008,
+      "p50_ms": 0.008,
+      "p95_ms": 0.01,
+      "peak_bytes": 8128,
+      "repeats": 20,
+      "rows": 1000,
+      "scenario": "dashboard_model_reset"
+    },
+    {
+      "maximum_ms": 25.886,
+      "minimum_ms": 8.446,
+      "p50_ms": 10.589,
+      "p95_ms": 13.242,
+      "peak_bytes": 797264,
+      "repeats": 20,
+      "rows": 10000,
+      "scenario": "workflow_model_reset"
+    },
+    {
+      "maximum_ms": 159.7,
+      "minimum_ms": 89.118,
+      "p50_ms": 113.335,
+      "p95_ms": 137.449,
+      "peak_bytes": 2480,
+      "repeats": 20,
+      "rows": 10000,
+      "scenario": "workflow_filter_missing_text"
+    },
+    {
+      "maximum_ms": 97.514,
+      "minimum_ms": 57.315,
+      "p50_ms": 63.988,
+      "p95_ms": 90.907,
+      "peak_bytes": 240600,
+      "repeats": 20,
+      "rows": 10000,
+      "scenario": "workflow_sort_decimal"
+    },
+    {
+      "maximum_ms": 0.085,
+      "minimum_ms": 0.063,
+      "p50_ms": 0.074,
+      "p95_ms": 0.084,
+      "peak_bytes": 80128,
+      "repeats": 20,
+      "rows": 10000,
+      "scenario": "dashboard_model_reset"
+    }
+  ],
+  "method": {
+    "clock": "perf_counter_ns",
+    "data_generation_included": false,
+    "pass_thresholds": null,
+    "peak_allocation": "separate tracemalloc sample after timed samples",
+    "repeats": 20,
+    "sizes": [
+      0,
+      100,
+      1000,
+      10000
+    ],
+    "warmups": 5
+  },
+  "production_baseline_commit": "c7b9c2210dbcbb5db7b9b24fc81f0809d05f8d6b"
+}
