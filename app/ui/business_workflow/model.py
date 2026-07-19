@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum, StrEnum
-from typing import Any
+from typing import Any, Iterable
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -424,6 +424,7 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         self._kind = ""
         self._status = ""
         self._archive_mode = WorkflowArchiveMode.ACTIVE
+        self._record_scope: frozenset[str] | None = None
         self.setDynamicSortFilter(True)
         self.setSortRole(WorkflowRole.SORT)
 
@@ -450,6 +451,13 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         mode: WorkflowArchiveMode | str,
     ) -> None:
         self._archive_mode = WorkflowArchiveMode(mode)
+        self._refresh_rows()
+
+    def set_record_scope(self, record_ids: Iterable[str] | None) -> None:
+        """Restrict rows to exact stable IDs from a repository-owned KPI selector."""
+        self._record_scope = (
+            None if record_ids is None else frozenset(str(record_id) for record_id in record_ids)
+        )
         self._refresh_rows()
 
     def _refresh_rows(self) -> None:
@@ -495,6 +503,8 @@ class WorkflowFilterProxyModel(QSortFilterProxyModel):
         if self._kind and record.kind != self._kind:
             return False
         if self._status and record.status != self._status:
+            return False
+        if self._record_scope is not None and record.id not in self._record_scope:
             return False
 
         if not self._search:

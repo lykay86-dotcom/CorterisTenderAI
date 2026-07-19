@@ -71,7 +71,7 @@ class DashboardPage(QWidget):
     analyze_documents_requested = Signal()
     tender_open_requested = Signal(str)
     recommendation_action_requested = Signal(int)
-    kpi_action_requested = Signal(str)
+    kpi_action_requested = Signal(object)
     demo_mode_changed = Signal(bool)
 
     def __init__(
@@ -323,18 +323,12 @@ class DashboardPage(QWidget):
             DataState.loading("Подготавливаем демонстрационные KPI, тендеры и AI-рекомендации.")
         )
 
-        for kpi in demo.kpis:
-            self.viewmodel.set_kpi(
-                kpi.key,
-                value=kpi.value,
-                trend=kpi.trend,
-                tone=kpi.tone,
-                title=kpi.title,
-                icon_text=kpi.icon_text,
-            )
-
-        self.viewmodel.set_recent_tenders(demo.tenders)
-        self.viewmodel.set_ai_recommendations(demo.recommendations)
+        self.viewmodel.apply_snapshot(
+            demo.kpis,
+            recent_tenders=demo.tenders,
+            ai_recommendations=demo.recommendations,
+            loaded_at=demo.generated_at,
+        )
         self.activity_feed.set_entries(demo.activities)
         self.activity_section.set_badge(str(len(demo.activities)))
 
@@ -363,18 +357,13 @@ class DashboardPage(QWidget):
 
         self._demo_mode = False
 
-        for kpi in build_empty_dashboard_kpis():
-            self.viewmodel.set_kpi(
-                kpi.key,
-                value=kpi.value,
-                trend=kpi.trend,
-                tone=kpi.tone,
-                title=kpi.title,
-                icon_text=kpi.icon_text,
-            )
-
-        self.viewmodel.set_recent_tenders([])
-        self.viewmodel.set_ai_recommendations([])
+        empty_kpis = build_empty_dashboard_kpis()
+        self.viewmodel.apply_snapshot(
+            empty_kpis,
+            recent_tenders=(),
+            ai_recommendations=(),
+            loaded_at=empty_kpis[0].source_evidence[0].observed_at,
+        )
         self.activity_feed.clear()
         self.activity_section.set_badge("Сегодня")
         self.quick_actions.set_badge("find_tenders", "")
@@ -881,10 +870,9 @@ class DashboardPage(QWidget):
 
     def _kpi_int(self, key: str) -> int:
         kpi = self.viewmodel.state.kpis.get(key)
-        if kpi is None:
+        if kpi is None or not isinstance(kpi.raw_value, int):
             return 0
-        digits = "".join(character for character in kpi.value if character.isdigit())
-        return int(digits) if digits else 0
+        return kpi.raw_value
 
     @staticmethod
     def _priority_tender(

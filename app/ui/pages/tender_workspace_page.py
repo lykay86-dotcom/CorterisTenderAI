@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 import json
 from typing import TYPE_CHECKING
@@ -33,7 +34,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from app.repositories.tenders import TenderRepository
+from app.repositories.tenders import TenderRepository, select_dashboard_tenders
 from app.services.import_service import ImportService
 from app.tender_analysis.engine import AnalysisEngine
 from app.estimates.calculator import EstimateCalculator, EstimateItem, ProfitMode
@@ -54,6 +55,8 @@ from app.database.maintenance import DatabaseMaintenanceService
 from app.database.session import get_engine
 from app.core.json_serialization import json_dumps
 from app.ui.ai_provider_settings import AiProviderSettingsWidget
+from app.ui.navigation.contracts import DashboardFilterId, RouteId
+from app.ui.viewmodels.dashboard_viewmodel import APP_TIMEZONE
 
 if TYPE_CHECKING:
     from app.core.ai.provider_selection import AiProviderSelectionService
@@ -144,6 +147,7 @@ class TenderWorkspacePage(QWidget):
         self.price_repo = PriceOfferRepository(PROJECT_ROOT / "data" / "price_offers.json")
         self.price_service = PriceSearchService(self.price_repo)
         self.current_price_results = []
+        self._dashboard_filter: DashboardFilterId | None = None
         self._unified_search_panel: QWidget | None = None
         self._build()
         self._load()
@@ -265,6 +269,22 @@ class TenderWorkspacePage(QWidget):
     def refresh_tenders(self) -> None:
         """Refresh the existing local tender table."""
         self.refresh()
+
+    @property
+    def dashboard_filter(self) -> DashboardFilterId | None:
+        return self._dashboard_filter
+
+    def apply_dashboard_filter(self, dashboard_filter: str | None) -> None:
+        """Apply or clear one closed Dashboard tender cohort."""
+        if dashboard_filter is None:
+            self._dashboard_filter = None
+        else:
+            filter_id = DashboardFilterId(dashboard_filter)
+            if filter_id.route_id is not RouteId.TENDERS:
+                raise ValueError("Dashboard filter does not belong to tenders")
+            self._dashboard_filter = filter_id
+        self.select_section("overview")
+        self.refresh_tenders()
 
     def open_tender(self, tender_id: str) -> bool:
         """Select an existing local row without inventing a missing tender."""
@@ -911,6 +931,12 @@ class TenderWorkspacePage(QWidget):
 
     def refresh(self):
         data = self.repo.list()
+        if self._dashboard_filter is not None:
+            data = select_dashboard_tenders(
+                data,
+                self._dashboard_filter,
+                at=datetime.now(APP_TIMEZONE),
+            )
         self.table.setRowCount(len(data))
         for r, t in enumerate(data):
             for c, v in enumerate(

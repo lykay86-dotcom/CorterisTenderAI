@@ -7,8 +7,9 @@ They must never be presented as real tenders.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Mapping
 
 from app.ui.dashboard.activity_feed import (
@@ -16,9 +17,14 @@ from app.ui.dashboard.activity_feed import (
     ActivityTone,
 )
 from app.ui.viewmodels.dashboard_viewmodel import (
+    APP_TIMEZONE,
+    DASHBOARD_KPI_REGISTRY,
     AiRecommendation,
     DashboardKpi,
+    DashboardKpiState,
+    DashboardSourceEvidence,
     RecentTender,
+    aware_dashboard_time,
 )
 
 
@@ -59,57 +65,25 @@ def demo_mode_from_environment(
     }
 
 
-def build_empty_dashboard_kpis() -> tuple[DashboardKpi, ...]:
+def build_empty_dashboard_kpis(now: datetime | None = None) -> tuple[DashboardKpi, ...]:
     """Return the normal zero-state KPI set."""
-    return (
-        DashboardKpi(
-            key="potential_profit",
-            title="Потенциальная прибыль",
-            value="0 ₽",
-            trend="Расчёты не выполнены",
-            tone="info",
-            icon_text="₽",
+    observed_at = aware_dashboard_time(now or datetime.now(APP_TIMEZONE))
+    evidence = (
+        DashboardSourceEvidence(
+            source_id="empty_state",
+            generation=0,
+            observed_at=observed_at,
+            record_count=0,
         ),
-        DashboardKpi(
-            key="new_tenders",
-            title="Новые тендеры",
-            value="0",
-            trend="За сегодня",
-            tone="info",
-            icon_text="T",
-        ),
-        DashboardKpi(
-            key="recommended",
-            title="AI рекомендует",
-            value="0",
-            trend="После анализа",
-            tone="success",
-            icon_text="AI",
-        ),
-        DashboardKpi(
-            key="proposals_in_work",
-            title="КП в работе",
-            value="0",
-            trend="Нет активных КП",
-            tone="default",
-            icon_text="КП",
-        ),
-        DashboardKpi(
-            key="active_projects",
-            title="Активные проекты",
-            value="0",
-            trend="Нет активных проектов",
-            tone="default",
-            icon_text="P",
-        ),
-        DashboardKpi(
-            key="attention",
-            title="Требуют внимания",
-            value="0",
-            trend="Нет срочных задач",
-            tone="warning",
-            icon_text="!",
-        ),
+    )
+    return tuple(
+        DashboardKpi.from_definition(
+            definition,
+            raw_value=Decimal("0") if definition.unit.value == "rub" else 0,
+            state=DashboardKpiState.ZERO,
+            source_evidence=evidence,
+        )
+        for definition in DASHBOARD_KPI_REGISTRY
     )
 
 
@@ -117,60 +91,47 @@ def build_demo_snapshot(
     now: datetime | None = None,
 ) -> DashboardDemoSnapshot:
     """Build a realistic, deterministic Corteris demonstration snapshot."""
-    anchor = now or datetime.now()
+    anchor = aware_dashboard_time(now or datetime.now(APP_TIMEZONE))
 
     def deadline(days: int) -> str:
         return (anchor.date() + timedelta(days=days)).strftime("%d.%m.%Y")
 
-    kpis = (
-        DashboardKpi(
-            key="potential_profit",
-            title="Потенциальная прибыль",
-            value="3 480 000 ₽",
-            trend="+18% к прошлой неделе",
-            tone="success",
-            icon_text="₽",
-        ),
-        DashboardKpi(
-            key="new_tenders",
-            title="Новые тендеры",
-            value="24",
-            trend="+5 за сегодня",
-            tone="info",
-            icon_text="T",
-        ),
-        DashboardKpi(
-            key="recommended",
-            title="AI рекомендует",
-            value="8",
-            trend="3 с высоким приоритетом",
-            tone="success",
-            icon_text="AI",
-        ),
-        DashboardKpi(
-            key="proposals_in_work",
-            title="КП в работе",
-            value="3",
-            trend="1 требуется отправить сегодня",
-            tone="warning",
-            icon_text="КП",
-        ),
-        DashboardKpi(
-            key="active_projects",
-            title="Активные проекты",
-            value="5",
-            trend="2 объекта на монтаже",
-            tone="info",
-            icon_text="P",
-        ),
-        DashboardKpi(
-            key="attention",
-            title="Требуют внимания",
-            value="3",
-            trend="Ближайший срок — 2 дня",
-            tone="warning",
-            icon_text="!",
-        ),
+    demo_values: dict[str, int | Decimal] = {
+        "potential_profit": Decimal("3480000"),
+        "new_tenders": 24,
+        "recommended": 8,
+        "proposals_in_work": 3,
+        "active_projects": 5,
+        "attention": 3,
+    }
+    demo_trends = {
+        "potential_profit": "+18% к прошлой неделе",
+        "new_tenders": "+5 за сегодня",
+        "recommended": "8 тендеров с числовой оценкой 80+",
+        "proposals_in_work": "1 требуется отправить сегодня",
+        "active_projects": "2 объекта на монтаже",
+        "attention": "Ближайший срок — 2 дня",
+    }
+    kpis = tuple(
+        replace(
+            DashboardKpi.from_definition(
+                definition,
+                raw_value=demo_values[definition.key],
+                state=DashboardKpiState.READY,
+                source_evidence=(
+                    DashboardSourceEvidence(
+                        source_id="DEMO",
+                        generation=0,
+                        observed_at=anchor,
+                        record_count=int(demo_values[definition.key]),
+                        demo=True,
+                    ),
+                ),
+                trend=demo_trends[definition.key],
+            ),
+            action=None,
+        )
+        for definition in DASHBOARD_KPI_REGISTRY
     )
 
     tenders = (

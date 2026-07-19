@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any, Iterable
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -10,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.database.base import json_safe
 from app.database.models import Analysis, Document, Tender
 from app.database.session import session_scope
+from app.ui.navigation.contracts import DashboardFilterId, RouteId
 
 
 def _active_filter(model: type[Any]):
@@ -22,6 +25,40 @@ def _coerce_identifier(value: str | int) -> str | int:
         return value
     text = str(value).strip()
     return int(text) if text.isdigit() else text
+
+
+def select_dashboard_tenders(
+    entities: Iterable[Any],
+    dashboard_filter: DashboardFilterId | str,
+    *,
+    at: datetime,
+) -> list[Any]:
+    """Apply one closed tender KPI cohort to already loaded active entities."""
+    filter_id = DashboardFilterId(dashboard_filter)
+    if filter_id.route_id is not RouteId.TENDERS:
+        raise ValueError("Dashboard filter does not belong to tenders")
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ValueError("Dashboard tender filter time must be timezone-aware")
+
+    result: list[Any] = []
+    for entity in entities:
+        if filter_id is DashboardFilterId.TENDERS_CREATED_TODAY:
+            created_at = getattr(entity, "created_at", None)
+            if not isinstance(created_at, datetime):
+                continue
+            if created_at.tzinfo is not None and created_at.utcoffset() is not None:
+                created_at = created_at.astimezone(at.tzinfo)
+            if created_at.date() == at.date():
+                result.append(entity)
+            continue
+
+        try:
+            score = Decimal(str(getattr(entity, "score", None)))
+        except (InvalidOperation, TypeError, ValueError):
+            continue
+        if score >= Decimal("80"):
+            result.append(entity)
+    return result
 
 
 class TenderRepository:
@@ -46,16 +83,17 @@ class TenderRepository:
     def list_for_dashboard(
         self,
         *,
-        limit: int = 100,
+        limit: int | None = 100,
     ) -> list[Tender]:
-        normalized_limit = max(1, min(int(limit), 500))
         with session_scope() as session:
             stmt = (
                 select(Tender)
                 .options(selectinload(Tender.analyses))
                 .order_by(Tender.created_at.desc())
-                .limit(normalized_limit)
             )
+            if limit is not None:
+                normalized_limit = max(1, min(int(limit), 500))
+                stmt = stmt.limit(normalized_limit)
             active = _active_filter(Tender)
             if active is not None:
                 stmt = stmt.where(active)
@@ -69,6 +107,19 @@ class TenderRepository:
             if active is not None:
                 stmt = stmt.where(active)
             return session.scalar(stmt)
+
+    def list_for_dashboard_filter(
+        self,
+        dashboard_filter: DashboardFilterId | str,
+        *,
+        at: datetime,
+    ) -> list[Tender]:
+        """Return the exact active tender cohort behind one Dashboard KPI."""
+        return select_dashboard_tenders(
+            self.list_for_dashboard(limit=None),
+            dashboard_filter,
+            at=at,
+        )
 
     def add_document(
         self,

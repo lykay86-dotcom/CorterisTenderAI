@@ -28,6 +28,7 @@ from app.ui.pages.dashboard_page import DashboardPage
 from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 from app.ui.theme.colors import ThemeName
 from app.ui.theme.stylesheet import build_stylesheet
+from app.ui.viewmodels.dashboard_viewmodel import DashboardKpiAction
 from app.ui.widgets.dashboard_layout import DashboardLayout
 
 if TYPE_CHECKING:
@@ -200,6 +201,7 @@ class ModernMainWindow(QMainWindow):
                 focus_token="QuickActionTile",
             )
         )
+        self.dashboard_page.kpi_action_requested.connect(self._open_dashboard_kpi)
 
     def _register_navigation_destinations(self) -> None:
         """Bind canonical routes to the existing page and controller owners."""
@@ -254,6 +256,7 @@ class ModernMainWindow(QMainWindow):
             workflow_archive_mode=state.archive_mode or None,
             workflow_search=state.search_text or None,
             workflow_record_id=state.record_id,
+            dashboard_filter=state.dashboard_filter or None,
         )
 
     def _activate_workflow(self, route_id: RouteId, context: RouteContext) -> bool:
@@ -270,11 +273,13 @@ class ModernMainWindow(QMainWindow):
                 archive_mode=context.workflow_archive_mode
                 or WorkflowNavigationState().archive_mode,
                 record_id=context.workflow_record_id,
+                dashboard_filter=context.dashboard_filter or "",
             )
         )
         return True
 
     def _activate_tender_route(self, context: RouteContext) -> bool:
+        self.tender_workspace_page.apply_dashboard_filter(context.dashboard_filter)
         if (
             context.tender_section is not None
             and context.tender_section not in self.tender_workspace_page.section_keys
@@ -299,6 +304,17 @@ class ModernMainWindow(QMainWindow):
         if context.tender_section is not None:
             return self.tender_workspace_page.select_section(context.tender_section)
         return True
+
+    def _open_dashboard_kpi(self, action: DashboardKpiAction) -> None:
+        """Navigate a KPI through the accepted typed route/context contract."""
+        if not isinstance(action, DashboardKpiAction):
+            raise TypeError("Dashboard KPI activation requires DashboardKpiAction")
+        self._navigate(
+            action.route_id,
+            cause=NavigationCause.DEEP_LINK,
+            context=RouteContext(dashboard_filter=action.filter_id.value),
+            focus_token=action.focus_token,
+        )
 
     def _open_tender_documents(self, context: RouteContext) -> bool:
         controller = getattr(self, "_tender_search_ui_controller", None)

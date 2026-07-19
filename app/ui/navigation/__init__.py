@@ -1,6 +1,7 @@
 """Canonical RM-142 information-architecture boundary."""
 
 from app.ui.navigation.contracts import (
+    DashboardFilterId,
     NavigationCause,
     NavigationSnapshot,
     NavigationStatus,
@@ -18,6 +19,7 @@ from app.ui.navigation.registry import DEFAULT_ROUTE_REGISTRY, RouteRegistry
 __all__ = [
     "DEFAULT_HISTORY_LIMIT",
     "DEFAULT_ROUTE_REGISTRY",
+    "DashboardFilterId",
     "NavigationCause",
     "NavigationHistory",
     "NavigationSnapshot",

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QGridLayout, QSizePolicy, QWidget
 
 from app.ui.dashboard.data_state import DataState, DataStateKind
 from app.ui.theme.colors import ThemeName
-from app.ui.viewmodels.dashboard_viewmodel import DashboardKpi
+from app.ui.viewmodels.dashboard_viewmodel import DashboardKpi, DashboardKpiState
 from app.ui.widgets.card import CardTone, KpiCard
 
 
@@ -50,7 +50,7 @@ class KeyboardKpiCard(KpiCard):
 class KpiCenter(QWidget):
     """Responsive group of interactive KPI cards."""
 
-    kpi_clicked = Signal(str)
+    kpi_clicked = Signal(object)
 
     def __init__(
         self,
@@ -161,11 +161,12 @@ class KpiCenter(QWidget):
             trend_tone=self._tone(kpi.tone),
             icon_text=kpi.icon_text,
             theme=self._theme,
-            clickable=True,
+            clickable=kpi.action is not None,
         )
         card.setMinimumHeight(132)
-        card.setAccessibleDescription(f"{kpi.title}: {kpi.value}. {kpi.trend}")
-        card.clicked.connect(lambda key=kpi.key: self.kpi_clicked.emit(key))
+        card.clicked.connect(
+            lambda action=kpi.action: self.kpi_clicked.emit(action) if action is not None else None
+        )
         self._render_card(card, kpi)
         return card
 
@@ -179,7 +180,25 @@ class KpiCenter(QWidget):
         value = kpi.value
         trend = kpi.trend
         tone = self._tone(kpi.tone)
-        enabled = True
+        enabled = kpi.action is not None and kpi.state not in {
+            DashboardKpiState.LOADING,
+            DashboardKpiState.ERROR,
+        }
+
+        if kpi.state is DashboardKpiState.LOADING:
+            value = "…"
+            trend = kpi.state_reason or "Обновление данных"
+            tone = CardTone.INFO
+        elif kpi.state is DashboardKpiState.ERROR:
+            value = "—"
+            trend = kpi.state_reason or "Ошибка источника"
+            tone = CardTone.WARNING
+        elif kpi.state is DashboardKpiState.PARTIAL:
+            trend = f"Частичные данные · {trend}" if trend else "Частичные данные"
+            tone = CardTone.WARNING
+        elif kpi.state is DashboardKpiState.STALE:
+            trend = f"Устаревшие данные · {trend}" if trend else "Устаревшие данные"
+            tone = CardTone.WARNING
 
         if state.kind == DataStateKind.LOADING:
             value = "…"
@@ -205,7 +224,18 @@ class KpiCenter(QWidget):
         card.icon_text = kpi.icon_text
         card.set_trend(trend, tone)
         card.setEnabled(enabled)
-        card.setAccessibleDescription(f"{title}: {value}. {trend}")
+        card.setAccessibleName(f"{title}: {value}")
+        card.setAccessibleDescription(
+            " ".join(
+                part
+                for part in (
+                    kpi.accessible_description,
+                    f"Отображается: {value}.",
+                    trend,
+                )
+                if part
+            )
+        )
 
     def _relayout(self) -> None:
         while self._layout.count():

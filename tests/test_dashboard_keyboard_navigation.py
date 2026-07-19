@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -16,7 +17,8 @@ from app.ui.dashboard.keyboard_navigation import (
 )
 from app.ui.dashboard.kpi_center import KpiCenter
 from app.ui.dashboard.quick_actions import QuickActions
-from app.ui.viewmodels.dashboard_viewmodel import DashboardKpi
+from app.ui.navigation.contracts import DashboardFilterId
+from app.ui.viewmodels.dashboard_viewmodel import DashboardKpiState, DashboardViewModel
 
 
 def _app() -> QApplication:
@@ -66,20 +68,19 @@ def test_quick_action_activates_with_enter() -> None:
 
 def test_kpi_card_activates_with_enter() -> None:
     _app()
-    center = KpiCenter(
-        [
-            DashboardKpi(
-                key="new_tenders",
-                title="Новые тендеры",
-                value="5",
-            )
-        ]
+    kpi = replace(
+        DashboardViewModel().state.kpis["new_tenders"],
+        value="5",
+        raw_value=5,
+        state=DashboardKpiState.READY,
     )
-    received: list[str] = []
+    center = KpiCenter([kpi])
+    received: list[object] = []
     card = center.cards["new_tenders"]
 
     center.kpi_clicked.connect(received.append)
     card.keyPressEvent(_return_event())
 
-    assert received == ["new_tenders"]
+    assert len(received) == 1
+    assert received[0].filter_id is DashboardFilterId.TENDERS_CREATED_TODAY
     assert card.focusPolicy() == Qt.FocusPolicy.StrongFocus

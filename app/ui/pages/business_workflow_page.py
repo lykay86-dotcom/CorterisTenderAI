@@ -64,6 +64,7 @@ from app.repositories.business_metrics import (
     BusinessAuditAction,
     BusinessAuditEvent,
     BusinessMetricsRepository,
+    BusinessMetricsSnapshot,
     BusinessRecordKind,
     BusinessStatus,
     BusinessWorkflowRecord,
@@ -109,6 +110,7 @@ from app.ui.dashboard.status_banner import (
     DashboardStatusBanner,
     StatusTone,
 )
+from app.ui.navigation.contracts import DashboardFilterId, RouteId
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
 from app.ui.viewmodels.dashboard_viewmodel import DashboardKpi
@@ -129,6 +131,7 @@ class WorkflowNavigationState:
     status: str = ""
     archive_mode: str = WorkflowArchiveMode.ACTIVE.value
     record_id: str | None = None
+    dashboard_filter: str = ""
 
     def __post_init__(self) -> None:
         if self.kind not in {"", *(kind.value for kind in BusinessRecordKind)}:
@@ -139,6 +142,10 @@ class WorkflowNavigationState:
             raise ValueError("Unknown workflow archive mode")
         if self.record_id is not None and not str(self.record_id).strip():
             raise ValueError("Workflow record identity must not be blank")
+        if self.dashboard_filter:
+            dashboard_filter = DashboardFilterId(self.dashboard_filter)
+            if dashboard_filter.route_id is not RouteId.WORKFLOW:
+                raise ValueError("Dashboard filter does not belong to workflow")
 
 
 class BusinessWorkflowLifecycleState(StrEnum):
@@ -209,6 +216,7 @@ class BusinessWorkflowPage(QWidget):
         )
         self._theme = ThemeName(theme)
         self._initial_kind = BusinessRecordKind(initial_kind) if initial_kind is not None else None
+        self._dashboard_filter: DashboardFilterId | None = None
         self._selected_record: BusinessWorkflowRecord | None = None
         self._content_orientation: Qt.Orientation | None = None
         self._database_health_prompt_shown = False
@@ -773,6 +781,9 @@ class BusinessWorkflowPage(QWidget):
             status=str(self.status_filter.currentData() or ""),
             archive_mode=str(self.archive_filter.currentData() or WorkflowArchiveMode.ACTIVE.value),
             record_id=(self._selected_record.id if self._selected_record is not None else None),
+            dashboard_filter=(
+                self._dashboard_filter.value if self._dashboard_filter is not None else ""
+            ),
         )
 
     def apply_navigation_state(self, state: WorkflowNavigationState) -> None:
@@ -784,6 +795,7 @@ class BusinessWorkflowPage(QWidget):
         self._set_filter_value(self.kind_filter, state.kind)
         self._set_filter_value(self.status_filter, state.status)
         self._set_filter_value(self.archive_filter, state.archive_mode)
+        self.apply_dashboard_filter(state.dashboard_filter or None)
 
         if state.record_id is not None and self._select_record_id(state.record_id):
             return
@@ -814,6 +826,7 @@ class BusinessWorkflowPage(QWidget):
             return
 
         self.model.set_records(records)
+        self._apply_dashboard_scope(summary)
         self._update_summary(summary)
         self.updated_label.setText(datetime.now().strftime("Обновлено %H:%M"))
         self._restore_initial_filter()
@@ -2302,6 +2315,35 @@ class BusinessWorkflowPage(QWidget):
         self.kind_filter.setCurrentIndex(0)
         self.status_filter.setCurrentIndex(0)
         self.archive_filter.setCurrentIndex(0)
+        self.apply_dashboard_filter(None)
+
+    @property
+    def dashboard_filter(self) -> DashboardFilterId | None:
+        return self._dashboard_filter
+
+    def apply_dashboard_filter(self, dashboard_filter: str | None) -> None:
+        """Apply one exact repository-owned workflow KPI scope."""
+        if dashboard_filter is None:
+            self._dashboard_filter = None
+            self.proxy.set_record_scope(None)
+            return
+        filter_id = DashboardFilterId(dashboard_filter)
+        if filter_id.route_id is not RouteId.WORKFLOW:
+            raise ValueError("Dashboard filter does not belong to workflow")
+        self._dashboard_filter = filter_id
+        self._apply_dashboard_scope(self.repository.summary(activity_limit=0))
+
+    def _apply_dashboard_scope(self, summary: BusinessMetricsSnapshot) -> None:
+        if self._dashboard_filter is None:
+            self.proxy.set_record_scope(None)
+            return
+        contributor_ids = {
+            DashboardFilterId.WORKFLOW_PROFIT_CONTRIBUTORS: (summary.profit_contributor_ids),
+            DashboardFilterId.WORKFLOW_ACTIVE_PROPOSALS: summary.proposal_ids,
+            DashboardFilterId.WORKFLOW_ACTIVE_PROJECTS: summary.project_ids,
+            DashboardFilterId.WORKFLOW_ATTENTION: summary.attention_ids,
+        }[self._dashboard_filter]
+        self.proxy.set_record_scope(contributor_ids)
 
     def _restore_initial_filter(self) -> None:
         if self._initial_kind is None:

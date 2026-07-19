@@ -30,5 +30,5 @@ def test_set_kpi_preserves_existing_metadata() -> None:
     updated = viewmodel.state.kpis["new_tenders"]
     assert updated.value == "24"
     assert updated.trend == "+5 сегодня"
-    assert updated.title == "Новые тендеры"
+    assert updated.title == "Новые тендеры сегодня"
     assert updated.tone == "info"

@@ -27,6 +27,26 @@ class RouteId(StrEnum):
     FUTURE_ANALYTICS = "future.analytics"
 
 
+class DashboardFilterId(StrEnum):
+    """Closed Dashboard cohorts transported by typed navigation context."""
+
+    WORKFLOW_PROFIT_CONTRIBUTORS = "workflow_profit_contributors"
+    TENDERS_CREATED_TODAY = "tenders_created_today"
+    TENDERS_SCORE_80_PLUS = "tenders_score_80_plus"
+    WORKFLOW_ACTIVE_PROPOSALS = "workflow_active_proposals"
+    WORKFLOW_ACTIVE_PROJECTS = "workflow_active_projects"
+    WORKFLOW_ATTENTION = "workflow_attention"
+
+    @property
+    def route_id(self) -> RouteId:
+        if self in {
+            self.TENDERS_CREATED_TODAY,
+            self.TENDERS_SCORE_80_PLUS,
+        }:
+            return RouteId.TENDERS
+        return RouteId.WORKFLOW
+
+
 class RouteKind(StrEnum):
     PRIMARY = "primary"
     SECONDARY = "secondary"
@@ -116,6 +136,7 @@ class RouteContext:
     search_query: str | None = None
     tender_section: str | None = None
     settings_section: str | None = None
+    dashboard_filter: str | None = None
     focus_token: str | None = None
 
     def __post_init__(self) -> None:
@@ -167,6 +188,11 @@ class RouteContext:
                 field_name="settings_section",
                 limit=64,
             ),
+            "dashboard_filter": _normalize_text(
+                self.dashboard_filter,
+                field_name="dashboard_filter",
+                limit=64,
+            ),
             "focus_token": _normalize_text(
                 self.focus_token,
                 field_name="focus_token",
@@ -175,6 +201,11 @@ class RouteContext:
         }
         if values["workflow_kind"] not in {None, "proposal", "estimate", "project"}:
             raise ValueError("Invalid workflow_kind")
+        if values["dashboard_filter"] is not None:
+            try:
+                values["dashboard_filter"] = DashboardFilterId(values["dashboard_filter"]).value
+            except ValueError as exc:
+                raise ValueError("Invalid dashboard_filter") from exc
         for name, value in values.items():
             object.__setattr__(self, name, value)
 
@@ -285,6 +316,7 @@ class RouteResult:
 
 
 __all__ = [
+    "DashboardFilterId",
     "NavigationCause",
     "NavigationSnapshot",
     "NavigationStatus",

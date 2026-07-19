@@ -12,6 +12,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QStackedWidget, QWidget
 
 from app.ui.navigation import (
+    DashboardFilterId,
     NavigationCause,
     NavigationStatus,
     RouteContext,
@@ -19,6 +20,7 @@ from app.ui.navigation import (
     RouteRequest,
 )
 from app.ui.pages.business_workflow_page import WorkflowNavigationState
+from app.ui.viewmodels.dashboard_viewmodel import DASHBOARD_KPI_BY_KEY
 from app.ui.widgets.dashboard_layout import DashboardLayout
 from tests.test_rm127_modern_main_window_composition import _window as _rm127_window
 
@@ -183,6 +185,32 @@ def test_dashboard_actions_and_back_preserve_workflow_intent(monkeypatch) -> Non
     assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW_ESTIMATES
     assert window.workspace.pages.currentWidget() is window.estimates_page
     assert window.estimates_page.kind_filter.currentData() == "estimate"
+
+    window.close()
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_dashboard_kpi_actions_apply_typed_destination_filters(monkeypatch) -> None:
+    app = _app()
+    window = _window(monkeypatch)
+
+    tender_action = DASHBOARD_KPI_BY_KEY["new_tenders"].action
+    window.dashboard_page.kpi_action_requested.emit(tender_action)
+
+    assert window.workspace.current_snapshot is not None
+    assert window.workspace.current_snapshot.route_id is RouteId.TENDERS
+    assert window.tender_workspace_page.dashboard_filter is DashboardFilterId.TENDERS_CREATED_TODAY
+
+    workflow_action = DASHBOARD_KPI_BY_KEY["attention"].action
+    window.dashboard_page.kpi_action_requested.emit(workflow_action)
+
+    assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW
+    assert window.workflow_page.dashboard_filter is DashboardFilterId.WORKFLOW_ATTENTION
+    assert (
+        window.workspace.current_snapshot.context.dashboard_filter
+        == DashboardFilterId.WORKFLOW_ATTENTION.value
+    )
 
     window.close()
     window.deleteLater()

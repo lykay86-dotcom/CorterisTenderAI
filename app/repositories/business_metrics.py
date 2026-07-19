@@ -114,6 +114,11 @@ class BusinessMetricsSnapshot:
     profit_sources: int = 0
     recent_activities: tuple[BusinessActivity, ...] = ()
     record_count: int = 0
+    proposal_ids: tuple[str, ...] = ()
+    estimate_ids: tuple[str, ...] = ()
+    project_ids: tuple[str, ...] = ()
+    attention_ids: tuple[str, ...] = ()
+    profit_contributor_ids: tuple[str, ...] = ()
 
 
 class BusinessMetricsRepository:
@@ -538,8 +543,8 @@ class BusinessMetricsRepository:
             )
         ]
 
-        attention = sum(1 for record in records if self._requires_attention(record, current_date))
-        potential_profit, sources = self._potential_profit(records)
+        attention = [record for record in records if self._requires_attention(record, current_date)]
+        potential_profit, profit_contributors = self._potential_profit(records)
         activities = tuple(
             self._activity(record)
             for record in sorted(
@@ -553,11 +558,16 @@ class BusinessMetricsRepository:
             proposals_in_work=len(proposals),
             estimates_in_work=len(estimates),
             active_projects=len(projects),
-            attention=attention,
+            attention=len(attention),
             potential_profit=potential_profit,
-            profit_sources=sources,
+            profit_sources=len(profit_contributors),
             recent_activities=activities,
             record_count=len(records),
+            proposal_ids=tuple(record.id for record in proposals),
+            estimate_ids=tuple(record.id for record in estimates),
+            project_ids=tuple(record.id for record in projects),
+            attention_ids=tuple(record.id for record in attention),
+            profit_contributor_ids=tuple(record.id for record in profit_contributors),
         )
 
     def _upsert(
@@ -804,7 +814,7 @@ class BusinessMetricsRepository:
     def _potential_profit(
         self,
         records: list[BusinessWorkflowRecord],
-    ) -> tuple[Decimal, int]:
+    ) -> tuple[Decimal, tuple[BusinessWorkflowRecord, ...]]:
         by_tender: dict[str, BusinessWorkflowRecord] = {}
 
         for record in sorted(
@@ -833,11 +843,12 @@ class BusinessMetricsRepository:
             ):
                 by_tender[record.tender_id] = record
 
+        contributors = tuple(by_tender.values())
         total = sum(
-            (Decimal(str(record.profit)) for record in by_tender.values()),
+            (Decimal(str(record.profit)) for record in contributors),
             Decimal("0"),
         )
-        return total, len(by_tender)
+        return total, contributors
 
     def _requires_attention(
         self,
