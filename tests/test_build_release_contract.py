@@ -34,6 +34,19 @@ def test_build_script_runs_preflight_tests_and_frozen_self_test() -> None:
     assert "write_build_manifest.py" in source
 
 
+def test_frozen_smoke_is_hidden_and_isolated_from_user_runtime_data() -> None:
+    source = (ROOT / "scripts" / "run_frozen_smoke_test.ps1").read_text(encoding="utf-8")
+
+    assert "-WindowStyle Hidden" in source
+    assert '"CORTERIS_DATA_DIR"' in source
+    assert '"CORTERIS_CONFIG_DIR"' in source
+    assert '"CORTERIS_LOG_DIR"' in source
+    assert '"CORTERIS_CACHE_DIR"' in source
+    assert '"QT_QPA_PLATFORM" = "offscreen"' in source
+    assert ".frozen-self-test-runtime" in source
+    assert "Remove-Item -LiteralPath $runtimeRoot -Recurse -Force" in source
+
+
 def test_bootstrap_handles_self_test_before_qt_imports() -> None:
     source = (ROOT / "app" / "bootstrap.py").read_text(encoding="utf-8")
 

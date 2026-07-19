@@ -78,6 +78,11 @@ def run_frozen_self_test(
 ) -> FrozenSelfTestReport:
     """Run deterministic checks without external HTTP requests."""
 
+    target = (
+        Path(output_path).expanduser().resolve()
+        if output_path is not None
+        else context.paths.data_dir / "diagnostics" / "frozen_self_test.json"
+    )
     checks: list[FrozenSelfTestCheck] = []
     checks.append(_check_imports(required_modules))
     checks.append(_check_resources(context))
@@ -98,11 +103,6 @@ def run_frozen_self_test(
         checks=tuple(checks),
     )
 
-    target = (
-        Path(output_path).expanduser().resolve()
-        if output_path is not None
-        else context.paths.data_dir / "diagnostics" / "frozen_self_test.json"
-    )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         json.dumps(
@@ -426,7 +426,8 @@ def _check_chart_rendering() -> FrozenSelfTestCheck:
         )
         from app.ui.theme.colors import DARK_PALETTE, LIGHT_PALETTE
 
-        application = QApplication.instance() or QApplication(["corteris-chart-self-test"])
+        existing_application = QApplication.instance()
+        application = existing_application or QApplication(["corteris-chart-self-test"])
         spec = ChartSpec(
             chart_id="frozen-self-test",
             kind=ChartKind.BAR,
@@ -457,7 +458,8 @@ def _check_chart_rendering() -> FrozenSelfTestCheck:
             and light_png.startswith(b"\x89PNG\r\n\x1a\n")
             and b"<svg" in svg
         )
-        application.processEvents()
+        if existing_application is None:
+            application.quit()
         return FrozenSelfTestCheck(
             name="chart_rendering",
             ok=ok,
