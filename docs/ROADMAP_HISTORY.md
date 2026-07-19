@@ -1,5 +1,36 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-19 — RM-144 завершён, RM-145 активирован
+
+- Audit/contract/plan зафиксированы commit `70d06f3` до application changes;
+  characterization — `a7e7b93`, expected-red contract — `fab3eae`.
+- `TenderWorkspacePage` извлечён из embedded legacy owner в canonical
+  `app.ui.pages.tender_workspace_page`; legacy import сохраняет exact class identity, а
+  `MainWindow` остаётся thin compatibility wrapper вне production bootstrap.
+- Workflow, Proposals, Estimates и Projects сведены к одному physical `workflow` destination и
+  одному `BusinessWorkflowPage`. Temporary `quotes_page`/`estimates_page` aliases указывают на тот
+  же object; второй services/monitor/timer/page-stack owner удалён.
+- `SystemHealthMonitor` использует dedicated owned pool, typed `OPEN/RUNNING/CLOSING/CLOSED`,
+  retained worker signal source, generation/current-sender delivery guards и bounded idempotent
+  shutdown. Workflow page останавливает timers/guards pending single-shots; shell сохраняет
+  RM-140 search veto и закрывает workflow до Dashboard.
+- Rapid offscreen close: один production QMainWindow, три destinations, одна tender page, одна
+  workflow page/monitor, два owned timers до close и ноль после; page/monitor — `CLOSED`, network
+  attempts — 0, deleted signal-source/QObject/thread warnings — 0.
+- Локальная acceptance: RM-144 contract `9 passed in 12.00s`, neighboring workflow contour
+  `79 passed`, full pytest `2073 passed, 2 warnings in 206.16s`; secret scan, Ruff/format
+  (`666 files`), mypy, frozen/build smoke, design-system guard и dependency audit успешны.
+- Feature PR #96 на head `15f49972b0e8caf539cfc65a2fe73f017160e047` слит merge commit
+  `491b13a0b5e5dd204bf00faba09fa513c5f9de3b`.
+- PR-head Quality Gate `29665840955` успешен: Python 3.12 — `3m35s`, Python 3.13 — `3m31s`.
+  Exact merge-SHA run `29666054057` успешен: Python 3.12 — `4m24s`, Python 3.13 — `4m51s`;
+  full suite, dependency audit и все обязательные jobs завершились `success`.
+- Единственная annotation — existing non-blocking official-actions Node.js 20/24 migration notice.
+  DB/schema/migration, runtime dependencies и RM-107 score/recommendation/critical stop-factor
+  priority не изменены. Rollback — revert feature merge без DB/data/settings downgrade.
+  RM-144 переведён в `DONE`; RM-145 назначен единственным `IN PROGRESS`, RM-146–RM-200 остаются
+  `PLANNED`.
+
 ## 2026-07-19 — RM-143 завершён, RM-144 активирован
 
 - Audit/contract/matrix/plan зафиксированы commit `69785ee` до application changes;

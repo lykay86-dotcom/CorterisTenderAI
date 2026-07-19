@@ -2,9 +2,9 @@
 
 ## Package status
 
-Local implementation and validation for `UI-141-004` and `UI-141-005` are complete on branch
-`feat/rm-144-production-shell`. Feature publication, PR-head gate, merge, exact merge-SHA gate, and
-the separate canonical docs-only closeout remain pending and are not claimed by this document.
+Feature implementation, publication, PR-head gate, merge and exact merge-SHA gate for
+`UI-141-004` and `UI-141-005` are complete. This separate docs-only package records canonical
+closeout and activates RM-145.
 
 ## Entry gate and traceability
 
@@ -154,6 +154,17 @@ removed.
 - No settings/data/credential/schedule migration exists. Rollback is a revert of RM-144 feature
   commits to `b790d3a`; no persistent downgrade is required.
 
-Local DoD verdict: the feature implementation satisfies the local RM-144 scope and closes the two
-target findings in local evidence. Final DoD remains pending feature PR, Windows Python 3.12/3.13
-Quality Gate, merge, successful exact merge-SHA gate, and separate docs-only roadmap closeout.
+## GitHub acceptance and closeout
+
+- Feature PR #96 head: `15f49972b0e8caf539cfc65a2fe73f017160e047`.
+- PR-head Quality Gate run `29665840955`: `success`; Python 3.12 — `3m35s`, Python 3.13 —
+  `3m31s`. Full suite, dependency audit and every required step succeeded.
+- Feature merge SHA: `491b13a0b5e5dd204bf00faba09fa513c5f9de3b`.
+- Exact merge-SHA push run `29666054057`: `success`; Python 3.12 — `4m24s`, Python 3.13 —
+  `4m51s`. Full suite, dependency audit and every required step succeeded.
+- The only annotation is the existing non-blocking official-actions Node.js 20/24 migration notice.
+- This docs-only closeout changes only `ROADMAP.md`, `STATUS.md`, `ROADMAP_HISTORY.md` and this
+  acceptance file. It marks RM-144 `DONE` and activates RM-145 as the sole `IN PROGRESS` stage.
+
+Final DoD verdict: RM-144 satisfies the Definition of Done. Feature and exact merge-SHA gates are
+green; `UI-141-004` and `UI-141-005` are closed; DB/data/settings downgrade is unnecessary.
