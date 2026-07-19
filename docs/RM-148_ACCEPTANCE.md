@@ -2,14 +2,13 @@
 
 ## Verdict and publication status
 
-The feature implementation and local acceptance are complete and **READY FOR FEATURE PR**.
-Publication is not complete: the feature PR, PR-head Windows gate, feature merge, exact merge-SHA
-gate, and separate docs-only closeout remain pending. RM-148 therefore remains the sole
-`IN PROGRESS` stage and RM-149 must remain `PLANNED`.
+Feature implementation, PR-head gate, merge, and exact merge-SHA gate are complete. This separate
+docs-only package records canonical closeout: RM-148 is `DONE`, RM-149 becomes the sole
+`IN PROGRESS` stage, and RM-150–RM-200 remain `PLANNED`.
 
 ## Entry gate and traceability
 
-- Exact baseline and current `origin/main`:
+- Exact feature baseline:
   `3c9ab31c7b65871e0367374ce084cf033c8a4534`.
 - RM-147 feature PR #102 merged as
   `d85cf8c99f8ee72279bbb8054942a0f4d5675ac2`.
@@ -17,8 +16,8 @@ gate, and separate docs-only closeout remain pending. RM-148 therefore remains t
   and 3.13.
 - RM-147 docs-only closeout PR #103 merged as
   `3c9ab31c7b65871e0367374ce084cf033c8a4534`.
-- Canonical documents identify RM-147 as `DONE`, RM-148 as the only `IN PROGRESS` stage, and
-  RM-149–RM-200 as `PLANNED`.
+- At feature entry, canonical documents identified RM-147 as `DONE`, RM-148 as the only
+  `IN PROGRESS` stage, and RM-149–RM-200 as `PLANNED`.
 - Dedicated worktree/branch: `.worktrees/rm148`, `feat/rm-148-financial-analytics`.
 - The unrelated root-checkout `.agents/` and `skills-lock.json` were not changed.
 
@@ -31,6 +30,7 @@ Local implementation lineage:
 | `399ac71` | exact expected-red core, persistence/migration and chart contracts |
 | `a969149` | Decimal core, v3 persistence, migration, surfaces, export, recovery and resilience |
 | `e38cb9a` | neighboring whole-RUB and RM-146 consumer contracts aligned to RM-148 |
+| `7af9436` | exact XLSX import boundary, benchmark and local acceptance evidence |
 
 The seven required decision documents were committed before production code. Characterization was
 committed before expected-red, and expected-red was committed before the production package.
@@ -147,8 +147,24 @@ The two warnings are unchanged openpyxl unsupported-extension and conditional-fo
 from `test_rm132_legacy_credentials_handoff.py`. RM-148 adds no warning. Automated build/frozen
 contract and frozen self-test coverage pass; a newly built installed EXE, Narrator, native high-
 contrast, physical DPI/multi-monitor journey, and manual screenshot certification were not executed
-locally and are not claimed. The required Windows Python 3.12/3.13 evidence will come from the
-feature PR and exact merge-SHA Quality Gate.
+locally and are not claimed. The required Windows Python 3.12/3.13 evidence is recorded below from
+the feature PR and exact merge-SHA Quality Gate.
+
+## GitHub acceptance and closeout
+
+- Feature PR #104 on head `7af94361f47660a44256751126a5871b34851202` was merged as
+  `1116216cf00fc74dad2b870617c496242cd659c2`.
+- PR-head Quality Gate run `29698349596` succeeded. Python 3.12 job `88222880837` reported
+  `2209 passed, 2 warnings in 189.67s`; Python 3.13 job `88222880880` reported
+  `2209 passed, 2 warnings in 142.97s`.
+- No automatic push run appeared. The official workflow's `workflow_dispatch` path was therefore
+  run on `main`; run `29699279963` reported exact
+  `headSha=1116216cf00fc74dad2b870617c496242cd659c2`.
+- In that exact merge-SHA run, Python 3.12 job `88225434927` reported
+  `2209 passed, 2 warnings in 131.83s`, and Python 3.13 job `88225434947` reported
+  `2209 passed, 2 warnings in 131.69s`. Every required step, including dependency audit, succeeded.
+- This closeout is documentation-only: no application code, dependency, schema, migration,
+  deterministic decision logic, score, recommendation, or critical stop-factor priority changes.
 
 ## Rollback, residual gate and next action
 
@@ -158,7 +174,6 @@ modify legacy bytes. Stop publication on any migration issue, currency mismatch,
 change, new dependency or network path, warning/vulnerability, failed Windows matrix job, or changed
 deterministic decision semantics.
 
-The implementation is ready to push and open as the feature PR. RM-148 must not be marked `DONE`
-in that PR. After feature merge, record the exact merge SHA and require a successful Quality Gate
-for both Python 3.12 and 3.13. Only then may a separate docs-only closeout update `STATUS.md`,
-`ROADMAP.md`, and `ROADMAP_HISTORY.md` and activate RM-149.
+All feature and publication conditions are satisfied. This separate canonical docs-only closeout
+records RM-148 as `DONE` and activates RM-149. RM-150 must not start until RM-149 satisfies the
+Definition of Done and its canonical status is updated.

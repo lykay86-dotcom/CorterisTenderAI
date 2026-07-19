@@ -1,5 +1,40 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-19 — RM-148 завершён, RM-149 активирован
+
+- Audit/numeric/currency/unit/rounding/margin/schema/parity/implementation contracts зафиксированы
+  commit `b488468`; characterization — `aa8f261`, expected-red contract — `399ac71`.
+- Один Qt-free `app.financial` owner предоставляет finite Decimal, explicit RUB/currency/unit/state,
+  HALF_UP boundaries, derived revenue/weighted margin, immutable snapshots/fingerprints и exact
+  JSON/CSV projection вне UI.
+- Existing workflow repository остаётся source of truth и хранит schema v3 fixed-point strings.
+  Explicit v2→v3 migration имеет deterministic dry-run issues, source SHA-256, byte-exact safety
+  artifact, fsync, atomic replace, all-record readback и rollback; ordinary reads не мигрируют.
+- Workflow editor/table/detail/audit, Dashboard, RM-147 analytics, RM-146 chart/accessibility,
+  JSON/CSV/XLSX import/export, backup/restore и health используют общий exact contract. XLSX hidden
+  `FinancialExact` является authoritative и conflict/tamper fail closed.
+- Missing/invalid/conflicted/unsupported currency отделены от zero; mixed currency не суммируется;
+  margin только `profit / total × 100`, aggregate margin weighted. FX/network/provider/AI и второй
+  repository/route/chart owner не добавлены.
+- Benchmark 0/1/100/1,000/10,000 records: 10,000 p50 `190.453 ms`, p95 `202.872 ms`, peak
+  `7,559,228 bytes`; service/export repository reads — 0, sampling отсутствует.
+- Локальная acceptance: focused `38 passed`, XLSX contour `16 passed`, full pytest
+  `2209 passed, 2 warnings in 182.09s`; secret scan, Ruff/format (`722 files`), mypy,
+  offline/migration/import/composition/build/frozen smokes и dependency audit успешны.
+- Feature PR #104 на head `7af94361f47660a44256751126a5871b34851202` слит merge commit
+  `1116216cf00fc74dad2b870617c496242cd659c2`.
+- PR-head Quality Gate `29698349596` успешен: Python 3.12 job `88222880837` —
+  `2209 passed, 2 warnings in 189.67s`; Python 3.13 job `88222880880` —
+  `2209 passed, 2 warnings in 142.97s`.
+- Automatic push-run не появился; официальный workflow-dispatch exact merge-SHA run `29699279963`
+  запущен на `main` и подтверждён с `headSha=1116216cf00fc74dad2b870617c496242cd659c2`.
+  Python 3.12 job `88225434927` — `2209 passed, 2 warnings in 131.83s`; Python 3.13 job
+  `88225434947` — `2209 passed, 2 warnings in 131.69s`; все обязательные steps — `success`.
+- RM-107 score/recommendation/critical stop-factor priority, dependencies и RM-149 card scope не
+  изменены. Rollback — feature merge revert плюс verified v2 safety bytes при выполненной data
+  migration. RM-148 переведён в `DONE`; RM-149 назначен единственным `IN PROGRESS`, RM-150–RM-200
+  остаются `PLANNED`.
+
 ## 2026-07-19 — RM-147 завершён, RM-148 активирован
 
 - Audit/source-of-truth/metric/time/provenance/drill-down/export/plan contracts зафиксированы
