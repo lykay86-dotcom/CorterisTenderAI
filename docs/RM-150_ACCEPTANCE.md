@@ -2,15 +2,14 @@
 
 ## Verdict and publication status
 
-The RM-150 feature candidate satisfies the local automated acceptance gate. It establishes one
+The RM-150 feature, PR-head gate, merge and exact merge-SHA gate are complete. It establishes one
 bounded presentation contract for table identity, updates, selection, actions, states, typed
 sorting/filtering and export parity, and applies that contract to the eleven approved migration
 sites. Twelve small/static sites remain compatible `keep` sites and twelve sites remain explicit
 `defer` decisions; no mechanical all-table rewrite was performed.
 
-Feature PR, PR-head Windows Python 3.12/3.13 evidence, merge, exact merge-SHA gate and the separate
-canonical docs-only closeout are still pending. Therefore RM-150 remains the sole `IN PROGRESS`
-stage and this document does not activate RM-151.
+This separate docs-only package records canonical closeout: RM-150 is `DONE`, RM-151 becomes the
+sole `IN PROGRESS` stage, and RM-152–RM-200 remain `PLANNED`.
 
 ## Entry gate and traceability
 
@@ -28,8 +27,7 @@ stage and this document does not activate RM-151.
   `3e37a7c`.
 - The unrelated root-checkout `.agents/` and `skills-lock.json` were not changed.
 
-The work closes `UI-141-011` at feature-candidate level. Canonical closure remains reserved for the
-post-merge docs-only package.
+The work closes `UI-141-011`; feature and publication evidence now satisfy the Definition of Done.
 
 ## Inventory and migration decision
 
@@ -150,8 +148,8 @@ test and the full suite are the regression guards.
 
 The two warnings are unchanged openpyxl unsupported-extension and conditional-formatting warnings
 from `test_rm132_legacy_credentials_handoff.py`; RM-150 adds no warning. Only local Python 3.12.7
-is installed. Windows Python 3.13 evidence must come from the PR-head and exact merge-SHA Quality
-Gate before publication.
+is installed; the required Windows Python 3.12/3.13 evidence is supplied by the successful PR-head
+and exact merge-SHA Quality Gates below.
 
 ## Keyboard, accessibility and residual manual evidence
 
@@ -166,7 +164,26 @@ accepted for RM-150; full native accessibility/DPI certification remains explici
 RM-152. A newly packaged EXE and screenshot/golden certification were also not executed and remain
 within RM-154/release scope.
 
-## Security, rollback and pending publication gate
+## GitHub acceptance and exact merge-SHA evidence
+
+- Feature PR #108 on head `4f432cbe650c76994ba6c44f62685a20fb5ed555` was merged as
+  `8d6640691ca3e0fc6a22d7e6dd2d732955e0eedd`.
+- PR-head Quality Gate run `29708327405` has exact
+  `headSha=4f432cbe650c76994ba6c44f62685a20fb5ed555` and succeeded. Python 3.12 job
+  `88248797493` reported `2276 passed, 2 warnings in 143.14s`; Python 3.13 job
+  `88248797488` reported `2276 passed, 2 warnings in 113.57s`. Dependency audit and every required
+  step succeeded on both versions.
+- Automatic push-run `29708473745` has exact
+  `headSha=8d6640691ca3e0fc6a22d7e6dd2d732955e0eedd` and succeeded. Python 3.12 job
+  `88249137810` reported `2276 passed, 2 warnings in 116.60s`; Python 3.13 job
+  `88249137786` reported `2276 passed, 2 warnings in 183.21s`. Dependency audit and every required
+  step succeeded on both versions.
+- The only workflow annotations are non-blocking GitHub official-actions Node.js 20/24 migration
+  notices. There was no project assertion, job retry or changed SHA.
+- This closeout is documentation-only: no application code, dependency, schema, migration,
+  scoring, recommendation or critical stop-factor priority changes.
+
+## Security, rollback and next action
 
 - No DB/schema/migration, dependency, settings, provider/network/AI, credential, scoring or
   deterministic decision change exists.
@@ -175,10 +192,8 @@ within RM-154/release scope.
   mis-target risk. Export stays on the visible immutable snapshot.
 - Code rollback is a revert of RM-150 feature commits to baseline `c7b9c221`; there is no data,
   schema, dependency or settings rollback.
-- Stop publication on any identity/export mismatch, adjacent-row fallback, changed owner or RM-107
-  result, dependency/schema addition, full-suite failure, failed Python 3.12/3.13 job, or exact
-  merge-SHA mismatch.
-- Next required action: publish the feature branch, obtain a green PR-head Quality Gate, merge the
-  feature PR, verify the automatic gate whose `headSha` exactly equals the feature merge SHA, then
-  land a separate docs-only closeout that records GitHub evidence, marks RM-150 `DONE` and only then
-  activates RM-151.
+- Publication stop conditions were not observed: identity/export parity, no-neighbor selection,
+  owner boundaries, RM-107 results, dependency/schema state, full suites, both Python jobs and the
+  exact merge-SHA all match the accepted contract.
+- This separate canonical docs-only closeout marks RM-150 `DONE` and activates RM-151. RM-152 must
+  not start until RM-151 satisfies its Definition of Done and its own canonical closeout lands.
