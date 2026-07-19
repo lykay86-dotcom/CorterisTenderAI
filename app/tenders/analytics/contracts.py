@@ -80,6 +80,18 @@ def _normalized_ids(values: tuple[str, ...], field_name: str) -> tuple[str, ...]
     return tuple(sorted({_safe_id(value, field_name) for value in values}))
 
 
+def _normalized_laws(values: tuple[str, ...]) -> tuple[str, ...]:
+    if not isinstance(values, tuple):
+        raise TypeError("laws must be a tuple")
+    result: set[str] = set()
+    for value in values:
+        normalized = _safe_text(value.strip().casefold(), "law", maximum=64)
+        if not normalized or not all(char.isalnum() or char in "-._/" for char in normalized):
+            raise ValueError("law is not a bounded canonical token")
+        result.add(normalized)
+    return tuple(sorted(result))
+
+
 def _safe_text(value: str, field_name: str, *, maximum: int = 256) -> str:
     if not isinstance(value, str) or len(value) > maximum:
         raise ValueError(f"{field_name} must be bounded text")
@@ -125,7 +137,7 @@ class TenderAnalyticsQuery:
             raise TypeError("include_archived must be bool")
         object.__setattr__(self, "source_ids", _normalized_ids(self.source_ids, "source_id"))
         object.__setattr__(self, "statuses", _normalized_ids(self.statuses, "status"))
-        object.__setattr__(self, "laws", _normalized_ids(self.laws, "law"))
+        object.__setattr__(self, "laws", _normalized_laws(self.laws))
         allowed_statuses = {
             "published",
             "accepting_applications",
@@ -226,6 +238,7 @@ class AnalyticsTenderFact:
         if not self.external_id.strip() or len(self.external_id) > 256:
             raise ValueError("external_id must be bounded and non-empty")
         _safe_text(self.external_id, "external_id")
+        _safe_text(self.law, "law", maximum=64)
 
 
 @dataclass(frozen=True, slots=True)

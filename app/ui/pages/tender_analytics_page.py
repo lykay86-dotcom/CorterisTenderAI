@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from datetime import date
+
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDateEdit,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -20,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.tenders.analytics import (
+    AnalyticsTenderFact,
     TenderAnalyticsChartAdapter,
     TenderAnalyticsSnapshot,
 )
@@ -92,20 +96,59 @@ class TenderAnalyticsPage(QWidget):
         filter_layout = QHBoxLayout(filters)
         self.preset_combo = QComboBox(filters)
         self.preset_combo.setObjectName("TenderAnalyticsPreset")
-        self.preset_combo.addItem("Последние 30 полных дней", 30)
-        self.preset_combo.addItem("Последние 7 полных дней", 7)
+        self.preset_combo.addItem("Последние 30 полных дней", "last_30_complete_days")
+        self.preset_combo.addItem("Последние 7 полных дней", "last_7_complete_days")
+        self.preset_combo.addItem("Текущий месяц", "current_month")
+        self.preset_combo.addItem("Свои границы", "custom")
+        self.preset_combo.addItem("Всё доступное", "all_available")
+        today = QDate.currentDate()
+        self.start_date = QDateEdit(today.addDays(-30), filters)
+        self.start_date.setObjectName("TenderAnalyticsStartDate")
+        self.start_date.setCalendarPopup(True)
+        self.start_date.setAccessibleName("Начало интервала")
+        self.end_date = QDateEdit(today, filters)
+        self.end_date.setObjectName("TenderAnalyticsEndDate")
+        self.end_date.setCalendarPopup(True)
+        self.end_date.setAccessibleName("Конец интервала, исключая указанную дату")
         self.grain_combo = QComboBox(filters)
         self.grain_combo.setObjectName("TenderAnalyticsGrain")
         self.grain_combo.addItem("Дни", "day")
         self.grain_combo.addItem("Недели", "week")
         self.grain_combo.addItem("Месяцы", "month")
+        self.source_combo = QComboBox(filters)
+        self.source_combo.setObjectName("TenderAnalyticsSource")
+        self.source_combo.addItem("Все источники", "")
+        self.status_combo = QComboBox(filters)
+        self.status_combo.setObjectName("TenderAnalyticsStatus")
+        self.status_combo.addItem("Все статусы", "")
+        for status in (
+            "published",
+            "accepting_applications",
+            "applications_closed",
+            "review",
+            "completed",
+            "cancelled",
+            "unknown",
+        ):
+            self.status_combo.addItem(status, status)
+        self.law_combo = QComboBox(filters)
+        self.law_combo.setObjectName("TenderAnalyticsLaw")
+        self.law_combo.addItem("Все законы", "")
         self.include_archived = QCheckBox("Включить архив", filters)
+        self.include_archived.setObjectName("TenderAnalyticsArchived")
         self.apply_button = QPushButton("Применить", filters)
+        self.apply_button.setObjectName("TenderAnalyticsApply")
         self.reset_button = QPushButton("Сбросить", filters)
+        self.reset_button.setObjectName("TenderAnalyticsReset")
         self.apply_button.clicked.connect(self.filters_applied.emit)
         self.reset_button.clicked.connect(self._reset_filters)
         filter_layout.addWidget(self.preset_combo)
+        filter_layout.addWidget(self.start_date)
+        filter_layout.addWidget(self.end_date)
         filter_layout.addWidget(self.grain_combo)
+        filter_layout.addWidget(self.source_combo)
+        filter_layout.addWidget(self.status_combo)
+        filter_layout.addWidget(self.law_combo)
         filter_layout.addWidget(self.include_archived)
         filter_layout.addStretch(1)
         filter_layout.addWidget(self.apply_button)
@@ -189,7 +232,12 @@ class TenderAnalyticsPage(QWidget):
 
         focus_chain = (
             self.preset_combo,
+            self.start_date,
+            self.end_date,
             self.grain_combo,
+            self.source_combo,
+            self.status_combo,
+            self.law_combo,
             self.include_archived,
             self.apply_button,
             self.reset_button,
@@ -207,11 +255,42 @@ class TenderAnalyticsPage(QWidget):
     def snapshot(self) -> TenderAnalyticsSnapshot | None:
         return self._snapshot
 
-    def filter_values(self) -> tuple[int, str, bool]:
+    def filter_values(
+        self,
+    ) -> tuple[
+        str,
+        date,
+        date,
+        str,
+        tuple[str, ...],
+        tuple[str, ...],
+        tuple[str, ...],
+        bool,
+    ]:
+        source_id = str(self.source_combo.currentData() or "")
+        status = str(self.status_combo.currentData() or "")
+        law = str(self.law_combo.currentData() or "")
         return (
-            int(self.preset_combo.currentData()),
+            str(self.preset_combo.currentData()),
+            self.start_date.date().toPython(),
+            self.end_date.date().toPython(),
             str(self.grain_combo.currentData()),
+            (source_id,) if source_id else (),
+            (status,) if status else (),
+            (law,) if law else (),
             self.include_archived.isChecked(),
+        )
+
+    def set_filter_options(self, records: tuple[AnalyticsTenderFact, ...]) -> None:
+        self._replace_combo_options(
+            self.source_combo,
+            "Все источники",
+            tuple(sorted({item.source_id for item in records})),
+        )
+        self._replace_combo_options(
+            self.law_combo,
+            "Все законы",
+            tuple(sorted({item.law for item in records if item.law.strip()})),
         )
 
     def set_loading(self, *, retain_snapshot: bool) -> None:
@@ -267,9 +346,31 @@ class TenderAnalyticsPage(QWidget):
 
     def _reset_filters(self) -> None:
         self.preset_combo.setCurrentIndex(0)
+        today = QDate.currentDate()
+        self.start_date.setDate(today.addDays(-30))
+        self.end_date.setDate(today)
         self.grain_combo.setCurrentIndex(0)
         self.include_archived.setChecked(False)
+        self.source_combo.setCurrentIndex(0)
+        self.status_combo.setCurrentIndex(0)
+        self.law_combo.setCurrentIndex(0)
         self.filters_reset.emit()
+
+    @staticmethod
+    def _replace_combo_options(
+        combo: QComboBox,
+        all_label: str,
+        values: tuple[str, ...],
+    ) -> None:
+        selected = str(combo.currentData() or "")
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(all_label, "")
+        for value in values:
+            combo.addItem(value, value)
+        index = combo.findData(selected)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
 
     def _show_selection(
         self,

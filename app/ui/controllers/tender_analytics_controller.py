@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QFileDialog
@@ -11,6 +11,7 @@ from app.tenders.analytics import (
     AnalyticsGrain,
     AnalyticsInterval,
     AnalyticsProviderOutcome,
+    AnalyticsTenderFact,
     TenderAnalyticsQuery,
     TenderAnalyticsService,
     TenderAnalyticsViewModel,
@@ -75,13 +76,15 @@ class TenderAnalyticsController(QObject):
         self.page.set_loading(retain_snapshot=self.page.snapshot is not None)
         try:
             as_of = datetime.now(timezone.utc)
-            query = self._query(as_of)
+            filter_values = self.page.filter_values()
             records = self.registry.list_analytics_facts(
-                include_archived=query.include_archived,
+                include_archived=filter_values[-1],
                 limit=10_001,
                 deadline_now=as_of,
-                deadline_user_timezone=resolve_timezone(query.interval.timezone_name),
+                deadline_user_timezone=resolve_timezone("Europe/Moscow"),
             )
+            self.page.set_filter_options(records)
+            query = self._query(as_of, records)
             observations = self.collector.list_analytics_source_observations()
             conflicts = self.collector.list_analytics_conflicts()
             outcomes = tuple(
@@ -148,15 +151,47 @@ class TenderAnalyticsController(QObject):
         self._shutdown = True
         return True
 
-    def _query(self, as_of: datetime) -> TenderAnalyticsQuery:
-        days, grain, include_archived = self.page.filter_values()
+    def _query(
+        self,
+        as_of: datetime,
+        records: tuple[AnalyticsTenderFact, ...],
+    ) -> TenderAnalyticsQuery:
+        (
+            preset,
+            custom_start,
+            custom_end,
+            grain,
+            source_ids,
+            statuses,
+            laws,
+            include_archived,
+        ) = self.page.filter_values()
         zone = resolve_timezone("Europe/Moscow")
         local_now = as_of.astimezone(zone)
-        end = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
-        start = end - timedelta(days=days)
+        today = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if preset == "last_7_complete_days":
+            start, end = today - timedelta(days=7), today
+        elif preset == "current_month":
+            start, end = today.replace(day=1), local_now.replace(microsecond=0)
+        elif preset == "custom":
+            start = datetime.combine(custom_start, time.min, tzinfo=zone)
+            end = datetime.combine(custom_end, time.min, tzinfo=zone)
+        elif preset == "all_available":
+            confirmed = tuple(
+                parsed
+                for item in records
+                if (parsed := _aware_or_none(item.first_seen_at)) is not None
+            )
+            end = local_now.replace(microsecond=0)
+            start = min(confirmed).astimezone(zone) if confirmed else today - timedelta(days=30)
+        else:
+            start, end = today - timedelta(days=30), today
         return TenderAnalyticsQuery(
             interval=AnalyticsInterval(start, end, "Europe/Moscow"),
             grain=AnalyticsGrain(grain),
+            source_ids=source_ids,
+            statuses=statuses,
+            laws=laws,
             include_archived=include_archived,
         )
 

@@ -40,11 +40,29 @@ def test_page_has_explicit_filter_refresh_chart_and_export_tab_chain() -> None:
     _app()
     page = TenderAnalyticsPage()
 
-    assert page.preset_combo.nextInFocusChain() is page.grain_combo
-    assert page.grain_combo.nextInFocusChain() is page.include_archived
-    assert page.include_archived.nextInFocusChain() is page.apply_button
-    assert page.apply_button.nextInFocusChain() is page.reset_button
-    assert page.reset_button.nextInFocusChain() is page.refresh_button
+    controls = (
+        page.preset_combo,
+        page.start_date,
+        page.end_date,
+        page.grain_combo,
+        page.source_combo,
+        page.status_combo,
+        page.law_combo,
+        page.include_archived,
+        page.apply_button,
+        page.reset_button,
+        page.refresh_button,
+    )
+    named_controls = {item.objectName() for item in controls if item.objectName()}
+
+    def next_named_control(widget):
+        candidate = widget.nextInFocusChain()
+        while candidate.objectName() not in named_controls:
+            candidate = candidate.nextInFocusChain()
+        return candidate
+
+    for current, following in zip(controls, controls[1:]):
+        assert next_named_control(current) is following
     candidate = page.refresh_button.nextInFocusChain()
     while candidate.focusPolicy() is Qt.FocusPolicy.NoFocus:
         candidate = candidate.nextInFocusChain()
