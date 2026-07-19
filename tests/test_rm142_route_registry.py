@@ -38,6 +38,7 @@ def test_registry_has_unique_stable_routes_aliases_and_primary_order() -> None:
         RouteId.DASHBOARD,
         RouteId.TENDERS,
         RouteId.WORKFLOW,
+        RouteId.FUTURE_ANALYTICS,
     )
 
 
@@ -59,20 +60,21 @@ def test_every_legacy_alias_has_one_explicit_disposition(alias: str, route_id: R
     assert DEFAULT_ROUTE_REGISTRY.resolve(alias).route_id is route_id
 
 
-def test_planned_and_context_required_routes_are_not_primary_peers() -> None:
+def test_rm147_analytics_is_primary_while_other_planned_routes_stay_hidden() -> None:
     clients = DEFAULT_ROUTE_REGISTRY.get(RouteId.FUTURE_CLIENTS)
     analytics = DEFAULT_ROUTE_REGISTRY.get(RouteId.FUTURE_ANALYTICS)
     documents = DEFAULT_ROUTE_REGISTRY.get(RouteId.TENDER_DOCUMENTS)
 
     assert clients.availability is RouteAvailability.PLANNED
     assert clients.planned_rm == "RM-156"
-    assert analytics.availability is RouteAvailability.PLANNED
-    assert analytics.planned_rm == "RM-147"
+    assert analytics.availability is RouteAvailability.AVAILABLE
+    assert analytics.planned_rm is None
     assert documents.availability is RouteAvailability.CONTEXT_REQUIRED
     assert not any(
-        spec.route_id in {clients.route_id, analytics.route_id, documents.route_id}
+        spec.route_id in {clients.route_id, documents.route_id}
         for spec in DEFAULT_ROUTE_REGISTRY.primary_routes
     )
+    assert analytics in DEFAULT_ROUTE_REGISTRY.primary_routes
 
 
 def test_registry_rejects_duplicate_alias_and_parent_cycle() -> None:

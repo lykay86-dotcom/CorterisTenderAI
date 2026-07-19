@@ -840,6 +840,9 @@ class TenderSearchUiController(QObject):
             "_tender_search_ui_controller",
             self,
         )
+        bind_analytics = getattr(main_window, "bind_tender_analytics_runtime", None)
+        if callable(bind_analytics):
+            bind_analytics(self)
         return self.action
 
     def tender_workspace_actions(self) -> tuple[QAction, ...]:
@@ -1017,6 +1020,19 @@ class TenderSearchUiController(QObject):
         self._registry_dialog.open()
         self._registry_dialog.raise_()
         self._registry_dialog.activateWindow()
+
+    @Slot(str)
+    def open_registry_record(self, registry_key: str) -> bool:
+        """Open the existing registry dialog at one exact canonical record."""
+
+        normalized = registry_key.strip()
+        repository = self.runtime.tender_registry
+        if not normalized or repository is None or repository.get_record(normalized) is None:
+            return False
+        self.open_registry_dialog()
+        if self._registry_dialog is None:
+            return False
+        return self._registry_dialog.select_registry_key(normalized)
 
     @Slot()
     def open_collector_dialog(self) -> None:

@@ -53,8 +53,9 @@ def test_production_shell_constructs_one_workflow_owner(monkeypatch) -> None:
         "dashboard",
         "tenders",
         "workflow",
+        "analytics",
     )
-    assert window.workspace.pages.count() == 3
+    assert window.workspace.pages.count() == 4
 
     window.close()
     window.deleteLater()

@@ -66,6 +66,7 @@ def _classify(module: str) -> str:
     if module in {
         "app.ui.pages.dashboard_page",
         "app.ui.pages.business_workflow_page",
+        "app.ui.pages.tender_analytics_page",
     }:
         return "PRODUCTION_PAGE"
     if module in {
