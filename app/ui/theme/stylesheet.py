@@ -61,8 +61,12 @@ QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTimeEdit:focus {{
 }}
 
 QPushButton:focus, QToolButton:focus, QCheckBox:focus, QRadioButton:focus,
-QListView:focus, QTreeView:focus, QTableView:focus {{
+QListView:focus, QTreeView:focus, QTableView:focus, QScrollArea:focus {{
     outline: none;
+    border: {int(BorderWidth.FOCUS)}px solid {p.focus_ring};
+}}
+
+QTabBar::tab:focus {{
     border: {int(BorderWidth.FOCUS)}px solid {p.focus_ring};
 }}
 
@@ -80,6 +84,10 @@ QTableView {{
     selection-background-color: {p.selected_background};
 }}
 
+QHeaderView {{
+    background-color: {p.sidebar_background};
+}}
+
 QHeaderView::section {{
     background-color: {p.sidebar_background};
     color: {p.text_secondary};
@@ -88,9 +96,21 @@ QHeaderView::section {{
     padding: {int(Spacing.S)}px;
 }}
 
+QTableCornerButton::section {{
+    background-color: {p.sidebar_background};
+    border: none;
+    border-bottom: 1px solid {p.divider};
+}}
+
+QAbstractScrollArea::corner {{
+    background-color: {p.card_background};
+    border: none;
+}}
+
 QScrollBar:vertical {{
     background: transparent;
     width: {int(Spacing.M)}px;
+    margin: 0;
 }}
 
 QScrollBar::handle:vertical {{
@@ -100,6 +120,69 @@ QScrollBar::handle:vertical {{
 
 QScrollBar::handle:vertical:hover {{
     background: {p.scrollbar_hover};
+}}
+
+QScrollBar:horizontal {{
+    background: transparent;
+    height: {int(Spacing.M)}px;
+    margin: 0;
+}}
+
+QScrollBar::handle:horizontal {{
+    background: {p.scrollbar};
+    border-radius: {int(Radius.MEDIUM)}px;
+}}
+
+QScrollBar::handle:horizontal:hover {{
+    background: {p.scrollbar_hover};
+}}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+    background: transparent;
+    border: none;
+    width: 0;
+    height: 0;
+}}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+    background: transparent;
+}}
+
+QTabWidget::pane {{
+    background-color: {p.panel_background};
+    border: 1px solid {p.border_default};
+}}
+
+QTabBar::tab {{
+    background-color: {p.elevated_background};
+    color: {p.text_secondary};
+    border: 1px solid {p.border_default};
+    padding: {int(Spacing.S)}px {int(Spacing.M)}px;
+}}
+
+QTabBar::tab:selected {{
+    background-color: {p.selected_background};
+    color: {p.text_primary};
+}}
+
+QTabBar::tab:hover {{
+    background-color: {p.hover_background};
+    color: {p.text_primary};
+}}
+
+QProgressBar {{
+    background-color: {p.input_background};
+    color: {p.text_secondary};
+    border: 1px solid {p.border_default};
+    border-radius: {int(Radius.SMALL)}px;
+    text-align: center;
+}}
+
+QProgressBar::chunk {{
+    background-color: {p.brand_primary};
+    border-radius: {int(Radius.SMALL)}px;
 }}
 
 QStatusBar {{

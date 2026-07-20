@@ -51,6 +51,12 @@ class TenderCollectorNotificationsDialog(QDialog):
         root.addWidget(title)
 
         self.table = QTableWidget(self)
+        self.table.setObjectName("CollectorNotificationsTable")
+        self.table.setAccessibleName("Уведомления сборщика тендеров")
+        self.table.setAccessibleDescription(
+            "Дата, тип, безопасный заголовок и сообщение уведомления"
+        )
+        self.table.setTabKeyNavigation(False)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(("Дата", "Тип", "Событие", "Сообщение"))
         self.table.verticalHeader().setVisible(False)
@@ -169,7 +175,7 @@ def _notification_row(
     if isinstance(item, NotificationEnvelope):
         read = item.read_at is not None
         accessible = f"{item.kind.value}. {item.title.value}. {item.summary.value}. " + (
-            "РџСЂРѕС‡РёС‚Р°РЅРѕ." if read else "РќРµ РїСЂРѕС‡РёС‚Р°РЅРѕ."
+            "Прочитано." if read else "Не прочитано."
         )
         return _NotificationRow(
             id=item.notification_id,

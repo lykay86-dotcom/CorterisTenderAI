@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -52,6 +53,7 @@ def test_dialog_renders_structured_stop_factor_evidence() -> None:
     assessment = StopFactorEngine().evaluate(
         "procurement:test",
         tender,
+        now=datetime(2026, 7, 12, tzinfo=timezone.utc),
     )
     score = CorterisParticipationRanker().score(
         tender,

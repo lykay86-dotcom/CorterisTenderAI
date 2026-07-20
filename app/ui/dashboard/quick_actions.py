@@ -107,7 +107,7 @@ class QuickActionTile(QFrame):
         self._focused = False
         self._compact = False
 
-        self.setObjectName("QuickActionTile")
+        self.setObjectName(f"QuickAction_{spec.key}")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)

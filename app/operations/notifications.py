@@ -269,10 +269,8 @@ class LegacyCollectorNotificationAdapter:
         )
         correlation_id = None
         if unsafe:
-            title = SafeText("РЈРІРµРґРѕРјР»РµРЅРёРµ СЃРєСЂС‹С‚Рѕ РґР»СЏ Р±РµР·РѕРїР°СЃРЅРѕСЃС‚Рё")
-            summary = SafeText(
-                "РћС‚РєСЂРѕР№С‚Рµ РґРёР°РіРЅРѕСЃС‚РёРєСѓ Рё РїРѕРІС‚РѕСЂРёС‚Рµ РѕРїРµСЂР°С†РёСЋ."
-            )
+            title = SafeText("Уведомление скрыто для безопасности")
+            summary = SafeText("Откройте диагностику и повторите операцию.")
             correlation_id = self.registry.new_id()
             self.registry.register(
                 DiagnosticRecord(

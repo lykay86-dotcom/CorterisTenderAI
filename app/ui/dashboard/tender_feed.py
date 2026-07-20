@@ -355,6 +355,7 @@ class TenderFeed(QWidget):
             theme=self._theme,
             parent=self,
         )
+        self.state_panel.action_button.setObjectName("TenderFeedStateAction")
         self.state_panel.action_requested.connect(self.state_action_requested)
         layout.addWidget(self.state_panel)
 
@@ -363,6 +364,7 @@ class TenderFeed(QWidget):
         self.table.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.table.setAccessibleName("Последние тендеры")
         self.table.setAccessibleDescription("Стрелки меняют строку, Enter открывает тендер.")
+        self.table.setTabKeyNavigation(False)
         self.table.setModel(TenderFeedModel(tenders, self.table))
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)

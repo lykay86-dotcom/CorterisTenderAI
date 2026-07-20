@@ -139,6 +139,7 @@ class TenderProviderManagerDialog(QDialog):
         self.table.setAccessibleDescription(
             "Provider status, availability and actions resolved by exact provider identity."
         )
+        self.table.setTabKeyNavigation(False)
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels(
             (

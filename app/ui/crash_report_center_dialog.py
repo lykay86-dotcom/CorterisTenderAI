@@ -132,6 +132,11 @@ class CrashReportCenterDialog(QDialog):
 
         self.table = QTableWidget(0, len(self.COLUMNS), self)
         self.table.setObjectName("CrashCenterTable")
+        self.table.setAccessibleName("Локальные отчёты о сбоях")
+        self.table.setAccessibleDescription(
+            "Безопасная сводка отчётов; технические детали открываются отдельным действием"
+        )
+        self.table.setTabKeyNavigation(False)
         self.table.setHorizontalHeaderLabels(self.COLUMNS)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)

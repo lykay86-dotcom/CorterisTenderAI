@@ -26,11 +26,20 @@ class TopBar(QWidget):
         layout.setSpacing(10)
 
         self.page_title = QLabel("Dashboard")
+        self.page_title.setObjectName("TopBarPageTitle")
+        self.page_title.setAccessibleName("Dashboard")
+        self.page_title.setToolTip("Dashboard")
+        self.page_title.setMinimumWidth(0)
+        self.page_title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
 
         self.search = QLineEdit()
         self.search.setObjectName("TopBarTenderSearch")
         self.search.setPlaceholderText("Поиск тендеров…")
         self.search.setToolTip("Запустить поиск тендеров по выбранному профилю и источникам")
+        self.search.setAccessibleName("Глобальный поиск тендеров")
+        self.search.setAccessibleDescription(
+            "Поиск по выбранному профилю и настроенным источникам тендеров"
+        )
         self.search.returnPressed.connect(lambda: self.search_requested.emit(self.search.text()))
         self.search.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
@@ -79,9 +88,27 @@ class TopBar(QWidget):
             (self.profile_button, IconId.TOPBAR_PROFILE),
         ):
             button.setIcon(provider.icon(icon_id, theme=normalized))
+        current = "тёмная" if normalized is ThemeName.DARK else "светлая"
+        following = "светлую" if normalized is ThemeName.DARK else "тёмную"
+        self.theme_button.setAccessibleDescription(
+            f"Текущая тема: {current}. Переключить на {following} тему."
+        )
 
     def set_page_title(self, title: str) -> None:
         self.page_title.setText(title)
+        self.page_title.setAccessibleName(title)
+        self.page_title.setToolTip(title)
+
+    def keyboard_focus_chain(self) -> tuple[QWidget, ...]:
+        """Return task controls in their visible topbar order."""
+
+        return (
+            self.search,
+            self.ai_button,
+            self.notify_button,
+            self.theme_button,
+            self.profile_button,
+        )
 
 
 __all__ = ["TopBar"]

@@ -1,0 +1,986 @@
+{
+  "schema": "rm152-native-matrix-v1",
+  "environment_discovery": {
+    "os": "Windows 10.0.19045",
+    "display_count": 1,
+    "display": "1920x1080; available 1920x1040; logical DPI 96; DPR 1.0",
+    "narrator_binary_present": true,
+    "high_contrast_active": false,
+    "windows_automation_connection": "connected after Codex Desktop restart",
+    "launch_identity_correction": "The initial same-name launch resolved to the installed Program Files executable and was discarded; an identical uniquely named artifact was then confirmed as the exact dist process.",
+    "windows_state_capture": "Exact-build screenshot capture failed with SetIsBorderRequired/interface not supported (0x80004002); exact-build text-only UI Automation succeeded in an earlier run.",
+    "text_only_ui_automation": "Exact build exposed a 176-element tree with names, roles, states, and table values.",
+    "keyboard_probe": "The focused-element report remained on global search while keyboard behaviour changed the active route to Analytics; input calls also timed out intermittently, so no focus or keyboard verdict was accepted.",
+    "owner_keyboard_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+      "environment": "single 1920x1080 display; logical DPI 96; exact frozen build",
+      "confirmed": [
+        "Visible focus was observed and moved between controls.",
+        "The requested Tab sweep did not become trapped.",
+        "Shift+Tab moved focus backward.",
+        "No clipped or overlapping text was observed in the displayed state."
+      ],
+      "theme_result": "Keyboard traversal continued to work after switching from light to dark, but dark theme exposed white fallback strips on native table, scrollbar, tab, progress, and controller-owned search surfaces.",
+      "unresolved": [
+        "complete forward and reverse order",
+        "all semantic states",
+        "Narrator output"
+      ],
+      "status_policy": "Partial owner observation only; no cell promoted."
+    },
+    "owner_narrator_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "environment": "single 1920x1080 display; logical DPI 96; exact uniquely named frozen build; Windows Narrator",
+      "steps": "10 Tab transitions followed by 5 Shift+Tab transitions at a slow interval",
+      "confirmed": [
+        "Narrator speech moved between distinct controls.",
+        "Russian control names were readable without mojibake.",
+        "Shift+Tab speech moved backward without a loop."
+      ],
+      "unresolved": [
+        "complete route order",
+        "all semantic states",
+        "complete role, state, value, relation, and dynamic-announcement speech"
+      ],
+      "status_policy": "Partial owner observation only; no SR or native cell promoted."
+    },
+    "owner_dpi_125_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "environment": "single 1920x1080 display; Windows Settings UIA confirmed 125%; exact uniquely named frozen build restarted after scale change",
+      "automation_evidence": [
+        "Exact-build text-only UIA exposed 176 elements.",
+        "The complete exposed UIA tree contained zero mojibake marker lines."
+      ],
+      "owner_confirmed": [
+        "No clipped or overlapping text or controls were observed.",
+        "Light and dark themes switched without white fallback strips.",
+        "Tab and Shift+Tab moved focus without a trap."
+      ],
+      "unresolved": [
+        "all semantic states",
+        "complete focus order",
+        "complete Narrator journey"
+      ],
+      "restoration": "PASS; Windows Settings UIA confirmed 100% (recommended) after the run, and the exact test process and Settings window were closed.",
+      "status_policy": "Partial owner observation only; NATIVE-1920-125-DL is BLOCKED rather than PASS."
+    },
+    "owner_dpi_150_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "environment": "single 1920x1080 display; Windows Settings UIA confirmed 150%; exact uniquely named frozen build restarted after scale change",
+      "automation_evidence": [
+        "Exact-build text-only UIA exposed 166 current elements and retained key dashboard surfaces.",
+        "The complete exposed UIA tree contained zero mojibake marker lines."
+      ],
+      "owner_confirmed": [
+        "No clipped or overlapping text or controls were observed.",
+        "Light and dark themes switched without white fallback strips.",
+        "Tab and Shift+Tab moved focus without a trap."
+      ],
+      "unresolved": [
+        "all semantic states",
+        "complete focus order",
+        "complete Narrator journey"
+      ],
+      "restoration": "PASS; Windows Settings UIA confirmed 100% (recommended) after the run, and the exact test process and Settings window were closed.",
+      "status_policy": "Partial owner observation only; NATIVE-1920-150-DL is BLOCKED rather than PASS."
+    },
+    "owner_high_contrast_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "environment": "single 1920x1080 display; 100% scale; Windows High Contrast with the High Contrast Black theme; exact uniquely named frozen build",
+      "automation_evidence": [
+        "Windows Settings text-only UIA exposed the enabled High Contrast theme selector and selected High Contrast Black theme after the owner enabled the mode.",
+        "The exact-build text-only UIA tree exposed 176 elements with readable Russian names and key dashboard surfaces.",
+        "The exact build remained responsive after 10 Tab transitions and 5 Shift+Tab transitions."
+      ],
+      "owner_confirmed": [
+        "No clipping, overlap, or white fallback strips were observed.",
+        "The focus indicator was visible and moved forward and backward without a trap.",
+        "Russian text and control states remained distinguishable."
+      ],
+      "unresolved": [
+        "all semantic states and every route",
+        "menus, tooltips, dialogs, tables, charts, and destructive-warning surfaces",
+        "complete Narrator name, role, state, value, relation, and announcement output"
+      ],
+      "restoration": "PASS; the owner disabled High Contrast, the registry reported HighContrast Flags 126, and the exact test process and Settings window were closed.",
+      "status_policy": "Partial owner observation only; NATIVE-HC is BLOCKED rather than PASS."
+    },
+    "frozen_executable_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+    "frozen_self_test": "PASS; 9 isolated automated checks",
+    "closeout_frozen_build": {
+      "source_commit": "e57093081e3e8695b0e1452f29585e9b58c07ac0",
+      "pyinstaller": "6.21.0",
+      "python": "3.12.7",
+      "os": "Windows 10.0.19045",
+      "sha256": "5BED2D3F30AE6917F911800FBB85D7679BFBA6CEBB76F6F98F6B73376EBC2719",
+      "size_bytes": 83485730,
+      "self_test": "PASS; 9 isolated automated checks",
+      "privacy": "The raw self-test report remains untracked because it contains transient local paths."
+    },
+    "dark_theme_fix_rerun": {
+      "defect_artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+      "fix_commit": "9da4f79",
+      "candidate_artifact_sha256": "81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866",
+      "candidate_frozen_self_test": "PASS; 9 isolated automated checks",
+      "native_visual_status": "PASS",
+      "native_visual_observed_at": "2026-07-20 Europe/Moscow",
+      "native_visual_observer": "project owner",
+      "native_visual_result": "After switching from light to dark on the exact fixed build, the owner confirmed that the previously observed white fallback strips were removed."
+    },
+    "russian_feedback_fix_rerun": {
+      "defect_artifact_sha256": "81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866",
+      "defect_observation": "Exact-build text-only UIA exposed 143 elements and reproduced mojibake in the Russian safe-feedback banner.",
+      "expected_red_commit": "bf2099e",
+      "fix_commit": "0ab712d",
+      "candidate_artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "candidate_frozen_self_test": "PASS; 9 isolated automated checks",
+      "native_status": "PASS",
+      "native_observed_at": "2026-07-20 Europe/Moscow",
+      "native_observer": "Codex-assisted exact-build UIA session after explicit owner launch approval",
+      "native_environment": "single 1920x1080 display; logical DPI 96; exact uniquely named frozen build",
+      "native_result": "Exact process and Corteris Tender AI 1.3 Alpha title confirmed; text-only UIA exposed 176 elements, correct Russian safe-feedback text in status, AI-warning, and data-state projections, and zero mojibake marker lines."
+    },
+    "frozen_manifest_dpi_declaration": "absent",
+    "observation_boundary": "Exact artifact identity, a text-only UIA tree, owner-observed visible moving focus, and a short owner-observed Narrator forward/reverse sweep were recorded, but complete keyboard, screenshot, Narrator, DPI, and reliable focus-order evidence were not; no native cell promoted."
+  },
+  "owner_exception_decision": {
+    "id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+    "approved": true,
+    "approved_by": "project_owner",
+    "approved_at": "2026-07-20 Europe/Moscow",
+    "statement": "The project owner explicitly approved named exceptions for the remaining RM-152 cells.",
+    "policy": "Retain BLOCKED and NOT_EXECUTED statuses; never convert an exception to PASS."
+  },
+  "owner_exceptions": [
+    {
+      "id": "RM152-EX-SR-01-DEV",
+      "cell_id": "SR-01-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev sidebar/topbar Narrator journey across route, search, theme, and notification states"
+      },
+      "reason": "The available owner session covered only a short representative Narrator sweep, not the complete dev journey.",
+      "residual_risk": "Dev-only route names, selection, search, theme state, or notification speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-01-FROZEN",
+      "cell_id": "SR-01-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen sidebar/topbar Narrator journey across route, search, theme, and notification states"
+      },
+      "reason": "The frozen artifact received only a short representative Narrator sweep, not the complete SR-01 journey.",
+      "residual_risk": "Frozen-only route names, selection, search, theme state, or notification speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-02-DEV",
+      "cell_id": "SR-02-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev Dashboard Narrator journey for headings, KPI values/states, feed identity, and quick actions"
+      },
+      "reason": "The complete Dashboard screen-reader journey was not executed in the available owner session.",
+      "residual_risk": "Dev Dashboard headings, KPI state/value speech, feed identity, or quick-action speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-02-FROZEN",
+      "cell_id": "SR-02-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen Dashboard Narrator journey for headings, KPI values/states, feed identity, and quick actions"
+      },
+      "reason": "The complete frozen Dashboard screen-reader journey was not executed in the available owner session.",
+      "residual_risk": "Frozen Dashboard headings, KPI state/value speech, feed identity, or quick-action speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-03-DEV",
+      "cell_id": "SR-03-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev search-operation Narrator journey across running, partial, failure, cancellation, and terminal states"
+      },
+      "reason": "No complete synthetic search lifecycle was exercised with Narrator in the dev build.",
+      "residual_risk": "Lifecycle state speech, bounded announcements, cancellation feedback, or focus stability may contain undiscovered dev defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-03-FROZEN",
+      "cell_id": "SR-03-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen search-operation Narrator journey across running, partial, failure, cancellation, and terminal states"
+      },
+      "reason": "No complete synthetic search lifecycle was exercised with Narrator in the frozen build.",
+      "residual_risk": "Frozen lifecycle state speech, bounded announcements, cancellation feedback, or focus stability may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-04-DEV",
+      "cell_id": "SR-04-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev registry/detail Narrator journey including critical-warning priority, decision, actions, and provenance"
+      },
+      "reason": "The complete registry/detail screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev critical-warning order, decision speech, action identity, or provenance speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-04-FROZEN",
+      "cell_id": "SR-04-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen registry/detail Narrator journey including critical-warning priority, decision, actions, and provenance"
+      },
+      "reason": "The complete registry/detail screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen critical-warning order, decision speech, action identity, or provenance speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-05-DEV",
+      "cell_id": "SR-05-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev table Narrator journey for headers, row/column position, selection, sort, state, and removed-row fallback"
+      },
+      "reason": "The complete modern-table screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev table position, selection, sort, action target, or removed-row fallback speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-05-FROZEN",
+      "cell_id": "SR-05-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen table Narrator journey for headers, row/column position, selection, sort, state, and removed-row fallback"
+      },
+      "reason": "The complete modern-table screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen table position, selection, sort, action target, or removed-row fallback speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-06-DEV",
+      "cell_id": "SR-06-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev chart and textual-equivalent Narrator journey for titles, series, points, values, selection, and F2 table"
+      },
+      "reason": "The complete chart/text-equivalent screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev chart identity, point values, selection, or textual-equivalent parity may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-06-FROZEN",
+      "cell_id": "SR-06-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen chart and textual-equivalent Narrator journey for titles, series, points, values, selection, and F2 table"
+      },
+      "reason": "The complete chart/text-equivalent screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen chart identity, point values, selection, or textual-equivalent parity may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-07-DEV",
+      "cell_id": "SR-07-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev notifications Narrator journey for unread state, severity, time, summary, action, and bounded arrival announcement"
+      },
+      "reason": "The complete notification screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev unread/severity identity, action speech, or bounded arrival announcements may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-07-FROZEN",
+      "cell_id": "SR-07-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen notifications Narrator journey for unread state, severity, time, summary, action, and bounded arrival announcement"
+      },
+      "reason": "The complete notification screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen unread/severity identity, action speech, or bounded arrival announcements may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-08-DEV",
+      "cell_id": "SR-08-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev provider and credential Narrator journey including write-only secret fields and safe state speech"
+      },
+      "reason": "The complete provider/credential screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev provider state, field labels, or write-only secret handling may contain undiscovered screen-reader defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-08-FROZEN",
+      "cell_id": "SR-08-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen provider and credential Narrator journey including write-only secret fields and safe state speech"
+      },
+      "reason": "The complete provider/credential screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen provider state, field labels, or write-only secret handling may contain undiscovered screen-reader defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-09-DEV",
+      "cell_id": "SR-09-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev backup/import/recovery Narrator journey for exact target, warning, safe default, result, and focus return"
+      },
+      "reason": "The complete backup/import/recovery screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev target identity, destructive warning, safe-default, result, or focus-return speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-09-FROZEN",
+      "cell_id": "SR-09-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen backup/import/recovery Narrator journey for exact target, warning, safe default, result, and focus return"
+      },
+      "reason": "The complete backup/import/recovery screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen target identity, destructive warning, safe-default, result, or focus-return speech may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-10-DEV",
+      "cell_id": "SR-10-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev crash, safe-mode, and support Narrator journey with confidential-data scan"
+      },
+      "reason": "The complete crash/safe-mode/support screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev safe summary, correlation, action speech, or confidential-data suppression may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-10-FROZEN",
+      "cell_id": "SR-10-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen crash, safe-mode, and support Narrator journey with confidential-data scan"
+      },
+      "reason": "The complete crash/safe-mode/support screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen safe summary, correlation, action speech, or confidential-data suppression may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-11-DEV",
+      "cell_id": "SR-11-DEV",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; source checkout available",
+        "unavailable": "complete dev close/lifecycle Narrator journey for busy decisions, terminal status, and deleted-object focus safety"
+      },
+      "reason": "The complete close/lifecycle screen-reader journey was not executed in the dev build.",
+      "residual_risk": "Dev busy-close decision, terminal-status speech, or deleted-object focus behavior may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-SR-11-FROZEN",
+      "cell_id": "SR-11-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single 1920x1080 Windows host; Narrator present; exact frozen artifact available",
+        "unavailable": "complete frozen close/lifecycle Narrator journey for busy decisions, terminal status, and deleted-object focus safety"
+      },
+      "reason": "The complete close/lifecycle screen-reader journey was not executed in the frozen build.",
+      "residual_risk": "Frozen busy-close decision, terminal-status speech, or deleted-object focus behavior may contain undiscovered defects.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-1366-100-DL",
+      "cell_id": "NATIVE-1366-100-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single physical 1920x1080 display at 100%, 125%, and 150%",
+        "unavailable": "physical 1366x768 display at 100% for dark/light keyboard inspection"
+      },
+      "reason": "The discovered host has no 1366x768 physical display and simulated geometry is not native evidence.",
+      "residual_risk": "Clipping, focus visibility, or action reachability defects may remain at physical 1366x768/100%.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-1366-125-DL",
+      "cell_id": "NATIVE-1366-125-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single physical 1920x1080 display; deterministic logical-geometry guards",
+        "unavailable": "physical 1366x768 display at 125% for dark/light keyboard inspection"
+      },
+      "reason": "The discovered host has no 1366x768 physical display; the deterministic baseline predicts a constrained viewport but cannot replace native observation.",
+      "residual_risk": "Clipping, inaccessible actions, window-control reachability, or focus defects may remain at physical 1366x768/125%.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-1920-100-DL",
+      "cell_id": "NATIVE-1920-100-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "physical 1920x1080/100% host; exact frozen builds; partial dark/light keyboard and Narrator observations",
+        "unavailable": "complete all-route/all-state focus order and Narrator semantics at 1920x1080/100%"
+      },
+      "reason": "The owner completed representative defect reruns and short keyboard/Narrator sweeps, but not the complete route/state matrix.",
+      "residual_risk": "Unvisited routes or semantic states may retain focus-order, role, state, value, relation, or announcement defects.",
+      "status_retained": "BLOCKED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-1920-125-DL",
+      "cell_id": "NATIVE-1920-125-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "physical 1920x1080 host at Windows 125%; exact frozen build; partial dark/light keyboard observation",
+        "unavailable": "complete all-route/all-state focus order and Narrator journey at 1920x1080/125%"
+      },
+      "reason": "The owner completed representative visual and keyboard checks, but not every semantic state or a complete Narrator journey.",
+      "residual_risk": "Unvisited states at 125% may retain clipping, focus-order, or screen-reader defects.",
+      "status_retained": "BLOCKED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-1920-150-DL",
+      "cell_id": "NATIVE-1920-150-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "physical 1920x1080 host at Windows 150%; exact frozen build; partial dark/light keyboard observation",
+        "unavailable": "complete all-route/all-state focus order and Narrator journey at 1920x1080/150%"
+      },
+      "reason": "The owner completed representative visual and keyboard checks, but not every semantic state or a complete Narrator journey.",
+      "residual_risk": "Unvisited states at 150% may retain clipping, focus-order, or screen-reader defects.",
+      "status_retained": "BLOCKED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-2560-150-DL",
+      "cell_id": "NATIVE-2560-150-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single physical 1920x1080 display",
+        "unavailable": "physical 2560x1440 display at 150% for dark/light route and theme inspection"
+      },
+      "reason": "No 2560x1440 physical display was available on the discovered host.",
+      "residual_risk": "Layout, scaling, theme-switch, focus, or popup placement defects may remain at 2560x1440/150%.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-2560-175-DL",
+      "cell_id": "NATIVE-2560-175-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single physical 1920x1080 display",
+        "unavailable": "physical 2560x1440 display at 175% for dark/light route and theme inspection"
+      },
+      "reason": "No 2560x1440 physical display was available on the discovered host.",
+      "residual_risk": "Layout, scaling, theme-switch, focus, or popup placement defects may remain at 2560x1440/175%.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-3840-200-DL",
+      "cell_id": "NATIVE-3840-200-DL",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "single physical 1920x1080 display",
+        "unavailable": "physical 3840x2160 display at 200% for large-table and nested-modal inspection"
+      },
+      "reason": "No 3840x2160 physical display was available on the discovered host.",
+      "residual_risk": "4K/200% layout, table, modal nesting, focus, or popup placement defects may remain undiscovered.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-HC",
+      "cell_id": "NATIVE-HC",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "physical 1920x1080/100% host; Windows High Contrast Black; exact frozen build; representative dashboard observation",
+        "unavailable": "complete high-contrast route/state/menu/tooltip/dialog/table/chart/warning and Narrator matrix"
+      },
+      "reason": "The owner completed a representative dashboard and focus sweep, but not every required high-contrast surface or semantic state.",
+      "residual_risk": "Unvisited high-contrast surfaces may retain invisible focus, collapsed semantics, missing glyph alternatives, or indistinguishable states.",
+      "status_retained": "BLOCKED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-MIXED-DPI",
+      "cell_id": "NATIVE-MIXED-DPI",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "one physical monitor with temporary 100%, 125%, and 150% scale runs",
+        "unavailable": "two simultaneously attached physical monitors with distinct DPI for A-to-B-to-A movement"
+      },
+      "reason": "The discovered host has one monitor, so per-monitor DPI transitions and dialog movement could not be observed.",
+      "residual_risk": "A-to-B-to-A geometry, popup placement, saved monitor identity, or detached-monitor recovery defects may remain.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    },
+    {
+      "id": "RM152-EX-NATIVE-FROZEN",
+      "cell_id": "NATIVE-FROZEN",
+      "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+      "approved_by": "project_owner",
+      "approved_at": "2026-07-20 Europe/Moscow",
+      "environment": {
+        "available": "exact frozen artifact with passing isolated self-test and partial 100%, 125%, 150%, Narrator, dark/light, and high-contrast observations",
+        "unavailable": "complete representative frozen SR/DPI/high-contrast matrix across every required cell and semantic state"
+      },
+      "reason": "The exact artifact received multiple partial native observations, but not the complete combined frozen matrix.",
+      "residual_risk": "Frozen-only packaging, plugin, font, focus, screen-reader, DPI, or high-contrast defects may remain outside observed surfaces.",
+      "status_retained": "NOT_EXECUTED",
+      "accepted_without_pass": true
+    }
+  ],
+  "cells": [
+    {
+      "id": "SR-01-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-01-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-02-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-02-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-03-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-03-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-04-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-04-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-05-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-05-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-06-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-06-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-07-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-07-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-08-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-08-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-09-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-09-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-10-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-10-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-11-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-11-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1366-100-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1366-125-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1920-100-DL",
+      "status": "BLOCKED",
+      "observed": true,
+      "environment": {
+        "os": "Windows 10.0.19045",
+        "display": "1920x1080; available 1920x1040",
+        "scale": "100%; logical DPI 96; DPR 1.0",
+        "theme": "light and dark; dark theme visual defect observed",
+        "artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+        "observer": "project owner",
+        "observed_at": "2026-07-20 Europe/Moscow",
+        "fixed_artifact_sha256": "81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866",
+        "fixed_artifact_visual_rerun": "PASS; owner-confirmed removal of white fallback strips",
+        "narrator_short_sweep_artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+        "narrator_short_sweep": "PASS for distinct-control speech, readable Russian names, and reverse movement without a loop; partial assertions only"
+      },
+      "evidence": [
+        "Visible focus was observed moving between controls.",
+        "Tab did not become trapped in the requested sweep.",
+        "Shift+Tab moved focus backward.",
+        "No clipped or overlapping text was observed in the displayed state.",
+        "Dark theme showed white fallback strips on native table, scrollbar, tab, progress, and controller-owned search surfaces in the original artifact.",
+        "The owner confirmed those white fallback strips were removed after a light-to-dark switch on fixed artifact 81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866.",
+        "On artifact 11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0, Windows Narrator spoke distinct controls and readable Russian names during 10 Tab and 5 Shift+Tab transitions; reverse speech moved backward without a loop."
+      ],
+      "note": "The original visual defect and the later Russian safe-feedback mojibake both passed their exact fixed-artifact reruns. A short Narrator forward/reverse sweep also passed its observed assertions. Cell remains BLOCKED rather than PASS because all semantic states, complete route order, and complete Narrator output remain incomplete."
+    },
+    {
+      "id": "NATIVE-1920-125-DL",
+      "status": "BLOCKED",
+      "observed": true,
+      "environment": {
+        "os": "Windows 10.0.19045",
+        "display": "1920x1080; available 1920x1040",
+        "scale": "125%; Windows Settings UIA confirmed",
+        "theme": "light and dark",
+        "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+        "observer": "project owner",
+        "observed_at": "2026-07-20 Europe/Moscow"
+      },
+      "evidence": [
+        "Exact frozen build was restarted after Windows Settings UIA confirmed 125%.",
+        "Text-only UIA exposed 176 elements and zero mojibake marker lines.",
+        "The owner observed no clipping or overlap.",
+        "The owner confirmed clean light/dark switching without white fallback strips.",
+        "The owner confirmed Tab and Shift+Tab movement without a focus trap."
+      ],
+      "note": "BLOCKED rather than PASS because all semantic states, complete focus order, and a complete Narrator journey remain incomplete."
+    },
+    {
+      "id": "NATIVE-1920-150-DL",
+      "status": "BLOCKED",
+      "observed": true,
+      "environment": {
+        "os": "Windows 10.0.19045",
+        "display": "1920x1080; available 1920x1040",
+        "scale": "150%; Windows Settings UIA confirmed",
+        "theme": "light and dark",
+        "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+        "observer": "project owner",
+        "observed_at": "2026-07-20 Europe/Moscow"
+      },
+      "evidence": [
+        "Exact frozen build was restarted after Windows Settings UIA confirmed 150%.",
+        "Text-only UIA exposed 166 current elements, retained key dashboard surfaces, and contained zero mojibake marker lines.",
+        "The owner observed no clipping or overlap.",
+        "The owner confirmed clean light/dark switching without white fallback strips.",
+        "The owner confirmed Tab and Shift+Tab movement without a focus trap."
+      ],
+      "note": "BLOCKED rather than PASS because all semantic states, complete focus order, and a complete Narrator journey remain incomplete."
+    },
+    {
+      "id": "NATIVE-2560-150-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-2560-175-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-3840-200-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-HC",
+      "status": "BLOCKED",
+      "observed": true,
+      "environment": {
+        "os": "Windows 10.0.19045",
+        "display": "1920x1080; available 1920x1040",
+        "scale": "100%",
+        "theme": "Windows High Contrast; High Contrast Black",
+        "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+        "observer": "project owner",
+        "observed_at": "2026-07-20 Europe/Moscow"
+      },
+      "evidence": [
+        "Windows Settings text-only UIA confirmed the enabled High Contrast theme selector and selected High Contrast Black theme before the app run.",
+        "The exact frozen build exposed 176 UIA elements with readable Russian names and key dashboard surfaces.",
+        "The exact build remained responsive after 10 Tab and 5 Shift+Tab transitions.",
+        "The owner observed no clipping, overlap, or white fallback strips.",
+        "The owner confirmed a visible focus indicator moving in both directions without a trap.",
+        "The owner confirmed distinguishable Russian text and control states.",
+        "After the run, HighContrast Flags 126 confirmed restoration and the exact test process and Settings window were closed."
+      ],
+      "note": "BLOCKED rather than PASS because the observation covered a representative dashboard state only; complete semantic states, routes, menus, tooltips, dialogs, tables, charts, destructive warnings, and Narrator output remain incomplete."
+    },
+    {
+      "id": "NATIVE-MIXED-DPI",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    }
+  ]
+}

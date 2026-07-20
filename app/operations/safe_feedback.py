@@ -42,7 +42,7 @@ def sanitize_safe_text(value: object, *, max_length: int = 512) -> SafeText:
     normalized = _MARKUP.sub("", normalized)
     normalized = _WHITESPACE.sub(" ", normalized).strip()
     if not normalized:
-        normalized = "РќРµС‚ Р±РµР·РѕРїР°СЃРЅРѕРіРѕ РѕРїРёСЃР°РЅРёСЏ."
+        normalized = "Нет безопасного описания."
     return SafeText(normalized[:max_length].rstrip())
 
 
@@ -76,7 +76,7 @@ class SafeFeedback:
     def to_plain_text(self) -> str:
         rendered = f"{self.title.value}. {self.summary.value}"
         if self.diagnostic_id is not None:
-            rendered += f" РљРѕРґ РґРёР°РіРЅРѕСЃС‚РёРєРё: {self.diagnostic_id.value}."
+            rendered += f" Код диагностики: {self.diagnostic_id.value}."
         return rendered
 
     def to_notification_payload(self) -> dict[str, object]:
@@ -106,73 +106,73 @@ _PRESENTATION: Mapping[
 ] = {
     OperationReasonCode.OFFLINE: (
         FeedbackSeverity.WARNING,
-        "РќРµС‚ СЃРµС‚РµРІРѕРіРѕ СЃРѕРµРґРёРЅРµРЅРёСЏ",
-        "РџСЂРѕРІРµСЂСЊС‚Рµ РїРѕРґРєР»СЋС‡РµРЅРёРµ Рё РїРѕРІС‚РѕСЂРёС‚Рµ РѕРїРµСЂР°С†РёСЋ.",
+        "Нет сетевого соединения",
+        "Проверьте подключение и повторите операцию.",
     ),
     OperationReasonCode.TIMEOUT: (
         FeedbackSeverity.WARNING,
-        "РСЃС‚РµРєР»Рѕ РІСЂРµРјСЏ РѕР¶РёРґР°РЅРёСЏ",
-        "РћРїРµСЂР°С†РёСЏ РЅРµ РїРѕРґС‚РІРµСЂРґРёР»Р° Р·Р°РІРµСЂС€РµРЅРёРµ. РџРѕРІС‚РѕСЂРёС‚Рµ РїРѕР·Р¶Рµ.",
+        "Истекло время ожидания",
+        "Операция не подтвердила завершение. Повторите позже.",
     ),
     OperationReasonCode.CANCELLED_BY_USER: (
         FeedbackSeverity.INFO,
-        "РћРїРµСЂР°С†РёСЏ РѕСЃС‚Р°РЅРѕРІР»РµРЅР°",
-        "РћСЃС‚Р°РЅРѕРІРєР° РїРѕРґС‚РІРµСЂР¶РґРµРЅР° РІР»Р°РґРµР»СЊС†РµРј РѕРїРµСЂР°С†РёРё.",
+        "Операция остановлена",
+        "Остановка подтверждена владельцем операции.",
     ),
     OperationReasonCode.SOURCE_UNAVAILABLE: (
         FeedbackSeverity.WARNING,
-        "РСЃС‚РѕС‡РЅРёРє РЅРµРґРѕСЃС‚СѓРїРµРЅ",
-        "РџСЂРѕРІРµСЂСЊС‚Рµ СЃРѕСЃС‚РѕСЏРЅРёРµ РёСЃС‚РѕС‡РЅРёРєР° Рё РїРѕРІС‚РѕСЂРёС‚Рµ РѕРїРµСЂР°С†РёСЋ.",
+        "Источник недоступен",
+        "Проверьте состояние источника и повторите операцию.",
     ),
     OperationReasonCode.AUTH_REQUIRED: (
         FeedbackSeverity.WARNING,
-        "РўСЂРµР±СѓРµС‚СЃСЏ РЅР°СЃС‚СЂРѕР№РєР° РґРѕСЃС‚СѓРїР°",
-        "РћС‚РєСЂРѕР№С‚Рµ РЅР°СЃС‚СЂРѕР№РєРё РїСЂРѕРІР°Р№РґРµСЂР° Рё РїРѕРІС‚РѕСЂРёС‚Рµ РѕРїРµСЂР°С†РёСЋ.",
+        "Требуется настройка доступа",
+        "Откройте настройки провайдера и повторите операцию.",
     ),
     OperationReasonCode.PERMISSION_DENIED: (
         FeedbackSeverity.ERROR,
-        "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ",
-        "РџСЂРѕРІРµСЂСЊС‚Рµ РґРѕСЃС‚СѓРї Рє С†РµР»РµРІРѕРјСѓ РѕР±СЉРµРєС‚Сѓ.",
+        "Недостаточно прав",
+        "Проверьте доступ к целевому объекту.",
     ),
     OperationReasonCode.VALIDATION_FAILED: (
         FeedbackSeverity.WARNING,
-        "Р”Р°РЅРЅС‹Рµ РЅРµ РїСЂРѕС€Р»Рё РїСЂРѕРІРµСЂРєСѓ",
-        "РСЃРїСЂР°РІСЊС‚Рµ РІС…РѕРґРЅС‹Рµ РґР°РЅРЅС‹Рµ Рё РїРѕРІС‚РѕСЂРёС‚Рµ РѕРїРµСЂР°С†РёСЋ.",
+        "Данные не прошли проверку",
+        "Исправьте входные данные и повторите операцию.",
     ),
     OperationReasonCode.CONFLICT: (
         FeedbackSeverity.WARNING,
-        "РћР±РЅР°СЂСѓР¶РµРЅ РєРѕРЅС„Р»РёРєС‚ РґР°РЅРЅС‹С…",
-        "РћР±РЅРѕРІРёС‚Рµ РґР°РЅРЅС‹Рµ Рё РїРѕРІС‚РѕСЂРёС‚Рµ РґРµР№СЃС‚РІРёРµ.",
+        "Обнаружен конфликт данных",
+        "Обновите данные и повторите действие.",
     ),
     OperationReasonCode.STALE_TARGET: (
         FeedbackSeverity.WARNING,
-        "Р¦РµР»РµРІРѕР№ РѕР±СЉРµРєС‚ РёР·РјРµРЅРёР»СЃСЏ",
-        "РћР±РЅРѕРІРёС‚Рµ СЃРїРёСЃРѕРє Рё РІС‹Р±РµСЂРёС‚Рµ РѕР±СЉРµРєС‚ РїРѕРІС‚РѕСЂРЅРѕ.",
+        "Целевой объект изменился",
+        "Обновите список и выберите объект повторно.",
     ),
     OperationReasonCode.UNSUPPORTED_SCHEMA: (
         FeedbackSeverity.ERROR,
-        "Р¤РѕСЂРјР°С‚ РґР°РЅРЅС‹С… РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ",
-        "Р§С‚РµРЅРёРµ РѕСЃС‚Р°РЅРѕРІР»РµРЅРѕ Р±РµР· РёР·РјРµРЅРµРЅРёСЏ РґР°РЅРЅС‹С….",
+        "Формат данных не поддерживается",
+        "Чтение остановлено без изменения данных.",
     ),
     OperationReasonCode.DATA_DAMAGED: (
         FeedbackSeverity.ERROR,
-        "Р”Р°РЅРЅС‹Рµ РїРѕРІСЂРµР¶РґРµРЅС‹",
-        "РћС‚РєСЂРѕР№С‚Рµ С†РµРЅС‚СЂ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ РёР»Рё РґРёР°РіРЅРѕСЃС‚РёРєСѓ.",
+        "Данные повреждены",
+        "Откройте центр восстановления или диагностику.",
     ),
     OperationReasonCode.STORAGE_UNAVAILABLE: (
         FeedbackSeverity.ERROR,
-        "РҐСЂР°РЅРёР»РёС‰Рµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ",
-        "РџСЂРѕРІРµСЂСЊС‚Рµ РґРѕСЃС‚СѓРї Рє Р»РѕРєР°Р»СЊРЅРѕРјСѓ С…СЂР°РЅРёР»РёС‰Сѓ.",
+        "Хранилище недоступно",
+        "Проверьте доступ к локальному хранилищу.",
     ),
     OperationReasonCode.DEPENDENCY_UNAVAILABLE: (
         FeedbackSeverity.ERROR,
-        "РљРѕРјРїРѕРЅРµРЅС‚ РЅРµРґРѕСЃС‚СѓРїРµРЅ",
-        "РџРµСЂРµР·Р°РїСѓСЃС‚РёС‚Рµ РїСЂРёР»РѕР¶РµРЅРёРµ Рё РїРѕРІС‚РѕСЂРёС‚Рµ РѕРїРµСЂР°С†РёСЋ.",
+        "Компонент недоступен",
+        "Перезапустите приложение и повторите операцию.",
     ),
     OperationReasonCode.INTERNAL_ERROR: (
         FeedbackSeverity.ERROR,
-        "РћРїРµСЂР°С†РёСЏ РЅРµ Р·Р°РІРµСЂС€РµРЅР°",
-        "РўРµС…РЅРёС‡РµСЃРєРёРµ РґРµС‚Р°Р»Рё Р±РµР·РѕРїР°СЃРЅРѕ СЃРєСЂС‹С‚С‹. РћС‚РєСЂРѕР№С‚Рµ РґРёР°РіРЅРѕСЃС‚РёРєСѓ.",
+        "Операция не завершена",
+        "Технические детали безопасно скрыты. Откройте диагностику.",
     ),
 }
 
@@ -241,7 +241,7 @@ class SafeFeedbackProjector:
         summary = SafeText(summary_value)
         accessible_value = f"{title.value}. {summary.value}"
         if diagnostic_id is not None:
-            accessible_value += f" РљРѕРґ РґРёР°РіРЅРѕСЃС‚РёРєРё: {diagnostic_id.value}."
+            accessible_value += f" Код диагностики: {diagnostic_id.value}."
         return SafeFeedback(
             feedback_id=self._feedback_id_factory(),
             episode_id=episode_id,

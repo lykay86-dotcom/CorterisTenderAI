@@ -408,23 +408,34 @@ class BusinessWorkflowPage(QWidget):
         layout.setSpacing(10)
 
         self.search_edit = QLineEdit(bar)
+        self.search_edit.setObjectName("WorkflowSearch")
+        self.search_edit.setAccessibleName("Поиск записей workflow")
+        self.search_edit.setAccessibleDescription(
+            "Поиск по названию, тендеру и отображаемому статусу записи"
+        )
         self.search_edit.setPlaceholderText("Поиск по названию, тендеру или статусу")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self._on_search_changed)
 
         self.kind_filter = QComboBox(bar)
+        self.kind_filter.setObjectName("WorkflowKindFilter")
+        self.kind_filter.setAccessibleName("Тип записи workflow")
         self.kind_filter.addItem("Все типы", "")
         for kind, label in KIND_LABELS.items():
             self.kind_filter.addItem(label, kind.value)
         self.kind_filter.currentIndexChanged.connect(self._on_kind_filter_changed)
 
         self.status_filter = QComboBox(bar)
+        self.status_filter.setObjectName("WorkflowStatusFilter")
+        self.status_filter.setAccessibleName("Статус записи workflow")
         self.status_filter.addItem("Все статусы", "")
         for status, label in STATUS_LABELS.items():
             self.status_filter.addItem(label, status.value)
         self.status_filter.currentIndexChanged.connect(self._on_status_filter_changed)
 
         self.archive_filter = QComboBox(bar)
+        self.archive_filter.setObjectName("WorkflowArchiveFilter")
+        self.archive_filter.setAccessibleName("Режим архива workflow")
         self.archive_filter.addItem(
             "Активные",
             WorkflowArchiveMode.ACTIVE.value,
@@ -477,6 +488,7 @@ class BusinessWorkflowPage(QWidget):
         self.table.setAccessibleDescription(
             "Estimates, proposals and projects with exact record identity and Decimal values."
         )
+        self.table.setTabKeyNavigation(False)
         self.table.setModel(self.proxy)
         self.model.modelReset.connect(self._restore_exact_selection_after_model_change)
         self.table.setAlternatingRowColors(True)

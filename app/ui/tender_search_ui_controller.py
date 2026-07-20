@@ -881,6 +881,13 @@ class TenderSearchUiController(QObject):
             self.scheduler_ui_controller.notifications_action,
         )
 
+    def apply_theme(self, theme: ThemeName | str) -> None:
+        """Retheme controller-owned surfaces without creating a second theme owner."""
+
+        self._theme = ThemeName(theme)
+        if self._unified_search_panel is not None:
+            self._unified_search_panel.apply_theme(self._theme)
+
     def install_on_tender_workspace(self, workspace: QWidget) -> None:
         """Bind canonical actions and the single unified-search panel."""
         binder = getattr(workspace, "bind_tender_actions", None)

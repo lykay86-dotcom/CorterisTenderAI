@@ -282,6 +282,7 @@ class AiAdvisor(QFrame):
             theme=self._theme,
             parent=self,
         )
+        self.action_button.setObjectName("DashboardFindTendersAction")
         self.action_button.clicked.connect(self._emit_action)
 
         self._root.addWidget(self.action_caption)
