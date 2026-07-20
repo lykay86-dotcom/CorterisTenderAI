@@ -365,8 +365,12 @@ class ModernMainWindow(QMainWindow):
         return True
 
     def _activate_tender_route(self, context: RouteContext) -> bool:
-        self._ensure_page_theme("tenders")
-        self._apply_tender_search_theme()
+        ensure_page_theme = getattr(self, "_ensure_page_theme", None)
+        if callable(ensure_page_theme):
+            ensure_page_theme("tenders")
+        apply_tender_search_theme = getattr(self, "_apply_tender_search_theme", None)
+        if callable(apply_tender_search_theme):
+            apply_tender_search_theme()
         self.tender_workspace_page.apply_dashboard_filter(context.dashboard_filter)
         if (
             context.tender_section is not None

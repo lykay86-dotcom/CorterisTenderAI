@@ -6,7 +6,7 @@ Baseline: `67beb8787db5908c9e8dd52f7e17e385aed48814`
 
 Inventory command: `rg -n --glob '*.py' 'setStyleSheet\s*\(' app/ui`
 
-Coverage: **45 of 45** current local stylesheet calls. A decision does not imply that local QSS is
+Coverage: **47 of 47** current local stylesheet calls. A decision does not imply that local QSS is
 intrinsically defective; exact token-backed component styles remain valid.
 
 Decision vocabulary: `MIGRATE_RM143`, `TOKEN_BACKED_KEEP`, `DEFER_RM144`–`DEFER_RM155`,
@@ -59,6 +59,8 @@ Decision vocabulary: `MIGRATE_RM143`, `TOKEN_BACKED_KEEP`, `DEFER_RM144`–`DEFE
 | DS-143-043 | `dashboard/status_banner.py::DashboardStatusBanner.apply_theme` | reusable banner | semantic palette + Typography; local metrics | `test_dashboard_status_banner.py` | MIGRATE_RM143 | status banner + tokens | timer/action/object names; both themes | P1 |
 | DS-143-044 | `pages/dashboard_page.py::DashboardPage._apply_page_theme` | Dashboard page | palette + Typography; local padding | Dashboard page tests | DEFER_RM145 / RM-145 | Dashboard layout tokens | responsive breakpoints and signals unchanged | P1 |
 | DS-143-045 | `pages/business_workflow_page.py::BusinessWorkflowPage.apply_theme` | workflow page/table/form | palette + Typography; local metrics | workflow page/model/backup/health tests | TOKEN_BACKED_KEEP / RM-150 | surface/form/table tokens | repository, filters, selection, lifecycle unchanged | P1 |
+| DS-143-046 | `modern_main_window.py::ModernMainWindow._apply_shell_theme` | scoped shell chrome QSS | canonical `build_stylesheet`; theme palette; no local literals | RM-153 theme epoch/performance tests | TOKEN_BACKED_KEEP / RM-153 | sole shell theme owner | idempotent persistence; hidden pages are not repolished | P1 |
+| DS-143-047 | `modern_main_window.py::ModernMainWindow._apply_base_page_stylesheet` | route-time page base QSS | canonical `build_stylesheet`; preserves existing local adapters | RM-153 theme/corner/resource tests | TOKEN_BACKED_KEEP / RM-153 | shell theme epoch | one base/corner selector set before page exposure | P1 |
 
 ## Non-`setStyleSheet` migration entries
 

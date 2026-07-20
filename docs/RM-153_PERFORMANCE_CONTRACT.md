@@ -46,7 +46,8 @@ an optimization and must be revised or rolled back.
 
 Across 25 alternating theme changes and canonical route cycles:
 
-- descendant `QObject`, `QThread`, `QTimer`, active `QTimer` and Python-thread growth is zero;
+- descendant `QObject`, `QThread`, `QTimer`, active `QTimer` and Python-thread growth is
+  non-positive (zero growth is required; bounded cleanup may reduce a count);
 - traced current allocation is at most 64 KiB and peak allocation at most 128 KiB in the canonical
   harness;
 - close remains bounded, idempotent and ordered through tender search, workflow, Dashboard and
