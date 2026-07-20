@@ -2,13 +2,14 @@
 
 ## Verdict
 
-`READY FOR FEATURE PR` with explicit owner-approved native exceptions. Automated implementation,
-full regression, frozen build, and strict evidence validation are green. The physical keyboard,
+`DONE` with explicit owner-approved native exceptions. Automated implementation, full regression,
+frozen build, feature PR, exact merge-SHA gate, and strict evidence validation are green. The physical keyboard,
 Windows Narrator, high-contrast, DPI/viewport, and mixed-DPI matrix remains incomplete: four cells
 are `BLOCKED`, 29 are `NOT_EXECUTED`, and none is `PASS`. Decision
 `RM152-OWNER-EXCEPTIONS-2026-07-20` names all 33 cells with exact environment, reason, residual
-risk, and retained status. RM-152 remains the sole `IN PROGRESS` stage until feature PR merge,
-exact merge-SHA Quality Gate, and a separate canonical closeout.
+risk, and retained status. Feature PR #112 merged as
+`5f20df74b89fcf6d67c7c79faa2e8cceca4b206b`; exact merge-SHA Quality Gate `29777125490`
+passed. This separate canonical closeout transitions RM-152 to `DONE` and activates RM-153.
 
 ## Baseline and commits
 
@@ -25,7 +26,8 @@ exact merge-SHA Quality Gate, and a separate canonical closeout.
 - owner-exception expected-red contract: `7acd209`;
 - fail-closed 33-cell exception registry and validator: `05ecca2`;
 - deterministic stop-factor test time: `e570930`;
-- branch: `feat/rm-152-accessibility-dpi` in dedicated `.worktrees/rm152`.
+- feature head: `ae70c0ae5ee5fff0a1bcf374361d82d80bfb329a`;
+- feature PR #112 merge: `5f20df74b89fcf6d67c7c79faa2e8cceca4b206b`.
 
 ## Implemented contracts
 
@@ -170,13 +172,18 @@ changing any cell status. The following remain explicitly unproven and accepted 
 - 1366x768 at 100/125%, complete 1920x1080 at 100/125/150%, 2560x1440 at 150/175%, and 4K at 200%;
 - A->B->A mixed-DPI movement, saved/removed-monitor geometry, and frozen native parity.
 
-## Owner exception decision and remaining gate
+## Owner exception decision and closeout gate
 
 The owner explicitly approved decision `RM152-OWNER-EXCEPTIONS-2026-07-20`. The exact register is
 `docs/RM-152_OWNER_EXCEPTIONS.md`; the authoritative structured records are in
 `docs/evidence/RM-152_NATIVE_MATRIX.json`. This removes the native-evidence blocker for feature PR
-creation while preserving every truthful `BLOCKED`/`NOT_EXECUTED` status and residual risk.
+creation and stage closeout while preserving every truthful `BLOCKED`/`NOT_EXECUTED` status and
+residual risk.
 
-No merge, exact merge-SHA gate, docs-only closeout, `DONE` transition, or RM-153 start is claimed
-yet. Those steps remain blocked until the feature PR is merged and its exact merge SHA passes the
-required Windows Python 3.12/3.13 Quality Gate.
+Feature PR #112 on head `ae70c0ae5ee5fff0a1bcf374361d82d80bfb329a` merged as
+`5f20df74b89fcf6d67c7c79faa2e8cceca4b206b`. PR-head Quality Gate `29776619427` passed on
+Python 3.12/3.13 (jobs `88467423008` and `88467423174`). Exact merge-SHA Quality Gate
+`29777125490` confirmed the merge commit and passed on Python 3.12/3.13 (jobs `88469119363` and
+`88469119432`). All required steps, including the full suite and dependency audit, are `success`.
+RM-152 now satisfies the Definition of Done; this docs-only closeout marks it `DONE` and makes
+RM-153 the sole `IN PROGRESS` stage.
