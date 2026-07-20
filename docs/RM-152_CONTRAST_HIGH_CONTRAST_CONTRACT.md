@@ -103,4 +103,7 @@ the palette system or claim high-contrast support.
 Automated tests cover pair schema/thresholds, no local literal colors, focus selectors/tokens,
 text alternatives, and theme-invariant semantic identity. Native cells cover actual focus,
 high-contrast fidelity, menus/tooltips/dialogs/tables/charts, and dark/light at required DPI.
-Every high-contrast cell is currently `NOT_EXECUTED`.
+`NATIVE-HC` now has a partial owner-observed exact-frozen run at 1920x1080/100% with Windows High
+Contrast Black. It remains `BLOCKED`, not `PASS`, because only a representative dashboard state
+was exercised; complete semantic states, routes, menus, tooltips, dialogs, tables, charts,
+destructive warnings, and Narrator output remain incomplete.

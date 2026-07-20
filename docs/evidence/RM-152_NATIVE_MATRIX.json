@@ -88,6 +88,28 @@
       "restoration": "PASS; Windows Settings UIA confirmed 100% (recommended) after the run, and the exact test process and Settings window were closed.",
       "status_policy": "Partial owner observation only; NATIVE-1920-150-DL is BLOCKED rather than PASS."
     },
+    "owner_high_contrast_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "environment": "single 1920x1080 display; 100% scale; Windows High Contrast with the High Contrast Black theme; exact uniquely named frozen build",
+      "automation_evidence": [
+        "Windows Settings text-only UIA exposed the enabled High Contrast theme selector and selected High Contrast Black theme after the owner enabled the mode.",
+        "The exact-build text-only UIA tree exposed 176 elements with readable Russian names and key dashboard surfaces.",
+        "The exact build remained responsive after 10 Tab transitions and 5 Shift+Tab transitions."
+      ],
+      "owner_confirmed": [
+        "No clipping, overlap, or white fallback strips were observed.",
+        "The focus indicator was visible and moved forward and backward without a trap.",
+        "Russian text and control states remained distinguishable."
+      ],
+      "unresolved": [
+        "all semantic states and every route",
+        "menus, tooltips, dialogs, tables, charts, and destructive-warning surfaces",
+        "complete Narrator name, role, state, value, relation, and announcement output"
+      ],
+      "restoration": "PASS; the owner disabled High Contrast, the registry reported HighContrast Flags 126, and the exact test process and Settings window were closed.",
+      "status_policy": "Partial owner observation only; NATIVE-HC is BLOCKED rather than PASS."
+    },
     "frozen_executable_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
     "frozen_self_test": "PASS; 9 isolated automated checks",
     "dark_theme_fix_rerun": {
@@ -407,11 +429,27 @@
     },
     {
       "id": "NATIVE-HC",
-      "status": "NOT_EXECUTED",
-      "observed": false,
-      "environment": {},
-      "evidence": [],
-      "note": "Native observation required; automated evidence is not a substitute."
+      "status": "BLOCKED",
+      "observed": true,
+      "environment": {
+        "os": "Windows 10.0.19045",
+        "display": "1920x1080; available 1920x1040",
+        "scale": "100%",
+        "theme": "Windows High Contrast; High Contrast Black",
+        "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+        "observer": "project owner",
+        "observed_at": "2026-07-20 Europe/Moscow"
+      },
+      "evidence": [
+        "Windows Settings text-only UIA confirmed the enabled High Contrast theme selector and selected High Contrast Black theme before the app run.",
+        "The exact frozen build exposed 176 UIA elements with readable Russian names and key dashboard surfaces.",
+        "The exact build remained responsive after 10 Tab and 5 Shift+Tab transitions.",
+        "The owner observed no clipping, overlap, or white fallback strips.",
+        "The owner confirmed a visible focus indicator moving in both directions without a trap.",
+        "The owner confirmed distinguishable Russian text and control states.",
+        "After the run, HighContrast Flags 126 confirmed restoration and the exact test process and Settings window were closed."
+      ],
+      "note": "BLOCKED rather than PASS because the observation covered a representative dashboard state only; complete semantic states, routes, menus, tooltips, dialogs, tables, charts, destructive warnings, and Narrator output remain incomplete."
     },
     {
       "id": "NATIVE-MIXED-DPI",

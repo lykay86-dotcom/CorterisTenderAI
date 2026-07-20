@@ -52,7 +52,7 @@ synthetic safe data. Representative state cells add empty/loading/partial/error/
 | DPI-2560-175-D/L | 2560x1440 | 175% | dark/light | plus theme/page switching | NOT_EXECUTED |
 | DPI-3840-200-D/L | 3840x2160 | 200% | dark/light | plus large table/modal nesting | NOT_EXECUTED |
 | DPI-MIXED-A-B-A | two physical monitors | distinct per-monitor scales | both | main/dialog/tooltips A→B→A, route/theme/reopen | NOT_EXECUTED |
-| DPI-HC | representative supported viewport | actual scale | Windows HC | focus/text/selection/icons/charts/dialog/menu | NOT_EXECUTED |
+| DPI-HC | 1920x1080 | 100% | Windows High Contrast Black | focus/text/selection/icons/charts/dialog/menu | BLOCKED; exact frozen build exposed 176 UIA elements; owner confirmed no clipping/overlap/white strips, visible forward/reverse focus without a trap, and distinguishable Russian text/states; representative dashboard only, complete states/surfaces/Narrator incomplete; Flags `126` confirmed restoration |
 | DPI-FROZEN | representative cells | 100–200% | dark/light/HC | newly packaged executable | NOT_EXECUTED |
 
 One 1920x1080 screenshot cannot replace the matrix. Owner-approved exceptions must name exact

@@ -33,7 +33,7 @@ machine username, real paths, credentials, crash reports, customers, query strin
 | Python | 3.12.7 |
 | PySide6 / Qt | 6.11.1 / 6.11.1 |
 | app | dev source plus newly packaged RM-152 executable; automated frozen self-test passed |
-| Narrator/high contrast | Narrator binary present / high contrast inactive; no journey executed |
+| Narrator/high contrast | Narrator binary present; partial exact-frozen Narrator and High Contrast Black journeys executed; high contrast inactive after verified restoration |
 | locale/input | Russian UI strings present; exact OS/input metadata not yet recorded |
 | operator/timestamp | Codex-assisted session / 2026-07-20 Europe/Moscow |
 
@@ -72,7 +72,7 @@ result, focus order, duplicate/missing speech, dynamic update behavior, and conf
 | NATIVE-2560-150-D/L | 2560x1440, 150%, dark/light | NOT_EXECUTED | no such display discovered |
 | NATIVE-2560-175-D/L | 2560x1440, 175%, dark/light | NOT_EXECUTED | no such display discovered |
 | NATIVE-3840-200-D/L | 3840x2160, 200%, dark/light | NOT_EXECUTED | no such display discovered |
-| NATIVE-HC | Windows high contrast, representative surfaces | NOT_EXECUTED | none |
+| NATIVE-HC | Windows high contrast, representative surfaces | BLOCKED | Windows Settings UIA confirmed High Contrast Black active; exact frozen build exposed 176 UIA elements/readable Russian; owner confirmed no clipping/overlap/white strips, visible forward/reverse focus without a trap, and distinguishable text/states; complete routes/states/surfaces and Narrator output remain incomplete; Flags `126` confirmed restoration |
 | NATIVE-MIXED-DPI | two monitors, A→B→A, separate dialog | NOT_EXECUTED | one monitor discovered |
 | NATIVE-FROZEN | newly packaged executable, representative SR/DPI/HC | NOT_EXECUTED | EXE built and automated self-test passed; native journey not executed |
 

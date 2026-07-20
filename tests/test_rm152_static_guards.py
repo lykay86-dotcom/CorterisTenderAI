@@ -59,6 +59,7 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
         "NATIVE-1920-100-DL",
         "NATIVE-1920-125-DL",
         "NATIVE-1920-150-DL",
+        "NATIVE-HC",
     }
     for partial_id in partial_ids:
         partial = cells[partial_id]

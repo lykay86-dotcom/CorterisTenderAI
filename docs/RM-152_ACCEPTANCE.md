@@ -4,8 +4,9 @@
 
 `BLOCKED` for feature acceptance. Automated implementation and frozen build evidence are green,
 but the required physical keyboard, Windows Narrator, high-contrast, DPI/viewport, and mixed-DPI
-matrix was not executed and has no owner-approved exceptions. No unobserved cell is reported as a
-pass, and RM-152 remains the sole `IN PROGRESS` stage.
+matrix remains incomplete and has no owner-approved exceptions. Four native cells now have partial
+owner observations, but no incomplete cell is reported as a pass, and RM-152 remains the sole
+`IN PROGRESS` stage.
 
 ## Baseline and commits
 
@@ -136,12 +137,22 @@ mojibake marker lines and all key dashboard surfaces present. The owner confirme
 overlap, clean light/dark switching without white strips, and forward/reverse focus movement
 without a trap. `NATIVE-1920-150-DL` is `BLOCKED`, not `PASS`, because all semantic states and a
 complete Narrator journey remain incomplete. Windows Settings UIA then confirmed restoration to
-`100% (recommended)`; the exact test process and Settings window were closed. The other 30 cells remain
-`NOT_EXECUTED`;
+`100% (recommended)`; the exact test process and Settings window were closed. The owner then
+approved Windows High Contrast Black and launched the same exact frozen artifact at
+1920x1080/100%. Windows Settings UIA exposed the active theme selector, and the app exposed 176 UIA
+elements with readable Russian names. After 10 `Tab` and five `Shift+Tab` transitions, the owner
+confirmed no clipping, overlap, or white fallback strips, a visible focus indicator moving in both
+directions without a trap, and distinguishable Russian text and control states. `NATIVE-HC` is
+`BLOCKED`, not `PASS`, because only a representative dashboard state was exercised; complete
+routes, semantic states, menus, tooltips, dialogs, tables, charts, destructive warnings, and
+Narrator output remain incomplete. The owner disabled High Contrast after the run; registry Flags
+`126` confirmed restoration, and the exact test process and Settings window were closed. The other
+29 cells remain `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:
 
-- physical Tab/Shift+Tab and visible focus in dark/light/high contrast;
+- complete physical Tab/Shift+Tab order and visible focus across every route/state in dark, light,
+  and high contrast;
 - complete Narrator name/role/state/value/relations across all routes and bounded dynamic announcements;
 - 1366x768 at 100/125%, complete 1920x1080 at 100/125/150%, 2560x1440 at 150/175%, and 4K at 200%;
 - A->B->A mixed-DPI movement, saved/removed-monitor geometry, and frozen native parity.
