@@ -29,8 +29,15 @@
       ],
       "status_policy": "Partial owner observation only; no cell promoted."
     },
-    "frozen_executable_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+    "frozen_executable_sha256": "81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866",
     "frozen_self_test": "PASS; 9 isolated automated checks",
+    "dark_theme_fix_rerun": {
+      "defect_artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+      "fix_commit": "9da4f79",
+      "candidate_artifact_sha256": "81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866",
+      "candidate_frozen_self_test": "PASS; 9 isolated automated checks",
+      "native_visual_status": "PENDING"
+    },
     "frozen_manifest_dpi_declaration": "absent",
     "observation_boundary": "Exact artifact identity, a text-only UIA tree, and owner-observed visible moving focus were recorded, but complete keyboard, screenshot, Narrator, DPI, and reliable focus-order evidence were not; no native cell promoted."
   },
@@ -247,7 +254,7 @@
         "No clipped or overlapping text was observed in the displayed state.",
         "Dark theme showed white fallback strips on native table, scrollbar, tab, progress, and controller-owned search surfaces."
       ],
-      "note": "FAIL: dark theme fallback surfaces require a rebuilt exact artifact and native rerun; all semantic states, complete route order, and Narrator output also remain incomplete."
+      "note": "FAIL is retained for the original observed artifact. Fixed artifact 81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866 passed its frozen self-test and awaits a native visual rerun; all semantic states, complete route order, and Narrator output also remain incomplete."
     },
     {
       "id": "NATIVE-1920-125-DL",

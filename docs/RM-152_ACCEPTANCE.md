@@ -15,6 +15,8 @@ pass, and RM-152 remains the sole `IN PROGRESS` stage.
 - characterization: `307138b` (`7 passed`);
 - expected-red: `1f0eed3` (`12` intended failures before implementation);
 - implementation/guards/evidence: `5e0910d`;
+- dark-theme native regression contract: `a0e6b39` (`2` intended failures before the fix);
+- dark-theme native fallback fix: `9da4f79`;
 - branch: `feat/rm-152-accessibility-dpi` in dedicated `.worktrees/rm152`.
 
 ## Implemented contracts
@@ -55,8 +57,8 @@ Isolated runtime baseline -> post implementation: widgets `1,008 -> 1,008`, non-
 
 ## Automated verification
 
-- RM-152 plus neighboring UI regression: `128 passed in 32.28s`;
-- full suite: `2341 passed, 2 warnings in 134.33s`; both warnings are inherited openpyxl
+- focused dark-theme and neighboring UI regression: `46 passed`;
+- full suite after the native fallback fix: `2343 passed, 2 warnings in 130.96s`; both warnings are inherited openpyxl
   unsupported-extension warnings from the RM-132 legacy workbook fixture;
 - Ruff: check passed; format check reports `771 files already formatted`;
 - mypy: `Success: no issues found in 20 source files`;
@@ -67,8 +69,10 @@ Isolated runtime baseline -> post implementation: widgets `1,008 -> 1,008`, non-
 - release/frozen contract smoke: `7 passed in 6.95s`;
 - dependency audit: no known vulnerabilities; editable project correctly skipped;
 - PyInstaller `6.21.0` build succeeded on Python `3.12.7` / Windows `10.0.19045`;
-- frozen EXE SHA-256:
+- original observed frozen EXE SHA-256:
   `4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6`;
+- rebuilt dark-theme-fix EXE SHA-256:
+  `81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866`;
 - isolated frozen self-test: `PASS`, nine checks including bundled resources, SQLite schema,
   offline provider composition, archive safety, analytics, and dark/light chart rendering.
 
@@ -98,8 +102,10 @@ controls. The owner also confirmed that the requested Tab sweep did not trap foc
 backward, and no clipping or overlap was observed in the displayed state. `NATIVE-1920-100-DL` is
 recorded as `FAIL`: keyboard traversal continued to work after switching from light to dark, but
 the dark theme exposed white fallback strips on native table, scrollbar, tab, progress, and
-controller-owned search surfaces. The source fix requires a rebuilt exact artifact and native
-rerun; all semantic states, complete route order, and Narrator output also remain unobserved. The
+controller-owned search surfaces. The source fix is covered by expected-red/green tests and the
+rebuilt exact artifact `81A11C...A866` passed its isolated frozen self-test; a native visual rerun
+of that artifact is still pending. All semantic states, complete route order, and Narrator output
+also remain unobserved. The
 other 32 cells remain `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:
