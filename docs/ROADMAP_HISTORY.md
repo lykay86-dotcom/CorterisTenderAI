@@ -1,5 +1,42 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-20 — RM-150 завершён, RM-151 активирован
+
+- Audit 35 pre-production product table sites и решения `migrate=11`, `keep=12`, `defer=12`
+  зафиксированы commit `6c79157` вместе с девятью обязательными contract/plan документами до
+  production code; characterization — `efd9402`, expected-red — `a9ba57d`, implementation —
+  `0e90130`, acceptance regression fix — `3e37a7c`, local evidence — `4f432cb`.
+- Один Qt-free immutable `app.ui.tables` contract и reusable Qt adapters закрепили stable
+  surface/row/column/revision identity, typed Decimal sort/filter с ID tie-break, exact
+  selection/action validation, loading/empty/error/partial sibling states, accessibility roles и
+  visible-snapshot export parity. 11 representative surfaces мигрированы без нового business,
+  repository, router или dependency owner; 24 keep/defer решения остаются явными.
+- Exact target сохраняется across refresh/sort/filter/recalculation; missing identity снимает
+  selection вместо adjacent-row fallback. RM-107 decision/critical priority, RM-148 financial
+  exactness и RM-149 tender identity/action ownership не изменены.
+- Локально: focused `31 passed`, deterministic hash-seed contours `22 + 22 passed`, registry guard
+  `18 passed`, full pytest `2276 passed, 2 warnings in 151.15s`; secret scan, Ruff/format
+  (`744 files`), mypy, offline/migration/import/composition/build/frozen smokes и dependency audit
+  успешны.
+- 0/100/1k/10k benchmark на Windows Python 3.12.7/PySide6 6.11.1 не вводит arbitrary threshold.
+  На 10,000 rows typed Decimal sort p95 улучшен с `2295.315 ms` до `90.907 ms`; missing-text
+  filter p95 `137.449 ms` ниже RM-141 historical `148.005 ms`. Native Narrator/physical
+  keyboard/DPI inspection отмечен `NOT_EXECUTED` и остаётся RM-152 scope.
+- Feature PR #108 на head `4f432cbe650c76994ba6c44f62685a20fb5ed555` слит merge commit
+  `8d6640691ca3e0fc6a22d7e6dd2d732955e0eedd`.
+- PR-head run `29708327405` успешен: Python 3.12 job `88248797493` —
+  `2276 passed, 2 warnings in 143.14s`; Python 3.13 job `88248797488` —
+  `2276 passed, 2 warnings in 113.57s`; dependency audit и все обязательные steps — `success`.
+- Exact merge-SHA push-run `29708473745` подтверждён с
+  `headSha=8d6640691ca3e0fc6a22d7e6dd2d732955e0eedd`: Python 3.12 job `88249137810` —
+  `2276 passed, 2 warnings in 116.60s`; Python 3.13 job `88249137786` —
+  `2276 passed, 2 warnings in 183.21s`; dependency audit и все обязательные steps — `success`.
+- Единственные annotations — non-blocking official-actions Node.js 20/24 migration notices.
+  DB/schema/migration, dependencies, provider/network/AI paths и RM-107
+  score/recommendation/critical stop-factor priority не изменены. Rollback — revert feature merge
+  без DB/data/settings downgrade. RM-150 переведён в `DONE`; RM-151 назначен единственным
+  `IN PROGRESS`, RM-152–RM-200 остаются `PLANNED`.
+
 ## 2026-07-20 — RM-149 завершён, RM-150 активирован
 
 - Audit/source-of-truth/hierarchy/critical/action/navigation/parity/implementation decisions
