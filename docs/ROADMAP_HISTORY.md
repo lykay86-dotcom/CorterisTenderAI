@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-20 — RM-152 завершён, RM-153 активирован
+
+- Audit/contracts, characterization, expected-red and implementation packages established one
+  shell focus chain, table Tab-release, safe focus restore, accessible metadata, focus styling,
+  geometry clamp, contrast inventory and fail-closed native evidence validation without a second
+  shell, router, lifecycle, table, chart, operation or business owner.
+- Dark-theme white fallback strips and Russian safe-feedback mojibake were reproduced, fixed and
+  guarded. The exact frozen artifact was observed at representative 1920x1080 100/125/150%, with
+  Narrator and High Contrast; scale and High Contrast were restored after the runs.
+- The native matrix remains truthful: `0 PASS`, `4 BLOCKED`, `29 NOT_EXECUTED`. Owner decision
+  `RM152-OWNER-EXCEPTIONS-2026-07-20` names all 33 cells with exact environment, reason, residual
+  risk and retained status. The strict validator rejects missing, malformed, duplicate, unknown,
+  status-mismatched or `PASS` exceptions.
+- Locally: owner-exception/static `20 passed`, stop-factor contour `8 passed`, full pytest
+  `2345 passed, 2 warnings in 197.56s`; secret scan, strict RM-152 gate, Ruff/format (`772 files`),
+  mypy, offline/migration/import/composition/build/frozen smokes and dependency audit passed.
+- Final closeout EXE built with PyInstaller 6.21.0 / Python 3.12.7 passed nine isolated self-test
+  checks; SHA-256 is `5BED2D3F30AE6917F911800FBB85D7679BFBA6CEBB76F6F98F6B73376EBC2719`.
+- Feature PR #112 on head `ae70c0ae5ee5fff0a1bcf374361d82d80bfb329a` merged as
+  `5f20df74b89fcf6d67c7c79faa2e8cceca4b206b`.
+- PR-head Quality Gate `29776619427` passed: Python 3.12 job `88467423008`, Python 3.13 job
+  `88467423174`. Exact merge-SHA run `29777125490` confirmed
+  `headSha=5f20df74b89fcf6d67c7c79faa2e8cceca4b206b`: Python 3.12 job `88469119363`, Python
+  3.13 job `88469119432`; full suite, dependency audit and every required step are `success`.
+- The only CI annotations are non-blocking official-actions Node.js 20/24 migration notices.
+  DB/schema/migration, dependencies, provider/network/AI/keyring/domain paths and RM-107
+  score/recommendation/critical stop-factor priority are unchanged. Rollback is the feature merge
+  revert without DB/data/settings downgrade. RM-152 is `DONE`; RM-153 is the sole `IN PROGRESS`
+  stage, while RM-154–RM-200 remain `PLANNED`.
+
 ## 2026-07-20 — RM-151 завершён, RM-152 активирован
 
 - Audit 30 operation groups и восемь обязательных pre-production contract/plan документов
