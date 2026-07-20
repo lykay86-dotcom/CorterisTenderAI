@@ -45,7 +45,7 @@ synthetic safe data. Representative state cells add empty/loading/partial/error/
 | DPI-1366-100-L | 1366x768 | 100% | light | same | NOT_EXECUTED |
 | DPI-1366-125-D | 1366x768 | 125% | dark | same | NOT_EXECUTED; deterministic baseline risk |
 | DPI-1366-125-L | 1366x768 | 125% | light | same | NOT_EXECUTED; deterministic baseline risk |
-| DPI-1920-100-D/L | 1920x1080 | 100% | dark/light | plus all states | BLOCKED; keyboard worked in both themes; white native fallback strips found on the original build were confirmed removed on fixed build `81A11C...A866`; all states remain incomplete |
+| DPI-1920-100-D/L | 1920x1080 | 100% | dark/light | plus all states | BLOCKED; keyboard worked in both themes; white native fallback strips were removed on `81A11C...A866`; text-only UIA then found mojibake, and UTF-8 fixed build `11E59D...066F0` awaits native launch; all states remain incomplete |
 | DPI-1920-125-D/L | 1920x1080 | 125% | dark/light | plus all states | NOT_EXECUTED |
 | DPI-1920-150-D/L | 1920x1080 | 150% | dark/light | plus all states | NOT_EXECUTED |
 | DPI-2560-150-D/L | 2560x1440 | 150% | dark/light | plus theme/page switching | NOT_EXECUTED |

@@ -17,6 +17,8 @@ pass, and RM-152 remains the sole `IN PROGRESS` stage.
 - implementation/guards/evidence: `5e0910d`;
 - dark-theme native regression contract: `a0e6b39` (`2` intended failures before the fix);
 - dark-theme native fallback fix: `9da4f79`;
+- readable-Russian production guard: `bf2099e` (`5` production files failed before the fix);
+- readable-Russian feedback fix: `0ab712d`;
 - branch: `feat/rm-152-accessibility-dpi` in dedicated `.worktrees/rm152`.
 
 ## Implemented contracts
@@ -58,7 +60,7 @@ Isolated runtime baseline -> post implementation: widgets `1,008 -> 1,008`, non-
 ## Automated verification
 
 - focused dark-theme and neighboring UI regression: `46 passed`;
-- full suite after the native fallback fix: `2343 passed, 2 warnings in 130.96s`; both warnings are inherited openpyxl
+- full suite after the readable-Russian fix: `2344 passed, 2 warnings in 170.60s`; both warnings are inherited openpyxl
   unsupported-extension warnings from the RM-132 legacy workbook fixture;
 - Ruff: check passed; format check reports `771 files already formatted`;
 - mypy: `Success: no issues found in 20 source files`;
@@ -73,6 +75,8 @@ Isolated runtime baseline -> post implementation: widgets `1,008 -> 1,008`, non-
   `4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6`;
 - rebuilt dark-theme-fix EXE SHA-256:
   `81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866`;
+- rebuilt readable-Russian-fix EXE SHA-256:
+  `11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0`;
 - isolated frozen self-test: `PASS`, nine checks including bundled resources, SQLite schema,
   offline provider composition, archive safety, analytics, and dark/light chart rendering.
 
@@ -105,6 +109,11 @@ fix is covered by expected-red/green tests, and rebuilt exact artifact `81A11C..
 isolated frozen self-test. The owner then reran the same dark-theme surfaces on that exact build and
 confirmed the white strips were removed. The cell is now `BLOCKED`, not `PASS`, because all semantic
 states, complete route order, and Narrator output remain unobserved. The
+next exact-build text-only UIA pass exposed 143 elements, but also reproduced mojibake in the
+Russian safe-feedback banner directly from five production source files. An expected-red guard,
+the source fix, `25` focused passes, `2344` full-suite passes, and a new frozen self-test are green.
+Native launch of rebuilt artifact `11E59D...066F0` was not executed because the required Windows
+app approval timed out; its native UTF-8 rerun remains pending and is not promoted. The
 other 32 cells remain `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:

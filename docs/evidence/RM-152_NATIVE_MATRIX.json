@@ -29,7 +29,7 @@
       ],
       "status_policy": "Partial owner observation only; no cell promoted."
     },
-    "frozen_executable_sha256": "81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866",
+    "frozen_executable_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
     "frozen_self_test": "PASS; 9 isolated automated checks",
     "dark_theme_fix_rerun": {
       "defect_artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
@@ -40,6 +40,15 @@
       "native_visual_observed_at": "2026-07-20 Europe/Moscow",
       "native_visual_observer": "project owner",
       "native_visual_result": "After switching from light to dark on the exact fixed build, the owner confirmed that the previously observed white fallback strips were removed."
+    },
+    "russian_feedback_fix_rerun": {
+      "defect_artifact_sha256": "81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866",
+      "defect_observation": "Exact-build text-only UIA exposed 143 elements and reproduced mojibake in the Russian safe-feedback banner.",
+      "expected_red_commit": "bf2099e",
+      "fix_commit": "0ab712d",
+      "candidate_artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "candidate_frozen_self_test": "PASS; 9 isolated automated checks",
+      "native_status": "PENDING; Windows app launch approval timed out"
     },
     "frozen_manifest_dpi_declaration": "absent",
     "observation_boundary": "Exact artifact identity, a text-only UIA tree, and owner-observed visible moving focus were recorded, but complete keyboard, screenshot, Narrator, DPI, and reliable focus-order evidence were not; no native cell promoted."
@@ -260,7 +269,7 @@
         "Dark theme showed white fallback strips on native table, scrollbar, tab, progress, and controller-owned search surfaces in the original artifact.",
         "The owner confirmed those white fallback strips were removed after a light-to-dark switch on fixed artifact 81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866."
       ],
-      "note": "The original visual defect passed its fixed-artifact rerun. Cell remains BLOCKED rather than PASS because all semantic states, complete route order, and Narrator output remain incomplete."
+      "note": "The original visual defect passed its fixed-artifact rerun. Exact-build UIA later reproduced mojibake in Russian safe feedback; source and frozen checks are green on candidate 11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0, but native launch approval timed out. Cell remains BLOCKED rather than PASS because the UTF-8 rerun, all semantic states, complete route order, and Narrator output remain incomplete."
     },
     {
       "id": "NATIVE-1920-125-DL",
