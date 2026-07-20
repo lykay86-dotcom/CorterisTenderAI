@@ -1,5 +1,17 @@
 {
   "schema": "rm152-native-matrix-v1",
+  "environment_discovery": {
+    "os": "Windows 10.0.19045",
+    "display_count": 1,
+    "display": "1920x1080; available 1920x1040; logical DPI 96; DPR 1.0",
+    "narrator_binary_present": true,
+    "high_contrast_active": false,
+    "windows_automation_connection": "unavailable before application launch",
+    "frozen_executable_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+    "frozen_self_test": "PASS; 9 isolated automated checks",
+    "frozen_manifest_dpi_declaration": "absent",
+    "observation_boundary": "Environment and automated build discovery only; no native cell promoted."
+  },
   "cells": [
     {
       "id": "SR-01-DEV",

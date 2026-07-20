@@ -7,7 +7,8 @@ Baseline: `9cb37b9a83f50ac9f8f8e34fdeb582c2ed76e257`
 - Qt/PySide6 version: `6.11.1`; Python `3.12.7` on the discovered native host.
 - `app.main` calls `bootstrap`; no Qt DPI attribute/environment override is set in application code.
 - `installer/corteris_tender_ai.spec` supplies no explicit Windows application manifest or DPI
-  mode; `setup.iss` adds the PyInstaller executable without a DPI declaration.
+  mode; `setup.iss` adds the PyInstaller executable without a DPI declaration. The newly built
+  EXE's embedded manifest was inspected and contains `longPathAware` but no DPI declaration.
 - No production use of `devicePixelRatio`, logical/physical DPI, `screenChanged`,
   `availableGeometry`, `saveGeometry`, or `restoreGeometry` exists.
 - Theme typography and most geometry use Qt logical pixels. Icon assets are local and delivered
@@ -15,9 +16,9 @@ Baseline: `9cb37b9a83f50ac9f8f8e34fdeb582c2ed76e257`
 - `ModernMainWindow` loads only theme from QSettings; window/dialog/splitter/column geometry is not
   persisted or clamped.
 
-Qt 6 may supply a native default in the dev process, but the effective frozen manifest and
-per-monitor mode are `NOT_EXECUTED`. RM-152 will not change process DPI awareness until an isolated
-expected-red test and actual packaged inspection justify it.
+Qt 6 may supply a native default in the dev process, but the effective frozen process and
+per-monitor mode are `NOT_EXECUTED`. RM-152 does not change process DPI awareness without the
+required native packaged and mixed-monitor observation.
 
 ## Current host discovery
 

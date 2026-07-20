@@ -74,6 +74,20 @@ The unnamed initial controls were `TopBarTenderSearch`, `DashboardScroll`, and
 explicit `setBuddy` calls does not mean zero relations. Both implicit and explicit relations must
 be tested at the actual surface.
 
+## Post-implementation inventory
+
+The same static audit after commit `5e0910d` reports 97 UI modules / 37,243 lines, 151 UI test
+modules, 90 explicit accessible-name calls, 53 accessible-description calls, zero literal colors
+outside theme, 15 / 35 / 6 fixed/minimum/maximum calls, 32 / 4 table widget/view constructions,
+and 6 / 1 timer/thread constructions.
+
+`python scripts/audit_rm152_runtime.py` constructs the shell with temporary QSettings, synthetic
+empty repositories, disabled startup health/backup work, no keyring, and no network. It reports
+1,008 widgets, 252 non-`NoFocus` widgets, 130 focusable widgets with stable object names, 84
+non-empty accessible names, 35 descriptions, and 194 labels / 25 runtime buddy relations. Static
+call counts are regression indicators, not a conformance percentage; native Narrator remains the
+authority for role/state/relation quality.
+
 ## Current traversal and shortcut evidence
 
 An offscreen Qt key traversal started at the first sidebar button and recorded stable properties.
@@ -121,9 +135,10 @@ The native host discovery (no app window) reported Windows `10.0.19045`, Python 
 PySide6/Qt `6.11.1`, and one physical display `DELL E2218HN`, `1920x1080`, available
 `1920x1040`, logical DPI `96`, device-pixel ratio `1.0`, 60 Hz.
 
-`ModernMainWindow` has logical minimum `1180x720`. A 1366x768 physical display at 125% provides
+The baseline `ModernMainWindow` had logical minimum `1180x720`. A 1366x768 physical display at 125% provides
 approximately `1093x614` logical pixels before taskbar deductions, so the accepted minimum cannot
-fit. This is an A2 deterministic expected-red condition.
+fit. RM-152 reduced the supported minimum to `960x540`; injected viewport and Russian full-text
+tests now pass. Native 1366x768 at 125% is still `NOT_EXECUTED`.
 
 No explicit Windows DPI-awareness manifest, Qt high-DPI attribute, saved-window geometry,
 screen-change handler, or geometry-clamping helper exists in `app`, the PyInstaller spec, or the
@@ -181,7 +196,7 @@ behavior is `NOT_EXECUTED`; the DPI mode must not be changed without packaged ve
 | `UI-141-013` keyboard/accessibility evidence incomplete | reproduced Dashboard/table traps, missing stable IDs/names, missing return focus | RM-152 contracts, expected-red, implementation, native keyboard/Narrator |
 | `UI-141-014` native DPI evidence incomplete | unsupported 1366@125 minimum, no geometry guard/manifest evidence, one-monitor host | responsive/geometry tests and actual matrix; exceptions require owner approval |
 | native environment gap | only one 1920x1080@100 display discovered | multi-monitor and unavailable scale cells remain `NOT_EXECUTED` until run or approved |
-| packaged DPI mode unknown | no explicit manifest and no newly built executable | build/frozen smoke plus actual packaged inspection before any DPI-mode change |
+| packaged DPI mode incomplete | new EXE built and automated self-test passed; embedded manifest has no DPI declaration | effective native process mode and multi-monitor behavior remain `NOT_EXECUTED`; no DPI-mode change made |
 
 This audit authorizes no domain, schema, dependency, network, provider, keyring, scoring, or
 decision change. The unrelated root-checkout `.agents/` and `skills-lock.json` remain untouched.

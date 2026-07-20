@@ -32,8 +32,8 @@ machine username, real paths, credentials, crash reports, customers, query strin
 | monitor count / mixed scale | 1 / unavailable in discovered environment |
 | Python | 3.12.7 |
 | PySide6 / Qt | 6.11.1 / 6.11.1 |
-| app | dev source baseline above; newly packaged executable not built |
-| Narrator/high contrast | presence/settings not yet observed |
+| app | dev source plus newly packaged RM-152 executable; automated frozen self-test passed |
+| Narrator/high contrast | Narrator binary present / high contrast inactive; no journey executed |
 | locale/input | Russian UI strings present; exact OS/input metadata not yet recorded |
 | operator/timestamp | Codex-assisted session / 2026-07-20 Europe/Moscow |
 
@@ -74,7 +74,7 @@ result, focus order, duplicate/missing speech, dynamic update behavior, and conf
 | NATIVE-3840-200-D/L | 3840x2160, 200%, dark/light | NOT_EXECUTED | no such display discovered |
 | NATIVE-HC | Windows high contrast, representative surfaces | NOT_EXECUTED | none |
 | NATIVE-MIXED-DPI | two monitors, A→B→A, separate dialog | NOT_EXECUTED | one monitor discovered |
-| NATIVE-FROZEN | newly packaged executable, representative SR/DPI/HC | NOT_EXECUTED | executable not yet built |
+| NATIVE-FROZEN | newly packaged executable, representative SR/DPI/HC | NOT_EXECUTED | EXE built and automated self-test passed; native journey not executed |
 
 ## Dynamic announcement observations
 
