@@ -1,5 +1,33 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-21 — RM-153 завершён, RM-154 активирован
+
+- Audit/contract/plan, characterization, expected-red and deterministic benchmark evidence cover
+  shell construction/first paint/shutdown, routing, dashboard, theme, table, chart and bounded
+  resource lifecycle without a second shell/router/theme/table/chart/lifecycle owner.
+- One monotonic theme epoch scopes repolish to shell chrome and the active page; stale hidden pages
+  synchronize through the existing route owner before exposure. No new timer, thread, cache,
+  persistence, telemetry, dependency, DB/settings schema or migration was introduced.
+- Post p95 improved shell construction 43.7%, first paint 32.3%, page switching 23.9%, dashboard
+  update 47.0%, theme switching 74.6% and chart update 16.9%; table filtering changed +2.8% and
+  remained inside its 155 ms guard. Fresh 25-cycle resource counts have non-positive growth.
+- Eight-page dark/light inspection passed. Owner native confirmation on 2026-07-21 passed responsive
+  page switching, absence of white strips after light/dark switching and normal native close.
+- Locally: focused/neighboring `39 passed`, final focused `13 passed`, full pytest
+  `2354 passed, 2 warnings in 193.39s`; secret scan, design audit, Ruff/format (`775 files`), mypy,
+  workflow smokes and dependency audit passed.
+- Feature PR #114 on head `ecff610e77bebcbec316dc5db1888ec1894dcfe9` merged as
+  `1e8ddf02177a460e14151c7482d5e1cd7dc8e5ad`.
+- PR-head Quality Gate `29785396286` passed: Python 3.12 job `88495726494`, Python 3.13 job
+  `88495726570`. Exact merge-SHA run `29787372667` confirmed
+  `headSha=1e8ddf02177a460e14151c7482d5e1cd7dc8e5ad`: Python 3.12 job `88501750635`, Python
+  3.13 job `88501750646`; full suite, dependency audit and every required step are `success`.
+- The only CI annotations are non-blocking official-actions Node.js 20/24 migration notices.
+  DB/schema/migration, dependencies, provider/network/AI/keyring/domain paths and RM-107
+  score/recommendation/critical stop-factor priority are unchanged. Rollback is the feature merge
+  revert without DB/data/settings downgrade. RM-153 is `DONE`; RM-154 is the sole `IN PROGRESS`
+  stage, while RM-155–RM-200 remain `PLANNED`.
+
 ## 2026-07-20 — RM-152 завершён, RM-153 активирован
 
 - Audit/contracts, characterization, expected-red and implementation packages established one

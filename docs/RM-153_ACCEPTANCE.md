@@ -97,4 +97,9 @@ theme switch, page switch, focus continuity and close was completed before RM-15
   returned `0x80004002 (interface not supported)`, so no automated native clicks were continued;
 - user native confirmation on 2026-07-21: page switching remained responsive, light/dark theme
   switching introduced no white strips, and native window close completed normally: PASS;
-- GitHub exact-SHA gates: pending before canonical closeout.
+- feature PR #114 on head `ecff610e77bebcbec316dc5db1888ec1894dcfe9`: PR-head Quality Gate
+  run `29785396286`, Python 3.12 job `88495726494` and Python 3.13 job `88495726570`: PASS;
+- feature merge `1e8ddf02177a460e14151c7482d5e1cd7dc8e5ad`: exact merge-SHA Quality Gate run
+  `29787372667`, Python 3.12 job `88501750635` and Python 3.13 job `88501750646`: PASS;
+- RM-153 satisfies the Definition of Done and proceeds through a separate docs-only canonical
+  closeout that activates RM-154 without starting it in parallel.
