@@ -48,7 +48,7 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
     assert validate_native_matrix(payload) == ()
     cells = {cell["id"]: cell for cell in payload["cells"]}
     partial = cells["NATIVE-1920-100-DL"]
-    assert partial["status"] == "BLOCKED"
+    assert partial["status"] == "FAIL"
     assert partial["observed"] is True
     assert partial["environment"]
     assert partial["evidence"]
@@ -62,7 +62,7 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
 def test_rm152_static_guard_passes_without_promoting_native_matrix() -> None:
     assert validate() == ()
     errors = validate(require_native_complete=True)
-    assert errors
+    assert len(errors) == 33
     assert all(error.endswith(": incomplete") for error in errors)
 
 

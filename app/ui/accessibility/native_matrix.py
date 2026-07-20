@@ -52,7 +52,7 @@ def validate_native_matrix(
                 errors.append(f"{cell_id}: missing_environment")
             if not isinstance(evidence, list) or not evidence:
                 errors.append(f"{cell_id}: missing_evidence")
-        if require_complete and status in {"BLOCKED", "NOT_EXECUTED"}:
+        if require_complete and status != "PASS":
             errors.append(f"{cell_id}: incomplete")
 
     return tuple(errors)

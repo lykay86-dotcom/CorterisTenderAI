@@ -96,8 +96,11 @@ further automated input after that observation failure. In a subsequent owner-ob
 keyboard probe on the open exact build, visible focus was confirmed and was seen moving between
 controls. The owner also confirmed that the requested Tab sweep did not trap focus, Shift+Tab moved
 backward, and no clipping or overlap was observed in the displayed state. `NATIVE-1920-100-DL` is
-therefore recorded as observed but `BLOCKED`, because both themes, all semantic states, complete
-route order, and Narrator output remain unobserved. The other 32 cells remain `NOT_EXECUTED`;
+recorded as `FAIL`: keyboard traversal continued to work after switching from light to dark, but
+the dark theme exposed white fallback strips on native table, scrollbar, tab, progress, and
+controller-owned search surfaces. The source fix requires a rebuilt exact artifact and native
+rerun; all semantic states, complete route order, and Narrator output also remain unobserved. The
+other 32 cells remain `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:
 

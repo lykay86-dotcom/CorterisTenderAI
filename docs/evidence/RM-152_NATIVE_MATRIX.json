@@ -21,9 +21,9 @@
         "Shift+Tab moved focus backward.",
         "No clipped or overlapping text was observed in the displayed state."
       ],
+      "theme_result": "Keyboard traversal continued to work after switching from light to dark, but dark theme exposed white fallback strips on native table, scrollbar, tab, progress, and controller-owned search surfaces.",
       "unresolved": [
         "complete forward and reverse order",
-        "both dark and light themes",
         "all semantic states",
         "Narrator output"
       ],
@@ -229,13 +229,13 @@
     },
     {
       "id": "NATIVE-1920-100-DL",
-      "status": "BLOCKED",
+      "status": "FAIL",
       "observed": true,
       "environment": {
         "os": "Windows 10.0.19045",
         "display": "1920x1080; available 1920x1040",
         "scale": "100%; logical DPI 96; DPR 1.0",
-        "theme": "current displayed theme only; exact theme not recorded",
+        "theme": "light and dark; dark theme visual defect observed",
         "artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
         "observer": "project owner",
         "observed_at": "2026-07-20 Europe/Moscow"
@@ -244,9 +244,10 @@
         "Visible focus was observed moving between controls.",
         "Tab did not become trapped in the requested sweep.",
         "Shift+Tab moved focus backward.",
-        "No clipped or overlapping text was observed in the displayed state."
+        "No clipped or overlapping text was observed in the displayed state.",
+        "Dark theme showed white fallback strips on native table, scrollbar, tab, progress, and controller-owned search surfaces."
       ],
-      "note": "BLOCKED: both dark/light themes, all semantic states, complete route order, and Narrator output remain unobserved."
+      "note": "FAIL: dark theme fallback surfaces require a rebuilt exact artifact and native rerun; all semantic states, complete route order, and Narrator output also remain incomplete."
     },
     {
       "id": "NATIVE-1920-125-DL",

@@ -475,6 +475,10 @@ class ModernMainWindow(QMainWindow):
         self.dashboard_page.set_theme(self._theme)
         self.workflow_page.apply_theme(self._theme)
         self.analytics_page.apply_theme(self._theme)
+        tender_search = getattr(self, "_tender_search_ui_controller", None)
+        apply_tender_search_theme = getattr(tender_search, "apply_theme", None)
+        if callable(apply_tender_search_theme):
+            apply_tender_search_theme(self._theme)
         self._settings.setValue("ui/theme", self._theme.value)
 
         self.workspace.topbar.apply_theme(self._theme)
