@@ -66,7 +66,7 @@ result, focus order, duplicate/missing speech, dynamic update behavior, and conf
 |---|---|---|---|
 | NATIVE-1366-100-D/L | 1366x768, 100%, dark/light, physical keyboard | NOT_EXECUTED | none |
 | NATIVE-1366-125-D/L | 1366x768, 125%, dark/light, physical keyboard | NOT_EXECUTED | deterministic baseline minimum predicts failure; native observation still required |
-| NATIVE-1920-100-D/L | 1920x1080, 100%, dark/light, all semantic states | FAIL | keyboard worked in both themes, but dark theme exposed white native fallback strips on the original build; fixed build `81A11C...A866` passed frozen self-test and awaits native visual rerun; all states and Narrator incomplete |
+| NATIVE-1920-100-D/L | 1920x1080, 100%, dark/light, all semantic states | BLOCKED | keyboard worked in both themes; white native fallback strips found on the original build were confirmed removed on fixed build `81A11C...A866`; all states and Narrator incomplete |
 | NATIVE-1920-125-D/L | 1920x1080, 125%, dark/light | NOT_EXECUTED | none |
 | NATIVE-1920-150-D/L | 1920x1080, 150%, dark/light | NOT_EXECUTED | none |
 | NATIVE-2560-150-D/L | 2560x1440, 150%, dark/light | NOT_EXECUTED | no such display discovered |

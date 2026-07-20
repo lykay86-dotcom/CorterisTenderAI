@@ -48,7 +48,7 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
     assert validate_native_matrix(payload) == ()
     cells = {cell["id"]: cell for cell in payload["cells"]}
     partial = cells["NATIVE-1920-100-DL"]
-    assert partial["status"] == "FAIL"
+    assert partial["status"] == "BLOCKED"
     assert partial["observed"] is True
     assert partial["environment"]
     assert partial["evidence"]
