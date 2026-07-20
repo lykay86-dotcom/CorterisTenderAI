@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
 import gc
 import json
 from pathlib import Path
@@ -28,6 +29,20 @@ from app.tenders.collector.notifications import (  # noqa: E402
     CollectorNotificationRepository,
 )
 from app.tenders.collector.search_errors import safe_search_error_fields  # noqa: E402
+from app.operations.announcements import AnnouncementCoalescer  # noqa: E402
+from app.operations.contracts import (  # noqa: E402
+    OperationCapabilities,
+    OperationEpisode,
+    OperationEpisodeId,
+    OperationKind,
+    OperationProgress,
+    OperationState,
+    OperationSubject,
+    SafeText,
+)
+from app.operations.diagnostics import DiagnosticRegistry  # noqa: E402
+from app.operations.notifications import LegacyCollectorNotificationAdapter  # noqa: E402
+from app.operations.safe_feedback import SafeFeedbackProjector  # noqa: E402
 
 
 DEFAULT_SIZES: Final[tuple[int, ...]] = (0, 1, 100, 1_000, 10_000)
@@ -153,7 +168,120 @@ def benchmark_size(size: int, *, warmups: int, repeats: int) -> list[Measurement
             repeats=repeats,
         )
 
-    return [projection, notification]
+    diagnostic_registry = DiagnosticRegistry(
+        max_records=4,
+        id_factory=lambda: "diagnostic-rm151-benchmark",
+    )
+    projector = SafeFeedbackProjector(
+        registry=diagnostic_registry,
+        feedback_id_factory=lambda: "feedback-rm151-benchmark",
+    )
+
+    def canonical_projection() -> tuple[int, int]:
+        feedback = projector.project_exception(
+            RuntimeError(payload),
+            episode_id=OperationEpisodeId("episode-rm151-benchmark"),
+            kind=OperationKind.TENDER_SEARCH,
+            occurred_at=datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc),
+        )
+        rendered = feedback.to_plain_text()
+        return 1, len(rendered)
+
+    canonical = _measure(
+        "canonical_safe_feedback_projection",
+        size,
+        canonical_projection,
+        warmups=warmups,
+        repeats=repeats,
+    )
+
+    adapter_registry = DiagnosticRegistry(
+        max_records=4,
+        id_factory=lambda: "diagnostic-rm151-adapter-benchmark",
+    )
+    legacy_adapter = LegacyCollectorNotificationAdapter(registry=adapter_registry)
+    legacy_notification = CollectorNotification(
+        id="legacy-rm151-benchmark",
+        created_at="2026-07-20T12:00:00+00:00",
+        title="Benchmark",
+        message=payload or "No events",
+        kind=CollectorNotificationKind.ERROR,
+        run_id="run-rm151-benchmark",
+    )
+
+    def adapt_legacy() -> tuple[int, int]:
+        envelope = legacy_adapter.adapt(legacy_notification, schema_version=1)
+        return 1, len(envelope.title.value) + len(envelope.summary.value)
+
+    adapted = _measure(
+        "canonical_legacy_notification_adapter",
+        size,
+        adapt_legacy,
+        warmups=warmups,
+        repeats=repeats,
+    )
+    started_at = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+    base = OperationEpisode(
+        episode_id=OperationEpisodeId("episode-rm151-coalescing"),
+        kind=OperationKind.TENDER_SEARCH,
+        subject=OperationSubject("collector_run", "run-rm151-benchmark"),
+        state=OperationState.RUNNING,
+        attempt=1,
+        generation=1,
+        revision=1,
+        progress=OperationProgress.bounded(current=0, total=size, phase="collect"),
+        started_at=started_at,
+        updated_at=started_at,
+        finished_at=None,
+        reason=None,
+        summary=SafeText("Benchmark operation"),
+        diagnostic_id=None,
+        capabilities=OperationCapabilities(can_cancel=True),
+        parent_episode_id=None,
+    )
+
+    def coalesce() -> tuple[int, int]:
+        local = AnnouncementCoalescer(bucket_percent=10)
+        emitted = 0
+        characters = 0
+        snapshot = base
+        for current in range(size + 1):
+            snapshot = replace(
+                base,
+                revision=current + 1,
+                progress=OperationProgress.bounded(
+                    current=current,
+                    total=size,
+                    phase="collect",
+                ),
+            )
+            announcement = local.offer(snapshot)
+            if announcement is not None:
+                emitted += 1
+                characters += len(announcement.text.value)
+        terminal = replace(
+            snapshot,
+            state=OperationState.SUCCEEDED,
+            revision=snapshot.revision + 1,
+            finished_at=started_at,
+            capabilities=OperationCapabilities(can_close=True),
+        )
+        announcement = local.offer(terminal)
+        if announcement is not None:
+            emitted += 1
+            characters += len(announcement.text.value)
+        if local.active_count != 0:
+            raise RuntimeError("coalescer retained a terminal episode")
+        return emitted, characters
+
+    coalesced = _measure(
+        "canonical_announcement_coalescing",
+        size,
+        coalesce,
+        warmups=warmups,
+        repeats=repeats,
+    )
+    return [projection, notification, canonical, adapted, coalesced]
 
 
 def _duplicate_measurement(*, warmups: int, repeats: int) -> Measurement:
@@ -219,11 +347,15 @@ def main() -> int:
             "pass_thresholds": None,
             "peak_allocation": "separate tracemalloc sample after timed samples",
             "notification_repository_cap": 200,
-            "announcement_owner_available": False,
+            "announcement_owner_available": arguments.label != "pre-implementation",
             "qt_object_delta_measured_by_characterization": True,
             "known_gap": (
-                "The pre-change repository has no canonical operation episode or "
-                "announcement coalescer; those counts are therefore unavailable."
+                (
+                    "The pre-change repository has no canonical operation episode or "
+                    "announcement coalescer; those counts are therefore unavailable."
+                )
+                if arguments.label == "pre-implementation"
+                else None
             ),
         },
         "measurements": [asdict(item) for item in measurements],
