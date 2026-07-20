@@ -135,7 +135,8 @@ exact frozen artifact was restarted, and text-only UIA exposed 166 current eleme
 mojibake marker lines and all key dashboard surfaces present. The owner confirmed no clipping or
 overlap, clean light/dark switching without white strips, and forward/reverse focus movement
 without a trap. `NATIVE-1920-150-DL` is `BLOCKED`, not `PASS`, because all semantic states and a
-complete Narrator journey remain incomplete. The other 30 cells remain
+complete Narrator journey remain incomplete. Windows Settings UIA then confirmed restoration to
+`100% (recommended)`; the exact test process and Settings window were closed. The other 30 cells remain
 `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:

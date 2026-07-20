@@ -85,7 +85,7 @@
         "complete focus order",
         "complete Narrator journey"
       ],
-      "restoration": "PENDING; restore Windows scale to 100% after evidence commit.",
+      "restoration": "PASS; Windows Settings UIA confirmed 100% (recommended) after the run, and the exact test process and Settings window were closed.",
       "status_policy": "Partial owner observation only; NATIVE-1920-150-DL is BLOCKED rather than PASS."
     },
     "frozen_executable_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
