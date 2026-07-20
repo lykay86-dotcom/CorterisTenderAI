@@ -342,3 +342,46 @@ def test_native_matrix_validator_never_promotes_unobserved_cell_to_pass() -> Non
 
     assert "SR-01: pass_without_observation" in errors
     assert "SR-01: missing_environment" in errors
+
+
+def test_native_matrix_accepts_named_owner_exception_without_promoting_status() -> None:
+    from app.ui.accessibility.native_matrix import validate_native_matrix
+
+    cell = {
+        "id": "SR-01-DEV",
+        "status": "NOT_EXECUTED",
+        "observed": False,
+        "environment": {},
+        "evidence": [],
+        "note": "Native observation was unavailable.",
+    }
+    payload = {
+        "schema": "rm152-native-matrix-v1",
+        "owner_exception_decision": {
+            "id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
+            "approved": True,
+            "approved_by": "project_owner",
+            "approved_at": "2026-07-20 Europe/Moscow",
+            "policy": "Retain BLOCKED and NOT_EXECUTED statuses; never convert an exception to PASS.",
+        },
+        "owner_exceptions": [
+            {
+                "id": "RM152-EX-SR-01-DEV",
+                "cell_id": "SR-01-DEV",
+                "approved_by": "project_owner",
+                "approved_at": "2026-07-20 Europe/Moscow",
+                "environment": {
+                    "available": "single 1920x1080 Windows host",
+                    "unavailable": "complete dev screen-reader journey",
+                },
+                "reason": "The required complete journey was not executed in the available session.",
+                "residual_risk": "Dev-only screen-reader regressions may remain undiscovered.",
+                "status_retained": "NOT_EXECUTED",
+                "accepted_without_pass": True,
+            }
+        ],
+        "cells": [cell],
+    }
+
+    assert validate_native_matrix(payload, require_complete=True) == ()
+    assert cell["status"] == "NOT_EXECUTED"
