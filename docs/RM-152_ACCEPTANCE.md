@@ -89,11 +89,12 @@ with a unique filename was then launched through an explicit process identifier;
 the exact `dist/CorterisTenderAI_RM152.exe` process and the expected `Corteris Tender AI 1.3 Alpha`
 title. Text-only UI Automation returned a 176-element tree with exposed names, roles, states, and
 table values. However, the reported focused element remained the global search even when keyboard
-behaviour changed the active route to Analytics, and input calls timed out intermittently. The
-screenshot path was not retried on the exact build after the channel had failed on the discarded
-installed window with `SetIsBorderRequired failed: Интерфейс не поддерживается (0x80004002)`.
-This evidence is insufficient for a physical keyboard, Narrator, or visual verdict. Therefore all
-33 machine-readable native cells remain `NOT_EXECUTED`;
+behaviour changed the active route to Analytics, and input calls timed out intermittently. A later
+screenshot attempt against the confirmed exact-build process failed with
+`SetIsBorderRequired failed: Интерфейс не поддерживается (0x80004002)`. The native protocol stopped
+further input after that observation failure. This evidence is insufficient for a physical
+keyboard, Narrator, or visual verdict. Therefore all 33 machine-readable native cells remain
+`NOT_EXECUTED`;
 `--require-native-complete` reports exactly 33 `incomplete` errors. The following are not proven:
 
 - physical Tab/Shift+Tab and visible focus in dark/light/high contrast;
