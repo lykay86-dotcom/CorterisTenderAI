@@ -67,7 +67,7 @@ result, focus order, duplicate/missing speech, dynamic update behavior, and conf
 | NATIVE-1366-100-D/L | 1366x768, 100%, dark/light, physical keyboard | NOT_EXECUTED | none |
 | NATIVE-1366-125-D/L | 1366x768, 125%, dark/light, physical keyboard | NOT_EXECUTED | deterministic baseline minimum predicts failure; native observation still required |
 | NATIVE-1920-100-D/L | 1920x1080, 100%, dark/light, all semantic states | BLOCKED | keyboard worked in both themes and white fallback strips were removed on `81A11C...A866`; exact `11E59D...066F0` UIA exposed 176 elements and correct Russian feedback; owner-observed Narrator spoke distinct controls and readable Russian during 10 Tab/5 Shift+Tab transitions without reverse loop; full routes/states/roles/values/relations remain incomplete |
-| NATIVE-1920-125-D/L | 1920x1080, 125%, dark/light | NOT_EXECUTED | none |
+| NATIVE-1920-125-D/L | 1920x1080, 125%, dark/light | BLOCKED | Windows UIA confirmed 125% and exact-build restart with 176 exposed elements/zero mojibake lines; owner confirmed no clipping/overlap, clean dark/light switching, and Tab/Shift+Tab without a trap; complete states and Narrator journey incomplete |
 | NATIVE-1920-150-D/L | 1920x1080, 150%, dark/light | NOT_EXECUTED | none |
 | NATIVE-2560-150-D/L | 2560x1440, 150%, dark/light | NOT_EXECUTED | no such display discovered |
 | NATIVE-2560-175-D/L | 2560x1440, 175%, dark/light | NOT_EXECUTED | no such display discovered |

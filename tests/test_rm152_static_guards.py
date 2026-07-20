@@ -55,15 +55,17 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
     assert ids == screen_reader | environment
     assert validate_native_matrix(payload) == ()
     cells = {cell["id"]: cell for cell in payload["cells"]}
-    partial = cells["NATIVE-1920-100-DL"]
-    assert partial["status"] == "BLOCKED"
-    assert partial["observed"] is True
-    assert partial["environment"]
-    assert partial["evidence"]
+    partial_ids = {"NATIVE-1920-100-DL", "NATIVE-1920-125-DL"}
+    for partial_id in partial_ids:
+        partial = cells[partial_id]
+        assert partial["status"] == "BLOCKED"
+        assert partial["observed"] is True
+        assert partial["environment"]
+        assert partial["evidence"]
     assert all(
         cell["status"] == "NOT_EXECUTED" and cell["observed"] is False
         for cell_id, cell in cells.items()
-        if cell_id != "NATIVE-1920-100-DL"
+        if cell_id not in partial_ids
     )
 
 

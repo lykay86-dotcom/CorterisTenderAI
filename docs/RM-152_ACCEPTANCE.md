@@ -123,13 +123,19 @@ slow sweep of 10 `Tab` and five `Shift+Tab` transitions was owner-observed: spee
 distinct controls, Russian names were readable, and reverse traversal moved backward without a
 loop. This is partial Narrator evidence only; complete routes, roles, states, values, relations,
 dynamic announcements, and semantic-state assertions remain incomplete. The
-other 32 cells remain `NOT_EXECUTED`;
+owner then explicitly approved a temporary Windows scale change from 100% to 125%. Windows
+Settings UIA confirmed 125%, the exact frozen artifact was restarted, and its text-only UIA tree
+retained 176 elements with zero mojibake marker lines. At 1920x1080/125%, the owner confirmed no
+clipping or overlap, clean light/dark switching without white strips, and forward/reverse keyboard
+movement without a trap. `NATIVE-1920-125-DL` is `BLOCKED`, not `PASS`, because the observation did
+not cover every semantic state or a complete Narrator journey. The other 31 cells remain
+`NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:
 
 - physical Tab/Shift+Tab and visible focus in dark/light/high contrast;
 - complete Narrator name/role/state/value/relations across all routes and bounded dynamic announcements;
-- 1366x768 at 100/125%, 1920x1080 at 100/125/150%, 2560x1440 at 150/175%, and 4K at 200%;
+- 1366x768 at 100/125%, complete 1920x1080 at 100/125/150%, 2560x1440 at 150/175%, and 4K at 200%;
 - A->B->A mixed-DPI movement, saved/removed-monitor geometry, and frozen native parity.
 
 ## Blocker and required decision
