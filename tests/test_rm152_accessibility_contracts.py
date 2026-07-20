@@ -23,7 +23,9 @@ from app.tenders.provider_credentials import CredentialState, CredentialStateRes
 from app.ui.business_workflow.system_health_badge import SystemHealthBadge
 from app.ui.navigation import NavigationCause, RouteId, RouteRequest
 from app.ui.provider_credentials_dialog import ProviderCredentialsDialog
+from app.ui.theme.colors import DARK_PALETTE, ThemeName
 from app.ui.theme.stylesheet import build_stylesheet
+from app.ui.tender_search_ui_controller import TenderSearchUiController
 from app.ui.widgets.topbar import TopBar
 from tests.test_rm127_modern_main_window_composition import _window as _rm127_window
 
@@ -120,6 +122,50 @@ def test_empty_or_cell_focused_tender_table_releases_tab_to_next_task(
     try:
         assert app.focusWidget() is not table
     finally:
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+
+
+def test_dark_theme_styles_every_native_surface_seen_in_owner_evidence() -> None:
+    stylesheet = build_stylesheet(ThemeName.DARK.value)
+
+    for selector in (
+        "QTableCornerButton::section",
+        "QAbstractScrollArea::corner",
+        "QScrollBar:horizontal",
+        "QScrollBar::add-line:vertical",
+        "QScrollBar::add-line:horizontal",
+        "QTabWidget::pane",
+        "QTabBar::tab",
+        "QProgressBar",
+        "QProgressBar::chunk",
+    ):
+        assert selector in stylesheet
+
+
+def test_shell_theme_change_rethemes_controller_owned_search_panel(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    app = _app()
+    window = _window(monkeypatch, tmp_path)
+    controller = TenderSearchUiController(
+        tmp_path,
+        theme=ThemeName.LIGHT,
+        parent=window,
+    )
+    controller.install_on_main_window(window)
+    controller.install_on_tender_workspace(window.tender_workspace_page)
+
+    window.apply_theme(ThemeName.DARK)
+
+    try:
+        assert controller._theme is ThemeName.DARK
+        assert controller._unified_search_panel is not None
+        assert DARK_PALETTE.panel_background in controller._unified_search_panel.styleSheet()
+    finally:
+        controller.shutdown()
         window.close()
         window.deleteLater()
         app.processEvents()
