@@ -29,14 +29,17 @@ an optimization and must be revised or rolled back.
 ## Theme propagation contract
 
 - `ModernMainWindow` remains the sole theme owner and persists the selected `ThemeName`.
-- The root stylesheet and top bar are updated synchronously for every real theme change.
+- The shell palette/chrome stylesheet and top bar are updated synchronously for every real theme
+  change. The broad base stylesheet is scoped to shell chrome and the active page so hidden pages
+  are not repolished through the window root.
 - The active canonical page receives its local theme adapter synchronously.
 - Hidden page adapters may be deferred, but each carries a shell theme epoch. A stale page is
   updated synchronously inside its existing route handler before route-specific state/refresh work.
 - Applying the already-current theme is idempotent and performs no repolish or settings write unless
   the caller explicitly requests startup shell initialization.
 - Dashboard, workflow and analytics keep their existing local adapters. Tender workspace continues
-  to inherit the root stylesheet; no competing adapter is introduced.
+  to use the existing broad base stylesheet; no competing adapter is introduced. The RM-152 table
+  corner and scroll-area corner selectors are present exactly once on every activated page.
 - Deferred work must not add a timer, thread, worker, event bus or second router.
 
 ## Resource and lifecycle contract

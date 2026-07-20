@@ -6,7 +6,7 @@ from itertools import pairwise
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QColor, QCloseEvent, QPalette
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QWidget
 
 from app.repositories.business_metrics import (
@@ -29,7 +29,7 @@ from app.ui.pages.business_workflow_page import (
 from app.ui.pages.dashboard_page import DashboardPage
 from app.ui.pages.tender_analytics_page import TenderAnalyticsPage
 from app.ui.pages.tender_workspace_page import TenderWorkspacePage
-from app.ui.theme.colors import ThemeName
+from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.stylesheet import build_stylesheet
 from app.ui.viewmodels.dashboard_viewmodel import DashboardKpiAction
 from app.ui.widgets.dashboard_layout import DashboardLayout
@@ -65,6 +65,7 @@ class ModernMainWindow(QMainWindow):
 
         self._settings = QSettings(self.ORGANIZATION, self.APPLICATION)
         self._theme = self._load_theme()
+        self._theme_epoch = 0
 
         self.workspace = DashboardLayout(self)
         self.setCentralWidget(self.workspace)
@@ -117,6 +118,12 @@ class ModernMainWindow(QMainWindow):
             self.analytics_page,
         )
         self.analytics_controller: TenderAnalyticsController | None = None
+        self._page_theme_epochs = {
+            "dashboard": -1,
+            "tenders": -1,
+            "workflow": -1,
+            "analytics": -1,
+        }
 
         self._configure_dashboard_tab_order()
 
@@ -145,7 +152,9 @@ class ModernMainWindow(QMainWindow):
         self.workflow_page.tender_open_requested.connect(self._open_tender_from_dashboard)
         self.workflow_page.workflow_changed.connect(self._business_workflow_changed)
 
-        self.apply_theme(self._theme)
+        self._apply_shell_theme(persist=False)
+        self._apply_base_page_stylesheet(self.dashboard_page)
+        self._page_theme_epochs["dashboard"] = self._theme_epoch
         self.workspace.navigate(
             RouteRequest(
                 RouteId.DASHBOARD,
@@ -235,6 +244,10 @@ class ModernMainWindow(QMainWindow):
     def _register_navigation_destinations(self) -> None:
         """Bind canonical routes to the existing page and controller owners."""
         self.workspace.register_route_handler(
+            RouteId.DASHBOARD,
+            self._activate_dashboard,
+        )
+        self.workspace.register_route_handler(
             RouteId.FUTURE_ANALYTICS,
             self._show_analytics_page,
         )
@@ -280,7 +293,12 @@ class ModernMainWindow(QMainWindow):
             self._open_profile,
         )
 
+    def _activate_dashboard(self, _context: RouteContext) -> bool:
+        self._ensure_page_theme("dashboard")
+        return True
+
     def _show_analytics_page(self, _context: RouteContext) -> bool:
+        self._ensure_page_theme("analytics")
         controller = self.analytics_controller
         if controller is not None:
             controller.refresh()
@@ -327,6 +345,7 @@ class ModernMainWindow(QMainWindow):
         )
 
     def _activate_workflow(self, route_id: RouteId, context: RouteContext) -> bool:
+        self._ensure_page_theme("workflow")
         route_kind = {
             RouteId.WORKFLOW_PROPOSALS: BusinessRecordKind.PROPOSAL.value,
             RouteId.WORKFLOW_ESTIMATES: BusinessRecordKind.ESTIMATE.value,
@@ -346,6 +365,8 @@ class ModernMainWindow(QMainWindow):
         return True
 
     def _activate_tender_route(self, context: RouteContext) -> bool:
+        self._ensure_page_theme("tenders")
+        self._apply_tender_search_theme()
         self.tender_workspace_page.apply_dashboard_filter(context.dashboard_filter)
         if (
             context.tender_section is not None
@@ -391,6 +412,7 @@ class ModernMainWindow(QMainWindow):
         )
 
     def _open_tender_documents(self, context: RouteContext) -> bool:
+        self._apply_tender_search_theme()
         controller = getattr(self, "_tender_search_ui_controller", None)
         opener = getattr(controller, "open_registry_documents", None)
         if context.tender_id is None or not callable(opener):
@@ -399,6 +421,7 @@ class ModernMainWindow(QMainWindow):
         return True
 
     def _trigger_tender_action(self, action_name: str) -> bool:
+        self._apply_tender_search_theme()
         controller = getattr(self, "_tender_search_ui_controller", None)
         scheduler = getattr(controller, "scheduler_ui_controller", None)
         action = getattr(scheduler, action_name, None)
@@ -470,21 +493,94 @@ class ModernMainWindow(QMainWindow):
 
     def apply_theme(self, theme: ThemeName | str) -> None:
         """Apply and persist the selected UI theme."""
-        self._theme = ThemeName(theme)
-        self.setStyleSheet(build_stylesheet(self._theme.value))
-        self.dashboard_page.set_theme(self._theme)
-        self.workflow_page.apply_theme(self._theme)
-        self.analytics_page.apply_theme(self._theme)
-        tender_search = getattr(self, "_tender_search_ui_controller", None)
-        apply_tender_search_theme = getattr(tender_search, "apply_theme", None)
-        if callable(apply_tender_search_theme):
-            apply_tender_search_theme(self._theme)
-        self._settings.setValue("ui/theme", self._theme.value)
+        resolved = ThemeName(theme)
+        if resolved is self._theme:
+            return
 
+        self._theme = resolved
+        self._theme_epoch += 1
+        self.setUpdatesEnabled(False)
+        try:
+            self._apply_shell_theme(persist=True)
+            active_page = self._active_theme_page_key()
+            if active_page is not None:
+                self._ensure_page_theme(active_page)
+        finally:
+            self.setUpdatesEnabled(True)
+        self.update()
+
+    def _apply_shell_theme(self, *, persist: bool) -> None:
+        """Apply shell-owned styling without eagerly repolishing hidden pages."""
+        stylesheet = build_stylesheet(self._theme.value)
+        palette = self.palette()
+        theme_palette = get_palette(self._theme)
+        palette.setColor(QPalette.ColorRole.Window, QColor(theme_palette.app_background))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(theme_palette.text_primary))
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
+        self.workspace.sidebar.setStyleSheet(stylesheet)
+        self.workspace.topbar.setStyleSheet(stylesheet)
+        self.statusBar().setStyleSheet(stylesheet)
+        self._apply_tender_search_theme()
+        if persist:
+            self._settings.setValue("ui/theme", self._theme.value)
         self.workspace.topbar.apply_theme(self._theme)
         self.workspace.topbar.theme_button.setToolTip(
             "Включить светлую тему" if self._theme == ThemeName.DARK else "Включить тёмную тему"
         )
+
+    def _apply_tender_search_theme(self) -> None:
+        tender_search = getattr(self, "_tender_search_ui_controller", None)
+        apply_theme = getattr(tender_search, "apply_theme", None)
+        if callable(apply_theme):
+            apply_theme(self._theme)
+
+    def _active_theme_page_key(self) -> str | None:
+        current = self.workspace.pages.currentWidget()
+        if current is self.dashboard_page:
+            return "dashboard"
+        if current is self.tender_workspace_page:
+            return "tenders"
+        if current is self.workflow_page:
+            return "workflow"
+        if current is self.analytics_page:
+            return "analytics"
+        return None
+
+    def _ensure_page_theme(self, page_key: str) -> None:
+        if self._page_theme_epochs[page_key] == self._theme_epoch:
+            return
+        if page_key == "dashboard":
+            self.dashboard_page.set_theme(self._theme)
+            page = self.dashboard_page
+            preserve_local = True
+        elif page_key == "tenders":
+            page = self.tender_workspace_page
+            preserve_local = False
+        elif page_key == "workflow":
+            self.workflow_page.apply_theme(self._theme)
+            page = self.workflow_page
+            preserve_local = True
+        elif page_key == "analytics":
+            self.analytics_page.apply_theme(self._theme)
+            page = self.analytics_page
+            preserve_local = False
+        else:
+            raise ValueError(f"Unknown themed page: {page_key}")
+        self._apply_base_page_stylesheet(page, preserve_local=preserve_local)
+        self._page_theme_epochs[page_key] = self._theme_epoch
+
+    def _apply_base_page_stylesheet(
+        self,
+        page: QWidget,
+        *,
+        preserve_local: bool = True,
+    ) -> None:
+        base_stylesheet = build_stylesheet(self._theme.value)
+        if not preserve_local:
+            page.setStyleSheet(base_stylesheet)
+            return
+        page.setStyleSheet(f"{base_stylesheet}\n{page.styleSheet()}")
 
     def toggle_theme(self) -> None:
         """Switch between the dark and light themes."""

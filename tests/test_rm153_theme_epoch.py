@@ -5,7 +5,7 @@ from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
 
 from app.ui.navigation import NavigationCause, RouteId, RouteRequest
-from app.ui.theme.colors import ThemeName
+from app.ui.theme.colors import LIGHT_PALETTE, ThemeName
 from scripts.benchmark_rm153_ui import _dispose, _window
 
 
@@ -67,5 +67,33 @@ def test_theme_change_updates_only_active_page_then_updates_stale_page_on_route(
 
         assert result.succeeded
         dashboard_theme.assert_called_once_with(window._theme)
+    finally:
+        _dispose(window, app)
+
+
+def test_scoped_page_styles_keep_corner_fix_without_accumulating(tmp_path) -> None:
+    app = QApplication.instance() or QApplication([])
+    window = _window(tmp_path)
+    try:
+        window.apply_theme(ThemeName.LIGHT)
+        routes_and_pages = (
+            (RouteId.DASHBOARD, window.dashboard_page),
+            (RouteId.TENDERS, window.tender_workspace_page),
+            (RouteId.WORKFLOW, window.workflow_page),
+            (RouteId.FUTURE_ANALYTICS, window.analytics_page),
+        )
+        for route_id, page in routes_and_pages:
+            result = window.workspace.navigate(
+                RouteRequest(route_id, cause=NavigationCause.PROGRAMMATIC)
+            )
+            assert result.succeeded
+            stylesheet = page.styleSheet()
+            assert stylesheet.count("QTableCornerButton::section") == 1
+            assert stylesheet.count("QAbstractScrollArea::corner") == 1
+            assert LIGHT_PALETTE.sidebar_background in stylesheet
+
+        assert LIGHT_PALETTE.sidebar_background in window.workspace.sidebar.styleSheet()
+        assert LIGHT_PALETTE.sidebar_background in window.workspace.topbar.styleSheet()
+        assert LIGHT_PALETTE.sidebar_background in window.statusBar().styleSheet()
     finally:
         _dispose(window, app)

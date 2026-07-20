@@ -92,3 +92,16 @@ construction and 0.027 seconds in analytics construction.
 The selected implementation is therefore limited to theme-epoch propagation and duplicate startup
 work. It does not alter business results, persistence, route identities, refresh ownership or
 shutdown ordering.
+
+## Profile-backed implementation refinement
+
+The first epoch-only post run improved shell construction but left theme switch p95 at 718.821 ms,
+only 3.2% below baseline and above the fixed 20% target. A second call profile attributed 23.130
+seconds of a 52-call smoke to the remaining window-root `setStyleSheet`; updating only active local
+adapters could not avoid Qt repolishing every hidden descendant through that root.
+
+The accepted refinement keeps the same broad stylesheet and RM-152 corner selectors but scopes it
+to sidebar, top bar, status bar and the active canonical page. The window background uses the same
+theme palette. Hidden pages receive the broad stylesheet plus their existing local adapter inside
+the route-time epoch guard. This changes only where existing QSS is attached; it does not introduce
+a new design token, visual owner, route or lifecycle mechanism.

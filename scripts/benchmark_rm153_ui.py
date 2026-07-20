@@ -273,12 +273,15 @@ def _sample_shell_lifecycle(root: Path, app: QApplication) -> ShellLifecycleSamp
 
 def run_benchmark(
     *,
+    label: str = "pre-implementation",
     warmups: int = 2,
     samples: int = 10,
     dashboard_rows: int = 1_000,
     table_rows: int = 10_000,
     chart_points: int = 1_000,
 ) -> dict[str, object]:
+    if label not in {"pre-implementation", "post-implementation"}:
+        raise ValueError("label must be pre-implementation or post-implementation")
     if warmups < 0 or samples < 1:
         raise ValueError("warmups must be >= 0 and samples must be >= 1")
     app = QApplication.instance() or QApplication([])
@@ -382,7 +385,7 @@ def run_benchmark(
         shutdown_ms = (perf_counter_ns() - shutdown_started) / 1_000_000
 
     return {
-        "baseline": "pre-implementation",
+        "baseline": label,
         "contract": "rm153-ui-performance-baseline-v1",
         "measurement_head": _git_head(),
         "production_baseline_commit": "1c227c323c0e9912f9a8f44dc859703e2d3fcd36",
@@ -417,6 +420,11 @@ def run_benchmark(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--label",
+        choices=("pre-implementation", "post-implementation"),
+        default="pre-implementation",
+    )
     parser.add_argument("--warmups", type=int, default=2)
     parser.add_argument("--samples", type=int, default=10)
     parser.add_argument("--dashboard-rows", type=int, default=1_000)
@@ -425,6 +433,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
     payload = run_benchmark(
+        label=arguments.label,
         warmups=arguments.warmups,
         samples=arguments.samples,
         dashboard_rows=arguments.dashboard_rows,
