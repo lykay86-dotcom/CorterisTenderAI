@@ -6,12 +6,15 @@
     "display": "1920x1080; available 1920x1040; logical DPI 96; DPR 1.0",
     "narrator_binary_present": true,
     "high_contrast_active": false,
-    "windows_automation_connection": "connected after Codex Desktop restart; frozen app launch and window activation succeeded",
-    "windows_state_capture": "failed before observation: SetIsBorderRequired failed; interface not supported (0x80004002)",
+    "windows_automation_connection": "connected after Codex Desktop restart",
+    "launch_identity_correction": "The initial same-name launch resolved to the installed Program Files executable and was discarded; an identical uniquely named artifact was then confirmed as the exact dist process.",
+    "windows_state_capture": "Screenshot capture was not retried on the exact build after the channel failed on the discarded installed window with SetIsBorderRequired/interface not supported (0x80004002); exact-build text-only UI Automation succeeded.",
+    "text_only_ui_automation": "Exact build exposed a 176-element tree with names, roles, states, and table values.",
+    "keyboard_probe": "The focused-element report remained on global search while keyboard behaviour changed the active route to Analytics; input calls also timed out intermittently, so no focus or keyboard verdict was accepted.",
     "frozen_executable_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
     "frozen_self_test": "PASS; 9 isolated automated checks",
     "frozen_manifest_dpi_declaration": "absent",
-    "observation_boundary": "Application launch and window activation were confirmed, but state capture failed before observable UI evidence; no native cell promoted."
+    "observation_boundary": "Exact artifact identity and a text-only UIA tree were observed, but screenshot, physical-keyboard, Narrator, DPI, and reliable focus evidence were not; no native cell promoted."
   },
   "cells": [
     {
