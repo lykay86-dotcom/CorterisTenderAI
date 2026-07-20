@@ -11,10 +11,23 @@
     "windows_state_capture": "Exact-build screenshot capture failed with SetIsBorderRequired/interface not supported (0x80004002); exact-build text-only UI Automation succeeded in an earlier run.",
     "text_only_ui_automation": "Exact build exposed a 176-element tree with names, roles, states, and table values.",
     "keyboard_probe": "The focused-element report remained on global search while keyboard behaviour changed the active route to Analytics; input calls also timed out intermittently, so no focus or keyboard verdict was accepted.",
+    "owner_keyboard_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+      "environment": "single 1920x1080 display; logical DPI 96; exact frozen build",
+      "confirmed": "Visible focus was observed and moved between controls during the requested Tab/Shift+Tab probe.",
+      "unresolved": [
+        "complete forward and reverse order",
+        "absence of keyboard traps",
+        "absence of clipping or overlap",
+        "Narrator output"
+      ],
+      "status_policy": "Partial owner observation only; no cell promoted."
+    },
     "frozen_executable_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
     "frozen_self_test": "PASS; 9 isolated automated checks",
     "frozen_manifest_dpi_declaration": "absent",
-    "observation_boundary": "Exact artifact identity and a text-only UIA tree were observed, but screenshot, physical-keyboard, Narrator, DPI, and reliable focus evidence were not; no native cell promoted."
+    "observation_boundary": "Exact artifact identity, a text-only UIA tree, and owner-observed visible moving focus were recorded, but complete keyboard, screenshot, Narrator, DPI, and reliable focus-order evidence were not; no native cell promoted."
   },
   "cells": [
     {

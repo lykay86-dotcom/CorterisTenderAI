@@ -92,9 +92,11 @@ table values. However, the reported focused element remained the global search e
 behaviour changed the active route to Analytics, and input calls timed out intermittently. A later
 screenshot attempt against the confirmed exact-build process failed with
 `SetIsBorderRequired failed: Интерфейс не поддерживается (0x80004002)`. The native protocol stopped
-further input after that observation failure. This evidence is insufficient for a physical
-keyboard, Narrator, or visual verdict. Therefore all 33 machine-readable native cells remain
-`NOT_EXECUTED`;
+further automated input after that observation failure. In a subsequent owner-observed physical
+keyboard probe on the open exact build, visible focus was confirmed and was seen moving between
+controls. The owner has not yet confirmed the complete forward/reverse order, absence of traps,
+clipping/overlap, or Narrator output, so this partial observation does not promote a matrix cell.
+Therefore all 33 machine-readable native cells remain `NOT_EXECUTED`;
 `--require-native-complete` reports exactly 33 `incomplete` errors. The following are not proven:
 
 - physical Tab/Shift+Tab and visible focus in dark/light/high contrast;
