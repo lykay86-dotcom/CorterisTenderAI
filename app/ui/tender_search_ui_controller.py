@@ -6,11 +6,13 @@ import asyncio
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import StrEnum
+import hashlib
 from pathlib import Path
 from threading import Event
 from time import monotonic
 from typing import Protocol
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 from PySide6.QtCore import (
     QObject,
@@ -29,6 +31,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.operations.contracts import (
+    OperationCapabilities,
+    OperationEpisode,
+    OperationEpisodeId,
+    OperationEvent,
+    OperationKind,
+    OperationProgress,
+    OperationReasonCode,
+    OperationState,
+    OperationSubject,
+)
+from app.operations.diagnostics import DiagnosticRegistry
+from app.operations.safe_feedback import SafeFeedbackProjector
+from app.operations.transitions import transition_episode
 from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.company_capability import (
     CompanyCapabilityProfileRepository,
@@ -514,6 +530,7 @@ class TenderSearchUiController(QObject):
     collector_started = Signal(str)
     collector_finished = Signal(object)
     collector_failed = Signal(str)
+    operation_episode_changed = Signal(object)
     score_started = Signal(str)
     score_finished = Signal(str, object)
     score_failed = Signal(str, str)
@@ -572,6 +589,11 @@ class TenderSearchUiController(QObject):
             revision=0,
             state=TenderSearchLifecycleState.IDLE,
             updated_at=_utc_now(),
+        )
+        self._operation_episode: OperationEpisode | None = None
+        self.operation_diagnostic_registry = DiagnosticRegistry(max_records=256)
+        self.operation_feedback_projector = SafeFeedbackProjector(
+            registry=self.operation_diagnostic_registry
         )
         self._profiles_dialog: TenderSearchProfilesDialog | None = None
         self._registry_dialog: TenderRegistryDialog | None = None
@@ -1661,7 +1683,11 @@ class TenderSearchUiController(QObject):
         except Exception as exc:
             if self._provider_dialog is not None:
                 self._provider_dialog.set_status(
-                    f"Не удалось сохранить настройку: {exc}",
+                    self._safe_worker_failure(
+                        OperationKind.PROVIDER_CHECK,
+                        type(exc).__name__,
+                        str(exc),
+                    ),
                     error=True,
                 )
             return
@@ -1868,6 +1894,10 @@ class TenderSearchUiController(QObject):
         snapshot = self._lifecycle_snapshot
         return snapshot.generation == generation and not snapshot.state.terminal
 
+    @property
+    def operation_episode(self) -> OperationEpisode | None:
+        return self._operation_episode
+
     def _transition_lifecycle(
         self,
         state: TenderSearchLifecycleState,
@@ -1900,7 +1930,121 @@ class TenderSearchUiController(QObject):
             error_code=error_code[:120],
             message=message[:300],
         )
+        self._sync_operation_episode(self._lifecycle_snapshot)
         return True
+
+    def _sync_operation_episode(self, snapshot: TenderSearchLifecycleSnapshot) -> None:
+        occurred_at = datetime.fromisoformat(snapshot.updated_at.replace("Z", "+00:00"))
+        mapped_state = {
+            TenderSearchLifecycleState.IDLE: OperationState.IDLE,
+            TenderSearchLifecycleState.QUEUED: OperationState.QUEUED,
+            TenderSearchLifecycleState.RUNNING: OperationState.RUNNING,
+            TenderSearchLifecycleState.CANCELLING: OperationState.CANCELLING,
+            TenderSearchLifecycleState.CANCELLED: OperationState.CANCELLED,
+            TenderSearchLifecycleState.COMPLETED: OperationState.SUCCEEDED,
+            TenderSearchLifecycleState.FAILED: OperationState.FAILED,
+            TenderSearchLifecycleState.TIMED_OUT: OperationState.TIMED_OUT,
+            TenderSearchLifecycleState.CLOSED: OperationState.CLOSED,
+        }[snapshot.state]
+        reason = {
+            OperationState.CANCELLED: OperationReasonCode.CANCELLED_BY_USER,
+            OperationState.TIMED_OUT: OperationReasonCode.TIMEOUT,
+            OperationState.FAILED: OperationReasonCode.SOURCE_UNAVAILABLE,
+        }.get(mapped_state)
+        capabilities = OperationCapabilities(
+            can_cancel=mapped_state in {OperationState.QUEUED, OperationState.RUNNING},
+            can_retry=mapped_state
+            in {
+                OperationState.CANCELLED,
+                OperationState.FAILED,
+                OperationState.TIMED_OUT,
+            },
+            can_close=True,
+            can_open_result=mapped_state is OperationState.SUCCEEDED,
+            can_open_diagnostics=mapped_state in {OperationState.FAILED, OperationState.TIMED_OUT},
+        )
+        if mapped_state is OperationState.QUEUED:
+            subject_value = snapshot.profile_id
+            try:
+                subject = OperationSubject("search_profile", subject_value)
+            except ValueError:
+                subject = OperationSubject(
+                    "search_profile",
+                    "profile-" + hashlib.sha256(subject_value.encode("utf-8")).hexdigest()[:16],
+                )
+            episode = OperationEpisode(
+                episode_id=OperationEpisodeId(f"episode-{uuid4().hex}"),
+                kind=OperationKind.TENDER_SEARCH,
+                subject=subject,
+                state=mapped_state,
+                attempt=1,
+                generation=snapshot.generation,
+                revision=snapshot.revision,
+                progress=OperationProgress.indeterminate(phase="queued"),
+                started_at=occurred_at,
+                updated_at=occurred_at,
+                finished_at=None,
+                reason=None,
+                summary=None,
+                diagnostic_id=None,
+                capabilities=capabilities,
+                parent_episode_id=None,
+            )
+            self._operation_episode = episode
+            self.operation_episode_changed.emit(episode)
+            return
+        current = self._operation_episode
+        if current is None or current.generation != snapshot.generation:
+            return
+        progress = current.progress
+        if mapped_state is OperationState.RUNNING and progress.phase == "queued":
+            progress = OperationProgress.indeterminate(phase="collect")
+        outcome = transition_episode(
+            current,
+            OperationEvent(
+                state=mapped_state,
+                generation=snapshot.generation,
+                revision=snapshot.revision,
+                occurred_at=occurred_at,
+                finished_at=occurred_at if mapped_state.terminal else None,
+                progress=progress,
+                reason=reason,
+                capabilities=capabilities,
+            ),
+        )
+        if outcome.accepted:
+            self._operation_episode = outcome.episode
+            self.operation_episode_changed.emit(outcome.episode)
+
+    def _safe_worker_failure(
+        self,
+        kind: OperationKind,
+        error_type: str,
+        unsafe_message: str,
+    ) -> str:
+        normalized = error_type.casefold()
+        reason = (
+            OperationReasonCode.TIMEOUT
+            if "timeout" in normalized
+            else (
+                OperationReasonCode.AUTH_REQUIRED
+                if "credential" in normalized or "auth" in normalized
+                else (
+                    OperationReasonCode.PERMISSION_DENIED
+                    if "permission" in normalized
+                    else OperationReasonCode.INTERNAL_ERROR
+                )
+            )
+        )
+        feedback = self.operation_feedback_projector.project_reason(
+            reason,
+            episode_id=OperationEpisodeId(f"episode-{uuid4().hex}"),
+            kind=kind,
+            occurred_at=datetime.now(timezone.utc),
+            unsafe_detail=unsafe_message,
+            register_diagnostic=True,
+        )
+        return feedback.to_plain_text()
 
     def _finish_profile_dialog_run(
         self,
@@ -2154,7 +2298,11 @@ class TenderSearchUiController(QObject):
     ) -> None:
         del tender
         self._document_workers.pop(registry_key, None)
-        rendered = message or error_type
+        rendered = self._safe_worker_failure(
+            OperationKind.DOCUMENT_ANALYSIS,
+            error_type,
+            message,
+        )
         dialog = self._document_dialogs.get(registry_key)
         if dialog is not None:
             dialog.set_download_error(rendered)
@@ -2174,9 +2322,14 @@ class TenderSearchUiController(QObject):
         try:
             review = self.verification_review_service.load(normalized)
         except Exception as exc:
+            rendered = self._safe_worker_failure(
+                OperationKind.DOCUMENT_ANALYSIS,
+                type(exc).__name__,
+                str(exc),
+            )
             if self._registry_dialog is not None:
                 self._registry_dialog.set_status(
-                    f"Не удалось загрузить достоверность: {exc}",
+                    rendered,
                     error=True,
                 )
             return
@@ -2217,7 +2370,14 @@ class TenderSearchUiController(QObject):
             dialog.set_review(self.verification_review_service.load(normalized))
             dialog.set_status("Данные обновлены.")
         except Exception as exc:
-            dialog.set_status(str(exc), error=True)
+            dialog.set_status(
+                self._safe_worker_failure(
+                    OperationKind.DOCUMENT_ANALYSIS,
+                    type(exc).__name__,
+                    str(exc),
+                ),
+                error=True,
+            )
 
     @Slot(str, str, str, str)
     def resolve_verification_field(
@@ -2238,7 +2398,11 @@ class TenderSearchUiController(QObject):
         except Exception as exc:
             if dialog is not None:
                 dialog.set_status(
-                    f"Не удалось сохранить выбор: {exc}",
+                    self._safe_worker_failure(
+                        OperationKind.DOCUMENT_ANALYSIS,
+                        type(exc).__name__,
+                        str(exc),
+                    ),
                     error=True,
                 )
             return
@@ -2267,7 +2431,11 @@ class TenderSearchUiController(QObject):
         except Exception as exc:
             if dialog is not None:
                 dialog.set_status(
-                    f"Не удалось снять ручной выбор: {exc}",
+                    self._safe_worker_failure(
+                        OperationKind.DOCUMENT_ANALYSIS,
+                        type(exc).__name__,
+                        str(exc),
+                    ),
                     error=True,
                 )
             return
@@ -2466,7 +2634,11 @@ class TenderSearchUiController(QObject):
         message: str,
     ) -> None:
         self._full_analysis_workers.pop(registry_key, None)
-        rendered = message or error_type
+        rendered = self._safe_worker_failure(
+            OperationKind.DOCUMENT_ANALYSIS,
+            error_type,
+            message,
+        )
         dialog = self._full_analysis_dialogs.get(registry_key)
         if dialog is not None:
             dialog.set_error(rendered)
@@ -2585,7 +2757,11 @@ class TenderSearchUiController(QObject):
         message: str,
     ) -> None:
         self._score_workers.pop(registry_key, None)
-        rendered = message or error_type
+        rendered = self._safe_worker_failure(
+            OperationKind.DOCUMENT_ANALYSIS,
+            error_type,
+            message,
+        )
         dialog = self._score_dialogs.get(registry_key)
         if dialog is not None:
             dialog.set_error(rendered)
@@ -2699,7 +2875,11 @@ class TenderSearchUiController(QObject):
         message: str,
     ) -> None:
         self._analysis_workers.pop(registry_key, None)
-        rendered = message or error_type
+        rendered = self._safe_worker_failure(
+            OperationKind.DOCUMENT_ANALYSIS,
+            error_type,
+            message,
+        )
         dialog = self._analysis_dialogs.get(registry_key)
         if dialog is not None:
             dialog.set_analysis_error(rendered)

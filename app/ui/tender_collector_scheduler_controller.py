@@ -15,6 +15,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.operations.diagnostics import DiagnosticRegistry
+from app.operations.notifications import (
+    LegacyCollectorNotificationAdapter,
+    NotificationEnvelope,
+)
 from app.tenders.collector.models import CollectorRunResult
 from app.tenders.collector.notifications import (
     CollectorNotification,
@@ -92,6 +97,10 @@ class TenderCollectorSchedulerUiController(QObject):
             self.data_directory / "collector_notifications.json"
         )
         self.notification_service = CollectorNotificationService()
+        self.operation_diagnostic_registry = DiagnosticRegistry(max_records=256)
+        self.notification_envelope_adapter = LegacyCollectorNotificationAdapter(
+            registry=self.operation_diagnostic_registry
+        )
         self._theme = ThemeName(theme)
         self._main_window: QWidget | None = None
         self._schedule_dialog: TenderCollectorScheduleDialog | None = None
@@ -348,10 +357,10 @@ class TenderCollectorSchedulerUiController(QObject):
         self.refresh_notifications_dialog()
         for item in notifications:
             self.notification_created.emit(item)
-        last = notifications[0]
+        last = self._notification_envelope(notifications[0])
         if isinstance(self._main_window, QMainWindow):
             self._main_window.statusBar().showMessage(
-                last.message,
+                last.summary.value,
                 15_000,
             )
 
@@ -385,8 +394,20 @@ class TenderCollectorSchedulerUiController(QObject):
     def refresh_notifications_dialog(self) -> None:
         if self._notifications_dialog is not None:
             self._notifications_dialog.set_notifications(
-                self.notification_repository.list_notifications()
+                tuple(
+                    self._notification_envelope(item)
+                    for item in self.notification_repository.list_notifications()
+                )
             )
+
+    def _notification_envelope(
+        self,
+        notification: CollectorNotification,
+    ) -> NotificationEnvelope:
+        return self.notification_envelope_adapter.adapt(
+            notification,
+            schema_version=CollectorNotificationRepository.SCHEMA_VERSION,
+        )
 
     @Slot()
     def mark_all_notifications_read(self) -> None:

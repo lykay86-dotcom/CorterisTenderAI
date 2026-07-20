@@ -117,6 +117,8 @@ def test_controller_shows_score_failure(tmp_path) -> None:
     controller.open_participation_score(record.registry_key)
 
     dialog = controller.score_dialogs[0]
-    assert "score calculation failed" in dialog.status_label.text()
+    rendered = dialog.status_label.text()
+    assert "score calculation failed" not in rendered
+    assert "diagnostic-" in rendered
     assert dialog.recalculate_button.isEnabled()
     app.processEvents()

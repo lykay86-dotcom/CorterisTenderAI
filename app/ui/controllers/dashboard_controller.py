@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+import logging
 from typing import Any, Callable, Iterable, Protocol, Sequence
+from uuid import uuid4
 
 from PySide6.QtCore import (
     QCoreApplication,
@@ -16,6 +18,9 @@ from PySide6.QtCore import (
     Slot,
 )
 
+from app.operations.contracts import OperationEpisodeId, OperationKind
+from app.operations.diagnostics import DiagnosticRegistry
+from app.operations.safe_feedback import SafeFeedbackProjector
 from app.financial import MoneyAmount, format_money
 from app.repositories.business_metrics import (
     BusinessActivity,
@@ -621,6 +626,9 @@ class DashboardRefreshWorker(QObject):
         self.completed.emit(snapshot, None)
 
 
+LOGGER = logging.getLogger("corteris.ui.dashboard")
+
+
 class DashboardController(QObject):
     """Coordinates non-blocking Dashboard repository refreshes."""
 
@@ -649,6 +657,10 @@ class DashboardController(QObject):
         self.business_repository = business_repository or BusinessMetricsRepository()
         self.clock = clock or (lambda: datetime.now(APP_TIMEZONE))
         self.builder = DashboardSnapshotBuilder()
+        self.operation_diagnostic_registry = DiagnosticRegistry(max_records=128)
+        self.operation_feedback_projector = SafeFeedbackProjector(
+            registry=self.operation_diagnostic_registry
+        )
 
         self._number_to_id: dict[str, str] = {}
         self._started = False
@@ -751,13 +763,21 @@ class DashboardController(QObject):
                     entities = repository.list()
             except Exception as exc:
                 entities = []
-                tender_error = f"Тендеры: {exc}"
+                LOGGER.error(
+                    "Dashboard tender source refresh failed.",
+                    exc_info=(type(exc), exc, exc.__traceback__),
+                )
+                tender_error = "Тендеры: источник временно недоступен."
 
             try:
                 business = business_repository.summary(today=observed_at.date())
             except Exception as exc:
                 business = None
-                business_error = f"Workflow: {exc}"
+                LOGGER.error(
+                    "Dashboard workflow source refresh failed.",
+                    exc_info=(type(exc), exc, exc.__traceback__),
+                )
+                business_error = "Workflow: источник временно недоступен."
 
             return builder.build(
                 entities,
@@ -821,7 +841,17 @@ class DashboardController(QObject):
             thread.quit()
 
     def _handle_refresh_failure(self, error: Exception) -> None:
-        message = f"Не удалось обновить данные из локальной базы: {error}"
+        LOGGER.error(
+            "Dashboard refresh projection failed.",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        feedback = self.operation_feedback_projector.project_exception(
+            error,
+            episode_id=OperationEpisodeId(f"episode-{uuid4().hex}"),
+            kind=OperationKind.DASHBOARD_REFRESH,
+            occurred_at=aware_dashboard_time(self.clock()),
+        )
+        message = feedback.to_plain_text()
 
         self.page.set_refreshing(
             False,

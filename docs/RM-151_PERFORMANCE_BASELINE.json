@@ -1,0 +1,161 @@
+{
+  "baseline": "pre-implementation",
+  "environment": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.12.7"
+  },
+  "measurement_head": "c64f3c670ed5cf14fc3a477b93032d8fd1d434f4",
+  "measurements": [
+    {
+      "events": 0,
+      "maximum_ms": 0.002,
+      "minimum_ms": 0.001,
+      "output_characters": 75,
+      "output_count": 1,
+      "p50_ms": 0.001,
+      "p95_ms": 0.002,
+      "peak_bytes": 56,
+      "repeats": 10,
+      "scenario": "legacy_safe_search_error_projection"
+    },
+    {
+      "events": 0,
+      "maximum_ms": 3.241,
+      "minimum_ms": 1.447,
+      "output_characters": 0,
+      "output_count": 0,
+      "p50_ms": 1.669,
+      "p95_ms": 3.241,
+      "peak_bytes": 14138,
+      "repeats": 10,
+      "scenario": "legacy_notification_insert_dedupe_read"
+    },
+    {
+      "events": 1,
+      "maximum_ms": 0.003,
+      "minimum_ms": 0.002,
+      "output_characters": 75,
+      "output_count": 1,
+      "p50_ms": 0.002,
+      "p95_ms": 0.003,
+      "peak_bytes": 1444,
+      "repeats": 10,
+      "scenario": "legacy_safe_search_error_projection"
+    },
+    {
+      "events": 1,
+      "maximum_ms": 7.538,
+      "minimum_ms": 3.329,
+      "output_characters": 17,
+      "output_count": 1,
+      "p50_ms": 3.911,
+      "p95_ms": 7.538,
+      "peak_bytes": 17565,
+      "repeats": 10,
+      "scenario": "legacy_notification_insert_dedupe_read"
+    },
+    {
+      "events": 100,
+      "maximum_ms": 0.209,
+      "minimum_ms": 0.112,
+      "output_characters": 75,
+      "output_count": 1,
+      "p50_ms": 0.115,
+      "p95_ms": 0.209,
+      "peak_bytes": 138658,
+      "repeats": 10,
+      "scenario": "legacy_safe_search_error_projection"
+    },
+    {
+      "events": 100,
+      "maximum_ms": 8.679,
+      "minimum_ms": 6.556,
+      "output_characters": 1790,
+      "output_count": 100,
+      "p50_ms": 7.7,
+      "p95_ms": 8.679,
+      "peak_bytes": 170863,
+      "repeats": 10,
+      "scenario": "legacy_notification_insert_dedupe_read"
+    },
+    {
+      "events": 1000,
+      "maximum_ms": 3.477,
+      "minimum_ms": 1.304,
+      "output_characters": 75,
+      "output_count": 1,
+      "p50_ms": 1.463,
+      "p95_ms": 3.477,
+      "peak_bytes": 1386058,
+      "repeats": 10,
+      "scenario": "legacy_safe_search_error_projection"
+    },
+    {
+      "events": 1000,
+      "maximum_ms": 13.825,
+      "minimum_ms": 9.675,
+      "output_characters": 3787,
+      "output_count": 200,
+      "p50_ms": 11.172,
+      "p95_ms": 13.825,
+      "peak_bytes": 355031,
+      "repeats": 10,
+      "scenario": "legacy_notification_insert_dedupe_read"
+    },
+    {
+      "events": 10000,
+      "maximum_ms": 26.216,
+      "minimum_ms": 14.423,
+      "output_characters": 75,
+      "output_count": 1,
+      "p50_ms": 17.314,
+      "p95_ms": 26.216,
+      "peak_bytes": 13860058,
+      "repeats": 10,
+      "scenario": "legacy_safe_search_error_projection"
+    },
+    {
+      "events": 10000,
+      "maximum_ms": 18.396,
+      "minimum_ms": 13.336,
+      "output_characters": 3966,
+      "output_count": 200,
+      "p50_ms": 14.2,
+      "p95_ms": 18.396,
+      "peak_bytes": 537331,
+      "repeats": 10,
+      "scenario": "legacy_notification_insert_dedupe_read"
+    },
+    {
+      "events": 1000,
+      "maximum_ms": 14.406,
+      "minimum_ms": 3.362,
+      "output_characters": 17,
+      "output_count": 1,
+      "p50_ms": 3.952,
+      "p95_ms": 14.406,
+      "peak_bytes": 17546,
+      "repeats": 10,
+      "scenario": "legacy_notification_1000_duplicates"
+    }
+  ],
+  "method": {
+    "announcement_owner_available": false,
+    "clock": "perf_counter_ns",
+    "known_gap": "The pre-change repository has no canonical operation episode or announcement coalescer; those counts are therefore unavailable.",
+    "notification_repository_cap": 200,
+    "pass_thresholds": null,
+    "peak_allocation": "separate tracemalloc sample after timed samples",
+    "qt_object_delta_measured_by_characterization": true,
+    "repeats": 10,
+    "sizes": [
+      0,
+      1,
+      100,
+      1000,
+      10000
+    ],
+    "warmups": 3
+  },
+  "production_baseline_commit": "c07773772a360d9bd6f7a3da0b18f44c6315d725"
+}

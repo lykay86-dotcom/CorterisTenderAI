@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
+from uuid import uuid4
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
@@ -31,6 +32,9 @@ from app.core.crash_report_catalog import (
     CrashReportCatalogService,
     CrashReportEntry,
 )
+from app.operations.contracts import OperationEpisodeId, OperationKind
+from app.operations.diagnostics import DiagnosticRegistry
+from app.operations.safe_feedback import SafeFeedbackProjector
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
 
@@ -67,6 +71,10 @@ class CrashReportCenterDialog(QDialog):
         self.external_files: list[Path] = []
         self.entries: list[CrashReportEntry] = []
         self._theme = ThemeName(theme)
+        self.operation_diagnostic_registry = DiagnosticRegistry(max_records=64)
+        self.operation_feedback_projector = SafeFeedbackProjector(
+            registry=self.operation_diagnostic_registry
+        )
 
         self.setWindowTitle("Центр crash-reports")
         self.setModal(True)
@@ -242,6 +250,20 @@ class CrashReportCenterDialog(QDialog):
             return self.entries[row]
         return None
 
+    def _safe_operation_error(
+        self,
+        error: Exception,
+        *,
+        kind: OperationKind = OperationKind.GENERIC,
+    ) -> str:
+        feedback = self.operation_feedback_projector.project_exception(
+            error,
+            episode_id=OperationEpisodeId(f"episode-{uuid4().hex}"),
+            kind=kind,
+            occurred_at=datetime.now().astimezone(),
+        )
+        return feedback.to_plain_text()
+
     def refresh(self) -> None:
         selected_path = self.selected_entry.path if self.selected_entry is not None else None
         try:
@@ -253,7 +275,7 @@ class CrashReportCenterDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Ошибка чтения crash-reports",
-                str(exc),
+                self._safe_operation_error(exc),
             )
             return
 
@@ -270,7 +292,7 @@ class CrashReportCenterDialog(QDialog):
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
-                item.setToolTip(str(entry.path))
+                item.setToolTip(entry.path.name)
                 item.setTextAlignment(
                     (
                         Qt.AlignmentFlag.AlignRight
@@ -325,11 +347,9 @@ class CrashReportCenterDialog(QDialog):
             self.details_label.setText(
                 "\n".join(
                     (
-                        f"Путь: {entry.path}",
+                        f"Артефакт: {entry.path.name}",
                         "Состояние: файл повреждён или несовместим",
-                        "",
-                        "Ошибки:",
-                        *(f"• {error}" for error in entry.inspection.errors),
+                        "Подробности проверки безопасно скрыты.",
                     )
                 )
             )
@@ -349,7 +369,7 @@ class CrashReportCenterDialog(QDialog):
                     f"Поток: {details.thread_name or '—'}",
                     f"Тип: {details.exception_type}",
                     f"Сообщение: {details.exception_message or '—'}",
-                    f"Файл: {details.path}",
+                    f"Артефакт: {details.path.name}",
                     f"Размер: {self._size_text(details.size_bytes)}",
                 )
             )
@@ -371,7 +391,7 @@ class CrashReportCenterDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Ошибка проверки crash-report",
-                str(exc),
+                self._safe_operation_error(exc),
             )
             return
 
@@ -411,12 +431,10 @@ class CrashReportCenterDialog(QDialog):
         details = entry.details
         application.clipboard().setText(
             (
-                f"{details.exception_type}: "
-                f"{details.exception_message}\n"
+                f"{details.exception_type}\n"
                 f"Crash ID: {details.crash_id}\n"
                 f"Источник: {details.origin}\n"
-                f"Файл: {details.path}\n\n"
-                f"{details.traceback_text}"
+                "Технические детали доступны в локальном центре crash-reports."
             )
         )
 
@@ -435,7 +453,7 @@ class CrashReportCenterDialog(QDialog):
             return
 
         try:
-            target = self.catalog_service.copy_report(
+            self.catalog_service.copy_report(
                 entry.path,
                 filename,
             )
@@ -443,14 +461,14 @@ class CrashReportCenterDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Ошибка сохранения crash-report",
-                str(exc),
+                self._safe_operation_error(exc),
             )
             return
 
         QMessageBox.information(
             self,
             "Копия crash-report сохранена",
-            f"Файл:\n{target}",
+            "Копия crash-report сохранена в выбранном расположении.",
         )
 
     def _save_support_bundle(self) -> None:
@@ -475,14 +493,14 @@ class CrashReportCenterDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Ошибка создания пакета диагностики",
-                str(exc),
+                self._safe_operation_error(exc, kind=OperationKind.SUPPORT_BUNDLE),
             )
         else:
-            path = getattr(result, "path", filename)
+            del result
             QMessageBox.information(
                 self,
                 "Пакет диагностики сохранён",
-                f"Файл:\n{path}",
+                "Пакет диагностики сохранён в выбранном расположении.",
             )
         finally:
             self.support_button.setEnabled(True)
@@ -496,7 +514,10 @@ class CrashReportCenterDialog(QDialog):
         answer = QMessageBox.warning(
             self,
             "Удалить crash-report?",
-            (f"Файл будет удалён без возможности восстановления:\n{entry.path}{external_note}"),
+            (
+                "Crash-report будет удалён без возможности восстановления: "
+                f"{entry.path.name}.{external_note}"
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
@@ -513,7 +534,7 @@ class CrashReportCenterDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "Ошибка удаления crash-report",
-                str(exc),
+                self._safe_operation_error(exc),
             )
             return
 

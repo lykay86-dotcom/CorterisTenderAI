@@ -149,6 +149,8 @@ def test_controller_shows_analysis_failure(tmp_path) -> None:
     controller.open_requirement_analysis(record.registry_key)
 
     dialog = controller.analysis_dialogs[0]
-    assert "text extraction failed" in dialog.status_label.text()
+    rendered = dialog.status_label.text()
+    assert "text extraction failed" not in rendered
+    assert "diagnostic-" in rendered
     assert not dialog.analysis_busy
     app.processEvents()

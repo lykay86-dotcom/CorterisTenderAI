@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+import logging
 from pathlib import Path
+from uuid import uuid4
 
 from PySide6.QtCore import QItemSelection, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QResizeEvent
@@ -32,6 +34,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.operations.contracts import OperationEpisodeId, OperationKind, OperationReasonCode
+from app.operations.diagnostics import DiagnosticRegistry
+from app.operations.safe_feedback import SafeFeedbackProjector
 from app.financial import MoneyAmount, format_money
 from app.core.crash_report_catalog import (
     CrashReportCatalogService,
@@ -157,6 +162,9 @@ class BusinessWorkflowLifecycleState(StrEnum):
     CLOSED = "closed"
 
 
+LOGGER = logging.getLogger("corteris.ui.business_workflow")
+
+
 class BusinessWorkflowPage(QWidget):
     """Manage commercial proposals, estimates and projects."""
 
@@ -214,6 +222,10 @@ class BusinessWorkflowPage(QWidget):
         self.system_health_monitor = system_health_monitor or SystemHealthMonitor(
             self._collect_system_health_snapshot,
             parent=self,
+        )
+        self.operation_diagnostic_registry = DiagnosticRegistry(max_records=256)
+        self.operation_feedback_projector = SafeFeedbackProjector(
+            registry=self.operation_diagnostic_registry
         )
         self._theme = ThemeName(theme)
         self._initial_kind = BusinessRecordKind(initial_kind) if initial_kind is not None else None
@@ -816,6 +828,26 @@ class BusinessWorkflowPage(QWidget):
             raise ValueError("Workflow navigation filter is unavailable")
         combo.setCurrentIndex(index)
 
+    def _safe_workflow_error(
+        self,
+        error: Exception,
+        *,
+        reason: OperationReasonCode = OperationReasonCode.INTERNAL_ERROR,
+    ) -> str:
+        LOGGER.error(
+            "Business workflow operation failed.",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        feedback = self.operation_feedback_projector.project_reason(
+            reason,
+            episode_id=OperationEpisodeId(f"episode-{uuid4().hex}"),
+            kind=OperationKind.WORKFLOW_RECOVERY,
+            occurred_at=datetime.now().astimezone(),
+            unsafe_detail=error,
+            register_diagnostic=True,
+        )
+        return feedback.to_plain_text()
+
     def refresh(
         self,
         preferred_record_id: str | None = None,
@@ -827,7 +859,7 @@ class BusinessWorkflowPage(QWidget):
         except Exception as exc:
             self.status_banner.show_status(
                 title="Не удалось загрузить бизнес-процессы",
-                message=str(exc),
+                message=self._safe_workflow_error(exc),
                 tone=StatusTone.ERROR,
             )
             return
@@ -1154,7 +1186,7 @@ class BusinessWorkflowPage(QWidget):
             severity=SystemHealthSeverity.SUCCESS,
             component="support",
             title="Создан пакет диагностики после ошибки",
-            details=str(result.path),
+            details="Пакет диагностики создан в выбранном расположении.",
         )
         return result
 
@@ -1432,7 +1464,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка автоматического восстановления",
-                str(exc),
+                self._safe_workflow_error(exc, reason=OperationReasonCode.DATA_DAMAGED),
             )
             return
 
@@ -1444,8 +1476,11 @@ class BusinessWorkflowPage(QWidget):
             message=(
                 f"Записей: {result.report.record_count}; "
                 f"событий: {result.report.event_count}. "
-                f"Повреждённый файл: "
-                f"{result.quarantine_path or 'не создавался'}"
+                + (
+                    "Повреждённые данные сохранены в карантине."
+                    if result.quarantine_path is not None
+                    else "Карантинная копия не требовалась."
+                )
             ),
             tone=StatusTone.SUCCESS,
             auto_hide_ms=10000,
@@ -1476,7 +1511,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка создания пустой базы",
-                str(exc),
+                self._safe_workflow_error(exc, reason=OperationReasonCode.DATA_DAMAGED),
             )
             return
 
@@ -1485,7 +1520,11 @@ class BusinessWorkflowPage(QWidget):
         self.workflow_changed.emit()
         self.status_banner.show_status(
             title="Создана новая пустая база",
-            message=(f"Повреждённый файл сохранён: {result.quarantine_path or 'не создавался'}"),
+            message=(
+                "Повреждённые данные сохранены в карантине."
+                if result.quarantine_path is not None
+                else "Карантинная копия не требовалась."
+            ),
             tone=StatusTone.WARNING,
             auto_hide_ms=10000,
         )
@@ -1560,7 +1599,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка сохранения настроек",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -1622,15 +1661,16 @@ class BusinessWorkflowPage(QWidget):
                 force=force,
             )
         except Exception as exc:
+            rendered = self._safe_workflow_error(exc)
             self._record_system_event(
                 severity=SystemHealthSeverity.ERROR,
                 component="auto_backup",
                 title="Ошибка автоматической резервной копии",
-                details=str(exc),
+                details=rendered,
             )
             self.status_banner.show_status(
                 title="Ошибка автоматической резервной копии",
-                message=str(exc),
+                message=rendered,
                 tone=StatusTone.WARNING,
                 auto_hide_ms=8000,
             )
@@ -1643,7 +1683,7 @@ class BusinessWorkflowPage(QWidget):
             severity=SystemHealthSeverity.SUCCESS,
             component="auto_backup",
             title="Автоматическая резервная копия создана",
-            details=(f"{result.backup.path}; удалено старых: {len(result.removed_paths)}."),
+            details=f"Удалено старых копий: {len(result.removed_paths)}.",
         )
 
         if show_success or force:
@@ -1652,7 +1692,7 @@ class BusinessWorkflowPage(QWidget):
             )
             self.status_banner.show_status(
                 title="Автоматическая копия создана",
-                message=(f"Файл: {result.backup.path}{removed_text}."),
+                message=(f"Копия сохранена в настроенном расположении{removed_text}."),
                 tone=StatusTone.SUCCESS,
                 auto_hide_ms=7000,
             )
@@ -1676,16 +1716,17 @@ class BusinessWorkflowPage(QWidget):
                 created_at=timestamp,
             )
         except Exception as exc:
+            rendered = self._safe_workflow_error(exc)
             self._record_system_event(
                 severity=SystemHealthSeverity.ERROR,
                 component="backup",
                 title="Ошибка ручного резервного копирования",
-                details=str(exc),
+                details=rendered,
             )
             QMessageBox.critical(
                 self,
                 "Ошибка резервного копирования",
-                str(exc),
+                rendered,
             )
             return
 
@@ -1693,14 +1734,14 @@ class BusinessWorkflowPage(QWidget):
             severity=SystemHealthSeverity.SUCCESS,
             component="backup",
             title="Ручная резервная копия создана",
-            details=str(result.path),
+            details="Резервная копия создана в выбранном расположении.",
         )
         self.status_banner.show_status(
             title="Резервная копия создана",
             message=(
                 f"Записей: {result.inspection.record_count}; "
                 f"событий: {result.inspection.event_count}; "
-                f"файл: {result.path}"
+                "копия сохранена в выбранном расположении."
             ),
             tone=StatusTone.SUCCESS,
             auto_hide_ms=7000,
@@ -1721,9 +1762,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Резервная копия повреждена",
-                "\n".join(
-                    ["Файл не прошёл проверку:"] + [f"• {error}" for error in inspection.errors]
-                ),
+                "Резервная копия не прошла проверку. Откройте диагностику или выберите другую копию.",
             )
             return
 
@@ -1759,16 +1798,17 @@ class BusinessWorkflowPage(QWidget):
                 self.repository,
             )
         except Exception as exc:
+            rendered = self._safe_workflow_error(exc)
             self._record_system_event(
                 severity=SystemHealthSeverity.ERROR,
                 component="backup",
                 title="Ошибка восстановления резервной копии",
-                details=str(exc),
+                details=rendered,
             )
             QMessageBox.critical(
                 self,
                 "Ошибка восстановления",
-                str(exc),
+                rendered,
             )
             return
 
@@ -1776,7 +1816,7 @@ class BusinessWorkflowPage(QWidget):
             severity=SystemHealthSeverity.SUCCESS,
             component="backup",
             title="База восстановлена из резервной копии",
-            details=(f"Источник: {filename}; страховочная копия: {result.safety_backup}."),
+            details="Восстановление завершено; страховочная копия сохранена.",
         )
         self.refresh()
         self.workflow_changed.emit()
@@ -1785,7 +1825,7 @@ class BusinessWorkflowPage(QWidget):
             message=(
                 f"Записей: {result.record_count}; "
                 f"событий: {result.event_count}. "
-                f"Страховочная копия: {result.safety_backup}"
+                "Страховочная копия сохранена."
             ),
             tone=StatusTone.SUCCESS,
             auto_hide_ms=9000,
@@ -1808,13 +1848,16 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка сохранения шаблона",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
         self.status_banner.show_status(
             title="Шаблон Excel сохранён",
-            message=(f"Файл: {result.path} · размер: {result.size_bytes / 1024:.1f} КБ"),
+            message=(
+                "Шаблон сохранён в выбранном расположении · "
+                f"размер: {result.size_bytes / 1024:.1f} КБ"
+            ),
             tone=StatusTone.SUCCESS,
             auto_hide_ms=6000,
         )
@@ -1838,7 +1881,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка проверки Excel",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -1859,7 +1902,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка импорта",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -1929,7 +1972,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка экспорта",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -1938,7 +1981,7 @@ class BusinessWorkflowPage(QWidget):
             message=(
                 f"Записей: {result.record_count}; "
                 f"событий: {result.event_count}. "
-                f"Файл: {result.path}"
+                "Excel-файл сохранён в выбранном расположении."
             ),
             tone=StatusTone.SUCCESS,
             auto_hide_ms=6000,
@@ -1974,7 +2017,7 @@ class BusinessWorkflowPage(QWidget):
             )
         except Exception as exc:
             self.history_list.clear()
-            self.history_empty.setText(f"Не удалось загрузить историю: {exc}")
+            self.history_empty.setText(self._safe_workflow_error(exc))
             self.history_empty.show()
             return
 
@@ -2084,7 +2127,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка архивирования",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -2112,7 +2155,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка восстановления",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -2157,7 +2200,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка редактирования",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -2191,7 +2234,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка сохранения",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 
@@ -2255,7 +2298,7 @@ class BusinessWorkflowPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Ошибка изменения статуса",
-                str(exc),
+                self._safe_workflow_error(exc),
             )
             return
 

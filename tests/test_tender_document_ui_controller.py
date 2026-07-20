@@ -155,6 +155,8 @@ def test_controller_shows_download_failure(tmp_path) -> None:
     controller.open_registry_documents(record.registry_key)
 
     dialog = controller.document_dialogs[0]
-    assert "network unavailable" in dialog.status_label.text()
+    rendered = dialog.status_label.text()
+    assert "network unavailable" not in rendered
+    assert "diagnostic-" in rendered
     assert not dialog.download_busy
     app.processEvents()

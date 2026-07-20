@@ -1,0 +1,91 @@
+"""Qt-free operation episode, feedback, diagnostics and notification contracts."""
+
+from app.operations.announcements import AnnouncementCoalescer, OperationAnnouncement
+from app.operations.contracts import (
+    DiagnosticCorrelationId,
+    FeedbackSeverity,
+    OperationCapabilities,
+    OperationEpisode,
+    OperationEpisodeId,
+    OperationEvent,
+    OperationKind,
+    OperationProgress,
+    OperationReasonCode,
+    OperationState,
+    OperationSubject,
+    ProgressMode,
+    SafeText,
+    TransitionDisposition,
+)
+from app.operations.diagnostics import (
+    DiagnosticConflictError,
+    DiagnosticOwnerKind,
+    DiagnosticRecord,
+    DiagnosticRegistry,
+)
+from app.operations.notifications import (
+    LegacyCollectorNotificationAdapter,
+    NotificationAction,
+    NotificationDisposition,
+    NotificationEnvelope,
+    NotificationKind,
+    NotificationLedger,
+    StaleNotificationAction,
+    UnsupportedNotificationSchema,
+    resolve_notification_action,
+)
+from app.operations.safe_feedback import (
+    FeedbackAction,
+    SafeFeedback,
+    SafeFeedbackProjector,
+    sanitize_safe_text,
+)
+from app.operations.transitions import (
+    TransitionOutcome,
+    can_transition,
+    request_cancellation,
+    retry_episode,
+    transition_episode,
+)
+
+
+__all__ = [
+    "AnnouncementCoalescer",
+    "DiagnosticConflictError",
+    "DiagnosticCorrelationId",
+    "DiagnosticOwnerKind",
+    "DiagnosticRecord",
+    "DiagnosticRegistry",
+    "FeedbackAction",
+    "FeedbackSeverity",
+    "LegacyCollectorNotificationAdapter",
+    "NotificationAction",
+    "NotificationDisposition",
+    "NotificationEnvelope",
+    "NotificationKind",
+    "NotificationLedger",
+    "OperationAnnouncement",
+    "OperationCapabilities",
+    "OperationEpisode",
+    "OperationEpisodeId",
+    "OperationEvent",
+    "OperationKind",
+    "OperationProgress",
+    "OperationReasonCode",
+    "OperationState",
+    "OperationSubject",
+    "ProgressMode",
+    "SafeFeedback",
+    "SafeFeedbackProjector",
+    "SafeText",
+    "StaleNotificationAction",
+    "TransitionDisposition",
+    "TransitionOutcome",
+    "UnsupportedNotificationSchema",
+    "can_transition",
+    "request_cancellation",
+    "resolve_notification_action",
+    "retry_episode",
+    "sanitize_safe_text",
+    "transition_episode",
+]
