@@ -362,12 +362,14 @@ def test_native_matrix_accepts_named_owner_exception_without_promoting_status() 
             "approved": True,
             "approved_by": "project_owner",
             "approved_at": "2026-07-20 Europe/Moscow",
+            "statement": "Named exceptions are approved for the remaining RM-152 cells.",
             "policy": "Retain BLOCKED and NOT_EXECUTED statuses; never convert an exception to PASS.",
         },
         "owner_exceptions": [
             {
                 "id": "RM152-EX-SR-01-DEV",
                 "cell_id": "SR-01-DEV",
+                "decision_id": "RM152-OWNER-EXCEPTIONS-2026-07-20",
                 "approved_by": "project_owner",
                 "approved_at": "2026-07-20 Europe/Moscow",
                 "environment": {
@@ -385,3 +387,10 @@ def test_native_matrix_accepts_named_owner_exception_without_promoting_status() 
 
     assert validate_native_matrix(payload, require_complete=True) == ()
     assert cell["status"] == "NOT_EXECUTED"
+
+    exception = payload["owner_exceptions"][0]
+    residual_risk = exception.pop("residual_risk")
+    errors = validate_native_matrix(payload, require_complete=True)
+    assert "SR-01-DEV: missing_exception_residual_risk" in errors
+    assert "SR-01-DEV: incomplete" in errors
+    exception["residual_risk"] = residual_risk

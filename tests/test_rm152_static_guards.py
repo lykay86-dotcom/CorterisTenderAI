@@ -54,7 +54,20 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
 
     assert ids == screen_reader | environment
     assert validate_native_matrix(payload) == ()
+    assert validate_native_matrix(payload, require_complete=True) == ()
     cells = {cell["id"]: cell for cell in payload["cells"]}
+    exceptions = {exception["cell_id"]: exception for exception in payload["owner_exceptions"]}
+    assert set(exceptions) == ids
+    assert len({exception["id"] for exception in exceptions.values()}) == len(ids)
+    assert all(
+        exception["decision_id"] == payload["owner_exception_decision"]["id"]
+        and exception["status_retained"] == cells[cell_id]["status"]
+        and exception["accepted_without_pass"] is True
+        and exception["environment"]
+        and exception["reason"]
+        and exception["residual_risk"]
+        for cell_id, exception in exceptions.items()
+    )
     partial_ids = {
         "NATIVE-1920-100-DL",
         "NATIVE-1920-125-DL",
@@ -74,11 +87,14 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
     )
 
 
-def test_rm152_static_guard_passes_without_promoting_native_matrix() -> None:
+def test_rm152_static_guard_accepts_exceptions_without_promoting_native_matrix() -> None:
     assert validate() == ()
-    errors = validate(require_native_complete=True)
-    assert len(errors) == 33
-    assert all(error.endswith(": incomplete") for error in errors)
+    assert validate(require_native_complete=True) == ()
+    payload = json.loads((EVIDENCE_ROOT / "RM-152_NATIVE_MATRIX.json").read_text(encoding="utf-8"))
+    statuses = [cell["status"] for cell in payload["cells"]]
+    assert statuses.count("PASS") == 0
+    assert statuses.count("BLOCKED") == 4
+    assert statuses.count("NOT_EXECUTED") == 29
 
 
 def test_evidence_artifacts_do_not_contain_machine_username_or_user_paths() -> None:
