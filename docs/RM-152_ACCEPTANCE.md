@@ -82,10 +82,12 @@ Narrator binary present, and Windows high contrast inactive. The newly built EXE
 `longPathAware` but no explicit DPI declaration. No process DPI-awareness change was made without
 the required packaged/native matrix.
 
-The Windows automation connection failed before application launch with a missing runtime-assets
-path even after reset and retry. Therefore all 33 machine-readable native cells remain
-`NOT_EXECUTED`; `--require-native-complete` reports exactly 33 `incomplete` errors. The following
-are not proven:
+After Codex Desktop restart, the Windows automation connection succeeded, the frozen EXE launched,
+and its `Corteris Tender AI 1.5` window was found and activated. The first required state capture
+then failed with `SetIsBorderRequired failed: Интерфейс не поддерживается (0x80004002)`. The native
+protocol forbids further input after an observation failure. Therefore all 33 machine-readable
+native cells remain `NOT_EXECUTED`; `--require-native-complete` reports exactly 33 `incomplete`
+errors. The following are not proven:
 
 - physical Tab/Shift+Tab and visible focus in dark/light/high contrast;
 - Narrator name/role/state/value/relations and bounded dynamic announcements;
