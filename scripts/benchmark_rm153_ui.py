@@ -367,6 +367,12 @@ def run_benchmark(
             )
         )
 
+        # The standalone chart is not part of the shell resource cycle. Remove it before
+        # tracing so a delayed resize cannot attribute its render-plan cache to theme work.
+        canvas.setParent(None)
+        canvas.deleteLater()
+        app.processEvents()
+
         before = _resource_counts(window)
         current_bytes = 0
         peak_bytes = 0
