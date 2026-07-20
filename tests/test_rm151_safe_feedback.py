@@ -72,6 +72,12 @@ def test_malicious_exception_is_absent_from_every_user_projection_but_correlated
     for projection in projections:
         for marker in FORBIDDEN:
             assert marker not in projection
+    assert feedback.title.value == "Операция не завершена"
+    assert feedback.summary.value == ("Технические детали безопасно скрыты. Откройте диагностику.")
+    assert feedback.accessible_text.value.startswith(
+        "Операция не завершена. Технические детали безопасно скрыты. "
+        "Откройте диагностику. Код диагностики: diagnostic-151-a."
+    )
     assert feedback.reason is contracts.OperationReasonCode.INTERNAL_ERROR
     assert feedback.diagnostic_id is not None
     record = registry.get(feedback.diagnostic_id)

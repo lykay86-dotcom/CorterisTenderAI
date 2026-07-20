@@ -98,7 +98,7 @@ def transition_episode(current: OperationEpisode, event: OperationEvent) -> Tran
         return TransitionOutcome(
             current,
             TransitionDisposition.REJECTED_INVALID,
-            SafeText("РЎРјРµРЅР° generation С‚СЂРµР±СѓРµС‚ РЅРѕРІРѕРіРѕ episode."),
+            SafeText("Смена generation требует нового episode."),
         )
     if event.revision == current.revision:
         return TransitionOutcome(
@@ -125,7 +125,7 @@ def transition_episode(current: OperationEpisode, event: OperationEvent) -> Tran
         return TransitionOutcome(
             current,
             TransitionDisposition.REJECTED_INVALID,
-            SafeText("РџСЂРѕРіСЂРµСЃСЃ РѕРїРµСЂР°С†РёРё РЅРµ РјРѕР¶РµС‚ СѓРјРµРЅСЊС€Р°С‚СЊСЃСЏ."),
+            SafeText("Прогресс операции не может уменьшаться."),
         )
 
     try:

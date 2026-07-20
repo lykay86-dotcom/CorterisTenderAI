@@ -105,7 +105,7 @@ def _announcement_text(episode: OperationEpisode) -> SafeText:
     elif episode.subject.label is not None:
         base = episode.subject.label.value
     else:
-        base = "РћР±РЅРѕРІР»РµРЅРёРµ РѕРїРµСЂР°С†РёРё"
+        base = "Обновление операции"
     if episode.progress.mode is ProgressMode.BOUNDED and episode.progress.percent is not None:
         base = f"{base}. {episode.progress.percent}%"
     return SafeText(base[: SafeText.MAX_LENGTH])

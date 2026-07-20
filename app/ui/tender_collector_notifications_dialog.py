@@ -175,7 +175,7 @@ def _notification_row(
     if isinstance(item, NotificationEnvelope):
         read = item.read_at is not None
         accessible = f"{item.kind.value}. {item.title.value}. {item.summary.value}. " + (
-            "РџСЂРѕС‡РёС‚Р°РЅРѕ." if read else "РќРµ РїСЂРѕС‡РёС‚Р°РЅРѕ."
+            "Прочитано." if read else "Не прочитано."
         )
         return _NotificationRow(
             id=item.notification_id,
