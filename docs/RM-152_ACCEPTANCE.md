@@ -113,7 +113,12 @@ next exact-build text-only UIA pass exposed 143 elements, but also reproduced mo
 Russian safe-feedback banner directly from five production source files. An expected-red guard,
 the source fix, `25` focused passes, `2344` full-suite passes, and a new frozen self-test are green.
 Native launch of rebuilt artifact `11E59D...066F0` was not executed because the required Windows
-app approval timed out; its native UTF-8 rerun remains pending and is not promoted. The
+app approval initially timed out. After explicit owner approval, the uniquely named exact artifact
+was launched and confirmed by process path and the expected `Corteris Tender AI 1.3 Alpha` title.
+Text-only UIA exposed 176 elements; the full tree contained zero mojibake marker lines, and the
+status banner, AI warning, and data-state projection all exposed the correct Russian safe-feedback
+text and diagnostic label. The UTF-8 defect rerun is `PASS`; the combined native cell remains
+`BLOCKED` because its remaining semantic-state and Narrator assertions are incomplete. The
 other 32 cells remain `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:
