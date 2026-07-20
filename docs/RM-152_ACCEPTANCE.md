@@ -118,13 +118,17 @@ was launched and confirmed by process path and the expected `Corteris Tender AI 
 Text-only UIA exposed 176 elements; the full tree contained zero mojibake marker lines, and the
 status banner, AI warning, and data-state projection all exposed the correct Russian safe-feedback
 text and diagnostic label. The UTF-8 defect rerun is `PASS`; the combined native cell remains
-`BLOCKED` because its remaining semantic-state and Narrator assertions are incomplete. The
+`BLOCKED`. Windows Narrator was then started with explicit owner approval on the exact build. A
+slow sweep of 10 `Tab` and five `Shift+Tab` transitions was owner-observed: speech moved between
+distinct controls, Russian names were readable, and reverse traversal moved backward without a
+loop. This is partial Narrator evidence only; complete routes, roles, states, values, relations,
+dynamic announcements, and semantic-state assertions remain incomplete. The
 other 32 cells remain `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:
 
 - physical Tab/Shift+Tab and visible focus in dark/light/high contrast;
-- Narrator name/role/state/value/relations and bounded dynamic announcements;
+- complete Narrator name/role/state/value/relations across all routes and bounded dynamic announcements;
 - 1366x768 at 100/125%, 1920x1080 at 100/125/150%, 2560x1440 at 150/175%, and 4K at 200%;
 - A->B->A mixed-DPI movement, saved/removed-monitor geometry, and frozen native parity.
 
