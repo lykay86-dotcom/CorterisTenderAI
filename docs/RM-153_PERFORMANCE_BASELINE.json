@@ -1,0 +1,115 @@
+{
+  "baseline": "pre-implementation",
+  "contract": "rm153-ui-performance-baseline-v1",
+  "environment": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "pyside": "6.11.1",
+    "python": "3.12.7",
+    "qt_qpa_platform": "offscreen"
+  },
+  "measurement_head": "1c227c323c0e9912f9a8f44dc859703e2d3fcd36",
+  "measurements": [
+    {
+      "maximum_ms": 1114.509,
+      "minimum_ms": 879.085,
+      "p50_ms": 995.857,
+      "p95_ms": 1114.509,
+      "samples": 10,
+      "scenario": "shell_construct"
+    },
+    {
+      "maximum_ms": 232.923,
+      "minimum_ms": 170.288,
+      "p50_ms": 189.244,
+      "p95_ms": 232.923,
+      "samples": 10,
+      "scenario": "first_paint"
+    },
+    {
+      "maximum_ms": 10.213,
+      "minimum_ms": 8.722,
+      "p50_ms": 9.247,
+      "p95_ms": 10.213,
+      "samples": 10,
+      "scenario": "shell_shutdown"
+    },
+    {
+      "maximum_ms": 47.737,
+      "minimum_ms": 13.461,
+      "p50_ms": 26.907,
+      "p95_ms": 47.737,
+      "samples": 10,
+      "scenario": "page_switch"
+    },
+    {
+      "maximum_ms": 59.853,
+      "minimum_ms": 47.381,
+      "p50_ms": 50.908,
+      "p95_ms": 59.853,
+      "samples": 10,
+      "scenario": "dashboard_snapshot_update"
+    },
+    {
+      "maximum_ms": 742.422,
+      "minimum_ms": 417.305,
+      "p50_ms": 633.348,
+      "p95_ms": 742.422,
+      "samples": 10,
+      "scenario": "theme_switch"
+    },
+    {
+      "maximum_ms": 138.552,
+      "minimum_ms": 112.435,
+      "p50_ms": 126.641,
+      "p95_ms": 138.552,
+      "samples": 10,
+      "scenario": "table_filter"
+    },
+    {
+      "maximum_ms": 43.424,
+      "minimum_ms": 25.275,
+      "p50_ms": 27.728,
+      "p95_ms": 43.424,
+      "samples": 10,
+      "scenario": "chart_update"
+    }
+  ],
+  "method": {
+    "chart_points": 1000,
+    "clock": "perf_counter_ns",
+    "dashboard_rows": 1000,
+    "offline_synthetic": true,
+    "pass_thresholds": null,
+    "samples": 10,
+    "table_rows": 10000,
+    "warmups": 2
+  },
+  "production_baseline_commit": "1c227c323c0e9912f9a8f44dc859703e2d3fcd36",
+  "resource_cycles": {
+    "after": {
+      "active_qtimer": 2,
+      "python_threads": 1,
+      "qobject": 1784,
+      "qthread": 0,
+      "qtimer": 22
+    },
+    "before": {
+      "active_qtimer": 2,
+      "python_threads": 1,
+      "qobject": 1784,
+      "qthread": 0,
+      "qtimer": 22
+    },
+    "cycles": 25,
+    "growth": {
+      "active_qtimer": 0,
+      "python_threads": 0,
+      "qobject": 0,
+      "qthread": 0,
+      "qtimer": 0
+    },
+    "tracemalloc_current_bytes": 22640,
+    "tracemalloc_peak_bytes": 30524
+  },
+  "shutdown_ms": 3.855
+}
