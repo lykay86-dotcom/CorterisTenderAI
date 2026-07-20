@@ -128,7 +128,9 @@ Settings UIA confirmed 125%, the exact frozen artifact was restarted, and its te
 retained 176 elements with zero mojibake marker lines. At 1920x1080/125%, the owner confirmed no
 clipping or overlap, clean light/dark switching without white strips, and forward/reverse keyboard
 movement without a trap. `NATIVE-1920-125-DL` is `BLOCKED`, not `PASS`, because the observation did
-not cover every semantic state or a complete Narrator journey. The other 31 cells remain
+not cover every semantic state or a complete Narrator journey. After the run, Windows Settings UIA
+confirmed restoration to `100% (recommended)`; the exact test process and Settings window were
+closed. The other 31 cells remain
 `NOT_EXECUTED`;
 `--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
 proven:
