@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.tenders.provider_credentials import CredentialState, CredentialStateResult
+from app.ui.accessibility.focus import restore_focus
 
 
 class CredentialDialogOperation(StrEnum):
@@ -37,6 +40,7 @@ class ProviderCredentialsDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._focus_origin = QApplication.focusWidget()
         self.provider_id = provider_id.strip().casefold()
         self.state = state
         self.operation = CredentialDialogOperation.NONE
@@ -87,6 +91,7 @@ class ProviderCredentialsDialog(QDialog):
         self.buttons.accepted.connect(self._accept_if_valid)
         self.buttons.rejected.connect(self.reject)
         self.delete_button.clicked.connect(self._request_delete)
+        self.finished.connect(self._schedule_focus_return)
         root.addWidget(self.buttons)
 
     def take_value(self) -> str:
@@ -158,6 +163,16 @@ class ProviderCredentialsDialog(QDialog):
 
     def _clear_widget_value(self) -> None:
         self.token_input.clear()
+
+    def _schedule_focus_return(self, _result: int) -> None:
+        QTimer.singleShot(0, self._restore_focus_origin)
+
+    def _restore_focus_origin(self) -> None:
+        parent = self.parentWidget()
+        if parent is not None:
+            parent.window().activateWindow()
+        fallback = parent.focusProxy() if parent is not None else None
+        restore_focus(self._focus_origin, fallback)
 
 
 __all__ = ["CredentialDialogOperation", "ProviderCredentialsDialog"]

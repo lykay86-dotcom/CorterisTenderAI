@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QMainWindow, QMessageBox
+from PySide6.QtWidgets import QMainWindow, QMessageBox, QWidget
 
 from app.repositories.business_metrics import (
     BusinessMetricsRepository,
@@ -60,7 +61,7 @@ class ModernMainWindow(QMainWindow):
         self.setObjectName("ModernMainWindow")
         self.setWindowTitle("Corteris Tender AI 1.3 Alpha")
         self.resize(1540, 940)
-        self.setMinimumSize(1180, 720)
+        self.setMinimumSize(960, 540)
 
         self._settings = QSettings(self.ORGANIZATION, self.APPLICATION)
         self._theme = self._load_theme()
@@ -117,6 +118,8 @@ class ModernMainWindow(QMainWindow):
         )
         self.analytics_controller: TenderAnalyticsController | None = None
 
+        self._configure_dashboard_tab_order()
+
         # RM-127/RM-142 compatibility names intentionally reference the same
         # canonical object. RM-155 owns their eventual retirement.
         self.quotes_page = self.workflow_page
@@ -150,6 +153,16 @@ class ModernMainWindow(QMainWindow):
                 record_history=False,
             )
         )
+
+    def _configure_dashboard_tab_order(self) -> None:
+        controls: tuple[QWidget, ...] = (
+            *self.workspace.sidebar.keyboard_focus_chain(),
+            *self.workspace.topbar.keyboard_focus_chain(),
+            *self.dashboard_page.keyboard_focus_chain(),
+        )
+        for current, following in pairwise(controls):
+            QWidget.setTabOrder(current, following)
+        self.dashboard_page.set_tab_exit_target(controls[0])
         self.dashboard_controller.start()
 
         self.statusBar().showMessage(

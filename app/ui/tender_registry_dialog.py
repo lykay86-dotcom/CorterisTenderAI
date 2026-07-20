@@ -135,6 +135,7 @@ class TenderRegistryDialog(QDialog):
         self.table.setAccessibleDescription(
             "Saved tenders with exact registry identity, verification, freshness and actions."
         )
+        self.table.setTabKeyNavigation(False)
         self.table.setColumnCount(13)
         self.table.setHorizontalHeaderLabels(
             (

@@ -61,8 +61,12 @@ QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTimeEdit:focus {{
 }}
 
 QPushButton:focus, QToolButton:focus, QCheckBox:focus, QRadioButton:focus,
-QListView:focus, QTreeView:focus, QTableView:focus {{
+QListView:focus, QTreeView:focus, QTableView:focus, QScrollArea:focus {{
     outline: none;
+    border: {int(BorderWidth.FOCUS)}px solid {p.focus_ring};
+}}
+
+QTabBar::tab:focus {{
     border: {int(BorderWidth.FOCUS)}px solid {p.focus_ring};
 }}
 

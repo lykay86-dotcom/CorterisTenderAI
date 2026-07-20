@@ -179,6 +179,7 @@ class TableStateHost(QWidget):
         self.table = QTableView(self)
         self.table.setAccessibleName(accessible_name)
         self.table.setAccessibleDescription(accessible_description)
+        self.table.setTabKeyNavigation(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)

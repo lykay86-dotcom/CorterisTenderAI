@@ -32,9 +32,15 @@ Ratios use the existing W3C-compatible sRGB implementation in `app.ui.theme.cont
 | warning / warning background | 7.578 / 3.0 | 3.964 / 3.0 | pass |
 | danger / danger background | 3.028 / 3.0 | 4.216 / 3.0 | pass, dark has 0.028 margin |
 
-The exact foreground/background values come from `DARK_PALETTE` and `LIGHT_PALETTE`. CI must
-serialize pair ID, theme, foreground, background, measured ratio, minimum, and result so threshold
-regressions are reviewable. The near-threshold dark disabled/danger pairs are A3 watch items.
+The exact foreground/background values come from `DARK_PALETTE` and `LIGHT_PALETTE`. The committed
+machine-readable report is `docs/evidence/RM-152_CONTRAST_PAIRS.json`; it is regenerated from
+`app.ui.theme.contrast_inventory` and checked by `scripts/check_rm152_accessibility.py`. It
+serializes pair ID, theme, token names, exact colors, measured ratio, minimum, result, surface, and
+the non-color alternative. The near-threshold dark disabled/danger pairs are A3 watch items.
+
+Placeholder hints and decorative chart grids are explicitly `ADVISORY`, never `PASS`: persistent
+labels/accessible names and chart axes/full data tables carry their meaning. All pairs with a
+project-approved threshold pass in both themes.
 
 ## Inventory to add/verify
 

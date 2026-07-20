@@ -38,6 +38,8 @@ machine username, real paths, credentials, crash reports, customers, query strin
 | operator/timestamp | Codex-assisted session / 2026-07-20 Europe/Moscow |
 
 Environment discovery is not a matrix execution. Every cell below starts `NOT_EXECUTED`.
+The machine-readable source is `docs/evidence/RM-152_NATIVE_MATRIX.json`; the RM-152 guard rejects
+`PASS` without an observation, environment metadata, and at least one evidence record.
 
 ## Representative Narrator matrix
 

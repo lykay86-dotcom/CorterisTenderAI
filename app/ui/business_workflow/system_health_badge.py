@@ -34,6 +34,7 @@ class SystemHealthBadge(QPushButton):
         self.setMinimumWidth(156)
         self.setCursor(self.cursor())
         self.setToolTip("Открыть центр состояния системы")
+        self.setAccessibleName("Состояние системы")
         self.set_busy(True)
         self.apply_theme(self._theme)
 
@@ -50,9 +51,15 @@ class SystemHealthBadge(QPushButton):
         if self._busy and self._snapshot is None:
             self.setText("◌  Проверка системы…")
             self.setToolTip("Выполняется фоновая проверка состояния")
+            self.setAccessibleDescription(
+                "Проверка системы выполняется. Открывает центр состояния системы."
+            )
         elif not self._busy and self._snapshot is None:
             self.setText("●  Состояние системы")
             self.setToolTip("Открыть центр состояния системы")
+            self.setAccessibleDescription(
+                "Состояние ещё не проверено. Открывает центр состояния системы."
+            )
         self.apply_theme(self._theme)
 
     def set_snapshot(
@@ -79,13 +86,19 @@ class SystemHealthBadge(QPushButton):
 
         self.setText(f"{icon}  {label}")
         self.setToolTip(self._tooltip(snapshot))
+        self.setAccessibleDescription(
+            f"{label}. {snapshot.status_label}. Открывает центр состояния системы."
+        )
         self.apply_theme(self._theme)
 
     def set_error(self, message: str) -> None:
         self._busy = False
         self._severity = SystemHealthSeverity.WARNING
         self.setText("▲  Проверка недоступна")
-        self.setToolTip(f"Не удалось обновить состояние системы:\n{message}")
+        self.setToolTip("Не удалось обновить состояние системы. Откройте центр для диагностики.")
+        self.setAccessibleDescription(
+            "Проверка системы недоступна. Открывает центр состояния системы для диагностики."
+        )
         self.apply_theme(self._theme)
 
     def apply_theme(self, theme: ThemeName | str) -> None:

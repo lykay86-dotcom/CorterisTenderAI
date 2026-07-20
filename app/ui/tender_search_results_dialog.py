@@ -104,6 +104,11 @@ class TenderSearchResultsDialog(QDialog):
 
         self.table = QTableWidget(table_frame)
         self.table.setObjectName("TenderResultsTable")
+        self.table.setAccessibleName("Результаты поиска тендеров")
+        self.table.setAccessibleDescription(
+            "Стрелки выбирают точный результат, Enter открывает доступное действие"
+        )
+        self.table.setTabKeyNavigation(False)
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels(
             (

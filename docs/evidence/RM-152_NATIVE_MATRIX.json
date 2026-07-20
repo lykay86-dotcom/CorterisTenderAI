@@ -1,0 +1,269 @@
+{
+  "schema": "rm152-native-matrix-v1",
+  "cells": [
+    {
+      "id": "SR-01-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-01-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-02-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-02-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-03-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-03-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-04-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-04-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-05-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-05-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-06-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-06-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-07-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-07-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-08-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-08-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-09-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-09-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-10-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-10-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-11-DEV",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "SR-11-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1366-100-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1366-125-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1920-100-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1920-125-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-1920-150-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-2560-150-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-2560-175-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-3840-200-DL",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-HC",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-MIXED-DPI",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    },
+    {
+      "id": "NATIVE-FROZEN",
+      "status": "NOT_EXECUTED",
+      "observed": false,
+      "environment": {},
+      "evidence": [],
+      "note": "Native observation required; automated evidence is not a substitute."
+    }
+  ]
+}

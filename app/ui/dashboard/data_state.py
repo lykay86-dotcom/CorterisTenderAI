@@ -249,6 +249,9 @@ class DataStatePanel(QFrame):
         self.progress.setVisible(is_loading)
 
         self.action_button.setText(state.action_text.strip())
+        self.action_button.setAccessibleName(
+            state.action_text.strip() or "Действие состояния данных"
+        )
         self.action_button.setVisible(state.has_action)
 
         description = " ".join(

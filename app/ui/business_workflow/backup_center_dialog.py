@@ -143,6 +143,7 @@ class WorkflowBackupCenterDialog(QDialog):
         self.table.setAccessibleDescription(
             "Backup files with exact path identity; restore and delete are revalidated after confirmation."
         )
+        self.table.setTabKeyNavigation(False)
         self.table.setHorizontalHeaderLabels(self.COLUMNS)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)

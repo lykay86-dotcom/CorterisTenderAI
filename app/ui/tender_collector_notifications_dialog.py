@@ -51,6 +51,12 @@ class TenderCollectorNotificationsDialog(QDialog):
         root.addWidget(title)
 
         self.table = QTableWidget(self)
+        self.table.setObjectName("CollectorNotificationsTable")
+        self.table.setAccessibleName("Уведомления сборщика тендеров")
+        self.table.setAccessibleDescription(
+            "Дата, тип, безопасный заголовок и сообщение уведомления"
+        )
+        self.table.setTabKeyNavigation(False)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(("Дата", "Тип", "Событие", "Сообщение"))
         self.table.verticalHeader().setVisible(False)

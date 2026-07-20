@@ -161,6 +161,7 @@ class DashboardPage(QWidget):
             icon_text="↻",
             theme=self._theme,
         )
+        self.refresh_button.setObjectName("DashboardRefreshButton")
         self.refresh_button.clicked.connect(self.viewmodel.request_refresh)
 
         header.addLayout(title_column, 1)
@@ -265,11 +266,18 @@ class DashboardPage(QWidget):
         self.setFocusProxy(self.refresh_button)
         self._configure_tab_order()
 
-    def _configure_tab_order(self) -> None:
-        """Create a predictable top-to-bottom keyboard route."""
+    def keyboard_focus_chain(self) -> tuple[QWidget, ...]:
+        """Return the current task-ordered, visible Dashboard focus controls."""
+
         widgets: list[QWidget] = [self.refresh_button]
         widgets.extend(self.kpi_center.cards.values())
-        widgets.append(self.tender_feed.table)
+        if (
+            not self.tender_feed.state_panel.action_button.isHidden()
+            and self.tender_feed.state_panel.action_button.isEnabled()
+        ):
+            widgets.append(self.tender_feed.state_panel.action_button)
+        elif not self.tender_feed.table.isHidden() and self.tender_feed.table.isEnabled():
+            widgets.append(self.tender_feed.table)
         widgets.append(self.ai_advisor.action_button)
         widgets.extend(self.quick_actions.tiles)
         widgets.extend(self.activity_feed.items)
@@ -277,8 +285,18 @@ class DashboardPage(QWidget):
         if not self.activity_feed.items:
             widgets.append(self.activity_feed.scroll)
 
+        return tuple(widgets)
+
+    def set_tab_exit_target(self, target: QWidget | None) -> None:
+        """Give the terminal activity control one shell-owned return target."""
+
+        self.activity_feed.set_tab_exit_target(target)
+
+    def _configure_tab_order(self) -> None:
+        """Create a predictable top-to-bottom keyboard route."""
+
         previous: QWidget | None = None
-        for widget in widgets:
+        for widget in self.keyboard_focus_chain():
             if previous is not None:
                 QWidget.setTabOrder(previous, widget)
             previous = widget
@@ -383,6 +401,7 @@ class DashboardPage(QWidget):
         self.kpi_center.set_data_state(state)
         self.tender_feed.set_data_state(state)
         self.ai_advisor.set_data_state(state)
+        self._configure_tab_order()
 
         actions_enabled = state.kind != DataStateKind.LOADING
         for key in self.quick_actions.action_keys:

@@ -180,6 +180,7 @@ class TenderWorkspacePage(QWidget):
         top.addStretch()
         dl.addLayout(top)
         self.table = QTableWidget(0, 6)
+        self.table.setTabKeyNavigation(False)
         self.table.setHorizontalHeaderLabels(
             ["ID", "Номер", "Название", "НМЦК", "Балл", "Рекомендация"]
         )

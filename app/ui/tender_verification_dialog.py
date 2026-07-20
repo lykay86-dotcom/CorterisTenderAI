@@ -86,6 +86,12 @@ class TenderVerificationDialog(QDialog):
         left_layout.setContentsMargins(10, 10, 10, 10)
         left_layout.addWidget(QLabel("Критичные поля", left))
         self.fields_table = QTableWidget(left)
+        self.fields_table.setObjectName("VerificationFieldsTable")
+        self.fields_table.setAccessibleName("Критичные поля верификации")
+        self.fields_table.setAccessibleDescription(
+            "Выбранное значение, источник, доверие и состояние конфликта"
+        )
+        self.fields_table.setTabKeyNavigation(False)
         self.fields_table.setColumnCount(5)
         self.fields_table.setHorizontalHeaderLabels(
             ("Поле", "Выбрано", "Источник", "Доверие", "Состояние")
@@ -111,6 +117,12 @@ class TenderVerificationDialog(QDialog):
         right_layout.addWidget(self.field_title)
 
         self.candidates_table = QTableWidget(right)
+        self.candidates_table.setObjectName("VerificationCandidatesTable")
+        self.candidates_table.setAccessibleName("Кандидаты значения выбранного поля")
+        self.candidates_table.setAccessibleDescription(
+            "Значение, источник, время, доверие и доказательства кандидата"
+        )
+        self.candidates_table.setTabKeyNavigation(False)
         self.candidates_table.setColumnCount(8)
         self.candidates_table.setHorizontalHeaderLabels(
             (
@@ -171,6 +183,9 @@ class TenderVerificationDialog(QDialog):
         history_title.setObjectName("VerificationSectionTitle")
         root.addWidget(history_title)
         self.history_table = QTableWidget(self)
+        self.history_table.setObjectName("VerificationHistoryTable")
+        self.history_table.setAccessibleName("Журнал ручных решений верификации")
+        self.history_table.setTabKeyNavigation(False)
         self.history_table.setColumnCount(7)
         self.history_table.setHorizontalHeaderLabels(
             (

@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
+from app.ui.accessibility.focus import restore_focus
 
 
 class ActivityTone(StrEnum):
@@ -77,6 +78,7 @@ class ActivityFeedItem(QFrame):
         self.entry = entry
         self._theme = ThemeName(theme)
         self._focused = False
+        self._tab_exit_target: QWidget | None = None
 
         self.setObjectName("ActivityFeedItem")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -215,6 +217,14 @@ class ActivityFeedItem(QFrame):
         super().focusOutEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if (
+            event.key() == Qt.Key.Key_Tab
+            and event.modifiers() == Qt.KeyboardModifier.NoModifier
+            and restore_focus(self._tab_exit_target, reason=Qt.FocusReason.TabFocusReason)
+            is not None
+        ):
+            event.accept()
+            return
         if event.key() in {
             Qt.Key.Key_Return,
             Qt.Key.Key_Enter,
@@ -233,6 +243,55 @@ class ActivityFeedItem(QFrame):
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    def set_tab_exit_target(self, target: QWidget | None) -> None:
+        self._tab_exit_target = target
+
+    def focusNextPrevChild(self, next: bool) -> bool:  # noqa: N802
+        if (
+            next
+            and restore_focus(
+                self._tab_exit_target,
+                reason=Qt.FocusReason.TabFocusReason,
+            )
+            is not None
+        ):
+            return True
+        return super().focusNextPrevChild(next)
+
+
+class _ActivityScrollArea(QScrollArea):
+    """Empty-feed focus stop with one explicit shell return target."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._tab_exit_target: QWidget | None = None
+
+    def set_tab_exit_target(self, target: QWidget | None) -> None:
+        self._tab_exit_target = target
+
+    def focusNextPrevChild(self, next: bool) -> bool:  # noqa: N802
+        if (
+            next
+            and restore_focus(
+                self._tab_exit_target,
+                reason=Qt.FocusReason.TabFocusReason,
+            )
+            is not None
+        ):
+            return True
+        return super().focusNextPrevChild(next)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if (
+            event.key() == Qt.Key.Key_Tab
+            and event.modifiers() == Qt.KeyboardModifier.NoModifier
+            and restore_focus(self._tab_exit_target, reason=Qt.FocusReason.TabFocusReason)
+            is not None
+        ):
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class ActivityFeed(QWidget):
@@ -258,6 +317,7 @@ class ActivityFeed(QWidget):
         self._max_entries = max_entries
         self._entries: list[ActivityEntry] = []
         self._items: list[ActivityFeedItem] = []
+        self._tab_exit_target: QWidget | None = None
 
         self.setObjectName("ActivityFeed")
         self.setSizePolicy(
@@ -268,7 +328,7 @@ class ActivityFeed(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
 
-        self.scroll = QScrollArea(self)
+        self.scroll = _ActivityScrollArea(self)
         self.scroll.setObjectName("ActivityFeedScroll")
         self.scroll.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.scroll.setAccessibleName("Лента событий")
@@ -315,6 +375,12 @@ class ActivityFeed(QWidget):
             self._items[0].setFocus(Qt.FocusReason.ShortcutFocusReason)
         else:
             self.scroll.setFocus(Qt.FocusReason.ShortcutFocusReason)
+
+    def set_tab_exit_target(self, target: QWidget | None) -> None:
+        self._tab_exit_target = target
+        self.scroll.set_tab_exit_target(target)
+        if self._items:
+            self._items[-1].set_tab_exit_target(target)
 
     def set_entries(self, entries: Iterable[ActivityEntry]) -> None:
         """Replace entries and render newest events first."""
@@ -400,6 +466,8 @@ class ActivityFeed(QWidget):
                 if previous is not None:
                     QWidget.setTabOrder(previous, item)
                 previous = item
+
+            self._items[-1].set_tab_exit_target(self._tab_exit_target)
 
         self.items_layout.addStretch(1)
         self.apply_theme(self._theme)

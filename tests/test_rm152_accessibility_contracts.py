@@ -74,7 +74,7 @@ def test_full_shell_tab_traversal_reaches_task_controls_without_page_subcycle(
         "DashboardRefreshButton",
         "DashboardFindTendersAction",
         "QuickAction_find_tenders",
-        "QuickAction_ai_analysis",
+        "QuickAction_analyze_documents",
         "QuickAction_create_proposal",
         "QuickAction_create_estimate",
         "ActivityFeedScroll",

@@ -234,6 +234,8 @@ class TenderRequirementAnalysisDialog(QDialog):
         layout.setSpacing(8)
 
         self.search_edit = QLineEdit(frame)
+        self.search_edit.setObjectName("TenderAnalysisSearch")
+        self.search_edit.setAccessibleName("Поиск по результатам анализа требований")
         self.search_edit.setPlaceholderText("Поиск по требованию, значению, документу и фрагменту…")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self.refresh_findings)
@@ -281,6 +283,11 @@ class TenderRequirementAnalysisDialog(QDialog):
 
         self.findings_table = QTableWidget(table_frame)
         self.findings_table.setObjectName("TenderAnalysisFindingsTable")
+        self.findings_table.setAccessibleName("Найденные требования и доказательства")
+        self.findings_table.setAccessibleDescription(
+            "Категория, требование, значение, документ, фрагмент и состояние проверки"
+        )
+        self.findings_table.setTabKeyNavigation(False)
         self.findings_table.setColumnCount(6)
         self.findings_table.setHorizontalHeaderLabels(
             (
@@ -335,6 +342,11 @@ class TenderRequirementAnalysisDialog(QDialog):
 
         self.documents_table = QTableWidget(tab)
         self.documents_table.setObjectName("TenderAnalysisDocumentsTable")
+        self.documents_table.setAccessibleName("Документы анализа требований")
+        self.documents_table.setAccessibleDescription(
+            "Документы, использованные или отсутствующие в анализе"
+        )
+        self.documents_table.setTabKeyNavigation(False)
         self.documents_table.setColumnCount(5)
         self.documents_table.setHorizontalHeaderLabels(
             (
@@ -379,6 +391,7 @@ class TenderRequirementAnalysisDialog(QDialog):
 
         self.missing_list = QListWidget(tab)
         self.missing_list.setObjectName("TenderAnalysisMissingList")
+        self.missing_list.setAccessibleName("Отсутствующие документы и данные")
         layout.addWidget(self.missing_list, 1)
         return tab
 

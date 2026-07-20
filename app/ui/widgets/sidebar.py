@@ -46,6 +46,7 @@ class Sidebar(QWidget):
 
     def add_item(self, item: SidebarItem) -> None:
         btn = QPushButton(item.title)
+        btn.setObjectName(f"SidebarRoute_{item.key}")
         btn.setIcon(get_icon_provider().icon(item.icon))
         btn.setAccessibleName(item.title)
         btn.setToolTip(item.title)
@@ -65,6 +66,11 @@ class Sidebar(QWidget):
         """Emit a legacy/canonical intent, including hidden compatibility aliases."""
         self.set_current(key)
         self.item_selected.emit(key)
+
+    def keyboard_focus_chain(self) -> tuple[QPushButton, ...]:
+        """Return primary routes in their visible navigation order."""
+
+        return tuple(self._buttons.values())
 
     @property
     def current_item(self) -> str:

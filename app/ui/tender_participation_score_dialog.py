@@ -90,6 +90,11 @@ class TenderParticipationScoreDialog(QDialog):
 
         self.components_table = QTableWidget(self)
         self.components_table.setObjectName("ParticipationScoreComponents")
+        self.components_table.setAccessibleName("Компоненты утверждённой оценки участия")
+        self.components_table.setAccessibleDescription(
+            "Компонент, вес, значение и вклад без пересчёта решения"
+        )
+        self.components_table.setTabKeyNavigation(False)
         self.components_table.setColumnCount(4)
         self.components_table.setHorizontalHeaderLabels(
             ("Критерий", "Балл", "Максимум", "Объяснение")

@@ -120,6 +120,11 @@ class TenderDocumentsDialog(QDialog):
 
         self.table = QTableWidget(table_frame)
         self.table.setObjectName("TenderDocumentsTable")
+        self.table.setAccessibleName("Документы выбранного тендера")
+        self.table.setAccessibleDescription(
+            "Документ, вид, состояние загрузки, размер и безопасное действие"
+        )
+        self.table.setTabKeyNavigation(False)
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(
             (
