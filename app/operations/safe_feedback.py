@@ -74,7 +74,10 @@ class SafeFeedback:
             raise ValueError("feedback id must be bounded")
 
     def to_plain_text(self) -> str:
-        return f"{self.title.value}. {self.summary.value}"
+        rendered = f"{self.title.value}. {self.summary.value}"
+        if self.diagnostic_id is not None:
+            rendered += f" РљРѕРґ РґРёР°РіРЅРѕСЃС‚РёРєРё: {self.diagnostic_id.value}."
+        return rendered
 
     def to_notification_payload(self) -> dict[str, object]:
         return {

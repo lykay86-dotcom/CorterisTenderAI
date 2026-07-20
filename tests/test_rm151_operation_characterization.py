@@ -243,9 +243,9 @@ def test_known_gap_legacy_failure_notification_preserves_raw_payload() -> None:
     assert "<b>unsafe</b>" in rendered
 
 
-def test_known_gap_dashboard_and_recovery_present_raw_exceptions() -> None:
+def test_migrated_dashboard_and_recovery_no_longer_present_raw_exceptions() -> None:
     dashboard_source = inspect.getsource(DashboardController._handle_refresh_failure)
     recovery_source = inspect.getsource(BusinessWorkflowPage._recover_latest_database_backup)
 
-    assert "{error}" in dashboard_source
-    assert "str(exc)" in recovery_source
+    assert "{error}" not in dashboard_source
+    assert "str(exc)" not in recovery_source

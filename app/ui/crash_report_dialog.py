@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Any
+from uuid import uuid4
 
 from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
@@ -26,6 +28,9 @@ from app.core.crash_reporting import (
     CrashReportResult,
     GlobalCrashHandler,
 )
+from app.operations.contracts import OperationEpisodeId, OperationKind
+from app.operations.diagnostics import DiagnosticRegistry
+from app.operations.safe_feedback import SafeFeedbackProjector
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
 
@@ -49,6 +54,10 @@ class CrashReportDialog(QDialog):
         self.report = report
         self.support_bundle_provider = support_bundle_provider
         self._theme = ThemeName(theme)
+        self.operation_diagnostic_registry = DiagnosticRegistry(max_records=32)
+        self.operation_feedback_projector = SafeFeedbackProjector(
+            registry=self.operation_diagnostic_registry
+        )
 
         self.setWindowTitle("Corteris Tender AI — критическая ошибка")
         self.setModal(True)
@@ -86,16 +95,17 @@ class CrashReportDialog(QDialog):
         info_layout.setSpacing(6)
 
         self.error_label = QLabel(
-            (f"{report.exception_type}: {report.exception_message or 'без сообщения'}"),
+            f"{report.exception_type}: технические детали доступны ниже",
             info,
         )
+        self.error_label.setTextFormat(Qt.TextFormat.PlainText)
         self.error_label.setObjectName("CrashReportError")
         self.error_label.setWordWrap(True)
         self.error_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         info_layout.addWidget(self.error_label)
 
         self.path_label = QLabel(
-            f"Crash-report: {report.path}",
+            f"Crash-report: {report.path.name}",
             info,
         )
         self.path_label.setObjectName("CrashReportPath")
@@ -162,7 +172,10 @@ class CrashReportDialog(QDialog):
         if application is None:
             return
         application.clipboard().setText(
-            (f"{self.error_label.text()}\n{self.path_label.text()}\n\n{self.report.traceback_text}")
+            (
+                f"{self.error_label.text()}\n{self.path_label.text()}\n"
+                f"Код диагностики: {self.report.crash_id}"
+            )
         )
 
     def _open_report_folder(self) -> None:
@@ -191,17 +204,23 @@ class CrashReportDialog(QDialog):
         try:
             result = provider(filename)
         except Exception as exc:
+            feedback = self.operation_feedback_projector.project_exception(
+                exc,
+                episode_id=OperationEpisodeId(f"episode-{uuid4().hex}"),
+                kind=OperationKind.SUPPORT_BUNDLE,
+                occurred_at=datetime.now().astimezone(),
+            )
             QMessageBox.critical(
                 self,
                 "Ошибка создания пакета диагностики",
-                str(exc),
+                feedback.to_plain_text(),
             )
         else:
-            result_path = getattr(result, "path", filename)
+            del result
             QMessageBox.information(
                 self,
                 "Пакет диагностики сохранён",
-                f"Файл:\n{result_path}",
+                "Пакет диагностики сохранён в выбранном расположении.",
             )
         finally:
             self.save_bundle_button.setEnabled(True)
