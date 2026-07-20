@@ -60,7 +60,7 @@ RM-152 `QTableCornerButton::section` and `QAbstractScrollArea::corner` fixes occ
 every activated page, and that route, stack, lifecycle and accessibility contracts remain intact.
 
 This is not RM-154 pixel-golden acceptance. Native Windows interaction confirmation for startup,
-theme switch, page switch, focus continuity and close remains required before RM-153 closeout.
+theme switch, page switch, focus continuity and close was completed before RM-153 closeout.
 
 ## Security, privacy, migration and deterministic safety
 
@@ -95,4 +95,6 @@ theme switch, page switch, focus continuity and close remains required before RM
   unknown-extension/conditional-formatting fixture warnings;
 - native worktree window launch: PASS; automated Windows Graphics Capture for this PySide6 window
   returned `0x80004002 (interface not supported)`, so no automated native clicks were continued;
-- user native confirmation and GitHub exact-SHA gates: pending before closeout.
+- user native confirmation on 2026-07-21: page switching remained responsive, light/dark theme
+  switching introduced no white strips, and native window close completed normally: PASS;
+- GitHub exact-SHA gates: pending before canonical closeout.
