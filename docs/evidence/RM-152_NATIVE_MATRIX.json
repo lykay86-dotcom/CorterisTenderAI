@@ -67,6 +67,27 @@
       "restoration": "PASS; Windows Settings UIA confirmed 100% (recommended) after the run, and the exact test process and Settings window were closed.",
       "status_policy": "Partial owner observation only; NATIVE-1920-125-DL is BLOCKED rather than PASS."
     },
+    "owner_dpi_150_observation": {
+      "observed_at": "2026-07-20 Europe/Moscow",
+      "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+      "environment": "single 1920x1080 display; Windows Settings UIA confirmed 150%; exact uniquely named frozen build restarted after scale change",
+      "automation_evidence": [
+        "Exact-build text-only UIA exposed 166 current elements and retained key dashboard surfaces.",
+        "The complete exposed UIA tree contained zero mojibake marker lines."
+      ],
+      "owner_confirmed": [
+        "No clipped or overlapping text or controls were observed.",
+        "Light and dark themes switched without white fallback strips.",
+        "Tab and Shift+Tab moved focus without a trap."
+      ],
+      "unresolved": [
+        "all semantic states",
+        "complete focus order",
+        "complete Narrator journey"
+      ],
+      "restoration": "PENDING; restore Windows scale to 100% after evidence commit.",
+      "status_policy": "Partial owner observation only; NATIVE-1920-150-DL is BLOCKED rather than PASS."
+    },
     "frozen_executable_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
     "frozen_self_test": "PASS; 9 isolated automated checks",
     "dark_theme_fix_rerun": {
@@ -340,11 +361,25 @@
     },
     {
       "id": "NATIVE-1920-150-DL",
-      "status": "NOT_EXECUTED",
-      "observed": false,
-      "environment": {},
-      "evidence": [],
-      "note": "Native observation required; automated evidence is not a substitute."
+      "status": "BLOCKED",
+      "observed": true,
+      "environment": {
+        "os": "Windows 10.0.19045",
+        "display": "1920x1080; available 1920x1040",
+        "scale": "150%; Windows Settings UIA confirmed",
+        "theme": "light and dark",
+        "artifact_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
+        "observer": "project owner",
+        "observed_at": "2026-07-20 Europe/Moscow"
+      },
+      "evidence": [
+        "Exact frozen build was restarted after Windows Settings UIA confirmed 150%.",
+        "Text-only UIA exposed 166 current elements, retained key dashboard surfaces, and contained zero mojibake marker lines.",
+        "The owner observed no clipping or overlap.",
+        "The owner confirmed clean light/dark switching without white fallback strips.",
+        "The owner confirmed Tab and Shift+Tab movement without a focus trap."
+      ],
+      "note": "BLOCKED rather than PASS because all semantic states, complete focus order, and a complete Narrator journey remain incomplete."
     },
     {
       "id": "NATIVE-2560-150-DL",
