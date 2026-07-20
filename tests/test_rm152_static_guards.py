@@ -46,8 +46,17 @@ def test_native_matrix_lists_every_required_dev_frozen_and_environment_cell() ->
 
     assert ids == screen_reader | environment
     assert validate_native_matrix(payload) == ()
-    assert all(cell["status"] == "NOT_EXECUTED" for cell in payload["cells"])
-    assert all(cell["observed"] is False for cell in payload["cells"])
+    cells = {cell["id"]: cell for cell in payload["cells"]}
+    partial = cells["NATIVE-1920-100-DL"]
+    assert partial["status"] == "BLOCKED"
+    assert partial["observed"] is True
+    assert partial["environment"]
+    assert partial["evidence"]
+    assert all(
+        cell["status"] == "NOT_EXECUTED" and cell["observed"] is False
+        for cell_id, cell in cells.items()
+        if cell_id != "NATIVE-1920-100-DL"
+    )
 
 
 def test_rm152_static_guard_passes_without_promoting_native_matrix() -> None:

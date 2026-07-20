@@ -66,7 +66,7 @@ result, focus order, duplicate/missing speech, dynamic update behavior, and conf
 |---|---|---|---|
 | NATIVE-1366-100-D/L | 1366x768, 100%, dark/light, physical keyboard | NOT_EXECUTED | none |
 | NATIVE-1366-125-D/L | 1366x768, 125%, dark/light, physical keyboard | NOT_EXECUTED | deterministic baseline minimum predicts failure; native observation still required |
-| NATIVE-1920-100-D/L | 1920x1080, 100%, dark/light, all semantic states | NOT_EXECUTED | host capability discovered only |
+| NATIVE-1920-100-D/L | 1920x1080, 100%, dark/light, all semantic states | BLOCKED | owner observed visible forward/reverse focus without a trap or clipping/overlap in one unrecorded theme; other theme/all states and Narrator incomplete |
 | NATIVE-1920-125-D/L | 1920x1080, 125%, dark/light | NOT_EXECUTED | none |
 | NATIVE-1920-150-D/L | 1920x1080, 150%, dark/light | NOT_EXECUTED | none |
 | NATIVE-2560-150-D/L | 2560x1440, 150%, dark/light | NOT_EXECUTED | no such display discovered |

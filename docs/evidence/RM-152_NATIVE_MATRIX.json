@@ -15,11 +15,16 @@
       "observed_at": "2026-07-20 Europe/Moscow",
       "artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
       "environment": "single 1920x1080 display; logical DPI 96; exact frozen build",
-      "confirmed": "Visible focus was observed and moved between controls during the requested Tab/Shift+Tab probe.",
+      "confirmed": [
+        "Visible focus was observed and moved between controls.",
+        "The requested Tab sweep did not become trapped.",
+        "Shift+Tab moved focus backward.",
+        "No clipped or overlapping text was observed in the displayed state."
+      ],
       "unresolved": [
         "complete forward and reverse order",
-        "absence of keyboard traps",
-        "absence of clipping or overlap",
+        "both dark and light themes",
+        "all semantic states",
         "Narrator output"
       ],
       "status_policy": "Partial owner observation only; no cell promoted."
@@ -224,11 +229,24 @@
     },
     {
       "id": "NATIVE-1920-100-DL",
-      "status": "NOT_EXECUTED",
-      "observed": false,
-      "environment": {},
-      "evidence": [],
-      "note": "Native observation required; automated evidence is not a substitute."
+      "status": "BLOCKED",
+      "observed": true,
+      "environment": {
+        "os": "Windows 10.0.19045",
+        "display": "1920x1080; available 1920x1040",
+        "scale": "100%; logical DPI 96; DPR 1.0",
+        "theme": "current displayed theme only; exact theme not recorded",
+        "artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
+        "observer": "project owner",
+        "observed_at": "2026-07-20 Europe/Moscow"
+      },
+      "evidence": [
+        "Visible focus was observed moving between controls.",
+        "Tab did not become trapped in the requested sweep.",
+        "Shift+Tab moved focus backward.",
+        "No clipped or overlapping text was observed in the displayed state."
+      ],
+      "note": "BLOCKED: both dark/light themes, all semantic states, complete route order, and Narrator output remain unobserved."
     },
     {
       "id": "NATIVE-1920-125-DL",

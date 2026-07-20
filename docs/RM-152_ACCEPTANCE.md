@@ -94,10 +94,12 @@ screenshot attempt against the confirmed exact-build process failed with
 `SetIsBorderRequired failed: Интерфейс не поддерживается (0x80004002)`. The native protocol stopped
 further automated input after that observation failure. In a subsequent owner-observed physical
 keyboard probe on the open exact build, visible focus was confirmed and was seen moving between
-controls. The owner has not yet confirmed the complete forward/reverse order, absence of traps,
-clipping/overlap, or Narrator output, so this partial observation does not promote a matrix cell.
-Therefore all 33 machine-readable native cells remain `NOT_EXECUTED`;
-`--require-native-complete` reports exactly 33 `incomplete` errors. The following are not proven:
+controls. The owner also confirmed that the requested Tab sweep did not trap focus, Shift+Tab moved
+backward, and no clipping or overlap was observed in the displayed state. `NATIVE-1920-100-DL` is
+therefore recorded as observed but `BLOCKED`, because both themes, all semantic states, complete
+route order, and Narrator output remain unobserved. The other 32 cells remain `NOT_EXECUTED`;
+`--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
+proven:
 
 - physical Tab/Shift+Tab and visible focus in dark/light/high contrast;
 - Narrator name/role/state/value/relations and bounded dynamic announcements;
