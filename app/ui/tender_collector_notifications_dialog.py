@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -20,7 +21,9 @@ from PySide6.QtWidgets import (
 
 from app.tenders.collector.notifications import (
     CollectorNotification,
+    CollectorNotificationKind,
 )
+from app.operations.notifications import NotificationEnvelope, NotificationKind
 from app.ui.theme.colors import ThemeName, get_palette
 
 
@@ -82,11 +85,12 @@ class TenderCollectorNotificationsDialog(QDialog):
 
     def set_notifications(
         self,
-        items: Iterable[CollectorNotification],
+        items: Iterable[CollectorNotification | NotificationEnvelope],
     ) -> None:
         notifications = tuple(items)
         self.table.setRowCount(len(notifications))
-        for row, item in enumerate(notifications):
+        for row, source_item in enumerate(notifications):
+            item = _notification_row(source_item)
             self.table.setItem(
                 row,
                 0,
@@ -105,6 +109,12 @@ class TenderCollectorNotificationsDialog(QDialog):
             )
             message = QTableWidgetItem(item.message)
             message.setToolTip(item.message)
+            message.setData(Qt.ItemDataRole.UserRole, item.id)
+            message.setData(Qt.ItemDataRole.AccessibleTextRole, item.accessible_text)
+            title_item = self.table.item(row, 2)
+            if title_item is not None:
+                title_item.setData(Qt.ItemDataRole.UserRole, item.id)
+                title_item.setData(Qt.ItemDataRole.AccessibleTextRole, item.accessible_text)
             self.table.setItem(row, 3, message)
 
     def apply_theme(
@@ -140,6 +150,45 @@ class TenderCollectorNotificationsDialog(QDialog):
             }}
             """
         )
+
+
+@dataclass(frozen=True, slots=True)
+class _NotificationRow:
+    id: str
+    created_at: str
+    title: str
+    message: str
+    kind: CollectorNotificationKind | NotificationKind
+    read: bool
+    accessible_text: str
+
+
+def _notification_row(
+    item: CollectorNotification | NotificationEnvelope,
+) -> _NotificationRow:
+    if isinstance(item, NotificationEnvelope):
+        read = item.read_at is not None
+        accessible = f"{item.kind.value}. {item.title.value}. {item.summary.value}. " + (
+            "РџСЂРѕС‡РёС‚Р°РЅРѕ." if read else "РќРµ РїСЂРѕС‡РёС‚Р°РЅРѕ."
+        )
+        return _NotificationRow(
+            id=item.notification_id,
+            created_at=item.created_at.isoformat(),
+            title=item.title.value,
+            message=item.summary.value,
+            kind=item.kind,
+            read=read,
+            accessible_text=accessible,
+        )
+    return _NotificationRow(
+        id=item.id,
+        created_at=item.created_at,
+        title=item.title,
+        message=item.message,
+        kind=item.kind,
+        read=item.read,
+        accessible_text=f"{item.kind.value}. {item.title}. {item.message}.",
+    )
 
 
 def _format_time(value: str) -> str:
