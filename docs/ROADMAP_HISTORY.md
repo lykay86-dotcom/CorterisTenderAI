@@ -1,5 +1,40 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-20 — RM-151 завершён, RM-152 активирован
+
+- Audit 30 operation groups и восемь обязательных pre-production contract/plan документов
+  зафиксированы commit `c64f3c6`; characterization — `abeeecd`, expected-red — `0f91d94`,
+  Qt-free core — `b719417`, representative owner adapters — `c233087`, bounded performance
+  evidence — `627faf8`, acceptance и feature head — `dfa7701`.
+- Один immutable Qt-free episode contract сохраняет RM-140 states, fail-closed transitions,
+  retry/cancel/close и stale/late guards. Allowlist-first safe feedback скрывает raw exception,
+  secrets, paths, URL query/fragment, traceback, markup и control/bidi markers, но сохраняет
+  actionable bounded diagnostics по opaque correlation ID.
+- Schema-v1 notification adapter переиспользует единственный существующий scheduler repository;
+  exact identity/freshness, dedupe/read/dismiss/action и announcement coalescing проверены без
+  второго lifecycle, scheduler, notification, shell, crash или support owner.
+- Search, dashboard, document/analysis/AI/score/provider, workflow, crash/support boundaries
+  адаптированы без переноса business work и без изменения RM-107 decision/critical priority.
+- Локально: focused `42 passed`, neighboring `35 passed`, full pytest
+  `2318 passed, 2 warnings in 138.70s`; secret scan, RM-151 boundary guard, Ruff/format
+  (`761 files`), mypy, offline/migration/import/composition/build/frozen smokes, benchmark и
+  dependency audit успешны.
+- Benchmark 0/1/100/1k/10k не вводит arbitrary threshold: safe feedback остаётся одним bounded
+  output, announcements ограничены 12 updates, active retention после terminal равен нулю, а 1000
+  duplicate legacy notifications сохраняются один раз.
+- Feature PR #110 на head `dfa7701db8c669a1f095604671f615aa8c38d4b5` слит merge commit
+  `7176f8542357f91b7d5283bd0b6167efcc63982e`.
+- PR-head Quality Gate `29710971738` успешен: Python 3.12 job `88254690838`, Python 3.13 job
+  `88254690835`. Exact merge-SHA run `29711141067` подтверждён с
+  `headSha=7176f8542357f91b7d5283bd0b6167efcc63982e`: Python 3.12 job `88255104161`, Python
+  3.13 job `88255104196`; full suite, dependency audit и все обязательные steps — `success`.
+- Единственные CI annotations — non-blocking official-actions Node.js 20/24 migration notices.
+  DB/schema/migration, dependencies, notification storage schema, provider/network/AI paths и
+  RM-107 score/recommendation/critical stop-factor priority не изменены. Native Narrator, physical
+  keyboard/high-contrast/DPI inspection остаются `NOT_EXECUTED` и переданы RM-152. Rollback —
+  revert feature merge без DB/data/settings downgrade. RM-151 переведён в `DONE`; RM-152 назначен
+  единственным `IN PROGRESS`, RM-153–RM-200 остаются `PLANNED`.
+
 ## 2026-07-20 — RM-150 завершён, RM-151 активирован
 
 - Audit 35 pre-production product table sites и решения `migrate=11`, `keep=12`, `defer=12`

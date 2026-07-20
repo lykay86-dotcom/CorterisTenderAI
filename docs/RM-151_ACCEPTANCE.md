@@ -2,15 +2,14 @@
 
 ## Verdict and publication status
 
-`READY FOR FEATURE PR` on the local Windows/Python 3.12 contour. RM-151 establishes one
-immutable Qt-free operation-episode vocabulary, fail-closed transitions, safe user feedback,
-bounded diagnostic correlation, a compatibility adapter over the existing notification owner and
-coalesced accessible updates. Existing business, lifecycle, scheduler, crash, support, routing and
-deterministic decision owners remain authoritative.
+`DONE`. RM-151 establishes one immutable Qt-free operation-episode vocabulary, fail-closed
+transitions, safe user feedback, bounded diagnostic correlation, a compatibility adapter over the
+existing notification owner and coalesced accessible updates. Existing business, lifecycle,
+scheduler, crash, support, routing and deterministic decision owners remain authoritative.
 
-This feature package intentionally leaves RM-151 `IN PROGRESS`. It must not become `DONE`, and
-RM-152 must not become active, until the feature PR is merged, the Quality Gate succeeds on that
-exact merge SHA for Windows Python 3.12 and 3.13, and a separate docs-only closeout is merged.
+Feature PR #110 is merged, the Quality Gate succeeded on the exact merge SHA for Windows Python
+3.12 and 3.13, and this separate docs-only package records canonical closeout. RM-151 becomes
+`DONE`, RM-152 becomes the sole `IN PROGRESS` stage, and RM-153–RM-200 remain `PLANNED`.
 
 ## Entry gate and lineage
 
@@ -146,10 +145,31 @@ The two warnings are unchanged openpyxl unsupported-extension and conditional-fo
 from `test_rm132_legacy_credentials_handoff.py`; RM-151 adds no warning. Dependency audit required
 read-only network access after the sandbox correctly blocked its first attempt.
 
+## GitHub acceptance and exact merge-SHA evidence
+
+- Feature PR #110 on head `dfa7701db8c669a1f095604671f615aa8c38d4b5` was merged as
+  `7176f8542357f91b7d5283bd0b6167efcc63982e`.
+- PR-head Quality Gate run `29710971738` has exact
+  `headSha=dfa7701db8c669a1f095604671f615aa8c38d4b5` and succeeded. Python 3.12 job
+  `88254690838` and Python 3.13 job `88254690835` completed every required step successfully,
+  including secret scan, Ruff check/format, mypy, offline/migration/import/composition/build/frozen
+  smokes, full suite and dependency audit.
+- Automatic push-run `29711141067` has exact
+  `headSha=7176f8542357f91b7d5283bd0b6167efcc63982e` and succeeded. Python 3.12 job
+  `88255104161` and Python 3.13 job `88255104196` completed the same required matrix successfully.
+- The GitHub API confirmed run, job and step conclusions. The separate Actions results-receiver
+  endpoint temporarily did not serve the downloadable log archive, so CI elapsed test-summary
+  lines are not fabricated here; the exact local total on the identical feature content is
+  `2318 passed, 2 warnings`, and both CI `Full test suite` steps are independently `success`.
+- The only workflow annotations are non-blocking GitHub official-actions Node.js 20/24 migration
+  notices. There was no assertion failure, rerun or changed SHA.
+- This closeout is documentation-only: no application code, dependency, schema, migration,
+  notification storage, scoring, recommendation or critical stop-factor priority changes.
+
 ## Residual manual and CI evidence
 
-- Local Python 3.13: `NOT_EXECUTED`; the required Python 3.12/3.13 matrix belongs to the PR-head
-  and exact merge-SHA Windows Quality Gates.
+- Local Python 3.13: `NOT_EXECUTED`; the required Python 3.12/3.13 matrix is supplied by the
+  successful PR-head and exact merge-SHA Windows Quality Gates above.
 - Newly packaged executable launch on physical Windows: `NOT_EXECUTED`; build/frozen contract and
   frozen self-test are green, while final packaging remains release scope.
 - Narrator, physical keyboard-only walkthrough, high-contrast theme and physical DPI inspection:
@@ -164,7 +184,6 @@ read-only network access after the sandbox correctly blocked its first attempt.
   business formula, score, recommendation or critical stop-factor priority changed.
 - Rollback is a revert of the RM-151 feature commits to baseline `c077737`; no data, dependency,
   schema or settings rollback is required.
-- Next action is the feature PR titled
-  `feat(rm-151): unify operation episodes and safe feedback`. This document must be finalized with
-  feature PR/head/merge and exact Quality Gate evidence only in the later docs-only closeout.
+- This separate canonical docs-only closeout marks RM-151 `DONE` and activates RM-152. RM-153 must
+  not start until RM-152 satisfies its Definition of Done and its own canonical closeout lands.
 
