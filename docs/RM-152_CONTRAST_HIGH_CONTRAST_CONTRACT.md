@@ -107,3 +107,7 @@ high-contrast fidelity, menus/tooltips/dialogs/tables/charts, and dark/light at 
 Contrast Black. It remains `BLOCKED`, not `PASS`, because only a representative dashboard state
 was exercised; complete semantic states, routes, menus, tooltips, dialogs, tables, charts,
 destructive warnings, and Narrator output remain incomplete.
+
+The owner accepted that residual risk under named exception `RM152-EX-NATIVE-HC`, decision
+`RM152-OWNER-EXCEPTIONS-2026-07-20`. `NATIVE-HC` remains `BLOCKED`; the exception only satisfies the
+explicit feature-acceptance policy and does not claim complete high-contrast support.

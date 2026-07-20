@@ -96,3 +96,9 @@ Each executed cell adds Windows/build/display/DPI/theme/Narrator/settings/locale
 exact steps, observed output, privacy-scrubbed artifact links, and linked defect/fix/rerun. Native
 multi-monitor, unsupported viewport, high-contrast, or frozen gaps require actual execution or an
 explicit owner-approved exception before RM-152 feature acceptance. Silence is not approval.
+
+The owner explicitly approved decision `RM152-OWNER-EXCEPTIONS-2026-07-20` for all 33 incomplete
+cells. The exact human-readable register is `docs/RM-152_OWNER_EXCEPTIONS.md`; the authoritative
+environment, reason, residual risk, and retained status for every cell are in
+`docs/evidence/RM-152_NATIVE_MATRIX.json`. Strict validation now passes, but the table above remains
+truthful: four cells are `BLOCKED`, 29 are `NOT_EXECUTED`, and none is promoted to `PASS`.

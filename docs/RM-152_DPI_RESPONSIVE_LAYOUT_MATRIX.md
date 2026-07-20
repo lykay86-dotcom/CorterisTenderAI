@@ -58,6 +58,11 @@ synthetic safe data. Representative state cells add empty/loading/partial/error/
 One 1920x1080 screenshot cannot replace the matrix. Owner-approved exceptions must name exact
 cells/environment/reason and remain distinguishable from PASS.
 
+Decision `RM152-OWNER-EXCEPTIONS-2026-07-20` now supplies a named exception, available/unavailable
+environment, reason, residual risk, and retained truthful status for every DPI/native cell. See
+`docs/RM-152_OWNER_EXCEPTIONS.md` and `docs/evidence/RM-152_NATIVE_MATRIX.json`. This accepts the
+documented residual risk for feature PR readiness; it does not turn any DPI cell into `PASS`.
+
 ## Deterministic baseline failure
 
 The shell calls `setMinimumSize(1180, 720)`. At 1366x768 physical and 125%, the approximate logical

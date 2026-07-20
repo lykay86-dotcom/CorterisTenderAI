@@ -112,6 +112,16 @@
     },
     "frozen_executable_sha256": "11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0",
     "frozen_self_test": "PASS; 9 isolated automated checks",
+    "closeout_frozen_build": {
+      "source_commit": "e57093081e3e8695b0e1452f29585e9b58c07ac0",
+      "pyinstaller": "6.21.0",
+      "python": "3.12.7",
+      "os": "Windows 10.0.19045",
+      "sha256": "5BED2D3F30AE6917F911800FBB85D7679BFBA6CEBB76F6F98F6B73376EBC2719",
+      "size_bytes": 83485730,
+      "self_test": "PASS; 9 isolated automated checks",
+      "privacy": "The raw self-test report remains untracked because it contains transient local paths."
+    },
     "dark_theme_fix_rerun": {
       "defect_artifact_sha256": "4D69D6B2378E77DBD179B86A8513FFB0CA20685489659F21778C3CD868F454D6",
       "fix_commit": "9da4f79",

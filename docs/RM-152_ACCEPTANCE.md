@@ -2,11 +2,13 @@
 
 ## Verdict
 
-`BLOCKED` for feature acceptance. Automated implementation and frozen build evidence are green,
-but the required physical keyboard, Windows Narrator, high-contrast, DPI/viewport, and mixed-DPI
-matrix remains incomplete and has no owner-approved exceptions. Four native cells now have partial
-owner observations, but no incomplete cell is reported as a pass, and RM-152 remains the sole
-`IN PROGRESS` stage.
+`READY FOR FEATURE PR` with explicit owner-approved native exceptions. Automated implementation,
+full regression, frozen build, and strict evidence validation are green. The physical keyboard,
+Windows Narrator, high-contrast, DPI/viewport, and mixed-DPI matrix remains incomplete: four cells
+are `BLOCKED`, 29 are `NOT_EXECUTED`, and none is `PASS`. Decision
+`RM152-OWNER-EXCEPTIONS-2026-07-20` names all 33 cells with exact environment, reason, residual
+risk, and retained status. RM-152 remains the sole `IN PROGRESS` stage until feature PR merge,
+exact merge-SHA Quality Gate, and a separate canonical closeout.
 
 ## Baseline and commits
 
@@ -20,6 +22,9 @@ owner observations, but no incomplete cell is reported as a pass, and RM-152 rem
 - dark-theme native fallback fix: `9da4f79`;
 - readable-Russian production guard: `bf2099e` (`5` production files failed before the fix);
 - readable-Russian feedback fix: `0ab712d`;
+- owner-exception expected-red contract: `7acd209`;
+- fail-closed 33-cell exception registry and validator: `05ecca2`;
+- deterministic stop-factor test time: `e570930`;
 - branch: `feat/rm-152-accessibility-dpi` in dedicated `.worktrees/rm152`.
 
 ## Implemented contracts
@@ -61,15 +66,17 @@ Isolated runtime baseline -> post implementation: widgets `1,008 -> 1,008`, non-
 ## Automated verification
 
 - focused dark-theme and neighboring UI regression: `46 passed`;
-- full suite after the readable-Russian fix: `2344 passed, 2 warnings in 170.60s`; both warnings are inherited openpyxl
+- owner-exception/static focused contour: `20 passed`;
+- stop-factor time-stability contour: `8 passed`;
+- full suite after owner-exception acceptance: `2345 passed, 2 warnings in 197.56s`; both warnings are inherited openpyxl
   unsupported-extension warnings from the RM-132 legacy workbook fixture;
-- Ruff: check passed; format check reports `771 files already formatted`;
+- Ruff: check passed; format check reports `772 files already formatted`;
 - mypy: `Success: no issues found in 20 source files`;
-- secret scan and `scripts/check_rm152_accessibility.py`: passed;
-- offline credential/provider smoke: `2 passed in 7.27s`;
-- database/schema smoke: `5 passed in 5.03s`;
+- secret scan and strict `scripts/check_rm152_accessibility.py --require-native-complete`: passed;
+- offline credential/provider smoke: `2 passed in 17.35s`;
+- database/schema smoke: `5 passed in 11.99s`;
 - composition smoke: `1 passed in 0.52s`;
-- release/frozen contract smoke: `7 passed in 6.95s`;
+- release/frozen contract smoke: `7 passed in 11.56s`;
 - dependency audit: no known vulnerabilities; editable project correctly skipped;
 - PyInstaller `6.21.0` build succeeded on Python `3.12.7` / Windows `10.0.19045`;
 - original observed frozen EXE SHA-256:
@@ -78,6 +85,9 @@ Isolated runtime baseline -> post implementation: widgets `1,008 -> 1,008`, non-
   `81A11CF64665E61A29739F349BA435F21B234252476B46917DC8D8A0D342A866`;
 - rebuilt readable-Russian-fix EXE SHA-256:
   `11E59DC42FDBAC4F804D7006F01BA7E6AB7BA4E0C78B60DA455BBAB4993066F0`;
+- final closeout EXE built from `e57093081e3e8695b0e1452f29585e9b58c07ac0`, size
+  `83,485,730` bytes, SHA-256
+  `5BED2D3F30AE6917F911800FBB85D7679BFBA6CEBB76F6F98F6B73376EBC2719`;
 - isolated frozen self-test: `PASS`, nine checks including bundled resources, SQLite schema,
   offline provider composition, archive safety, analytics, and dark/light chart rendering.
 
@@ -147,9 +157,12 @@ directions without a trap, and distinguishable Russian text and control states. 
 routes, semantic states, menus, tooltips, dialogs, tables, charts, destructive warnings, and
 Narrator output remain incomplete. The owner disabled High Contrast after the run; registry Flags
 `126` confirmed restoration, and the exact test process and Settings window were closed. The other
-29 cells remain `NOT_EXECUTED`;
-`--require-native-complete` still reports exactly 33 `incomplete` errors. The following are not
-proven:
+29 cells remain `NOT_EXECUTED`. The owner then explicitly approved named exceptions for all 33
+non-`PASS` cells. The fail-closed validator requires the exact cell, decision ID, approver,
+timestamp, available/unavailable environment, reason, residual risk, retained status, and
+`accepted_without_pass=true`; malformed, missing, duplicate, unknown-cell, status-mismatch, or
+`PASS` exceptions fail validation. The strict `--require-native-complete` gate now passes without
+changing any cell status. The following remain explicitly unproven and accepted as residual risk:
 
 - complete physical Tab/Shift+Tab order and visible focus across every route/state in dark, light,
   and high contrast;
@@ -157,15 +170,13 @@ proven:
 - 1366x768 at 100/125%, complete 1920x1080 at 100/125/150%, 2560x1440 at 150/175%, and 4K at 200%;
 - A->B->A mixed-DPI movement, saved/removed-monitor geometry, and frozen native parity.
 
-## Blocker and required decision
+## Owner exception decision and remaining gate
 
-Feature acceptance and PR creation are blocked until either:
+The owner explicitly approved decision `RM152-OWNER-EXCEPTIONS-2026-07-20`. The exact register is
+`docs/RM-152_OWNER_EXCEPTIONS.md`; the authoritative structured records are in
+`docs/evidence/RM-152_NATIVE_MATRIX.json`. This removes the native-evidence blocker for feature PR
+creation while preserving every truthful `BLOCKED`/`NOT_EXECUTED` status and residual risk.
 
-1. the privacy-safe native matrix is executed on the required Windows environments and defects are
-   fixed/rerun; or
-2. the owner explicitly approves a named exception for every unavailable cell, with environment,
-   reason, residual risk, and `NOT_EXECUTED`/`BLOCKED` status retained rather than converted to
-   `PASS`.
-
-No feature PR, merge, exact merge-SHA gate, docs-only closeout, `DONE` transition, or RM-153 start
-is claimed in this state.
+No merge, exact merge-SHA gate, docs-only closeout, `DONE` transition, or RM-153 start is claimed
+yet. Those steps remain blocked until the feature PR is merged and its exact merge SHA passes the
+required Windows Python 3.12/3.13 Quality Gate.

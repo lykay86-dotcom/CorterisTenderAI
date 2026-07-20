@@ -139,6 +139,11 @@ mixed-monitor, unavailable scale/viewport, high-contrast, Narrator, and frozen c
 declared PASS without actual observation or explicit owner-approved exception. If that evidence
 cannot be obtained, final feature acceptance is BLOCKED, not silently reduced.
 
+On 2026-07-20 the owner explicitly approved named decision
+`RM152-OWNER-EXCEPTIONS-2026-07-20` for every incomplete cell. The exception registry retains four
+`BLOCKED` and 29 `NOT_EXECUTED` statuses, records exact environment/reason/residual risk, and passes
+the fail-closed strict validator without manufacturing a `PASS`.
+
 ## Rollback
 
 Feature rollback is a revert of RM-152 presentation/test commits to the baseline. No data/schema,
