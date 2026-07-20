@@ -279,11 +279,14 @@ def run_benchmark(
     dashboard_rows: int = 1_000,
     table_rows: int = 10_000,
     chart_points: int = 1_000,
+    resource_cycles: int = 25,
 ) -> dict[str, object]:
     if label not in {"pre-implementation", "post-implementation"}:
         raise ValueError("label must be pre-implementation or post-implementation")
     if warmups < 0 or samples < 1:
         raise ValueError("warmups must be >= 0 and samples must be >= 1")
+    if resource_cycles < 0:
+        raise ValueError("resource_cycles must be >= 0")
     app = QApplication.instance() or QApplication([])
     measurements: list[Measurement] = []
 
@@ -365,19 +368,22 @@ def run_benchmark(
         )
 
         before = _resource_counts(window)
-        tracemalloc.start()
-        for _ in range(25):
-            window.apply_theme(ThemeName.LIGHT)
-            window.apply_theme(ThemeName.DARK)
-            window.workspace.navigate(
-                RouteRequest(RouteId.TENDERS, cause=NavigationCause.PROGRAMMATIC)
-            )
-            window.workspace.navigate(
-                RouteRequest(RouteId.DASHBOARD, cause=NavigationCause.PROGRAMMATIC)
-            )
-            app.processEvents()
-        current_bytes, peak_bytes = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
+        current_bytes = 0
+        peak_bytes = 0
+        if resource_cycles:
+            tracemalloc.start()
+            for _ in range(resource_cycles):
+                window.apply_theme(ThemeName.LIGHT)
+                window.apply_theme(ThemeName.DARK)
+                window.workspace.navigate(
+                    RouteRequest(RouteId.TENDERS, cause=NavigationCause.PROGRAMMATIC)
+                )
+                window.workspace.navigate(
+                    RouteRequest(RouteId.DASHBOARD, cause=NavigationCause.PROGRAMMATIC)
+                )
+                app.processEvents()
+            current_bytes, peak_bytes = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
         after = _resource_counts(window)
 
         shutdown_started = perf_counter_ns()
@@ -407,7 +413,7 @@ def run_benchmark(
         },
         "measurements": [asdict(item) for item in measurements],
         "resource_cycles": {
-            "cycles": 25,
+            "cycles": resource_cycles,
             "before": before,
             "after": after,
             "growth": {name: after[name] - before[name] for name in before},
@@ -430,6 +436,7 @@ def main() -> int:
     parser.add_argument("--dashboard-rows", type=int, default=1_000)
     parser.add_argument("--table-rows", type=int, default=10_000)
     parser.add_argument("--chart-points", type=int, default=1_000)
+    parser.add_argument("--resource-cycles", type=int, default=25)
     parser.add_argument("--output", type=Path)
     arguments = parser.parse_args()
     payload = run_benchmark(
@@ -439,6 +446,7 @@ def main() -> int:
         dashboard_rows=arguments.dashboard_rows,
         table_rows=arguments.table_rows,
         chart_points=arguments.chart_points,
+        resource_cycles=arguments.resource_cycles,
     )
     rendered = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if arguments.output is not None:
