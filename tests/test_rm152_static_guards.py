@@ -11,6 +11,14 @@ from app.ui.theme.contrast_inventory import build_contrast_inventory
 from scripts.check_rm152_accessibility import EVIDENCE_ROOT, validate
 
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+MOJIBAKE_MARKERS = (
+    "\u0420\u045b",  # Common UTF-8-as-Windows-1251 sequence beginning with Cyrillic Р.
+    "\u0421\u201a",  # Common continuation containing Cyrillic С and a low quote.
+    "\u0432\u0402",  # Common damaged punctuation prefix.
+)
+
+
 def test_contrast_inventory_covers_both_themes_and_has_no_threshold_failures() -> None:
     payload = json.loads((EVIDENCE_ROOT / "RM-152_CONTRAST_PAIRS.json").read_text(encoding="utf-8"))
     expected = [
@@ -71,3 +79,13 @@ def test_evidence_artifacts_do_not_contain_machine_username_or_user_paths() -> N
         content = path.read_text(encoding="utf-8").casefold()
         assert "lyka0" not in content
         assert "c:\\users\\" not in content
+
+
+def test_production_python_copy_does_not_contain_mojibake() -> None:
+    failures: list[str] = []
+    for path in sorted((REPOSITORY_ROOT / "app").rglob("*.py")):
+        content = path.read_text(encoding="utf-8")
+        if any(marker in content for marker in MOJIBAKE_MARKERS):
+            failures.append(path.relative_to(REPOSITORY_ROOT).as_posix())
+
+    assert failures == []
