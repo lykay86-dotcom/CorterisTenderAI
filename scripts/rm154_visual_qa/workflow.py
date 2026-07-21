@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+
 # Used only with fixed git argv and shell disabled.
 import subprocess  # nosec B404
 from typing import Any
