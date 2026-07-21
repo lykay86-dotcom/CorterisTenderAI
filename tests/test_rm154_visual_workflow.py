@@ -29,6 +29,13 @@ from scripts.rm154_visual_qa.workflow import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _local_import_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Import tests exercise local authorization unless a test opts into CI."""
+
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 def _png(color: tuple[int, int, int]) -> bytes:
     image = Image.new("RGB", (3, 2), color)
     output = BytesIO()

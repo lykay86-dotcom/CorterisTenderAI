@@ -71,7 +71,7 @@ def test_rm154_visual_candidate_is_canonical_bounded_and_not_frozen() -> None:
     assert "if: matrix.python-version == '3.12'" in workflow
     assert "RM154_RENDERER_PROFILE: windows-latest-python312" in workflow
     assert "python -m scripts.rm154_visual_qa candidate" in workflow
-    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in workflow
+    assert "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f" in workflow
     assert "retention-days: 14" in workflow
     assert "rm154-visual-candidate-python312" in workflow
     assert "rm154-v1" not in spec
