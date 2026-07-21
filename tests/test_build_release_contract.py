@@ -84,3 +84,10 @@ def test_rm154_visual_gate_is_canonical_reviewable_bounded_and_not_frozen() -> N
     assert "rm154-v1" not in spec
     assert ".rm154-visual-artifacts" not in spec
     assert "rm154-visual-artifacts" not in spec
+
+
+def test_rm155_compatibility_guard_is_a_permanent_quality_gate() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "quality-gate.yml").read_text(encoding="utf-8")
+
+    assert "- name: RM-155 final compatibility guard" in workflow
+    assert "run: python scripts/check_rm155_compatibility.py" in workflow
