@@ -4,60 +4,65 @@
 
 ## Активный этап
 
-**RM-155 — завершение редизайна**
+**RM-156 — модель контрагента**
 
 Статус: `IN PROGRESS`
 
-RM-154 завершён feature PR #116 на head
-`109f084aaf84cd907b849d17635bb7cfad1d97ab`, merge commit
-`40f0e327d0d485b93e93f39bab1d838e584b8914` и успешным exact merge-SHA Windows Quality Gate
-run `29823579968`. Этот отдельный docs-only closeout переводит RM-154 в `DONE`. RM-155 —
-единственный активный этап; RM-156–RM-200 остаются `PLANNED` и не выполняются параллельно.
+RM-155 завершён feature PR #118 на head
+`c741ba6a39750436fa34ffc2237bd1c264466745`, merge commit
+`63a85b4cff5e2de5b53e4fad6dcfb091371200bf` и успешным exact merge-SHA Windows Quality Gate
+run `29845412052`. Этот отдельный docs-only closeout переводит RM-155 в `DONE`, закрывает
+`UI-141-017` и завершает последовательность полного редизайна RM-141–RM-155. RM-156 —
+единственный активный этап; RM-157–RM-200 остаются `PLANNED` и не выполняются параллельно.
 
-RM-155 должен начать с отдельного audit-first пакета, закрыть только подтверждённые остатки общего
-редизайна и финальную приёмку без создания второго shell/router/theme/chart/table/business owner.
-Нельзя ослаблять RM-154 strict visual gate, RM-152 truthful native evidence или RM-153 performance
-guards и нельзя менять RM-107 score/recommendation/critical stop-factor priority.
+RM-156 должен начаться отдельным audit-first пакетом по модели контрагента. Нельзя переносить в
+него удалённые compatibility entry points, создавать второй shell/router/business owner или
+менять RM-107 score/recommendation/critical stop-factor priority.
 
 ## Завершённый этап
 
-**RM-154 — визуальное тестирование**
+**RM-155 — завершение редизайна**
 
 Статус: `DONE`
 
 Подтверждение:
 
-- audit-first пакет определил 14 representative dark/light cases, deterministic Windows renderer,
-  exact font/environment fingerprint, privacy, review, retention и fail-closed update policy;
-- `strict-rgb-v1` требует zero changed pixels и не использует masks; три repeat captures стабильны,
-  deliberate token/layout mutations обнаруживаются;
-- canonical baseline содержит 14 normalized PNG (`950716` bytes), renderer fingerprint
-  `f1cd92373456028fd9360b3a032ef9b8d5784dc90d00abad4080d404db0dba56`;
-- fixtures полностью synthetic/offline/in-memory; network/keyring/production DB/user settings/live AI
-  не читаются, baselines/candidates не входят в frozen application;
-- локально: focused `30 passed`, полный pytest `2378 passed, 2 warnings in 199.01s`, RM-153 guards
-  `9 passed`; secret scan, design/UI audits, Ruff/format (`788 files`), mypy, Bandit RM-154 contour,
-  dependency audit, real one-file build и nine-check frozen self-test успешны;
+- audit-first пакет классифицировал 32 compatibility candidates: 9 `REMOVE`, 2 `MIGRATE`,
+  21 `KEEP`, 0 `DEPRECATE`, 0 `BLOCKED`, с consumer/history/runtime/settings/frozen/public
+  evidence, owner и rollback для каждого;
+- удалены только obsolete `app.ui.main_window`, два same-object page alias, их bootstrap fallback
+  и неиспользуемый search shim; сохранена одна production composition без duplicate owner;
+- J01–J16 и cross-stage RM-142–RM-154 guards прошли; RM-107 deterministic decision и абсолютный
+  приоритет critical stop-factor не изменены;
+- локально: полный pytest `2411 passed, 2 warnings in 207.24s`, neighboring contour `840 passed`,
+  Ruff/format (`794 files`), mypy, secret/offline/migration/composition/build/dependency gates
+  успешны;
+- fresh RM-153 performance p95 и 25-cycle resource budgets прошли; controlled same-host A/B не
+  обнаружил shutdown regression;
 - RM-152 native evidence остаётся truthful: `0 PASS`, `4 BLOCKED`, `29 NOT_EXECUTED`;
-- feature PR #116 на head `109f084aaf84cd907b849d17635bb7cfad1d97ab` слит merge commit
-  `40f0e327d0d485b93e93f39bab1d838e584b8914`;
-- PR-head Quality Gate `29822184296` и exact merge-SHA push-run `29823579968` успешны на Python
+- actual one-file EXE SHA-256
+  `044B35A3D8D73132A603073FBB0F8456010950B19CB5696C2EFBB8D7BC41F7A0` прошёл все девять
+  isolated frozen self-test checks;
+- feature PR #118 слит merge commit `63a85b4cff5e2de5b53e4fad6dcfb091371200bf`;
+- PR-head Quality Gate `29832379070` и exact merge-SHA push-run `29845412052` успешны на Python
   3.12/3.13; Python 3.12 strict visual comparison имеет `14/14 PASS`;
-- DB/schema/migration, dependencies, provider/network/AI/keyring/domain paths и RM-107
-  score/recommendation/critical stop-factor priority не изменены.
+- DB/schema/migration, dependencies, persisted settings/data и provider/network/AI/keyring/domain
+  paths не изменены; rollback — revert feature merge без downgrade данных.
 
 ## Ранее завершённый этап
 
-**RM-153 — производительность UI**
+**RM-154 — визуальное тестирование**
 
 Статус: `DONE`
 
-- Monotonic theme epoch, scoped repolish и existing route owner улучшили shell/theme/page
-  performance без второго timer/thread/cache/lifecycle owner.
-- Feature PR #114 слит merge commit `1e8ddf02177a460e14151c7482d5e1cd7dc8e5ad`.
-- Exact merge-SHA Quality Gate run `29787372667` успешен на Python 3.12/3.13.
+- Canonical strict RGB catalog содержит 14 representative dark/light cases с zero tolerance и
+  renderer fingerprint `f1cd92373456028fd9360b3a032ef9b8d5784dc90d00abad4080d404db0dba56`.
+- Feature PR #116 слит merge commit `40f0e327d0d485b93e93f39bab1d838e584b8914`.
+- Exact merge-SHA Quality Gate run `29823579968` успешен на Python 3.12/3.13 и strict visual
+  comparison `14/14 PASS`.
 
 ## Текущее действие
 
-Начать RM-155 отдельным audit-first пакетом после merge этого docs-only closeout. Не начинать
-RM-156+ до выполнения RM-155 Definition of Done и следующего отдельного канонического closeout.
+Начать RM-156 отдельным audit-first пакетом после merge этого docs-only closeout. Не начинать
+production implementation RM-156 без аудита и не начинать RM-157+ до выполнения RM-156
+Definition of Done и следующего отдельного канонического closeout.
