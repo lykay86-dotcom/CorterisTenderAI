@@ -11,6 +11,15 @@ from .contracts import (
     VisualResult,
     Viewport,
 )
+from .core import (
+    assess_environment,
+    compare_rgb_png,
+    normalize_png_bytes,
+    normalized_png_sha256,
+    pixel_sha256,
+    privacy_findings,
+    resolve_case_artifact_dir,
+)
 
 __all__ = [
     "STRICT_RGB_V1",
@@ -22,4 +31,11 @@ __all__ = [
     "VisualOutcome",
     "VisualResult",
     "Viewport",
+    "assess_environment",
+    "compare_rgb_png",
+    "normalize_png_bytes",
+    "normalized_png_sha256",
+    "pixel_sha256",
+    "privacy_findings",
+    "resolve_case_artifact_dir",
 ]

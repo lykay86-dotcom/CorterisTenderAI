@@ -17,7 +17,7 @@ from scripts.rm154_visual_qa.contracts import (
     VisualOutcome,
     Viewport,
 )
-from scripts.rm154_visual_qa.pending import (
+from scripts.rm154_visual_qa.core import (
     assess_environment,
     compare_rgb_png,
     privacy_findings,
