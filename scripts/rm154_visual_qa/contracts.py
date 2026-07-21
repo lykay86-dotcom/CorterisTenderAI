@@ -19,7 +19,8 @@ CASE_ID_RE = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)*\.(?:dark|light)\.(?:canon
 class VisualOutcome(StrEnum):
     """Machine-readable result state."""
 
-    PASS = "PASS"
+    # Machine outcome label, never a credential.
+    PASS = "PASS"  # nosec B105
     FAIL = "FAIL"
     BLOCKED = "BLOCKED"
     SKIPPED = "SKIPPED"

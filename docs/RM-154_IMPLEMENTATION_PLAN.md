@@ -62,20 +62,19 @@ until all required tests are green.
 Run commands derived from `pyproject.toml` and `.github/workflows/quality-gate.yml`:
 
 ```text
-python -m pytest -q
-python -m mypy app tests
-python -m ruff check app tests scripts
-python -m ruff format --check app tests scripts
-python -m bandit -r app -q
-python -m pip_audit
+python -m pytest -q --basetemp .pytest-basetemp-rm154-full
+python -m mypy
+python -m ruff check .
+python -m ruff format . --check
+python -m scripts.check_repository_secrets
+python -m pip_audit --skip-editable
 python -m scripts.audit_ui_inventory --format summary
-python -m scripts.audit_design_system
-python -m scripts.audit_dependency_boundaries
-python -m scripts.check_operator_baseline
-python -m scripts.check_public_api_baseline
-python scripts/smoke_test.py
-python scripts/build_exe.py
-dist/CorterisTenderAI/CorterisTenderAI.exe --smoke-test
+python -m scripts.check_design_system
+python -m bandit -r scripts/rm154_visual_qa -q
+python -m pytest -q tests/test_build_release_contract.py
+powershell -ExecutionPolicy Bypass -File scripts/build_exe.ps1 -SkipTests -SkipInstaller
+python -m pytest -q tests/test_rm153_performance_contract.py tests/test_rm153_theme_epoch.py
+python -m scripts.rm154_visual_qa validate baseline tests/visual/baselines/rm154-v1
 ```
 
 Add the RM-154 visual policy/candidate/compare commands and RM-153 performance command
@@ -107,4 +106,3 @@ merely to obtain green CI.
 If a renderer dependency, font, or runner image changes, comparison blocks before
 pixel evaluation. The change is handled through a new fingerprint plus explicit
 candidate review, not an automatic baseline rewrite.
-

@@ -167,7 +167,7 @@ def test_font_fingerprint_normalizes_json_family_lists() -> None:
         "segoeui.ttf",
         100,
         "a" * 64,
-        ["Segoe UI"],  # type: ignore[arg-type] - deliberate JSON round trip
+        ["Segoe UI"],  # type: ignore[arg-type]  # Deliberate JSON round trip.
     )
 
     assert font.families == ("Segoe UI",)

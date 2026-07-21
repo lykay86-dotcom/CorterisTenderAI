@@ -8,7 +8,8 @@ import json
 import os
 from pathlib import Path
 import re
-import subprocess
+# Used only with fixed git argv and shell disabled.
+import subprocess  # nosec B404
 from typing import Any
 
 from PIL import Image
@@ -53,7 +54,8 @@ def _git_head(root: Path) -> str:
         if re.fullmatch(r"[0-9a-f]{40}", supplied) is None:
             raise VisualWorkflowError("RM154_SOURCE_COMMIT must be a full lowercase SHA")
         return supplied
-    return subprocess.run(
+    # Constant git command; no user-controlled argv.
+    return subprocess.run(  # nosec B603
         ("git", "rev-parse", "HEAD"),
         cwd=root,
         check=True,
