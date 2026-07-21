@@ -297,4 +297,6 @@ def test_only_analyzer_calls_provider_directly() -> None:
     assert "provider.analyze" not in Path("app/tenders/full_analysis.py").read_text(
         encoding="utf-8"
     )
-    assert "provider.analyze" not in Path("app/ui/main_window.py").read_text(encoding="utf-8")
+    assert "provider.analyze" not in Path("app/ui/pages/tender_workspace_page.py").read_text(
+        encoding="utf-8"
+    )

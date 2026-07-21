@@ -46,8 +46,13 @@ def violations(root: Path = ROOT) -> tuple[str, ...]:
     scanned = _python_files((root / "app", root / "scripts", root / "tests"))
     for path in scanned:
         relative = path.relative_to(root).as_posix()
+        source = path.read_text(encoding="utf-8")
         if OLD_MODULE in _imported_modules(path):
             problems.append(f"retired import: {relative}")
+        if path.resolve() != Path(__file__).resolve() and (
+            'Path("app/ui/main_window.py").read_text' in source
+        ):
+            problems.append(f"retired file consumer: {relative}")
 
     for relative in (
         "app/bootstrap.py",
