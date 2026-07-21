@@ -74,5 +74,7 @@ def test_rm154_visual_candidate_is_canonical_bounded_and_not_frozen() -> None:
     assert "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f" in workflow
     assert "retention-days: 14" in workflow
     assert "rm154-visual-candidate-python312" in workflow
+    assert "--artifact-root rm154-visual-artifacts" in workflow
     assert "rm154-v1" not in spec
     assert ".rm154-visual-artifacts" not in spec
+    assert "rm154-visual-artifacts" not in spec

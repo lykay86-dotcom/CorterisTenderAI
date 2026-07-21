@@ -80,14 +80,14 @@ jobs:
           RM154_RENDERER_PROFILE: windows-latest-python312
         run: >-
           python -m scripts.rm154_visual_qa candidate
-          --artifact-root .rm154-visual-artifacts
+          --artifact-root rm154-visual-artifacts
 
       - name: Upload RM-154 visual review bundle
         if: matrix.python-version == '3.12' && always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: rm154-visual-candidate-python312
-          path: .rm154-visual-artifacts
+          path: rm154-visual-artifacts
           if-no-files-found: warn
           retention-days: 14
 
