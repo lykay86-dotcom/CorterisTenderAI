@@ -9,12 +9,15 @@
 - Controlled compatibility retirement: `0679f77`.
 - Permanent ownership and cross-stage guards: `10e21d7`.
 - Stale source-consumer migration: `9a5d49e`.
-- Feature head, PR, merge SHA and exact merge-SHA jobs: pending feature publication.
+- Feature head: `c741ba6a39750436fa34ffc2237bd1c264466745`.
+- Feature PR #118; merge SHA: `63a85b4cff5e2de5b53e4fad6dcfb091371200bf`.
+- Exact merge-SHA Quality Gate: run `29845412052`, Python 3.12 job `88684644919`,
+  Python 3.13 job `88684644939`.
 
 RM-155 closes only `UI-141-017`. It proves the RM-142--RM-154 redesign as one production
-composition and retires only the audited, consumer-free compatibility island. RM-156 is not
-started. RM-155 remains `IN PROGRESS` until the feature merge, exact merge-SHA Quality Gate and
-separate docs-only closeout are complete.
+composition and retires only the audited, consumer-free compatibility island. This separate
+docs-only closeout marks RM-155 `DONE`, closes `UI-141-017`, completes the RM-141--RM-155 redesign
+sequence and activates RM-156 without starting its implementation.
 
 ## Entry gate and audit-first evidence
 
@@ -129,14 +132,25 @@ static build/frozen/RM-155 cross-stage contour passed 11 tests.
 
 ## GitHub publication gate
 
-The feature PR must record its final head, merge SHA, successful Windows Python 3.12/3.13 jobs,
-the Python 3.12 strict RM-154 visual comparison and dependency audit. Only an exact merge-SHA push
-run may authorize the separate docs-only closeout. This section is intentionally pending until
-that evidence exists; local green evidence cannot substitute for it.
+Feature PR #118 on final head `c741ba6a39750436fa34ffc2237bd1c264466745` passed PR-head
+Quality Gate run `29832379070`: Python 3.12 job `88640055860` and Python 3.13 job `88640055889`
+both passed with `2411 passed, 2 warnings`; the Python 3.12 strict visual comparison passed 14/14.
+
+PR #118 merged as `63a85b4cff5e2de5b53e4fad6dcfb091371200bf`. Exact merge-SHA push-run
+`29845412052` confirms that exact `headSha`:
+
+- Python 3.12 job `88684644919`: `2411 passed, 2 warnings in 134.63s`, RM-155 guard passed,
+  strict visual comparison `14/14 PASS`, dependency audit successful;
+- Python 3.13 job `88684644939`: `2411 passed, 2 warnings in 152.39s`, RM-155 guard and dependency
+  audit successful.
+
+Secrets, Ruff check/format, required mypy, offline/migration/import/composition/build smokes and
+all required steps succeeded on both versions. The only annotations are non-blocking official
+Actions Node.js 20/24 migration notices.
 
 ## Rollback and residuals
 
-Rollback is a revert of the future feature merge. The old wrapper, exact-class re-exports,
+Rollback is a revert of feature merge `63a85b4cff5e2de5b53e4fad6dcfb091371200bf`. The old wrapper, exact-class re-exports,
 same-object page aliases, bootstrap fallbacks and three-line search shim can be restored without a
 second business owner or any data downgrade. No database, settings or user-data rollback is
 required. Retained compatibility is enumerated in `RM-155_COMPATIBILITY_INVENTORY.md` with owner

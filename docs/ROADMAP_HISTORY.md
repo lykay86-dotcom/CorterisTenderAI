@@ -1,5 +1,37 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-21 — RM-155 завершён, RM-156 активирован
+
+- Audit-first package committed before cleanup and classified 32 compatibility candidates:
+  9 `REMOVE`, 2 `MIGRATE`, 21 `KEEP`, 0 `DEPRECATE`, 0 `BLOCKED`. Every item records exact
+  runtime/import/test/history/settings/frozen/public consumers, replacement, owner and rollback.
+- Controlled retirement removed only obsolete `app.ui.main_window` and its re-exports, the
+  same-object `quotes_page`/`estimates_page` aliases, their bootstrap fallbacks and the unused
+  compatibility search shim. One `ModernMainWindow`, typed router and canonical tender/workflow
+  pages remain; no duplicate production owner was introduced.
+- J01–J16 and RM-142–RM-154 cross-stage gates pass. Retained residuals are the supported route,
+  settings, action/object-name, public/data migration, identity/table, accessibility, performance
+  and visual contracts listed in the inventory; there are no deprecated or blocked residuals.
+- Locally: final full pytest `2411 passed, 2 warnings in 207.24s`, neighboring RM-127–154 contour
+  `840 passed`; Ruff/format (`794 files`), required mypy, secret/offline/migration/composition/
+  build/dependency guards pass. RM-107 decision integrity contour passed 37 tests.
+- Fresh 20-sample RM-153 p95 guards and 25-cycle resource budgets pass. A controlled same-session
+  A/B measured exact baseline shutdown p95 13.507 ms and feature 8.696 ms, confirming no cleanup
+  regression without relaxing the 12 ms guard.
+- Actual one-file EXE is 83,683,131 bytes, SHA-256
+  `044B35A3D8D73132A603073FBB0F8456010950B19CB5696C2EFBB8D7BC41F7A0`; all nine isolated frozen
+  checks pass. RM-152 native evidence remains truthful at `0 PASS`, `4 BLOCKED`, `29 NOT_EXECUTED`.
+- Feature PR #118 head `c741ba6a39750436fa34ffc2237bd1c264466745` merged as
+  `63a85b4cff5e2de5b53e4fad6dcfb091371200bf`. PR-head run `29832379070` passed jobs
+  `88640055860`/`88640055889`.
+- Exact merge-SHA run `29845412052` confirmed that exact head: Python 3.12 job `88684644919`
+  (`2411 passed`, strict visual 14/14 `PASS`) and Python 3.13 job `88684644939` (`2411 passed`);
+  dependency audit and every required step succeeded on both versions.
+- No dependency, DB/schema/settings migration, telemetry, persistent cache or decision authority
+  changed. Rollback is revert of the feature merge without DB/data/settings downgrade.
+  `UI-141-017` and the RM-141–RM-155 redesign sequence are closed. RM-155 is `DONE`; RM-156 is the
+  sole `IN PROGRESS` stage, while RM-157–RM-200 remain `PLANNED`.
+
 ## 2026-07-21 — RM-154 завершён, RM-155 активирован
 
 - Audit/state inventory/renderer decision/contract/expected-red/plan packages establish a single
