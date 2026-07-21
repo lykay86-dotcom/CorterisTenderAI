@@ -1,5 +1,39 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-21 — RM-154 завершён, RM-155 активирован
+
+- Audit/state inventory/renderer decision/contract/expected-red/plan packages establish a single
+  deterministic visual QA path without a second shell/router/theme/chart/table/dialog/business
+  owner. Expected red was `6 failed, 3 passed`, with all six missing boundaries intended.
+- The accepted catalog contains 14 normalized PNGs across seven representative dark/light pairs.
+  Canonical renderer fingerprint is
+  `f1cd92373456028fd9360b3a032ef9b8d5784dc90d00abad4080d404db0dba56`; strict RGB comparison
+  has zero tolerance and no masks. Three-repeat stability and deliberate token/layout regression
+  detection pass.
+- Candidate creation and baseline import are separated: canonical update requires explicit phrase,
+  reviewer and reason. Synthetic fixtures read no network, keyring, production DB, user settings,
+  live AI or real tender data; privacy/path/hash/size/package guards pass. Artifact retention is 14
+  days through pinned official upload-artifact v6.
+- Locally: focused `30 passed in 40.44s`, full pytest
+  `2378 passed, 2 warnings in 199.01s`, RM-153 guards `9 passed in 13.20s`; secret scan,
+  design/UI audits, Ruff/format (`788 files`), required mypy, RM-154 Bandit contour and dependency
+  audit pass. Real one-file EXE SHA-256 is
+  `46c199c7b9792e2d4686e709c419135cf475983e7108dc420967897e2565db92`; all nine frozen self-test
+  checks pass.
+- RM-152 native evidence remains truthful at `0 PASS`, `4 BLOCKED`, `29 NOT_EXECUTED`; offscreen
+  goldens do not certify native Windows/DPI behavior.
+- Feature PR #116 on head `109f084aaf84cd907b849d17635bb7cfad1d97ab` merged as
+  `40f0e327d0d485b93e93f39bab1d838e584b8914`.
+- Final PR-head Quality Gate `29822184296` passed: Python 3.12 job `88607135547`, Python 3.13 job
+  `88607135493`. Exact merge-SHA run `29823579968` confirmed that exact head: Python 3.12 job
+  `88611629793` (`2378 passed`, strict visual 14/14 `PASS`) and Python 3.13 job `88611629760`
+  (`2378 passed`); dependency audit and every required step are successful.
+- The only CI annotations are non-blocking official-actions Node.js 20/24 migration notices.
+  DB/schema/migration, production dependencies, RM-107 score/recommendation/critical stop-factor
+  priority and RM-152/RM-153 guards are unchanged. Rollback is the feature merge revert without
+  DB/data/settings downgrade. RM-154 is `DONE`; RM-155 is the sole `IN PROGRESS` stage, while
+  RM-156–RM-200 remain `PLANNED`.
+
 ## 2026-07-21 — RM-153 завершён, RM-154 активирован
 
 - Audit/contract/plan, characterization, expected-red and deterministic benchmark evidence cover
