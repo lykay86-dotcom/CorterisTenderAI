@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from app.repositories.business_metrics import BusinessRecordKind
 from app.ui.dashboard.quick_actions import DEFAULT_QUICK_ACTIONS
-from app.ui.main_window import TenderWorkspacePage
+from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 from app.ui.widgets.dashboard_layout import DashboardLayout
 
 

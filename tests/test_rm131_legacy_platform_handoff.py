@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.config.user_settings import PlatformConnection, UserPreferences, UserSettingsStore
-from app.ui.main_window import (
+from app.ui.pages.tender_workspace_page import (
     LEGACY_PLATFORM_COMPATIBILITY_NOTICE,
     LEGACY_PLATFORM_PROVIDER_ACTION_TEXT,
 )
@@ -36,7 +36,7 @@ def test_legacy_platform_store_remains_separate_and_byte_semantics_are_preserved
 
 
 def test_legacy_ui_does_not_construct_collector_settings_owners() -> None:
-    source = Path("app/ui/main_window.py").read_text(encoding="utf-8")
+    source = Path("app/ui/pages/tender_workspace_page.py").read_text(encoding="utf-8")
 
     assert "CollectorProviderManager(" not in source
     assert "ProviderEnablementRepository(" not in source

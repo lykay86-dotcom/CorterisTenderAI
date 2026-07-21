@@ -59,8 +59,6 @@ def _classify(module: str) -> str:
         return "COMPATIBILITY_ONLY"
     if module == "app.ui.modern_main_window":
         return "PRODUCTION_ROOT"
-    if module == "app.ui.main_window":
-        return "COMPATIBILITY_ONLY"
     if module == "app.ui.pages.tender_workspace_page":
         return "PRODUCTION_PAGE"
     if module in {

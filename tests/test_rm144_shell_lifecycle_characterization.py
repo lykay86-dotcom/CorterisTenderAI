@@ -11,7 +11,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget
 
 from app.repositories.business_metrics import BusinessMetricsRepository
-from app.ui.main_window import MainWindow, TenderWorkspacePage as LegacyTenderWorkspacePage
 from app.ui.pages.business_workflow_page import BusinessWorkflowPage
 from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 from tests.test_rm127_modern_main_window_composition import _window as _rm127_window
@@ -30,25 +29,20 @@ def _window(monkeypatch):
     return _rm127_window(monkeypatch)
 
 
-def test_tender_public_exports_are_one_class_and_wrapper_owns_one_page(monkeypatch) -> None:
+def test_canonical_tender_page_is_directly_constructible(monkeypatch) -> None:
     app = _app()
     _isolate_page_dependencies(monkeypatch)
+    page = TenderWorkspacePage()
 
-    assert LegacyTenderWorkspacePage is TenderWorkspacePage
+    assert page.__class__ is TenderWorkspacePage
+    assert page.findChildren(QMainWindow) == []
 
-    window = MainWindow()
-    assert isinstance(window, QMainWindow)
-    assert type(window.workspace_page) is TenderWorkspacePage
-    assert window.centralWidget() is window.workspace_page
-    assert window.findChildren(QMainWindow) == []
-    assert window.workspace_page.statusBar() is window.statusBar()
-
-    window.close()
-    window.deleteLater()
+    page.close()
+    page.deleteLater()
     app.processEvents()
 
 
-def test_shell_keeps_one_stack_and_compatible_workflow_entry_points(monkeypatch) -> None:
+def test_shell_keeps_one_stack_and_one_workflow_entry_point(monkeypatch) -> None:
     app = _app()
     window = _window(monkeypatch)
 
@@ -57,10 +51,10 @@ def test_shell_keeps_one_stack_and_compatible_workflow_entry_points(monkeypatch)
         QStackedWidget,
         options=Qt.FindChildOption.FindDirectChildrenOnly,
     ) == [window.workspace.pages]
-    assert isinstance(window.quotes_page, BusinessWorkflowPage)
-    assert isinstance(window.estimates_page, BusinessWorkflowPage)
-    assert window.quotes_page.repository is window.business_repository
-    assert window.estimates_page.repository is window.business_repository
+    assert isinstance(window.workflow_page, BusinessWorkflowPage)
+    assert window.workflow_page.repository is window.business_repository
+    assert not hasattr(window, "quotes_page")
+    assert not hasattr(window, "estimates_page")
     assert window.tender_workspace_page.statusBar() is window.statusBar()
 
     window.close()

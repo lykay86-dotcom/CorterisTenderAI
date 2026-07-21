@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QStatusBar
 
 from app.core.ai.provider_selection import AiProviderSelectionService
-from app.ui.main_window import (
+from app.ui.pages.tender_workspace_page import (
     LEGACY_PLATFORM_CREDENTIAL_NOTICE,
     TenderWorkspacePage,
 )
@@ -30,7 +30,7 @@ def _app() -> QApplication:
 
 
 def test_legacy_source_has_no_arbitrary_keyring_crud() -> None:
-    source = Path("app/ui/main_window.py").read_text(encoding="utf-8")
+    source = Path("app/ui/pages/tender_workspace_page.py").read_text(encoding="utf-8")
 
     assert "from app.security.secrets" not in source
     assert 'save_secret(f"platform:' not in source

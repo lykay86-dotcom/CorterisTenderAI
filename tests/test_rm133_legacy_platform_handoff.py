@@ -7,7 +7,7 @@ import json
 from app.config.user_settings import PlatformConnection, UserPreferences, UserSettingsStore
 from app.tenders.collector.manual_provider_registration import ManualProviderDraft
 from app.tenders.collector.provider_control import CollectorProviderManager
-from app.ui.main_window import (
+from app.ui.pages.tender_workspace_page import (
     LEGACY_PLATFORM_COMPATIBILITY_NOTICE,
     LEGACY_PLATFORM_CREDENTIAL_NOTICE,
     LEGACY_PLATFORM_PROVIDER_ACTION_TEXT,

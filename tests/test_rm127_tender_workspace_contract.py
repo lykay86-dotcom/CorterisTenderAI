@@ -8,10 +8,9 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QApplication, QMainWindow, QStatusBar
+from PySide6.QtWidgets import QApplication, QStatusBar
 
 from app.config.user_settings import UserPreferences
-from app.ui.main_window import MainWindow
 from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 
 
@@ -134,7 +133,7 @@ def test_workspace_exposes_stable_ordered_tab_contract(monkeypatch) -> None:
     assert page.select_section("not-a-section") is False
 
 
-def test_workspace_open_tender_and_search_compatibility_are_bounded(monkeypatch) -> None:
+def test_workspace_open_tender_is_bounded(monkeypatch) -> None:
     _app()
     page = _page(monkeypatch)
 
@@ -142,11 +141,6 @@ def test_workspace_open_tender_and_search_compatibility_are_bounded(monkeypatch)
     assert page.current_id == "tender-7"
     assert page.table.currentRow() == 0
 
-    page.tabs.setCurrentIndex(TOP_LEVEL_KEYS.index("analysis"))
-    page.apply_compatibility_search_text("  камеры  ")
-
-    assert page.catalog_query.text() == "камеры"
-    assert page.tabs.currentIndex() == TOP_LEVEL_KEYS.index("analysis")
     assert page.open_tender("missing") is False
 
 
@@ -164,20 +158,3 @@ def test_workspace_reuses_action_identity_and_binding_is_idempotent(monkeypatch)
     assert page.actions()[0] is action
     assert action.objectName() == "actionTenderSearchProfiles"
     assert action.shortcut().toString() == "Ctrl+Shift+F"
-
-
-def test_legacy_main_window_is_a_thin_single_page_wrapper(monkeypatch) -> None:
-    app = _app()
-    _isolate_page_dependencies(monkeypatch)
-    window = MainWindow()
-
-    assert isinstance(window, QMainWindow)
-    assert isinstance(window.workspace_page, TenderWorkspacePage)
-    assert window.centralWidget() is window.workspace_page
-    assert window.findChildren(TenderWorkspacePage) == [window.workspace_page]
-    assert window.workspace_page.findChildren(QMainWindow) == []
-    assert window.table is window.workspace_page.table
-
-    window.close()
-    window.deleteLater()
-    app.processEvents()
