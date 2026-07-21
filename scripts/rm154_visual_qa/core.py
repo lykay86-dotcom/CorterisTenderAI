@@ -66,6 +66,47 @@ def pixel_sha256(png: bytes) -> str:
     return sha256(payload).hexdigest()
 
 
+def visual_diff_pngs(expected_png: bytes, actual_png: bytes) -> tuple[bytes, bytes]:
+    """Build deterministic absolute-diff and red-overlay review images."""
+
+    expected_bytes = normalize_png_bytes(expected_png)
+    actual_bytes = normalize_png_bytes(actual_png)
+    with Image.open(BytesIO(expected_bytes)) as expected_image:
+        expected_image.load()
+        expected = expected_image.copy()
+    with Image.open(BytesIO(actual_bytes)) as actual_image:
+        actual_image.load()
+        actual = actual_image.copy()
+    if expected.size != actual.size:
+        raise ValueError("diff images require equal dimensions")
+
+    expected_raw = expected.tobytes()
+    actual_raw = actual.tobytes()
+    diff_raw = bytearray(len(expected_raw))
+    overlay_raw = bytearray(actual_raw)
+    for index in range(0, len(expected_raw), 3):
+        d0 = abs(expected_raw[index] - actual_raw[index])
+        d1 = abs(expected_raw[index + 1] - actual_raw[index + 1])
+        d2 = abs(expected_raw[index + 2] - actual_raw[index + 2])
+        diff_raw[index] = min(255, d0 * 4)
+        diff_raw[index + 1] = min(255, d1 * 4)
+        diff_raw[index + 2] = min(255, d2 * 4)
+        if d0 or d1 or d2:
+            overlay_raw[index] = 255
+            overlay_raw[index + 1] //= 3
+            overlay_raw[index + 2] //= 3
+
+    diff = Image.frombytes("RGB", expected.size, bytes(diff_raw))
+    overlay = Image.frombytes("RGB", expected.size, bytes(overlay_raw))
+    return _encode_rgb_png(diff), _encode_rgb_png(overlay)
+
+
+def _encode_rgb_png(image: Image.Image) -> bytes:
+    output = BytesIO()
+    image.save(output, format="PNG", optimize=False, compress_level=9)
+    return normalize_png_bytes(output.getvalue())
+
+
 def compare_rgb_png(
     case_id: str,
     expected_png: bytes,

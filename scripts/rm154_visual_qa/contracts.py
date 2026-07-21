@@ -124,12 +124,40 @@ class VisualResult:
 
 
 @dataclass(frozen=True, slots=True)
+class FontFingerprint:
+    file_name: str
+    byte_size: int
+    sha256: str
+    families: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.file_name or PathToken.is_unsafe(self.file_name):
+            raise ValueError("font fingerprint must contain a safe filename")
+        if self.byte_size <= 0:
+            raise ValueError("font byte_size must be positive")
+        if re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None:
+            raise ValueError("font sha256 must be lowercase hexadecimal")
+        if not self.families or any(not family.strip() for family in self.families):
+            raise ValueError("font families must not be empty")
+
+
+class PathToken:
+    """Tiny pure helper that keeps committed fingerprint values path-free."""
+
+    @staticmethod
+    def is_unsafe(value: str) -> bool:
+        return "/" in value or "\\" in value or value in {".", ".."}
+
+
+@dataclass(frozen=True, slots=True)
 class RendererFingerprint:
     """Sanitized renderer facts that are safe to commit."""
 
     profile_id: str
     platform: str
     platform_release: str
+    platform_version: str
+    ci_image: str
     python: str
     pyside: str
     qt: str
@@ -141,7 +169,7 @@ class RendererFingerprint:
     logical_dpi: float
     device_pixel_ratio: float
     color_depth: int
-    font_hashes: tuple[tuple[str, str], ...]
+    fonts: tuple[FontFingerprint, ...]
     icon_manifest_sha256: str
     design_system_version: str
     schema_version: str = FINGERPRINT_SCHEMA_VERSION

@@ -11,6 +11,9 @@ __pycache__/
 .pytest_cache/
 .pytest_tmp*/
 .pytest_tmp*
+.pytest-basetemp*/
+.rm154-visual-artifacts/
+.rm154-local-candidate/
 .mypy_cache/
 .ruff_cache/
 .worktrees/

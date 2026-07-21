@@ -11,6 +11,7 @@ import pytest
 
 from scripts.rm154_visual_qa.contracts import (
     STRICT_RGB_V1,
+    FontFingerprint,
     OutcomeReason,
     RendererFingerprint,
     VisualCase,
@@ -37,6 +38,8 @@ def _fingerprint() -> RendererFingerprint:
         profile_id="windows-latest-python312-qt6111",
         platform="Windows",
         platform_release="2022Server",
+        platform_version="10.0.20348",
+        ci_image="windows-2022",
         python="3.12.7",
         pyside="6.11.1",
         qt="6.11.1",
@@ -48,7 +51,7 @@ def _fingerprint() -> RendererFingerprint:
         logical_dpi=96.0,
         device_pixel_ratio=1.0,
         color_depth=32,
-        font_hashes=(("segoeui.ttf", "a" * 64),),
+        fonts=(FontFingerprint("segoeui.ttf", 100, "a" * 64, ("Segoe UI",)),),
         icon_manifest_sha256="b" * 64,
         design_system_version="corteris-design-v1",
     )
