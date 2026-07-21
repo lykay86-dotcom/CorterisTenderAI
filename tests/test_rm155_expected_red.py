@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 from pathlib import Path
 
@@ -26,7 +27,13 @@ def test_repository_consumers_import_the_canonical_tender_page() -> None:
     for path in sorted((ROOT / "tests").glob("test_*.py")):
         if path.name == Path(__file__).name:
             continue
-        if "app.ui.main_window" in path.read_text(encoding="utf-8"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        modules = {
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module is not None
+        }
+        if "app.ui.main_window" in modules:
             obsolete.append(path.name)
     assert obsolete == []
 

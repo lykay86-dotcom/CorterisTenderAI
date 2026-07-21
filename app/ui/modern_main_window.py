@@ -127,11 +127,6 @@ class ModernMainWindow(QMainWindow):
 
         self._configure_dashboard_tab_order()
 
-        # RM-127/RM-142 compatibility names intentionally reference the same
-        # canonical object. RM-155 owns their eventual retirement.
-        self.quotes_page = self.workflow_page
-        self.estimates_page = self.workflow_page
-
         self._register_navigation_destinations()
 
         self._connect_actions()

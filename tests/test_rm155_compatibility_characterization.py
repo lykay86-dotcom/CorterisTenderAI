@@ -6,7 +6,6 @@ import inspect
 from pathlib import Path
 
 from app.bootstrap import _find_support_bundle_provider
-from app.ui.main_window import MainWindow, TenderWorkspacePage as LegacyTenderWorkspacePage
 from app.ui.navigation import DEFAULT_ROUTE_REGISTRY, RouteId
 from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 
@@ -19,24 +18,20 @@ class _SupportPage:
         return target
 
 
-def test_old_tender_import_is_an_exact_class_alias_and_wrapper_only() -> None:
-    assert LegacyTenderWorkspacePage is TenderWorkspacePage
-    source = inspect.getsource(MainWindow)
-    assert "TenderWorkspacePage(" in source
-    assert "BusinessMetricsRepository" not in source
-    assert "TenderSearchUiController" not in source
+def test_canonical_tender_page_is_the_only_page_implementation() -> None:
+    source = inspect.getsource(TenderWorkspacePage)
+    assert TenderWorkspacePage.__module__ == "app.ui.pages.tender_workspace_page"
+    assert "class TenderWorkspacePage" in source
+    assert not (ROOT / "app" / "ui" / "main_window.py").exists()
 
 
 def test_support_bundle_lookup_prefers_the_canonical_workflow_page() -> None:
     canonical = _SupportPage()
-    fallback = _SupportPage()
     window = type(
         "Window",
         (),
         {
             "workflow_page": canonical,
-            "quotes_page": fallback,
-            "estimates_page": fallback,
         },
     )()
 
@@ -46,10 +41,10 @@ def test_support_bundle_lookup_prefers_the_canonical_workflow_page() -> None:
     assert provider.__self__ is canonical
 
 
-def test_temporary_workflow_aliases_are_same_object_assignments() -> None:
+def test_temporary_workflow_aliases_are_retired() -> None:
     source = (ROOT / "app" / "ui" / "modern_main_window.py").read_text(encoding="utf-8")
-    assert "self.quotes_page = self.workflow_page" in source
-    assert "self.estimates_page = self.workflow_page" in source
+    assert "quotes_page" not in source
+    assert "estimates_page" not in source
 
 
 def test_retained_route_aliases_have_exact_safe_dispositions() -> None:

@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import inspect
 
-from app.ui.main_window import MainWindow, TenderWorkspacePage as LegacyTenderWorkspacePage
 from app.ui.pages.tender_workspace_page import TenderWorkspacePage
 
 
 def test_canonical_page_module_owns_the_single_implementation() -> None:
     assert TenderWorkspacePage.__module__ == "app.ui.pages.tender_workspace_page"
-    assert LegacyTenderWorkspacePage is TenderWorkspacePage
     assert "class TenderWorkspacePage" in inspect.getsource(
         __import__(
             "app.ui.pages.tender_workspace_page",
@@ -19,9 +17,7 @@ def test_canonical_page_module_owns_the_single_implementation() -> None:
     )
 
 
-def test_legacy_main_window_is_only_a_compatibility_wrapper() -> None:
-    module_source = inspect.getsource(__import__("app.ui.main_window", fromlist=["MainWindow"]))
+def test_legacy_main_window_module_is_retired() -> None:
+    from pathlib import Path
 
-    assert "class TenderWorkspacePage" not in module_source
-    assert MainWindow.__module__ == "app.ui.main_window"
-    assert LegacyTenderWorkspacePage is TenderWorkspacePage
+    assert not Path("app/ui/main_window.py").exists()

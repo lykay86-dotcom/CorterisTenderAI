@@ -306,10 +306,6 @@ class TenderWorkspacePage(QWidget):
             return True
         return False
 
-    def apply_compatibility_search_text(self, query: str) -> None:
-        """Populate only the existing price/equipment catalog query."""
-        self.catalog_query.setText(str(query).strip())
-
     def install_unified_search_panel(self, panel: QWidget) -> None:
         """Mount the single controller-owned panel above the existing tabs."""
         if self._unified_search_panel is panel:

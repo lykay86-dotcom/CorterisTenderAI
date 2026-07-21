@@ -167,19 +167,19 @@ def test_dashboard_actions_and_back_preserve_workflow_intent(monkeypatch) -> Non
     window.dashboard_page.create_proposal_requested.emit()
     assert window.workspace.current_snapshot is not None
     assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW_PROPOSALS
-    assert window.workspace.pages.currentWidget() is window.quotes_page
-    assert window.quotes_page.kind_filter.currentData() == "proposal"
+    assert window.workspace.pages.currentWidget() is window.workflow_page
+    assert window.workflow_page.kind_filter.currentData() == "proposal"
 
-    window.quotes_page.search_edit.setText("камера")
+    window.workflow_page.search_edit.setText("камера")
     window.dashboard_page.find_tenders_requested.emit()
     assert window.workspace.current_snapshot.route_id is RouteId.TENDERS
 
     returned = window.workspace.back()
     assert returned.status is NavigationStatus.NAVIGATED
     assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW_PROPOSALS
-    assert window.quotes_page.search_edit.text() == "камера"
+    assert window.workflow_page.search_edit.text() == "камера"
 
-    window.quotes_page.apply_navigation_state(
+    window.workflow_page.apply_navigation_state(
         WorkflowNavigationState(kind="proposal", record_id=None)
     )
     window._navigate(
@@ -187,17 +187,17 @@ def test_dashboard_actions_and_back_preserve_workflow_intent(monkeypatch) -> Non
         cause=NavigationCause.PROGRAMMATIC,
         context=RouteContext(workflow_search="изменённый фильтр"),
     )
-    assert window.quotes_page.search_edit.text() == "изменённый фильтр"
+    assert window.workflow_page.search_edit.text() == "изменённый фильтр"
 
     returned = window.workspace.back()
     assert returned.status is NavigationStatus.NAVIGATED
-    assert window.quotes_page.search_edit.text() == ""
-    assert window.quotes_page.selected_record is None
+    assert window.workflow_page.search_edit.text() == ""
+    assert window.workflow_page.selected_record is None
 
     window.dashboard_page.create_estimate_requested.emit()
     assert window.workspace.current_snapshot.route_id is RouteId.WORKFLOW_ESTIMATES
-    assert window.workspace.pages.currentWidget() is window.estimates_page
-    assert window.estimates_page.kind_filter.currentData() == "estimate"
+    assert window.workspace.pages.currentWidget() is window.workflow_page
+    assert window.workflow_page.kind_filter.currentData() == "estimate"
 
     window.close()
     window.deleteLater()

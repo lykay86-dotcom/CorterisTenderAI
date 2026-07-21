@@ -45,8 +45,8 @@ def test_production_shell_constructs_one_workflow_owner(monkeypatch) -> None:
     app = _app()
     window = _window(monkeypatch)
 
-    assert window.workflow_page is window.quotes_page
-    assert window.workflow_page is window.estimates_page
+    assert not hasattr(window, "quotes_page")
+    assert not hasattr(window, "estimates_page")
     assert window.findChildren(BusinessWorkflowPage) == [window.workflow_page]
     assert window.findChildren(SystemHealthMonitor) == [window.workflow_page.system_health_monitor]
     assert tuple(window.workspace._page_index) == (
