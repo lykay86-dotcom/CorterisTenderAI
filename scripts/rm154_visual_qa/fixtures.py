@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable
 from unittest.mock import patch
 
+from PySide6.QtCore import QDate
 from PySide6.QtWidgets import QApplication, QWidget
 
 from app.config.user_settings import UserPreferences
@@ -70,6 +71,23 @@ class _MemorySettings:
         self._values[key] = value
 
 
+class _FixedWorkflowDateTime(datetime):
+    """Drop-in module clock fixed for workflow presentation labels."""
+
+    @classmethod
+    def now(cls, tz: object = None) -> _FixedWorkflowDateTime:
+        value = cls(2026, 7, 21, 9, 0, 0, tzinfo=APP_TIMEZONE)
+        if tz is None:
+            return value.replace(tzinfo=None)
+        return value.astimezone(tz)  # type: ignore[arg-type, return-value]
+
+
+class _FixedAnalyticsQDate:
+    @staticmethod
+    def currentDate() -> QDate:  # noqa: N802 - Qt API parity
+        return QDate(2026, 7, 21)
+
+
 @dataclass(slots=True)
 class BuiltVisual:
     widget: QWidget
@@ -95,6 +113,10 @@ def _shell(runtime_root: Path) -> tuple[ModernMainWindow, ExitStack]:
             ),
         )
     )
+    stack.enter_context(
+        patch("app.ui.pages.business_workflow_page.datetime", _FixedWorkflowDateTime)
+    )
+    stack.enter_context(patch("app.ui.pages.tender_analytics_page.QDate", _FixedAnalyticsQDate))
     stack.enter_context(
         patch("app.ui.pages.tender_workspace_page.TenderRepository", _TenderRepository)
     )

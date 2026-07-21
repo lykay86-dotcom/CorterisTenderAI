@@ -9,11 +9,13 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PIL import Image
+from PySide6.QtCore import QDate
 from PySide6.QtWidgets import QApplication
 
 from scripts.rm154_visual_qa.catalog import VISUAL_CASES, case_by_id
 from scripts.rm154_visual_qa.core import normalized_png_sha256, privacy_findings
 from scripts.rm154_visual_qa.environment import register_and_fingerprint_fonts
+from scripts.rm154_visual_qa.fixtures import build_visual
 from scripts.rm154_visual_qa.renderer import capture_case
 
 
@@ -79,3 +81,27 @@ def test_critical_dialog_capture_uses_only_synthetic_values(tmp_path: Path) -> N
 
     assert capture.png.startswith(b"\x89PNG\r\n\x1a\n")
     assert not privacy_findings((case.case_id, case.fixture_id, capture.renderer.profile_id))
+
+
+def test_shell_fixture_freezes_workflow_minute_and_analytics_dates(tmp_path: Path) -> None:
+    app = _app()
+    workflow = build_visual(
+        case_by_id("shell.workflow.empty.dark.canonical"),
+        tmp_path / "workflow",
+    )
+    try:
+        window = workflow.widget
+        assert window.workflow_page.updated_label.text().endswith("09:00")  # type: ignore[attr-defined]
+    finally:
+        workflow.dispose(app)
+
+    analytics = build_visual(
+        case_by_id("shell.analytics.empty.dark.canonical"),
+        tmp_path / "analytics",
+    )
+    try:
+        page = analytics.widget.analytics_page  # type: ignore[attr-defined]
+        assert page.start_date.date() == QDate(2026, 6, 21)
+        assert page.end_date.date() == QDate(2026, 7, 21)
+    finally:
+        analytics.dispose(app)

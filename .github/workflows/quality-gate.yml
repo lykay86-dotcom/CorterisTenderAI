@@ -78,6 +78,7 @@ jobs:
         if: matrix.python-version == '3.12'
         env:
           RM154_RENDERER_PROFILE: windows-latest-python312
+          RM154_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: >-
           python -m scripts.rm154_visual_qa candidate
           --artifact-root rm154-visual-artifacts

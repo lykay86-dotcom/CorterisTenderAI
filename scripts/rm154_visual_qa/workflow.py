@@ -47,6 +47,11 @@ def _canonical_json_bytes(payload: dict[str, Any]) -> bytes:
 
 
 def _git_head(root: Path) -> str:
+    supplied = os.environ.get("RM154_SOURCE_COMMIT", "")
+    if supplied:
+        if re.fullmatch(r"[0-9a-f]{40}", supplied) is None:
+            raise VisualWorkflowError("RM154_SOURCE_COMMIT must be a full lowercase SHA")
+        return supplied
     return subprocess.run(
         ("git", "rev-parse", "HEAD"),
         cwd=root,
