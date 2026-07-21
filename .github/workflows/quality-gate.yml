@@ -74,5 +74,22 @@ jobs:
       - name: Full test suite
         run: python -m pytest -q
 
+      - name: RM-154 canonical visual candidate
+        if: matrix.python-version == '3.12'
+        env:
+          RM154_RENDERER_PROFILE: windows-latest-python312
+        run: >-
+          python -m scripts.rm154_visual_qa candidate
+          --artifact-root .rm154-visual-artifacts
+
+      - name: Upload RM-154 visual review bundle
+        if: matrix.python-version == '3.12' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rm154-visual-candidate-python312
+          path: .rm154-visual-artifacts
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Audit installed dependencies
         run: python -m pip_audit --skip-editable

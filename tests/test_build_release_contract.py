@@ -62,3 +62,17 @@ def test_runtime_requirements_include_certifi() -> None:
     assert "certifi>=2024.8" in requirements
     assert "pyinstaller>=6.11,<7" in build_requirements
     assert "pytest>=8,<10" in build_requirements
+
+
+def test_rm154_visual_candidate_is_canonical_bounded_and_not_frozen() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "quality-gate.yml").read_text(encoding="utf-8")
+    spec = (ROOT / "installer" / "corteris_tender_ai.spec").read_text(encoding="utf-8")
+
+    assert "if: matrix.python-version == '3.12'" in workflow
+    assert "RM154_RENDERER_PROFILE: windows-latest-python312" in workflow
+    assert "python -m scripts.rm154_visual_qa candidate" in workflow
+    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in workflow
+    assert "retention-days: 14" in workflow
+    assert "rm154-visual-candidate-python312" in workflow
+    assert "rm154-v1" not in spec
+    assert ".rm154-visual-artifacts" not in spec
