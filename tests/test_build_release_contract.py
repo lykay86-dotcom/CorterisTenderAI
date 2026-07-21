@@ -64,7 +64,7 @@ def test_runtime_requirements_include_certifi() -> None:
     assert "pytest>=8,<10" in build_requirements
 
 
-def test_rm154_visual_candidate_is_canonical_bounded_and_not_frozen() -> None:
+def test_rm154_visual_gate_is_canonical_reviewable_bounded_and_not_frozen() -> None:
     workflow = (ROOT / ".github" / "workflows" / "quality-gate.yml").read_text(encoding="utf-8")
     spec = (ROOT / "installer" / "corteris_tender_ai.spec").read_text(encoding="utf-8")
 
@@ -73,10 +73,13 @@ def test_rm154_visual_candidate_is_canonical_bounded_and_not_frozen() -> None:
     assert (
         "RM154_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}" in workflow
     )
+    assert "rm154_visual_mode:" in workflow
+    assert "python -m scripts.rm154_visual_qa compare" in workflow
     assert "python -m scripts.rm154_visual_qa candidate" in workflow
     assert "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f" in workflow
     assert "retention-days: 14" in workflow
     assert "rm154-visual-candidate-python312" in workflow
+    assert "rm154-visual-diagnostics-python312" in workflow
     assert "--artifact-root rm154-visual-artifacts" in workflow
     assert "rm154-v1" not in spec
     assert ".rm154-visual-artifacts" not in spec

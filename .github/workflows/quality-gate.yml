@@ -6,6 +6,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      rm154_visual_mode:
+        description: RM-154 visual action for the canonical Python 3.12 leg
+        required: true
+        default: compare
+        type: choice
+        options:
+          - compare
+          - candidate
 
 permissions:
   contents: read
@@ -74,8 +83,18 @@ jobs:
       - name: Full test suite
         run: python -m pytest -q
 
+      - name: RM-154 canonical visual comparison
+        id: rm154_visual_compare
+        if: matrix.python-version == '3.12' && inputs.rm154_visual_mode != 'candidate'
+        env:
+          RM154_RENDERER_PROFILE: windows-latest-python312
+        run: >-
+          python -m scripts.rm154_visual_qa compare
+          --artifact-root rm154-visual-artifacts
+
       - name: RM-154 canonical visual candidate
-        if: matrix.python-version == '3.12'
+        id: rm154_visual_candidate
+        if: matrix.python-version == '3.12' && inputs.rm154_visual_mode == 'candidate'
         env:
           RM154_RENDERER_PROFILE: windows-latest-python312
           RM154_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -84,10 +103,25 @@ jobs:
           --artifact-root rm154-visual-artifacts
 
       - name: Upload RM-154 visual review bundle
-        if: matrix.python-version == '3.12' && always()
+        if: >-
+          matrix.python-version == '3.12' &&
+          inputs.rm154_visual_mode == 'candidate' &&
+          always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: rm154-visual-candidate-python312
+          path: rm154-visual-artifacts
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload RM-154 visual failure diagnostics
+        if: >-
+          matrix.python-version == '3.12' &&
+          steps.rm154_visual_compare.outcome == 'failure' &&
+          always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: rm154-visual-diagnostics-python312
           path: rm154-visual-artifacts
           if-no-files-found: warn
           retention-days: 14

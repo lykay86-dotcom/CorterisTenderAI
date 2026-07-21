@@ -19,6 +19,7 @@ from .workflow import (  # noqa: E402
     validate_baseline,
     validate_candidate,
 )
+from .environment import RendererEnvironmentError  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -77,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
                 reviewer=args.reviewer,
                 reason=args.reason,
             )
-    except (OSError, ValueError, VisualWorkflowError) as exc:
+    except (OSError, ValueError, RendererEnvironmentError, VisualWorkflowError) as exc:
         print(json.dumps({"outcome": "BLOCKED_OR_FAILED", "detail": str(exc)}, ensure_ascii=False))
         return 2
     print(

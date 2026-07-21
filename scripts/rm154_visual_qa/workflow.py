@@ -12,6 +12,7 @@ import subprocess
 from typing import Any
 
 from PIL import Image
+from PySide6.QtWidgets import QApplication
 
 from .catalog import VISUAL_CASES
 from .contracts import FontFingerprint, RendererFingerprint, VisualCase, VisualOutcome
@@ -340,6 +341,9 @@ def validate_baseline(baseline_root: Path) -> dict[str, Any]:
 def compare_baseline(*, root: Path, baseline_root: Path, artifact_root: Path) -> dict[str, Any]:
     baseline = validate_baseline(baseline_root)
     expected_renderer = _renderer_from_data(baseline["renderer"])
+    app = QApplication.instance() or QApplication([])
+    if app is None:  # pragma: no cover - Qt constructor either returns or raises
+        raise VisualWorkflowError("QApplication initialization failed")
     actual_renderer = collect_renderer_fingerprint(root)
     environment = assess_environment(
         "renderer.profile.dark.canonical", expected_renderer, actual_renderer
