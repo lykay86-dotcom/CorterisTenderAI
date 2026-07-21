@@ -167,7 +167,15 @@ def _renderer_from_data(payload: dict[str, Any]) -> RendererFingerprint:
     fonts = data.get("fonts")
     if not isinstance(fonts, list):
         raise VisualWorkflowError("renderer fonts must be a list")
-    data["fonts"] = tuple(FontFingerprint(**font) for font in fonts)
+    data["fonts"] = tuple(
+        FontFingerprint(
+            file_name=str(font["file_name"]),
+            byte_size=int(font["byte_size"]),
+            sha256=str(font["sha256"]),
+            families=tuple(str(family) for family in font["families"]),
+        )
+        for font in fonts
+    )
     try:
         return RendererFingerprint(**data)
     except (TypeError, ValueError) as exc:

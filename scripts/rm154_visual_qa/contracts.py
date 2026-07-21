@@ -131,6 +131,7 @@ class FontFingerprint:
     families: tuple[str, ...]
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "families", tuple(self.families))
         if not self.file_name or PathToken.is_unsafe(self.file_name):
             raise ValueError("font fingerprint must contain a safe filename")
         if self.byte_size <= 0:

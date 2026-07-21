@@ -160,3 +160,14 @@ def test_fingerprint_is_stable_and_sanitized() -> None:
     assert fingerprint.canonical_bytes().endswith(b"\n")
     assert len(fingerprint.sha256) == 64
     assert b"PrivateUser" not in fingerprint.canonical_bytes()
+
+
+def test_font_fingerprint_normalizes_json_family_lists() -> None:
+    font = FontFingerprint(
+        "segoeui.ttf",
+        100,
+        "a" * 64,
+        ["Segoe UI"],  # type: ignore[arg-type] - deliberate JSON round trip
+    )
+
+    assert font.families == ("Segoe UI",)
