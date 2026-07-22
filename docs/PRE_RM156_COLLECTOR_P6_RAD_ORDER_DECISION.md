@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `DECIDED LOCALLY`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`; PR #131 и exact merge-SHA Quality Gate успешны.
 
 ## 1. Основание
 
@@ -85,3 +85,14 @@ Fail-fast reproduction подтвердил общий `tmp_path` root cause; и
 Warnings — неизменные `openpyxl` extension/conditional-formatting notices в
 `test_rm132_legacy_credentials_handoff`; новых warnings нет. Dependency inventory не менялся.
 PR-head и exact merge-SHA Windows Quality Gate остаются обязательными до принятия решения.
+
+## 6. Publication acceptance
+
+- PR #131 head `c4df48df5bfbc4fc1d2dc55a8fedd5fd6ff66803`;
+- PR-head Quality Gate `29963756719`: jobs `89070568520` (Python 3.12) и `89070568448`
+  (Python 3.13) успешны;
+- merge commit `4e5adfec20d7ad95ac2fe4decd005b0041e60909`;
+- exact merge-SHA Quality Gate `29964235838`: jobs `89072056995` (Python 3.12) и
+  `89072057051` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный Rad access-audit worktree.

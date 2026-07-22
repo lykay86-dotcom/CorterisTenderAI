@@ -111,7 +111,13 @@
   `29961900274`; обе matrix jobs и dependency audit успешны. Docs-only решением первые два P6
   sources сохраняются blocked, а `rad` назначается следующим последовательным access-audit target
   без contract/readiness claim. Отдельный Rad audit начинается только после merge/exact этого
-  решения.
+  решения. Решение принято PR #131: head `c4df48df5bfbc4fc1d2dc55a8fedd5fd6ff66803`, PR-head
+  run `29963756719`, merge `4e5adfec20d7ad95ac2fe4decd005b0041e60909`, exact run
+  `29964235838`; обе matrix jobs и dependency audit успешны. Последующий Rad audit подтвердил
+  official public procurement sections/cards, но действующее agreement прямо требует письменного
+  разрешения для scripts/automation/collection и запрещает automated extraction/copying.
+  Procurement API/feed/schema/rate/retention contract и approved fixtures не найдены; `rad`
+  остаётся `BLOCKED_EXTERNAL`, guessed implementation запрещена.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

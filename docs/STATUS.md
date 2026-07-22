@@ -120,5 +120,15 @@ dependency audit успешны.
 Docs-only решением `zakaz_rf` и `roseltorg` сохраняются в позициях 1–2 P6 со статусом
 `BLOCKED_EXTERNAL`, а `rad` назначается только следующим последовательным access-audit target.
 Это не working/access claim Rad: его сеть, endpoints, fixtures и код этим package не исследуются.
-Следующее действие после merge/exact этого решения — отдельный official read-only Rad audit.
+Решение принято PR #131: head `c4df48df5bfbc4fc1d2dc55a8fedd5fd6ff66803`, PR-head run
+`29963756719`, merge `4e5adfec20d7ad95ac2fe4decd005b0041e60909`, exact run
+`29964235838`; обе matrix jobs и dependency audit успешны.
+
+Отдельный Rad read-only audit подтвердил official 44-ФЗ/615/223-ФЗ sections and public cards, но
+действующее пользовательское соглашение прямо запрещает без письменного разрешения scripts для
+access, collection and interaction, а также автоматическое извлечение/копирование информации.
+Public procurement API/feed, schema/version/rate/raw-retention contract и approved fixtures не
+найдены. `rad` честно `BLOCKED_EXTERNAL`; adapter/fixture/live verification не создаются. Текущее
+действие — письменный external unblock либо отдельное docs-only решение о следующем P6 source
+`tek_torg`.
 Production RM-156, RM-157 и RM-158 не начинать.
