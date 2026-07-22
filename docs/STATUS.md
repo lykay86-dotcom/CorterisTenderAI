@@ -1,10 +1,10 @@
 # Текущее состояние CorterisTenderAI
 
-Обновлено: 21 июля 2026 года.
+Обновлено: 22 июля 2026 года.
 
 ## Активный этап
 
-**RM-156 — модель контрагента**
+**RM-156 — модель контрагента (production-реализация приостановлена)**
 
 Статус: `IN PROGRESS`
 
@@ -15,9 +15,17 @@ run `29845412052`. Этот отдельный docs-only closeout перевод
 `UI-141-017` и завершает последовательность полного редизайна RM-141–RM-155. RM-156 —
 единственный активный этап; RM-157–RM-200 остаются `PLANNED` и не выполняются параллельно.
 
-RM-156 должен начаться отдельным audit-first пакетом по модели контрагента. Нельзя переносить в
-него удалённые compatibility entry points, создавать второй shell/router/business owner или
-менять RM-107 score/recommendation/critical stop-factor priority.
+Решением владельца от 22 июля 2026 года до production-реализации модели контрагента выполняется
+обязательный Collector prerequisite по многоплощадочному сбору. Это prerequisite RM-156, а не
+новый или параллельный RM: RM-156 остаётся единственным каноническим `IN PROGRESS`, а
+RM-157–RM-200 остаются `PLANNED`. Полный scope и package gates зафиксированы в
+[`PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md`](PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md).
+
+До merge отдельного docs-only P0 разрешены только read-only аудит, исследование публичной
+документации, подготовка ТЗ и offline fixtures без секретов. После merge P0 Collector выполняется
+последовательными audit-first пакетами; production-код модели контрагента, RM-157 и RM-158 не
+начинаются до отдельного Collector closeout. Closeout должен вернуть RM-156 в production work;
+только затем продолжается модель контрагента и последующие RM в исходной нумерации.
 
 ## Завершённый этап
 
@@ -63,6 +71,7 @@ RM-156 должен начаться отдельным audit-first пакето
 
 ## Текущее действие
 
-Начать RM-156 отдельным audit-first пакетом после merge этого docs-only closeout. Не начинать
-production implementation RM-156 без аудита и не начинать RM-157+ до выполнения RM-156
-Definition of Done и следующего отдельного канонического closeout.
+Подготовить и слить отдельный docs-only P0, фиксирующий Collector prerequisite. До его merge не
+изменять application-код Collector. После merge начать отдельный P1 audit/contract/plan пакет и
+не переходить к expected-red или implementation до фиксации результатов аудита. Не начинать
+production-реализацию модели контрагента, RM-157 или RM-158 до отдельного Collector closeout.
