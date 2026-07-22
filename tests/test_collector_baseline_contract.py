@@ -50,8 +50,8 @@ def test_baseline_distinguishes_real_eis_from_placeholders() -> None:
 
     assert baseline.provider_ids[:3] == (
         "eis",
-        "sber_a",
-        "rts_tender",
+        "mos_supplier",
+        "zakaz_rf",
     )
     assert baseline.implemented_provider_ids == ("eis",)
     assert "b2b_center" in baseline.placeholder_provider_ids

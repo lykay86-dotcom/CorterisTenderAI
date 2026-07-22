@@ -54,6 +54,6 @@ def test_v5_ftps_migrates_in_memory_to_implicit_and_first_write_backs_up(tmp_pat
     assert path.read_bytes() == original
 
     repository.set_enabled("eis", False)
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 6
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 7
     backups = tuple(tmp_path.glob("collector_provider_settings.json.v5-*.bak"))
     assert len(backups) == 1 and backups[0].read_bytes() == original

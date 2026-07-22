@@ -41,14 +41,17 @@ def test_static_built_in_catalog_is_unchanged() -> None:
     assert tuple(item.id for item in canonical_provider_definitions()) == (
         "eis",
         "mos_supplier",
-        "b2b_center",
-        "gazprombank",
-        "fabrikant",
+        "zakaz_rf",
+        "roseltorg",
+        "rad",
         "tek_torg",
+        "ets_nep",
+        "sber_a",
+        "rts_tender",
+        "gazprombank",
+        "b2b_center",
+        "fabrikant",
         "otc",
-        "sber_commercial",
-        "rts_commercial",
-        "roseltorg_commercial",
     )
 
 

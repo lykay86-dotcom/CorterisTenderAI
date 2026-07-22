@@ -10,6 +10,7 @@ from app.tenders.collector.async_http import (
     AsyncRetryPolicy,
 )
 from app.tenders.collector.health_monitor import ProviderHealthPolicy
+from app.tenders.collector.provider_identity import canonicalize_known_provider_id
 from app.tenders.collector.rate_limiter import RateLimitPolicy
 
 
@@ -37,8 +38,12 @@ class CollectorNetworkSettings:
         normalized = provider_id.strip().casefold()
         try:
             return self.providers[normalized]
-        except KeyError as exc:
-            raise KeyError(f"Network settings are not defined for {provider_id}") from exc
+        except KeyError:
+            canonical = canonicalize_known_provider_id(normalized)
+            try:
+                return self.providers[canonical]
+            except KeyError as exc:
+                raise KeyError(f"Network settings are not defined for {provider_id}") from exc
 
     @property
     def domain_rate_limits(self) -> dict[str, RateLimitPolicy]:
@@ -135,6 +140,30 @@ def default_collector_network_settings() -> CollectorNetworkSettings:
                 unavailable_threshold=8,
             ),
         ),
+        "zakaz_rf": ProviderNetworkSettings(
+            provider_id="zakaz_rf",
+            domains=("zakazrf.ru", "www.zakazrf.ru"),
+            timeouts=generic_timeouts,
+            retry=generic_retry,
+            rate_limit=generic_rate,
+            health=generic_health,
+        ),
+        "roseltorg": ProviderNetworkSettings(
+            provider_id="roseltorg",
+            domains=("roseltorg.ru", "www.roseltorg.ru"),
+            timeouts=generic_timeouts,
+            retry=generic_retry,
+            rate_limit=generic_rate,
+            health=generic_health,
+        ),
+        "rad": ProviderNetworkSettings(
+            provider_id="rad",
+            domains=("lot-online.ru", "www.lot-online.ru"),
+            timeouts=generic_timeouts,
+            retry=generic_retry,
+            rate_limit=generic_rate,
+            health=generic_health,
+        ),
         "b2b_center": ProviderNetworkSettings(
             provider_id="b2b_center",
             domains=("b2b-center.ru", "www.b2b-center.ru"),
@@ -167,6 +196,14 @@ def default_collector_network_settings() -> CollectorNetworkSettings:
             rate_limit=generic_rate,
             health=generic_health,
         ),
+        "ets_nep": ProviderNetworkSettings(
+            provider_id="ets_nep",
+            domains=("etp-ets.ru", "www.etp-ets.ru", "44.fabrikant.ru"),
+            timeouts=generic_timeouts,
+            retry=generic_retry,
+            rate_limit=generic_rate,
+            health=generic_health,
+        ),
         "otc": ProviderNetworkSettings(
             provider_id="otc",
             domains=("otc.ru", "www.otc.ru"),
@@ -175,25 +212,17 @@ def default_collector_network_settings() -> CollectorNetworkSettings:
             rate_limit=generic_rate,
             health=generic_health,
         ),
-        "sber_commercial": ProviderNetworkSettings(
-            provider_id="sber_commercial",
+        "sber_a": ProviderNetworkSettings(
+            provider_id="sber_a",
             domains=("sberbank-ast.ru", "www.sberbank-ast.ru"),
             timeouts=generic_timeouts,
             retry=generic_retry,
             rate_limit=generic_rate,
             health=generic_health,
         ),
-        "rts_commercial": ProviderNetworkSettings(
-            provider_id="rts_commercial",
+        "rts_tender": ProviderNetworkSettings(
+            provider_id="rts_tender",
             domains=("rts-tender.ru", "www.rts-tender.ru"),
-            timeouts=generic_timeouts,
-            retry=generic_retry,
-            rate_limit=generic_rate,
-            health=generic_health,
-        ),
-        "roseltorg_commercial": ProviderNetworkSettings(
-            provider_id="roseltorg_commercial",
-            domains=("roseltorg.ru", "www.roseltorg.ru"),
             timeouts=generic_timeouts,
             retry=generic_retry,
             rate_limit=generic_rate,

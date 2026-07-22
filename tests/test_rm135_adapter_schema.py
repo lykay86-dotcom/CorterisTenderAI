@@ -94,7 +94,7 @@ def test_v4_loads_without_guessing_then_first_adapter_save_creates_v4_backup(tmp
     )
     repository.replace_manual_provider_if_current(configured, expected_updated_at=NOW)
 
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 6
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 7
     backups = tuple(tmp_path.glob("collector_provider_settings.json.v4-*.bak"))
     assert len(backups) == 1
     assert backups[0].read_bytes() == original

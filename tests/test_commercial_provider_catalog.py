@@ -15,14 +15,17 @@ def test_default_catalog_contains_all_planned_commercial_sources() -> None:
     definitions = default_commercial_provider_definitions()
 
     assert [item.provider_id for item in definitions] == [
-        "b2b_center",
-        "gazprombank",
-        "fabrikant",
+        "zakaz_rf",
+        "roseltorg",
+        "rad",
         "tek_torg",
+        "ets_nep",
+        "sber_a",
+        "rts_tender",
+        "gazprombank",
+        "b2b_center",
+        "fabrikant",
         "otc",
-        "sber_commercial",
-        "rts_commercial",
-        "roseltorg_commercial",
     ]
     assert all(not item.descriptor.enabled_by_default for item in definitions)
     assert all(
@@ -34,7 +37,7 @@ def test_catalog_is_disabled_by_default_and_never_claims_working() -> None:
     catalog = create_commercial_provider_catalog(environment={})
     resolved = catalog.resolve_all()
 
-    assert len(resolved) == 8
+    assert len(resolved) == 11
     assert all(item.state == CommercialProviderState.DISABLED for item in resolved)
     assert all(not item.is_working for item in resolved)
 

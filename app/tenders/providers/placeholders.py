@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Sequence
 
 from app.tenders.models import (
     TenderDocument,
-    TenderSource,
     UnifiedTender,
 )
 from app.tenders.provider_base import (
-    ProviderCapabilities,
     ProviderCapabilityError,
     ProviderDescriptor,
     ProviderHealth,
@@ -79,127 +78,22 @@ class PlaceholderTenderProvider(TenderProvider):
 
 
 def create_builtin_providers() -> tuple[TenderProvider, ...]:
-    """Return the initial provider catalog in default priority order."""
+    """Project the canonical catalog into the legacy synchronous registry."""
+
+    # Imported lazily because the canonical async catalog imports this provider class.
+    from app.tenders.collector.provider_definitions import canonical_provider_definitions
 
     return tuple(
-        PlaceholderTenderProvider(descriptor)
-        for descriptor in (
-            ProviderDescriptor(
-                id="eis",
-                display_name="ЕИС Закупки",
-                source=TenderSource.EIS,
-                homepage_url="https://zakupki.gov.ru/",
-                capabilities=ProviderCapabilities(
-                    search=True,
-                    tender_details=True,
-                    documents=True,
-                    authentication=False,
-                    public_api=True,
-                    incremental_updates=True,
-                    rate_limit_per_minute=60,
-                ),
-                priority=10,
-            ),
-            ProviderDescriptor(
-                id="sber_a",
-                display_name="Сбер А",
-                source=TenderSource.SBER_A,
-                homepage_url="https://www.sberbank-ast.ru/",
-                capabilities=ProviderCapabilities(
-                    search=True,
-                    tender_details=True,
-                    documents=True,
-                    authentication=True,
-                    public_api=False,
-                ),
-                priority=20,
-            ),
-            ProviderDescriptor(
-                id="rts_tender",
-                display_name="РТС-тендер",
-                source=TenderSource.RTS_TENDER,
-                homepage_url="https://www.rts-tender.ru/",
-                capabilities=ProviderCapabilities(
-                    search=True,
-                    tender_details=True,
-                    documents=True,
-                    authentication=True,
-                    public_api=False,
-                ),
-                priority=30,
-            ),
-            ProviderDescriptor(
-                id="roseltorg",
-                display_name="Росэлторг",
-                source=TenderSource.ROSELTORG,
-                homepage_url="https://www.roseltorg.ru/",
-                capabilities=ProviderCapabilities(
-                    search=True,
-                    tender_details=True,
-                    documents=True,
-                    authentication=True,
-                    public_api=False,
-                ),
-                priority=40,
-            ),
-            ProviderDescriptor(
-                id="b2b_center",
-                display_name="B2B-Center",
-                source=TenderSource.B2B_CENTER,
-                homepage_url="https://www.b2b-center.ru/",
-                capabilities=ProviderCapabilities(
-                    search=True,
-                    tender_details=True,
-                    documents=True,
-                    authentication=True,
-                    public_api=False,
-                ),
-                priority=50,
-            ),
-            ProviderDescriptor(
-                id="tek_torg",
-                display_name="ТЭК-Торг",
-                source=TenderSource.TEK_TORG,
-                homepage_url="https://www.tektorg.ru/",
-                capabilities=ProviderCapabilities(
-                    search=True,
-                    tender_details=True,
-                    documents=True,
-                    authentication=True,
-                    public_api=False,
-                ),
-                priority=60,
-            ),
-            ProviderDescriptor(
-                id="gazprombank",
-                display_name="ЭТП Газпромбанка",
-                source=TenderSource.GAZPROMBANK,
-                homepage_url="https://etpgpb.ru/",
-                capabilities=ProviderCapabilities(
-                    search=True,
-                    tender_details=True,
-                    documents=True,
-                    authentication=True,
-                    public_api=False,
-                ),
-                priority=70,
-            ),
-            ProviderDescriptor(
-                id="commercial",
-                display_name="Коммерческие закупки",
-                source=TenderSource.COMMERCIAL,
-                homepage_url="https://example.invalid/",
-                capabilities=ProviderCapabilities(
-                    search=False,
-                    tender_details=False,
-                    documents=False,
-                    authentication=False,
-                    public_api=False,
-                ),
+        PlaceholderTenderProvider(
+            descriptor
+            if descriptor.id == "eis"
+            else replace(
+                descriptor,
                 enabled_by_default=False,
-                priority=100,
-            ),
+                implementation_status="placeholder",
+            )
         )
+        for descriptor in canonical_provider_definitions()
     )
 
 

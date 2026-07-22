@@ -103,11 +103,11 @@ def test_manager_resolves_profile_and_scheduler_aliases_without_file_rewrite(tmp
     profile_path = tmp_path / "search_profiles.json"
     schedule_path = tmp_path / "collector_schedule.json"
     profile_path.write_text(
-        json.dumps({"schema_version": 2, "profiles": [{"provider_ids": ["sber_a"]}]}),
+        json.dumps({"schema_version": 2, "profiles": [{"provider_ids": ["sber_commercial"]}]}),
         encoding="utf-8",
     )
     schedule_path.write_text(
-        json.dumps({"schema_version": 1, "settings": {"provider_ids": ["sber_a"]}}),
+        json.dumps({"schema_version": 1, "settings": {"provider_ids": ["sber_commercial"]}}),
         encoding="utf-8",
     )
     original_profile = profile_path.read_bytes()
@@ -115,8 +115,8 @@ def test_manager_resolves_profile_and_scheduler_aliases_without_file_rewrite(tmp
     manager = CollectorProviderManager(tmp_path, environment={})
     manager.set_enabled("sber_commercial", True)
 
-    assert manager.resolve_provider_ids(("sber_a", "eis")) == (
-        "sber_commercial",
+    assert manager.resolve_provider_ids(("sber_commercial", "eis")) == (
+        "sber_a",
         "eis",
     )
     assert profile_path.read_bytes() == original_profile
@@ -130,16 +130,16 @@ def test_unified_resolver_returns_canonical_id_for_profile_alias(tmp_path) -> No
         id="legacy-alias",
         name="Legacy alias",
         keywords=("оборудование",),
-        provider_ids=("sber_a",),
+        provider_ids=("sber_commercial",),
     )
 
     resolved = resolve_unified_tender_search(
         UnifiedTenderSearchRequest(
             profile_id=profile.id,
-            provider_ids=("sber_a",),
+            provider_ids=("sber_commercial",),
         ),
         profiles=(profile,),
         provider_states=manager.states(),
     )
 
-    assert resolved.provider_ids == ("sber_commercial",)
+    assert resolved.provider_ids == ("sber_a",)

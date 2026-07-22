@@ -18,15 +18,20 @@ def test_default_registry_contains_expected_platforms() -> None:
 
     assert [descriptor.id for descriptor in registry.descriptors()] == [
         "eis",
+        "mos_supplier",
+        "zakaz_rf",
+        "roseltorg",
+        "rad",
+        "tek_torg",
+        "ets_nep",
         "sber_a",
         "rts_tender",
-        "roseltorg",
-        "b2b_center",
-        "tek_torg",
         "gazprombank",
-        "commercial",
+        "b2b_center",
+        "fabrikant",
+        "otc",
     ]
-    assert not registry.is_enabled("commercial")
+    assert not registry.is_enabled("mos_supplier")
     assert registry.is_enabled("eis")
     assert registry.validate_unique_sources() == {}
 

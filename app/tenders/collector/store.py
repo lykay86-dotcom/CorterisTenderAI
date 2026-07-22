@@ -29,6 +29,11 @@ from app.tenders.collector.participation_score import (
     CorterisParticipationScore,
     ParticipationRecommendation,
 )
+from app.tenders.collector.provider_identity import (
+    canonicalize_known_provider_id,
+    canonicalize_provider_ids,
+    provider_storage_ids,
+)
 from app.tenders.collector.search_errors import safe_search_error_fields
 from app.tenders.collector.freshness import (
     DeadlineTimezoneStatus,
@@ -555,9 +560,10 @@ class CollectorStateRepository:
             raise ValueError("limit must be between 1 and 1000")
         if not self.path.is_file():
             return ()
-        normalized = provider_id.strip().casefold() if provider_id is not None else ""
-        where = "WHERE p.provider_id = ?" if normalized else ""
-        parameters: tuple[object, ...] = (normalized, limit) if normalized else (limit,)
+        storage_ids = provider_storage_ids(provider_id) if provider_id is not None else ()
+        placeholders = ", ".join("?" for _ in storage_ids)
+        where = f"WHERE p.provider_id IN ({placeholders})" if storage_ids else ""
+        parameters: tuple[object, ...] = (*storage_ids, limit)
         try:
             with self._lock, self._connect_readonly() as connection:
                 rows = connection.execute(
@@ -587,7 +593,7 @@ class CollectorStateRepository:
             result.append(
                 ProviderRunOutcomeRecord(
                     run_id=str(row["run_id"]),
-                    provider_id=str(row["provider_id"]).strip().casefold(),
+                    provider_id=canonicalize_known_provider_id(row["provider_id"]),
                     status=str(row["status"]),
                     completed_at=str(row["completed_at"]),
                     error_code=safe_code,
@@ -3117,7 +3123,7 @@ def _row_to_run(row: sqlite3.Row) -> CollectionRunRecord:
         started_at=str(row["started_at"]),
         completed_at=str(row["completed_at"]),
         query_json=str(row["query_json"]),
-        requested_provider_ids=tuple(str(item) for item in providers),
+        requested_provider_ids=canonicalize_provider_ids(providers),
         raw_count=int(row["raw_count"]),
         merged_count=int(row["merged_count"]),
         duplicate_count=int(row["duplicate_count"]),

@@ -59,4 +59,4 @@ def test_factory_can_return_disabled_sources_for_ui(
     assert "eis" in ids
     assert "mos_supplier" in ids
     assert "b2b_center" in ids
-    assert len(ids) == 10
+    assert len(ids) == 13

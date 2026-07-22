@@ -28,27 +28,39 @@ def test_descriptor_registry_uses_only_existing_canonical_names() -> None:
 
     assert tuple(item.provider_id for item in descriptors) == (
         "mos_supplier",
-        "b2b_center",
-        "gazprombank",
-        "fabrikant",
+        "zakaz_rf",
+        "roseltorg",
+        "rad",
         "tek_torg",
+        "ets_nep",
+        "sber_a",
+        "rts_tender",
+        "gazprombank",
+        "b2b_center",
+        "fabrikant",
         "otc",
-        "sber_commercial",
-        "rts_commercial",
-        "roseltorg_commercial",
     )
     assert {item.secret_name for item in descriptors} == {"api_key"}
     assert len({item.keyring_name for item in descriptors}) == len(descriptors)
     assert len({item.environment_variable for item in descriptors}) == len(descriptors)
-    assert all(item.keyring_name == f"collector.{item.provider_id}.api_key" for item in descriptors)
+    legacy_accounts = {
+        "sber_a": "sber_commercial",
+        "rts_tender": "rts_commercial",
+        "roseltorg": "roseltorg_commercial",
+    }
+    assert all(
+        item.keyring_name
+        == f"collector.{legacy_accounts.get(item.provider_id, item.provider_id)}.api_key"
+        for item in descriptors
+    )
 
 
 @pytest.mark.parametrize(
     ("alias", "canonical"),
     [
-        ("sber_a", "sber_commercial"),
-        ("rts_tender", "rts_commercial"),
-        ("roseltorg", "roseltorg_commercial"),
+        ("sber_commercial", "sber_a"),
+        ("rts_commercial", "rts_tender"),
+        ("roseltorg_commercial", "roseltorg"),
     ],
 )
 def test_only_audited_aliases_resolve(alias: str, canonical: str) -> None:
