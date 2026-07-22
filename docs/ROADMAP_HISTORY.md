@@ -1,5 +1,23 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — Collector P6 Rad access audit принят и слит
+
+- Третий P6 provider package выполнен от exact order-decision merge
+  `4e5adfec20d7ad95ac2fe4decd005b0041e60909` и ограничен official read-only
+  access/legal/contract audit. Application/test code, schema, dependencies, settings,
+  credentials, fixtures и live calls не менялись.
+- Official public procurement sections/cards подтверждены, но operator agreement требует
+  письменного разрешения для scripts/access/collection и запрещает automated extraction/copying.
+  Procurement API/feed/schema/rate/retention contract и approved fixtures не найдены; `rad`
+  честно принят как `BLOCKED_EXTERNAL`, disabled/not configured.
+- Локально: focused `15 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
+  mypy, secret scan и `git diff --check` успешны.
+- PR #132 head `6ca84f2f523dce6f853cfb919420d6e36caca06e`; PR-head run `29965371309` успешен
+  (jobs `89075592391`/`89075592367`). Merge commit
+  `38fe2d75f80beb544e9b5a7a2d18462963c4f232`; exact merge-SHA run `29965734080` успешен
+  (jobs `89076696779`/`89076696809`), включая dependency audit. Только после этого подготовлено
+  отдельное docs-only решение о следующем P6 access-audit target `tek_torg`.
+
 ## 2026-07-23 — P6 docs-only переход к Rad принят
 
 - ZakazRF и Roseltorg сохранены в позициях 1–2 P6 со статусом `BLOCKED_EXTERNAL`; Rad назначен

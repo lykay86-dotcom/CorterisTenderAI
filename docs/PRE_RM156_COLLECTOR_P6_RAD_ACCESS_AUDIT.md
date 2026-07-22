@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `BLOCKED_EXTERNAL`; application implementation запрещена Definition of Ready.
+Статус: `ACCEPTED / BLOCKED_EXTERNAL`; application implementation запрещена Definition of Ready.
 
 ## 1. Entry gate
 
@@ -83,3 +83,16 @@ Tests used fresh command-scoped `--basetemp` paths because the host's old global
 has a previously diagnosed ACL defect; repository files and test thresholds were not changed.
 Warnings — неизменные `openpyxl` notices; dependencies не менялись. PR-head и exact merge-SHA
 Windows Quality Gate обязательны до принятия audit package.
+
+## 7. Publication acceptance
+
+- PR #132 head `6ca84f2f523dce6f853cfb919420d6e36caca06e`;
+- PR-head Quality Gate `29965371309`: jobs `89075592391` (Python 3.12) и `89075592367`
+  (Python 3.13) успешны;
+- merge commit `38fe2d75f80beb544e9b5a7a2d18462963c4f232`;
+- exact merge-SHA Quality Gate `29965734080`: jobs `89076696779` (Python 3.12) и
+  `89076696809` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный docs-only worktree решения о следующем P6
+access-audit target. `BLOCKED_EXTERNAL` и written-permission requirement сохраняются без
+ослабления.

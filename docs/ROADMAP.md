@@ -117,7 +117,12 @@
   official public procurement sections/cards, но действующее agreement прямо требует письменного
   разрешения для scripts/automation/collection и запрещает automated extraction/copying.
   Procurement API/feed/schema/rate/retention contract и approved fixtures не найдены; `rad`
-  остаётся `BLOCKED_EXTERNAL`, guessed implementation запрещена.
+  остаётся `BLOCKED_EXTERNAL`, guessed implementation запрещена. Audit принят PR #132: head
+  `6ca84f2f523dce6f853cfb919420d6e36caca06e`, PR-head run `29965371309`, merge
+  `38fe2d75f80beb544e9b5a7a2d18462963c4f232`, exact run `29965734080`; обе matrix jobs и
+  dependency audit успешны. Docs-only решением первые три P6 sources сохраняются blocked, а
+  `tek_torg` назначается следующим последовательным access-audit target без contract/readiness
+  claim. Отдельный TekTorg audit начинается только после merge/exact этого решения.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
