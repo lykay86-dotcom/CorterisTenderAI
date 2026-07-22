@@ -87,6 +87,11 @@
   public errors приняты. Full suite `2458 passed`; exact-data 10k/resource gate зелёный. EIS и Mos
   остаются `IMPLEMENTED_OFFLINE` до разрешённой live verification; серверная пагинация Mos не
   подтверждена. После exact success начат отдельный identity/catalog P5 audit-first package.
+  P5 локально реализован commit `62e6962`: exact 13 identities, settings schema 7, Collector DB
+  schema 16 и read-compatible aliases без новых adapters/endpoints/live calls. Full suite
+  `2467 passed`; локальные Ruff/format, mypy, secret и обязательные smoke gates успешны. P5 остаётся
+  непринятым до PR-head и exact merge-SHA Quality Gate на Python 3.12/3.13 с dependency audit;
+  P6 до этого не начинается.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

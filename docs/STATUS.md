@@ -87,7 +87,10 @@ RM-158 не начинаются до
 
 ## Текущее действие
 
-В отдельном P5 worktree провести audit существующих provider identity/catalog/alias/readiness
-owners, зафиксировать test-first contract и только затем реализовать минимальный package. Не
-смешивать P5 с provider adapters P6+ и не начинать production-реализацию модели контрагента,
-RM-157 или RM-158 до Collector closeout.
+P5 identity/catalog package реализован и полностью проверен локально: exact 13 canonical IDs,
+settings schema 7, Collector DB schema 16, audited alias/read-model compatibility и inert catalog
+projections. Full suite: `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret,
+offline/migration/composition/build/RM-155 gates успешны. Следующее действие — опубликовать
+выделенную P5 ветку и получить успешные PR-head и exact merge-SHA Quality Gate на Python
+3.12/3.13, включая dependency audit. До этого P5 не принят; P6, production RM-156, RM-157 и RM-158
+не начинать.

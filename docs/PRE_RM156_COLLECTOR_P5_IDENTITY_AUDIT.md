@@ -2,7 +2,7 @@
 
 Дата: 22 июля 2026 года.
 
-Статус: `AUDIT COMPLETE`; application changes не начаты.
+Статус: `IMPLEMENTED LOCALLY`; publication и exact merge-SHA Quality Gate ожидаются.
 
 ## 1. Entry gate и scope
 
@@ -87,3 +87,39 @@ Baseline identity/settings/catalog/schema contour на exact P4 merge: `27 passe
 удаление alias registry запрещены. Verified schema-15 backup может быть восстановлен только явной
 операцией при подтверждённом отсутствии новых schema-16 данных. Settings v6 backup сохраняется;
 profile/schedule, keyring, artifacts, accepted pages и historical rows rollback не удаляет.
+
+## 6. Реализация и локальная валидация
+
+- Test-first commit: `83d048d`; ожидаемый baseline — `9 failed in 8.86s`, все failures относились
+  к P5 contract, без import/setup/network ошибок.
+- Implementation commit: `62e6962`.
+- Один низкоуровневый identity contract задаёт exact 13 IDs и три audited aliases. Existing
+  canonical definitions, async factory, legacy sync registry, commercial/manual catalogs,
+  settings, network и credentials используют его без второго catalog owner.
+- `ProviderEnablementRepository` мигрирует schema 6 → 7 только при mutation: canonical key имеет
+  priority, byte-exact v6 backup сохраняется. Commercial schema-1 settings читают legacy alias как
+  canonical ID.
+- Collector schema 15 → 16 создаёт verified backup и alias registry. Historical rows остаются
+  byte/logically неизменными; run/outcome read models и canonical filter разрешают только audited
+  aliases, unknown ID не угадывается.
+- Новые `zakaz_rf`, `rad`, `ets_nep` и остальные non-reference identities disabled/not configured;
+  adapters, API endpoints, fixtures и live calls в P5 не добавлены. Legacy keyring/env account
+  names Sber/RTS/Roseltorg сохранены.
+
+Точные локальные результаты на Python 3.12:
+
+- P5 contract: `9 passed in 8.48s`;
+- расширенный identity/settings/schema regression: `65 passed in 22.74s`;
+- полный suite на финальном P5 HEAD: `2467 passed, 2 warnings in 251.10s`;
+- Ruff: `All checks passed`; format: `804 files already formatted`;
+- mypy: `Success: no issues found in 20 source files`;
+- secret scan и RM-155 compatibility guard: passed;
+- offline credential isolation: `2 passed in 21.61s`;
+- legacy DB migration smoke: `5 passed in 13.13s`;
+- headless composition smoke: `1 passed in 0.63s`;
+- release/frozen smoke: `9 passed in 14.17s`;
+- public API import smoke: `DashboardController`.
+
+Dependency inventory не менялся. Dependency audit, Python 3.13 matrix и exact merge-SHA gate
+остаются обязательными серверными проверками. До их успеха P5 не считается принятым и P6 не
+начинается.
