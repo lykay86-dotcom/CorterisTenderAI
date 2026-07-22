@@ -21,11 +21,13 @@ run `29845412052`. Этот отдельный docs-only closeout перевод
 RM-157–RM-200 остаются `PLANNED`. Полный scope и package gates зафиксированы в
 [`PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md`](PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md).
 
-До merge отдельного docs-only P0 разрешены только read-only аудит, исследование публичной
-документации, подготовка ТЗ и offline fixtures без секретов. После merge P0 Collector выполняется
-последовательными audit-first пакетами; production-код модели контрагента, RM-157 и RM-158 не
-начинаются до отдельного Collector closeout. Closeout должен вернуть RM-156 в production work;
-только затем продолжается модель контрагента и последующие RM в исходной нумерации.
+Docs-only P0 слит PR #121 merge commit
+`c20bed32492dc80b48748c79a87da73107533ddd`; exact merge-SHA Quality Gate run `29922814088`
+успешен на Python 3.12/3.13. P1 audit/contract/implementation/rollback package подготовлен в
+отдельной audit branch до expected-red и application changes. Production-код модели контрагента,
+RM-157 и RM-158 не начинаются до отдельного Collector closeout. Closeout должен вернуть RM-156 в
+production work; только затем продолжается модель контрагента и последующие RM в исходной
+нумерации.
 
 ## Завершённый этап
 
@@ -71,7 +73,7 @@ RM-157–RM-200 остаются `PLANNED`. Полный scope и package gates 
 
 ## Текущее действие
 
-Подготовить и слить отдельный docs-only P0, фиксирующий Collector prerequisite. До его merge не
-изменять application-код Collector. После merge начать отдельный P1 audit/contract/plan пакет и
-не переходить к expected-red или implementation до фиксации результатов аудита. Не начинать
-production-реализацию модели контрагента, RM-157 или RM-158 до отдельного Collector closeout.
+Проверить и слить отдельный docs-only P1 audit/contract/implementation/rollback package. После его
+merge и успешного exact merge-SHA Quality Gate начать отдельный P2 expected-red tests-only package.
+Не изменять application-код Collector до фиксации P2 и не начинать production-реализацию модели
+контрагента, RM-157 или RM-158 до отдельного Collector closeout.
