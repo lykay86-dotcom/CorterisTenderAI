@@ -341,8 +341,7 @@ class _SearchLifecycle:
             for item in execution.result.items
             if not is_aggregator_discovery(item)
         )
-        normalized = self.normalizer.normalize_many(raw_items)
-        self.deduplication = self.deduplicator.deduplicate(normalized)
+        self.deduplication = self.deduplicator.normalize_and_deduplicate(raw_items)
 
     async def _publish(
         self,

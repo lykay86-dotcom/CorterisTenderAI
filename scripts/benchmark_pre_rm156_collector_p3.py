@@ -56,8 +56,7 @@ def _raw_items():
 
 def _pipeline(raw_items):
     normalizer = TenderNormalizer()
-    normalized = normalizer.normalize_many(raw_items)
-    return TenderDeduplicator(normalizer).deduplicate(normalized)
+    return TenderDeduplicator(normalizer).normalize_and_deduplicate(raw_items)
 
 
 @dataclass(slots=True)

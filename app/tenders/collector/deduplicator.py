@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date, datetime
-from typing import Iterable
+import gc
+from typing import Iterable, Sequence
 
 from app.tenders.collector.models import (
     DeduplicationGroup,
@@ -44,12 +45,30 @@ _ALIAS_MATCH_LEVEL = {
     TenderAliasType.CONTENT: DeduplicationMatchLevel.CONTENT,
 }
 
+_MAX_GC_PAUSE_ITEMS = 10_000
+
 
 class TenderDeduplicator:
     """Union records sharing any supported identity alias."""
 
     def __init__(self, normalizer: TenderNormalizer | None = None) -> None:
         self.normalizer = normalizer or TenderNormalizer()
+
+    def normalize_and_deduplicate(
+        self,
+        items: Sequence[UnifiedTender],
+    ) -> DeduplicationResult:
+        """Run one audited interactive batch without cyclic-GC timing spikes."""
+
+        pause_gc = len(items) <= _MAX_GC_PAUSE_ITEMS and gc.isenabled()
+        if pause_gc:
+            gc.disable()
+        try:
+            normalized = self.normalizer.normalize_many(items)
+            return self.deduplicate(normalized)
+        finally:
+            if pause_gc:
+                gc.enable()
 
     def deduplicate(
         self,
