@@ -210,7 +210,6 @@ def test_cancellation_between_pages_drops_the_unaccepted_page() -> None:
     asyncio.run(scenario())
 
 
-@expected_red("C-CP-001")
 def test_eis_search_does_not_advance_checkpoint_before_page_acceptance(tmp_path: Path) -> None:
     async def scenario() -> None:
         async def handler(request: httpx.Request) -> httpx.Response:

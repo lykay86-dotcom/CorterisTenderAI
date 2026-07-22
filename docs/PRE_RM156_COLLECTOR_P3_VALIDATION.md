@@ -2,7 +2,7 @@
 
 Дата: 22 июля 2026 года.
 
-Статус: `LOCALLY ACCEPTED`; ожидаются PR-head и exact merge-SHA Windows gates.
+Статус: `ACCEPTED`; PR #124 и exact merge-SHA Windows gate успешны.
 
 ## 1. Scope и baseline
 
@@ -30,7 +30,7 @@
   interactive 20 pages/10 000 items/180 s; scheduled 200/100 000/900 s; ceiling нельзя повысить.
 - Синхронный normalize/dedup batch до 10 000 items временно приостанавливает cyclic GC, всегда
   восстанавливает исходное GC-state и не применяет паузу выше audited interactive bound.
-- Сняты десять P3-owned strict xfail markers. Остаётся ровно `C-CP-001` для P4 EIS repair.
+- Сняты десять P3-owned strict xfail markers. Последующий P4 EIS package снял `C-CP-001`.
 
 ## 3. Зелёная локальная проверка
 
@@ -66,11 +66,13 @@ controlled command:
 
 `python -c "import psutil,runpy; psutil.Process().nice(psutil.HIGH_PRIORITY_CLASS); runpy.run_module('scripts.benchmark_pre_rm156_collector_p3',run_name='__main__')"`.
 
-## 5. Следующее действие и rollback
+## 5. Merge evidence и rollback
 
-1. Открыть P3 PR и дождаться PR-head Windows Quality Gate на Python 3.12/3.13.
-2. После merge дождаться exact merge-SHA push-run и записать PR/run/job IDs.
-3. P4 не начинать до exact P3 merge-SHA success.
+- PR #124 head `d9b89a68d2f82aab6a0bcb0ba4f87daafae3acb4`; PR-head run `29939287327`
+  успешен, jobs `88988767380` (Python 3.12) и `88988767274` (Python 3.13).
+- Merge commit `cfc473e8a11c6c2c7bc201bbac45aa38404d7cc2`; exact push-run `29939811499`
+  успешен, jobs `88990529239` (Python 3.12) и `88990529142` (Python 3.13).
+- Только после exact success начат отдельный P4 EIS worktree/branch.
 
 Rollback до merge — revert implementation commit. После schema 15 предпочтителен roll-forward;
 automatic downgrade запрещён. Verified schema-14 backup восстанавливается только явной операцией

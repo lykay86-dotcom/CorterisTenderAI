@@ -55,9 +55,15 @@ class EisCheckpointCoordinator:
         self.repository = repository
         self.policy = policy or EisCheckpointPolicy()
 
-    def prepare(self, query: TenderSearchQuery) -> EisPreparedQuery:
+    def prepare(
+        self,
+        query: TenderSearchQuery,
+        *,
+        checkpoint: CollectorCheckpoint | None = None,
+        read_repository: bool = True,
+    ) -> EisPreparedQuery:
         scope_key = self.scope_key(query)
-        if self.repository is None or not self.policy.enabled:
+        if not self.policy.enabled:
             return EisPreparedQuery(
                 query=query,
                 scope_key=scope_key,
@@ -65,10 +71,11 @@ class EisCheckpointCoordinator:
                 incremental_applied=False,
             )
 
-        checkpoint = self.repository.get_checkpoint(
-            self.provider_id,
-            scope_key=scope_key,
-        )
+        if checkpoint is None and read_repository and self.repository is not None:
+            checkpoint = self.repository.get_checkpoint(
+                self.provider_id,
+                scope_key=scope_key,
+            )
         if checkpoint is None:
             return EisPreparedQuery(
                 query=query,
@@ -85,7 +92,19 @@ class EisCheckpointCoordinator:
                 incremental_applied=False,
             )
 
-        watermark = _parse_watermark(checkpoint.watermark)
+        # A non-empty cursor is a crash-resume position inside the same query.
+        # Changing its date window would skip or duplicate pages in that run.
+        if checkpoint.cursor:
+            return EisPreparedQuery(
+                query=query,
+                scope_key=scope_key,
+                checkpoint=checkpoint,
+                incremental_applied=False,
+            )
+
+        watermark = _parse_watermark(
+            checkpoint.watermark or checkpoint.committed_at or checkpoint.updated_at
+        )
         if watermark is None:
             return EisPreparedQuery(
                 query=query,

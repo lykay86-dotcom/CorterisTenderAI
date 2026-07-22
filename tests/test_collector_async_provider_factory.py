@@ -33,6 +33,8 @@ def test_factory_registers_eis_and_moscow_supplier(tmp_path) -> None:
 
         assert len(providers) == 2
         assert isinstance(providers[0], AsyncEisTenderProvider)
+        assert providers[0].artifact_store is not None
+        assert providers[0].artifact_store.root == (tmp_path / "collector" / "artifacts").resolve()
         assert isinstance(providers[1], AsyncMosSupplierTenderProvider)
         assert [item.descriptor.id for item in providers] == [
             "eis",

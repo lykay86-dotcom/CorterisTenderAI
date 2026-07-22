@@ -8,17 +8,27 @@ reported to the user and are never bypassed.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
-from typing import Sequence
+from typing import AsyncIterator, Sequence
 
+from app.tenders.collector.artifacts import RawArtifactReference, RawArtifactStore
 from app.tenders.collector.async_http import (
     AsyncHttpClient,
     AsyncHttpError,
 )
-from app.tenders.collector.async_provider import AsyncTenderProvider
+from app.tenders.collector.async_provider import (
+    AsyncTenderProvider,
+    ProviderCollectionPage,
+    ProviderPageBudgetError,
+    ProviderPageContractError,
+    build_query_fingerprint,
+)
 from app.tenders.collector.cancellation import CollectorCancellationToken
+from app.tenders.collector.checkpoint import CollectorCheckpoint
+from app.tenders.collector.codec import stable_hash
 from app.tenders.collector.eis_checkpoint import (
     EisCheckpointCoordinator,
     EisCheckpointPolicy,
@@ -28,6 +38,7 @@ from app.tenders.collector.network_settings import (
     default_collector_network_settings,
 )
 from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.http_client import HttpResponse
 from app.tenders.models import TenderDocument, TenderSource, UnifiedTender
 from app.tenders.provider_base import (
     ProviderCapabilities,
@@ -46,6 +57,10 @@ from app.tenders.providers.eis import (
     build_eis_search_url,
     eis_documents_url,
     matches_eis_query,
+)
+from app.tenders.providers.eis_contract import (
+    EIS_PUBLIC_HTML_CONTRACT_VERSION,
+    EisPublicHtmlContract,
 )
 from app.tenders.providers.eis_parser.detail_router import (
     detect_law,
@@ -81,6 +96,7 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         implementation_status="public_html_async",
     )
     connection_mode = "public_html_async"
+    contract_version = EIS_PUBLIC_HTML_CONTRACT_VERSION
     parser_version = SEARCH_PARSER_VERSION
     documents_parser_version = DOCUMENTS_PARSER_VERSION
 
@@ -92,6 +108,8 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         network_settings: ProviderNetworkSettings | None = None,
         checkpoint_repository: CollectorStateRepository | None = None,
         checkpoint_policy: EisCheckpointPolicy | None = None,
+        artifact_store: RawArtifactStore | None = None,
+        contract: EisPublicHtmlContract | None = None,
         snapshot_directory: Path | None = None,
     ) -> None:
         self.http_client = http_client
@@ -104,7 +122,81 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
             checkpoint_repository,
             policy=checkpoint_policy,
         )
+        self.artifact_store = artifact_store
+        self.contract = contract or EisPublicHtmlContract()
+        if self.contract.version != self.contract_version:
+            raise ValueError("EIS contract version does not match the adapter version")
+        self._last_artifacts: list[RawArtifactReference] = []
         self.snapshots = EisSnapshotWriter(snapshot_directory)
+
+    @property
+    def last_artifacts(self) -> tuple[RawArtifactReference, ...]:
+        """Return bounded references captured by the latest explicit operation."""
+
+        return tuple(self._last_artifacts)
+
+    async def iter_search_pages(
+        self,
+        query: TenderSearchQuery,
+        *,
+        resume: CollectorCheckpoint | None = None,
+        cancellation_token: CollectorCancellationToken | None = None,
+    ) -> AsyncIterator[ProviderCollectionPage]:
+        """Yield bounded EIS pages; the engine commits each yield before continuation."""
+
+        self._last_artifacts = []
+        fingerprint = build_query_fingerprint(self, query)
+        resume_warning = ""
+        if resume is not None and not self._resume_is_compatible(resume, fingerprint):
+            resume = None
+            resume_warning = (
+                "Несовместимый checkpoint ЕИС не использован; поиск начат с безопасной границы."
+            )
+        prepared = self.checkpoints.prepare(
+            query,
+            checkpoint=resume,
+            read_repository=False,
+        )
+        incoming_cursor = resume.cursor if resume is not None else ""
+        page_number = self._page_number_from_cursor(
+            incoming_cursor,
+            default=prepared.query.page,
+        )
+
+        for _ in range(self.contract.max_pages_per_collection):
+            if cancellation_token is not None:
+                cancellation_token.throw_if_cancelled()
+            page_query = replace(prepared.query, page=page_number)
+            result, page_identity, artifacts = await self._search_page(
+                page_query,
+                query_fingerprint=fingerprint,
+                incoming_cursor=incoming_cursor,
+                cancellation_token=cancellation_token,
+            )
+            warnings = tuple(
+                dict.fromkeys((*result.warnings, *(item for item in (resume_warning,) if item)))
+            )
+            next_cursor = result.next_page_token.strip()
+            terminal = not next_cursor
+            yield ProviderCollectionPage(
+                provider_id=self.descriptor.id,
+                contract_version=self.contract_version,
+                parser_version=self.parser_version,
+                query_fingerprint=fingerprint,
+                page_identity=page_identity,
+                page_number=result.page,
+                items=tuple(result.items),
+                next_cursor=next_cursor,
+                terminal=terminal,
+                artifacts=artifacts,
+                warnings=warnings,
+            )
+            if terminal:
+                return
+            incoming_cursor = next_cursor
+            page_number = self._page_number_from_cursor(next_cursor, default=page_number + 1)
+
+        raise ProviderPageBudgetError()
 
     async def search(
         self,
@@ -112,59 +204,163 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
         *,
         cancellation_token: CollectorCancellationToken | None = None,
     ) -> TenderSearchResult:
+        self._last_artifacts = []
         prepared = self.checkpoints.prepare(query)
-        url, rounded_page_size = build_eis_search_url(
+        fingerprint = build_query_fingerprint(self, query)
+        result, _, _ = await self._search_page(
             prepared.query,
-            self.config,
-        )
-        response = await self._get(
-            url,
+            query_fingerprint=fingerprint,
+            incoming_cursor="",
             cancellation_token=cancellation_token,
         )
+        return replace(
+            result,
+            warnings=tuple(dict.fromkeys((*result.warnings, *prepared.warnings))),
+        )
+
+    async def _search_page(
+        self,
+        query: TenderSearchQuery,
+        *,
+        query_fingerprint: str,
+        incoming_cursor: str,
+        cancellation_token: CollectorCancellationToken | None,
+    ) -> tuple[TenderSearchResult, str, tuple[RawArtifactReference, ...]]:
+        url, rounded_page_size = build_eis_search_url(query, self.config)
+        page_identity = stable_hash(
+            {
+                "provider_id": self.descriptor.id,
+                "contract_version": self.contract_version,
+                "parser_version": self.parser_version,
+                "query_fingerprint": query_fingerprint,
+                "page_number": query.page,
+                "incoming_cursor": incoming_cursor or "initial",
+            }
+        )
+        response = await self._get(url, cancellation_token=cancellation_token)
         self.snapshots.save_html("search", response.text())
         try:
             parsed = self.parser.parse_search(response.text())
         except EisAccessBlockedError:
+            self._capture_response(
+                response,
+                query_fingerprint=query_fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_access",
+            )
             raise
         except EisParseError:
+            self._capture_response(
+                response,
+                query_fingerprint=query_fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_structure",
+            )
             raise
         except Exception as exc:
+            self._capture_response(
+                response,
+                query_fingerprint=query_fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_parse",
+            )
             raise EisParseError(f"Не удалось разобрать ответ поиска ЕИС: {exc}") from exc
 
         warnings = list(parsed.warnings)
-        warnings.extend(prepared.warnings)
         warnings.append(
             "Использован публичный HTML-интерфейс ЕИС в нативном "
             "асинхронном режиме; это не официальный API."
         )
-        if rounded_page_size != prepared.query.page_size:
+        if rounded_page_size != query.page_size:
             warnings.append(
-                f"Размер страницы ЕИС округлён: {prepared.query.page_size} → {rounded_page_size}."
+                f"Размер страницы ЕИС округлён: {query.page_size} → {rounded_page_size}."
             )
-        if prepared.query.regions:
+        if query.regions:
             warnings.append(
                 "Региональный фильтр применяется к данным карточки; "
                 "тендеры без региона сохраняются."
             )
 
-        items = tuple(item for item in parsed.items if matches_eis_query(item, prepared.query))[
-            : prepared.query.page_size
+        items = tuple(item for item in parsed.items if matches_eis_query(item, query))[
+            : query.page_size
         ]
-        result = TenderSearchResult(
-            provider_id=self.descriptor.id,
-            items=items,
-            total=parsed.total,
-            page=prepared.query.page,
-            page_size=prepared.query.page_size,
-            next_page_token=(
-                str(prepared.query.page + 1)
-                if parsed.total is None or prepared.query.page * rounded_page_size < parsed.total
-                else ""
-            ),
-            warnings=tuple(dict.fromkeys(warnings)),
+        has_next_page = bool(parsed.items) and (
+            parsed.total is None or query.page * rounded_page_size < parsed.total
         )
-        self.checkpoints.mark_success(prepared, result)
-        return result
+        artifact = self._capture_response(
+            response,
+            query_fingerprint=query_fingerprint,
+            page_identity=page_identity,
+            parse_outcome="search_accepted",
+        )
+        artifacts = (artifact,) if artifact is not None else ()
+        return (
+            TenderSearchResult(
+                provider_id=self.descriptor.id,
+                items=items,
+                total=parsed.total,
+                page=query.page,
+                page_size=query.page_size,
+                next_page_token=str(query.page + 1) if has_next_page else "",
+                warnings=tuple(dict.fromkeys(warnings)),
+            ),
+            page_identity,
+            artifacts,
+        )
+
+    def _capture_response(
+        self,
+        response: HttpResponse,
+        *,
+        query_fingerprint: str,
+        page_identity: str,
+        parse_outcome: str,
+    ) -> RawArtifactReference | None:
+        if self.artifact_store is None:
+            return None
+        media_type, encoding = _content_type(response)
+        artifact = self.artifact_store.put(
+            response.body,
+            provider_id=self.descriptor.id,
+            request_method="GET",
+            request_url=response.url,
+            status_code=response.status_code,
+            media_type=media_type,
+            encoding=encoding,
+            query_fingerprint=query_fingerprint,
+            page_identity=page_identity,
+            contract_version=self.contract_version,
+            parser_version=self.parser_version,
+            parse_outcome=parse_outcome,
+            retention_class=self.contract.retention_class,
+        )
+        self._last_artifacts.append(artifact)
+        return artifact
+
+    def _resume_is_compatible(
+        self,
+        resume: CollectorCheckpoint,
+        query_fingerprint: str,
+    ) -> bool:
+        return (
+            resume.provider_id.strip().casefold() == self.descriptor.id
+            and resume.query_fingerprint == query_fingerprint
+            and resume.contract_version == self.contract_version
+            and resume.parser_version == self.parser_version
+        )
+
+    @staticmethod
+    def _page_number_from_cursor(cursor: str, *, default: int) -> int:
+        rendered = cursor.strip()
+        if not rendered:
+            return default
+        try:
+            page_number = int(rendered)
+        except ValueError as exc:
+            raise ProviderPageContractError() from exc
+        if page_number < 1:
+            raise ProviderPageContractError()
+        return page_number
 
     async def get_tender(
         self,
@@ -206,6 +402,11 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
                 )
                 page_kind = "notice_223" if law.value == "223-FZ" else "notice_44"
                 self.snapshots.save_html(page_kind, response.text())
+                fingerprint, page_identity = self._operation_identity(
+                    operation="detail",
+                    external_id=normalized,
+                    request_url=detail_url,
+                )
                 try:
                     details = parse_detail(
                         response.text(),
@@ -213,8 +414,20 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
                         law=law,
                     )
                 except Exception as exc:
+                    self._capture_response(
+                        response,
+                        query_fingerprint=fingerprint,
+                        page_identity=page_identity,
+                        parse_outcome="rejected_detail",
+                    )
                     self.snapshots.save_error(page_kind, exc)
                     raise
+                self._capture_response(
+                    response,
+                    query_fingerprint=fingerprint,
+                    page_identity=page_identity,
+                    parse_outcome="detail_accepted",
+                )
                 return merge_tender_details(item, details)
         raise TenderProviderError(f"Закупка ЕИС {normalized} не найдена")
 
@@ -232,14 +445,45 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
             eis_documents_url(tender.source_url),
             cancellation_token=cancellation_token,
         )
+        self.snapshots.save_html("documents", response.text())
+        fingerprint, page_identity = self._operation_identity(
+            operation="documents",
+            external_id=external_id.strip(),
+            request_url=response.url,
+        )
         try:
-            return self.parser.parse_documents(response.text())
+            documents = self.parser.parse_documents(response.text())
         except EisAccessBlockedError:
+            self._capture_response(
+                response,
+                query_fingerprint=fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_access",
+            )
             raise
         except EisParseError:
+            self._capture_response(
+                response,
+                query_fingerprint=fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_structure",
+            )
             raise
         except Exception as exc:
+            self._capture_response(
+                response,
+                query_fingerprint=fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_documents",
+            )
             raise EisParseError(f"Не удалось разобрать документы ЕИС: {exc}") from exc
+        self._capture_response(
+            response,
+            query_fingerprint=fingerprint,
+            page_identity=page_identity,
+            parse_outcome="documents_accepted",
+        )
+        return documents
 
     async def check_health(
         self,
@@ -332,7 +576,35 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
             "при изменении верстки потребуется обновление парсера.",
             "Инкрементальный checkpoint использует скользящее окно "
             "публикации и не заменяет официальный журнал изменений.",
+            f"Контракт {self.contract_version}: не более "
+            f"{self.contract.max_pages_per_collection} страниц за запуск; "
+            "checkpoint фиксируется только accepted-page транзакцией Collector.",
         )
+
+    def _operation_identity(
+        self,
+        *,
+        operation: str,
+        external_id: str,
+        request_url: str,
+    ) -> tuple[str, str]:
+        fingerprint = stable_hash(
+            {
+                "provider_id": self.descriptor.id,
+                "contract_version": self.contract_version,
+                "parser_version": self.parser_version,
+                "operation": operation,
+                "external_id": external_id,
+            }
+        )
+        page_identity = stable_hash(
+            {
+                "query_fingerprint": fingerprint,
+                "operation": operation,
+                "request_url": request_url,
+            }
+        )
+        return fingerprint, page_identity
 
     async def _get(
         self,
@@ -372,6 +644,19 @@ class AsyncEisTenderProvider(AsyncTenderProvider):
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _content_type(response: HttpResponse) -> tuple[str, str]:
+    rendered = response.headers.get("content-type", "").strip()
+    parts = tuple(part.strip() for part in rendered.split(";") if part.strip())
+    media_type = parts[0].casefold() if parts else "application/octet-stream"
+    encoding = "utf-8"
+    for part in parts[1:]:
+        name, separator, value = part.partition("=")
+        if separator and name.strip().casefold() == "charset" and value.strip():
+            encoding = value.strip().strip('"').casefold()
+            break
+    return media_type, encoding
 
 
 __all__ = ["AsyncEisTenderProvider"]
