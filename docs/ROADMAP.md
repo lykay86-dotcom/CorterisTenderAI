@@ -94,8 +94,13 @@
   Первый P6 `zakaz_rf` access audit не нашёл подтверждённого official API/feed/data-use contract,
   pagination/rate/schema/retention rules или approved fixture; public HTML registry не считается
   таким contract, а `robots.txt` закрывает service/query contours. `zakaz_rf` остаётся
-  `BLOCKED_EXTERNAL`, disabled/not configured; guessed implementation запрещена. Следующий шаг —
-  внешний unblock либо отдельное docs-only решение о переходе к `roseltorg` по правилу P6.
+  `BLOCKED_EXTERNAL`, disabled/not configured; guessed implementation запрещена. Audit принят PR
+  #128: head `2af262d9575f6a9947a51c866d249f28530cec97`, PR-head run `29956095948`, merge
+  `14bc30300fa40a4008b35df7897d725e682e2437`, exact merge-SHA run `29958227968`; обе Windows
+  matrix jobs и dependency audit успешны. Docs-only решением `zakaz_rf` сохраняется первым source
+  и ожидает external unblock, а `roseltorg` назначается следующим последовательным access-audit
+  target. Это не меняет нумерацию P6 и не подтверждает contract/readiness Roseltorg; отдельный
+  Roseltorg audit начинается только после merge/exact этого решения.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

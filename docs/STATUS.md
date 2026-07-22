@@ -1,6 +1,6 @@
 # Текущее состояние CorterisTenderAI
 
-Обновлено: 22 июля 2026 года.
+Обновлено: 23 июля 2026 года.
 
 ## Активный этап
 
@@ -98,5 +98,12 @@ settings schema 7, Collector DB schema 16 и audited alias/read-model compatibil
 обнаружен, но опубликованный API/feed contract, разрешение automation/data reuse, pagination,
 rate limits, schema и raw retention не подтверждены; `robots.txt` закрывает `/Services/` и
 `/QueryForms/`. Readiness честно `BLOCKED_EXTERNAL`; adapter/fixture/live verification не
-создаются. Текущее действие — внешний unblock `zakaz_rf` либо отдельное docs-only решение о
-переходе к следующему P6 source `roseltorg`. Production RM-156, RM-157 и RM-158 не начинать.
+создаются. Audit принят PR #128: head `2af262d9575f6a9947a51c866d249f28530cec97`, PR-head run
+`29956095948`, merge `14bc30300fa40a4008b35df7897d725e682e2437`, exact merge-SHA run
+`29958227968`; обе Python 3.12/3.13 jobs и dependency audit успешны.
+
+Docs-only решением `zakaz_rf` сохраняется первым P6 source и ожидает external unblock, а
+`roseltorg` назначается следующим последовательным access-audit target по фактической доступности
+официального контракта. Это не working/access claim Roseltorg: его сеть, endpoints, fixtures и код
+не исследуются этим package. Следующее действие после merge/exact этого решения — отдельный
+read-only Roseltorg audit. Production RM-156, RM-157 и RM-158 не начинать.

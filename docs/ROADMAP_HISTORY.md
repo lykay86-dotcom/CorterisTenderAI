@@ -1,5 +1,22 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — Collector P6 ZakazRF access audit принят и слит
+
+- Первый P6 provider package выполнен от exact P5 merge
+  `e9a522fc750e0893b46b0c6028c4a61cdbb9b26f` и ограничен официальным read-only
+  access/legal/contract audit. Application code, schema, dependencies, settings, credentials,
+  fixtures и live calls не менялись.
+- Официальный public HTML registry подтверждён, но API/feed/data-use contract,
+  pagination/rate/schema/retention rules и approved fixtures не найдены. `zakaz_rf` честно принят
+  как `BLOCKED_EXTERNAL`, disabled/not configured; guessed endpoint/adapter не создавался.
+- Локально: focused `18 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
+  mypy, secret scan и `git diff --check` успешны.
+- PR #128 head `2af262d9575f6a9947a51c866d249f28530cec97`; PR-head run `29956095948` успешен
+  (jobs `89045424680`/`89045424729`). Merge commit
+  `14bc30300fa40a4008b35df7897d725e682e2437`; exact merge-SHA run `29958227968` успешен
+  (jobs `89052589841`/`89052589770`), включая dependency audit. Только после этого подготовлено
+  отдельное docs-only решение о следующем P6 access-audit target.
+
 ## 2026-07-22 — Collector P5 provider identity/catalog принят и слит
 
 - P5 создан от exact P4 Mos Supplier merge `b4704480010a363e02ad80fe579d5c836cd04509`:
