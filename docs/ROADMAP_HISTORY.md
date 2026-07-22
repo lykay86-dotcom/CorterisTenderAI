@@ -1,5 +1,28 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-22 — Collector назначен обязательным prerequisite RM-156
+
+- Решением владельца production-реализация модели контрагента RM-156 приостановлена до
+  завершения промышленного многоплощадочного Collector prerequisite. Причина — сначала требуется
+  закрыть аудит, единый adapter contract, честную readiness-модель, pagination/checkpoints,
+  provenance, partial-failure, security/legal и offline/live verification gaps существующего
+  Collector. Полное ТЗ:
+  [`PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md`](PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md).
+- Collector не является новым или параллельным RM. Нумерация RM-001–RM-200 не изменяется,
+  RM-156 остаётся единственным каноническим `IN PROGRESS`, RM-157–RM-200 остаются `PLANNED`.
+- Этот P0 ограничен документацией. До его merge application-код Collector не изменяется; разрешены
+  только read-only аудит, исследование публичной документации, подготовка ТЗ и offline fixtures без
+  секретов.
+- После merge P0 работа продолжается отдельным P1 audit/contract/plan пакетом до expected-red и
+  implementation. После полного prerequisite обязателен отдельный closeout, возвращающий RM-156
+  в production work.
+- Влияние на порядок: production RM-156 приостановлен; RM-157 (поиск по ИНН) и RM-158
+  (архитектура источников) не начинаются до Collector closeout и последующего завершения RM-156 по
+  Definition of Done. Их scope и номера не меняются.
+- Docs-only PR: ссылка будет зафиксирована в этой записи до merge; ветка
+  `codex/pre-rm156-collector-governance` создана от `origin/main`
+  `d007460f72bccc9486d1f330a865b74f15a6d368`.
+
 ## 2026-07-21 — RM-155 завершён, RM-156 активирован
 
 - Audit-first package committed before cleanup and classified 32 compatibility candidates:
