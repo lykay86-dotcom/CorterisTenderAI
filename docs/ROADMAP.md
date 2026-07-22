@@ -73,9 +73,11 @@
   `c20bed32492dc80b48748c79a87da73107533ddd`; exact merge-SHA Quality Gate `29922814088` успешен.
   Docs-only P1 слит PR #122 merge commit
   `6593fb2518d724c9bdde3ea46c9de84ff63b1b03`; exact merge-SHA Quality Gate `29926327653` успешен.
-  P2 strict expected-red tests-only package фиксирует отсутствующие boundaries до application
-  changes. После его merge начинается отдельный P3 implementation в границах утверждённого
-  контракта; identity и provider packages остаются последующими отдельными этапами.
+  P2 strict expected-red tests-only package слит PR #123 merge commit
+  `83899900fd2913eefd0ad04398e266f4a6b64437`; exact merge-SHA Quality Gate `29929323692` успешен.
+  P3 shared foundation реализован test-first commit `f7dd6a2` и implementation commit `b7f5aaf`;
+  full/mandatory gates зелёные, но P3 остаётся незавершённым до прохождения утверждённого exact-data
+  10k p95/RSS gate. Identity и provider packages остаются последующими отдельными этапами.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

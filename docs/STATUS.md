@@ -25,8 +25,12 @@ Docs-only P0 слит PR #121 merge commit
 `c20bed32492dc80b48748c79a87da73107533ddd`; exact merge-SHA Quality Gate run `29922814088`
 успешен. Docs-only P1 слит PR #122 merge commit
 `6593fb2518d724c9bdde3ea46c9de84ff63b1b03`; exact merge-SHA Quality Gate run `29926327653`
-успешен на Python 3.12/3.13. P2 strict expected-red tests-only package подготовлен отдельной
-веткой до application changes. Production-код модели контрагента, RM-157 и RM-158 не начинаются до
+успешен на Python 3.12/3.13. P2 strict expected-red tests-only package слит PR #123 merge commit
+`83899900fd2913eefd0ad04398e266f4a6b64437`; exact merge-SHA Quality Gate run `29929323692`
+успешен на Python 3.12/3.13. P3 shared page/artifact/checkpoint foundation реализован отдельными
+test-first commit `f7dd6a2` и implementation commit `b7f5aaf`; локальный full suite и все mandatory
+quality gates зелёные, но пакет остаётся `IN PROGRESS`: утверждённый exact-data 10k performance
+gate ещё не пройден. Production-код модели контрагента, RM-157 и RM-158 не начинаются до
 отдельного Collector closeout. Closeout должен вернуть RM-156 в production work; только затем
 продолжается модель контрагента и последующие RM в исходной нумерации.
 
@@ -74,7 +78,8 @@ Docs-only P0 слит PR #121 merge commit
 
 ## Текущее действие
 
-Проверить и слить отдельный P2 strict expected-red tests-only package. После его merge и успешного
-exact merge-SHA Quality Gate начать отдельный P3 shared page/artifact/checkpoint foundation.
+Повторить утверждённый exact-data 10k benchmark P3 на освобождённом same-host контуре. Не открывать
+и не сливать P3 PR до p95 ≤ 10 000 ms, regression ≤ 20% и RSS delta ≤ 64 MiB; после зелёного
+performance gate записать acceptance, выполнить PR/exact merge-SHA gates и только затем начать P4.
 Не смешивать P3 с provider identity/adapters и не начинать production-реализацию модели
 контрагента, RM-157 или RM-158 до отдельного Collector closeout.
