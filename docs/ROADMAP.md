@@ -75,10 +75,14 @@
   `6593fb2518d724c9bdde3ea46c9de84ff63b1b03`; exact merge-SHA Quality Gate `29926327653` успешен.
   P2 strict expected-red tests-only package слит PR #123 merge commit
   `83899900fd2913eefd0ad04398e266f4a6b64437`; exact merge-SHA Quality Gate `29929323692` успешен.
-  P3 shared foundation реализован test-first commit `f7dd6a2`, implementation commit `b7f5aaf` и
-  bounded performance commit `9202290`; full/mandatory и exact-data 10k performance/resource gates
-  локально зелёные. P3 ожидает PR-head/exact merge-SHA gates; identity и provider packages остаются
-  последующими отдельными этапами.
+  P3 shared foundation слит PR #124 merge commit
+  `cfc473e8a11c6c2c7bc201bbac45aa38404d7cc2`; PR-head run `29939287327` и exact merge-SHA run
+  `29939811499` успешны на Python 3.12/3.13. Первый P4 package — EIS reference adapter — реализован
+  test-first commits `a0842a2`/`c4a4c7a`; bounded pagination/resume, accepted-page checkpoint,
+  search/detail/document artifacts и fail-closed public HTML contract локально приняты. Full suite
+  `2449 passed`; exact-data 10k/resource gates зелёные. EIS ожидает отдельный PR/exact gate и
+  остаётся `IMPLEMENTED_OFFLINE` до разрешённой live verification; Mos Supplier и identity P5 не
+  начинаются до последовательных package gates.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

@@ -1,20 +1,40 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-22 — Collector P3 shared foundation локально принят
+## 2026-07-22 — Collector P4 EIS reference adapter локально принят
+
+- P4 EIS создан от exact P3 merge `cfc473e8a11c6c2c7bc201bbac45aa38404d7cc2`: test-first
+  `a0842a2`, implementation `c4a4c7a`. Новый engine/parser/repository не создан; существующий
+  `AsyncEisTenderProvider` переведён на shared bounded page/resume/artifact contract.
+- `eis-public-html-v1` ограничивает collection 20 pages/500 items per page/50 MiB; checkpoint и
+  search artifact metadata commit-coupled с accepted page до следующего HTTP request. Снят последний
+  strict xfail `C-CP-001`; CAPTCHA/access-denied/structure drift остаются fail closed.
+- Search/detail/document bodies получают content-addressed SHA-256 evidence и sanitized metadata;
+  connection mode остаётся `public_html_async`, official API не заявлен. Live canary не запускался,
+  readiness честно остаётся `IMPLEMENTED_OFFLINE`.
+- Focused contour `82 passed`; full suite `2449 passed, 2 warnings in 258.23s`; secret,
+  Ruff/format (`800 files`), mypy, offline/migration/bootstrap/build/frozen/RM-155 gates успешны.
+- Controlled exact-data reproduction: p50 `8 939.589 ms`, p95 `9 040.632 ms`, regression
+  `11.6627%`, RSS `53 055 488`; 25 cycles без resource growth, cancellation `16.427 ms`. Первый
+  near-threshold time diagnostic и immutable P3 RSS control сохранены как host variance evidence;
+  thresholds/fixture/code не ослаблялись. Следующий gate — P4 EIS PR-head/exact merge-SHA run;
+  Mos Supplier до него не начинается.
+
+## 2026-07-22 — Collector P3 shared foundation принят и слит
 
 - P3 создан от exact P2 merge `83899900fd2913eefd0ad04398e266f4a6b64437`: characterization
   `f7dd6a2`, shared foundation `b7f5aaf`, GC guards `523ac63`, bounded production optimization
   `9202290`.
 - Общий page/artifact/checkpoint contract, schema 15 migration/backup/restore, atomic page receipt,
   process-wide lease, truthful statuses и interactive/scheduled budgets реализованы без второго
-  engine, repository или DB owner. Остаётся ровно один P4-owned EIS xfail `C-CP-001`.
+  engine, repository или DB owner. Последующий P4 EIS package снял последний xfail `C-CP-001`.
 - Controlled exact-data 10k acceptance: p50 `9 506.289 ms`, p95 `9 588.611 ms`, regression
   `18.4309%`, RSS delta `64 634 880 bytes`; 25 cycles не оставили tasks/threads/handles/temp,
   cancellation `16.724 ms`.
 - Exact optimization commit full suite: `2441 passed, 1 xfailed, 2 warnings in 237.18s`; secret,
   Ruff/format (`798 files`), mypy, offline/migration/import/bootstrap/build/frozen/RM-155 gates
-  зелёные. Следующий gate — P3 PR-head и exact merge-SHA Windows run на Python 3.12/3.13; P4 до
-  него не начинается.
+  зелёные. PR #124 head `d9b89a68d2f82aab6a0bcb0ba4f87daafae3acb4`; PR-head run
+  `29939287327` успешен. Merge commit `cfc473e8a11c6c2c7bc201bbac45aa38404d7cc2`; exact
+  merge-SHA run `29939811499` и jobs `88990529239` (3.12)/`88990529142` (3.13) успешны.
 
 ## 2026-07-22 — Collector P2 expected-red contracts зафиксированы до implementation
 
