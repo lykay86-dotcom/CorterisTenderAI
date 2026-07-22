@@ -32,12 +32,14 @@ Docs-only P0 слит PR #121 merge commit
 `29939811499` успешны на Python 3.12/3.13. Первый P4 package — EIS reference adapter — слит PR
 #125 merge commit `300385108082746ac8818dad19104f57618366a9`; PR-head run `29943116366` и exact
 merge-SHA run `29943599187` успешны на Python 3.12/3.13. Второй P4 package — `mos_supplier`
-reference adapter — локально принят на test-first commit `31bc13c` и implementation commit
-`e3fedb6`: один документированный authenticated API response, shared atomic accepted-page/
-checkpoint/artifact path, raw search/detail/document/rejected evidence и fail-closed redaction.
-Full suite `2458 passed`, exact-data 10k/resource gate зелёный. EIS и Mos Supplier честно остаются
-`IMPLEMENTED_OFFLINE` до отдельно разрешённой live verification; серверная пагинация Mos не
-заявлена и не угадана. Production-код модели контрагента, RM-157 и RM-158 не начинаются до
+reference adapter — слит PR #126 merge commit `b4704480010a363e02ad80fe579d5c836cd04509`;
+PR-head run `29946701032` и exact merge-SHA run `29947263908` успешны на Python 3.12/3.13,
+включая dependency audit. Один документированный authenticated API response, shared atomic
+accepted-page/checkpoint/artifact path, raw search/detail/document/rejected evidence и fail-closed
+redaction приняты. Full suite `2458 passed`, exact-data 10k/resource gate зелёный. EIS и Mos
+Supplier честно остаются `IMPLEMENTED_OFFLINE` до отдельно разрешённой live verification;
+серверная пагинация Mos не заявлена и не угадана. Production-код модели контрагента, RM-157 и
+RM-158 не начинаются до
 отдельного Collector closeout. Closeout должен вернуть RM-156 в production work; только затем
 продолжается модель контрагента и последующие RM в исходной нумерации.
 
@@ -85,7 +87,7 @@ Full suite `2458 passed`, exact-data 10k/resource gate зелёный. EIS и Mo
 
 ## Текущее действие
 
-Опубликовать отдельный P4 `mos_supplier` PR, дождаться зелёных Python 3.12/3.13 PR-head gates,
-включая dependency audit, слить и подтвердить exact merge-SHA push-run. Только после успешного
-exact run начать отдельный provider identity/catalog P5 package. Не смешивать Mos Supplier с P5 и
-не начинать production-реализацию модели контрагента, RM-157 или RM-158 до Collector closeout.
+В отдельном P5 worktree провести audit существующих provider identity/catalog/alias/readiness
+owners, зафиксировать test-first contract и только затем реализовать минимальный package. Не
+смешивать P5 с provider adapters P6+ и не начинать production-реализацию модели контрагента,
+RM-157 или RM-158 до Collector closeout.
