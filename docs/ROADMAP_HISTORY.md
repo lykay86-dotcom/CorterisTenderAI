@@ -19,8 +19,8 @@
 - Влияние на порядок: production RM-156 приостановлен; RM-157 (поиск по ИНН) и RM-158
   (архитектура источников) не начинаются до Collector closeout и последующего завершения RM-156 по
   Definition of Done. Их scope и номера не меняются.
-- Docs-only PR: ссылка будет зафиксирована в этой записи до merge; ветка
-  `codex/pre-rm156-collector-governance` создана от `origin/main`
+- Docs-only [PR #121](https://github.com/lykay86-dotcom/CorterisTenderAI/pull/121) создан из ветки
+  `codex/pre-rm156-collector-governance`, основанной на `origin/main`
   `d007460f72bccc9486d1f330a865b74f15a6d368`.
 
 ## 2026-07-21 — RM-155 завершён, RM-156 активирован
