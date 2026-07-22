@@ -1,5 +1,35 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-22 — Collector P1 audit/contract/plan подготовлен до application changes
+
+- Governance P0 PR #121 слит merge commit
+  `c20bed32492dc80b48748c79a87da73107533ddd`; exact merge-SHA Windows Quality Gate run
+  `29922814088` успешен на Python 3.12/3.13.
+- P1 выполнен в отдельной ветке `codex/pre-rm156-collector-audit` от exact P0 merge SHA. Audit
+  commit `6cc9b7e` и contract commit `39057de` созданы раздельно до expected-red/application edits;
+  implementation и rollback plans зафиксированы этим docs-only package.
+- Runtime inventory сохраняет единственные owners: `CollectorRunSession`,
+  `CollectorNetworkRuntime`, `AsyncProviderSearchEngine`, `CollectorService`,
+  `CollectorStateRepository`/`CollectorSchemaMigrator`, canonical provider catalog и
+  `ProviderEnablementRepository`. Legacy sync catalog, split commercial settings и EIS debug
+  snapshots классифицированы как transition/migration/debug residuals, не новые owners.
+- Critical gaps: engine не исполняет pagination; EIS/Mos checkpoints продвигаются до durable batch
+  commit; zero-success/timeout проецируются в `PARTIAL`; typed commit/replay checkpoint и raw
+  artifact owner отсутствуют; provider identity неполна; schema version 14 не имеет explicit
+  sequential migration/backup/restore contour.
+- Readiness matrix фиксирует 13 target built-ins: EIS и Mos Supplier имеют offline implementations,
+  три источника отсутствуют, три имеют перевёрнутую legacy alias identity, остальные являются
+  disabled access-pending placeholders. Ни один placeholder не объявлен working.
+- Clean baseline: focused `107 passed in 41.39s`, mandatory pair `2 passed`, migration `5 passed`,
+  bootstrap `1 passed`, build/frozen `9 passed`, full `2411 passed, 2 warnings in 264.42s`; secret
+  scan, Ruff/format (`794 files`), mypy (20 files), RM-155 guard и dependency audit успешны.
+- Same-host 10k normalize/dedup baseline после warm-up: n=5, p50 `7583.978 ms`, nearest-rank p95
+  `8096.375 ms`, sampled RSS delta `33,087,488 bytes`. P1 budgets и measurement caveats записаны в
+  audit; 20-sample + tracemalloc attempt, превысивший 240 seconds, не выдан за успешный результат.
+- P1 остаётся docs-only. Следующий шаг после merge/exact merge-SHA gate — отдельный P2 strict
+  expected-red tests-only package; production RM-156, RM-157 и RM-158 остаются заблокированы до
+  Collector closeout.
+
 ## 2026-07-22 — Collector назначен обязательным prerequisite RM-156
 
 - Решением владельца production-реализация модели контрагента RM-156 приостановлена до
