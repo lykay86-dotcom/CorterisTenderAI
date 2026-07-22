@@ -27,10 +27,11 @@ Docs-only P0 слит PR #121 merge commit
 `6593fb2518d724c9bdde3ea46c9de84ff63b1b03`; exact merge-SHA Quality Gate run `29926327653`
 успешен на Python 3.12/3.13. P2 strict expected-red tests-only package слит PR #123 merge commit
 `83899900fd2913eefd0ad04398e266f4a6b64437`; exact merge-SHA Quality Gate run `29929323692`
-успешен на Python 3.12/3.13. P3 shared page/artifact/checkpoint foundation реализован отдельными
-test-first commit `f7dd6a2` и implementation commit `b7f5aaf`; локальный full suite и все mandatory
-quality gates зелёные, но пакет остаётся `IN PROGRESS`: утверждённый exact-data 10k performance
-gate ещё не пройден. Production-код модели контрагента, RM-157 и RM-158 не начинаются до
+успешен на Python 3.12/3.13. P3 shared page/artifact/checkpoint foundation реализован test-first
+commit `f7dd6a2`, implementation commit `b7f5aaf` и bounded performance commit `9202290`;
+локальный full suite, mandatory gates и exact-data 10k performance/resource acceptance зелёные.
+P3 локально принят и ожидает PR-head/exact merge-SHA gates. Production-код модели контрагента,
+RM-157 и RM-158 не начинаются до
 отдельного Collector closeout. Closeout должен вернуть RM-156 в production work; только затем
 продолжается модель контрагента и последующие RM в исходной нумерации.
 
@@ -78,8 +79,7 @@ gate ещё не пройден. Production-код модели контраге
 
 ## Текущее действие
 
-Повторить утверждённый exact-data 10k benchmark P3 на освобождённом same-host контуре. Не открывать
-и не сливать P3 PR до p95 ≤ 10 000 ms, regression ≤ 20% и RSS delta ≤ 64 MiB; после зелёного
-performance gate записать acceptance, выполнить PR/exact merge-SHA gates и только затем начать P4.
+Опубликовать P3 PR, дождаться зелёных Python 3.12/3.13 PR-head gates, слить и подтвердить exact
+merge-SHA push-run. Только после успешного exact run начать отдельный P4 EIS reference adapter.
 Не смешивать P3 с provider identity/adapters и не начинать production-реализацию модели
 контрагента, RM-157 или RM-158 до отдельного Collector closeout.

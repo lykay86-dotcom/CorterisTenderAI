@@ -1,5 +1,21 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-22 — Collector P3 shared foundation локально принят
+
+- P3 создан от exact P2 merge `83899900fd2913eefd0ad04398e266f4a6b64437`: characterization
+  `f7dd6a2`, shared foundation `b7f5aaf`, GC guards `523ac63`, bounded production optimization
+  `9202290`.
+- Общий page/artifact/checkpoint contract, schema 15 migration/backup/restore, atomic page receipt,
+  process-wide lease, truthful statuses и interactive/scheduled budgets реализованы без второго
+  engine, repository или DB owner. Остаётся ровно один P4-owned EIS xfail `C-CP-001`.
+- Controlled exact-data 10k acceptance: p50 `9 506.289 ms`, p95 `9 588.611 ms`, regression
+  `18.4309%`, RSS delta `64 634 880 bytes`; 25 cycles не оставили tasks/threads/handles/temp,
+  cancellation `16.724 ms`.
+- Exact optimization commit full suite: `2441 passed, 1 xfailed, 2 warnings in 237.18s`; secret,
+  Ruff/format (`798 files`), mypy, offline/migration/import/bootstrap/build/frozen/RM-155 gates
+  зелёные. Следующий gate — P3 PR-head и exact merge-SHA Windows run на Python 3.12/3.13; P4 до
+  него не начинается.
+
 ## 2026-07-22 — Collector P2 expected-red contracts зафиксированы до implementation
 
 - P2 PR #123 на head `ef529fabcd80e8deea61af14bacebe362a8f4109` слит merge commit
