@@ -77,12 +77,15 @@
   `83899900fd2913eefd0ad04398e266f4a6b64437`; exact merge-SHA Quality Gate `29929323692` успешен.
   P3 shared foundation слит PR #124 merge commit
   `cfc473e8a11c6c2c7bc201bbac45aa38404d7cc2`; PR-head run `29939287327` и exact merge-SHA run
-  `29939811499` успешны на Python 3.12/3.13. Первый P4 package — EIS reference adapter — реализован
-  test-first commits `a0842a2`/`c4a4c7a`; bounded pagination/resume, accepted-page checkpoint,
-  search/detail/document artifacts и fail-closed public HTML contract локально приняты. Full suite
-  `2449 passed`; exact-data 10k/resource gates зелёные. EIS ожидает отдельный PR/exact gate и
-  остаётся `IMPLEMENTED_OFFLINE` до разрешённой live verification; Mos Supplier и identity P5 не
-  начинаются до последовательных package gates.
+  `29939811499` успешны на Python 3.12/3.13. Первый P4 package — EIS reference adapter — слит PR
+  #125 merge commit `300385108082746ac8818dad19104f57618366a9`; PR-head run `29943116366` и exact
+  merge-SHA run `29943599187` успешны на Python 3.12/3.13. Второй P4 package — `mos_supplier`
+  reference adapter — локально принят test-first commits `31bc13c`/`e3fedb6`: authenticated
+  documented single-response contract, atomic accepted-page checkpoint/search artifact, raw
+  detail/document/rejected evidence и fail-closed public errors. Full suite `2458 passed`;
+  exact-data 10k/resource gate зелёный. EIS и Mos остаются `IMPLEMENTED_OFFLINE` до разрешённой
+  live verification; серверная пагинация Mos не подтверждена. Identity P5 не начинается до
+  PR-head, merge и exact merge-SHA gate отдельного Mos package.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

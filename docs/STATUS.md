@@ -29,12 +29,15 @@ Docs-only P0 слит PR #121 merge commit
 `83899900fd2913eefd0ad04398e266f4a6b64437`; exact merge-SHA Quality Gate run `29929323692`
 успешен на Python 3.12/3.13. P3 shared foundation слит PR #124 merge commit
 `cfc473e8a11c6c2c7bc201bbac45aa38404d7cc2`; PR-head run `29939287327` и exact merge-SHA run
-`29939811499` успешны на Python 3.12/3.13. Первый P4 package — EIS reference adapter — реализован
-test-first commits `a0842a2`/`c4a4c7a`: shared bounded pages, commit-coupled checkpoint/search
-artifacts и raw detail/document evidence локально приняты; full suite `2449 passed`, exact-data
-10k/resource gates зелёные. EIS честно остаётся `IMPLEMENTED_OFFLINE` до разрешённой live
-verification и ожидает PR-head/exact merge-SHA gates. Production-код модели контрагента, RM-157
-и RM-158 не начинаются до
+`29939811499` успешны на Python 3.12/3.13. Первый P4 package — EIS reference adapter — слит PR
+#125 merge commit `300385108082746ac8818dad19104f57618366a9`; PR-head run `29943116366` и exact
+merge-SHA run `29943599187` успешны на Python 3.12/3.13. Второй P4 package — `mos_supplier`
+reference adapter — локально принят на test-first commit `31bc13c` и implementation commit
+`e3fedb6`: один документированный authenticated API response, shared atomic accepted-page/
+checkpoint/artifact path, raw search/detail/document/rejected evidence и fail-closed redaction.
+Full suite `2458 passed`, exact-data 10k/resource gate зелёный. EIS и Mos Supplier честно остаются
+`IMPLEMENTED_OFFLINE` до отдельно разрешённой live verification; серверная пагинация Mos не
+заявлена и не угадана. Production-код модели контрагента, RM-157 и RM-158 не начинаются до
 отдельного Collector closeout. Closeout должен вернуть RM-156 в production work; только затем
 продолжается модель контрагента и последующие RM в исходной нумерации.
 
@@ -82,7 +85,7 @@ verification и ожидает PR-head/exact merge-SHA gates. Production-код 
 
 ## Текущее действие
 
-Опубликовать отдельный P4 EIS PR, дождаться зелёных Python 3.12/3.13 PR-head gates, слить и
-подтвердить exact merge-SHA push-run. Только после успешного exact run начать отдельный P4
-`mos_supplier` reference package. Не смешивать EIS с Mos Supplier или provider identity P5 и не
-начинать production-реализацию модели контрагента, RM-157 или RM-158 до Collector closeout.
+Опубликовать отдельный P4 `mos_supplier` PR, дождаться зелёных Python 3.12/3.13 PR-head gates,
+включая dependency audit, слить и подтвердить exact merge-SHA push-run. Только после успешного
+exact run начать отдельный provider identity/catalog P5 package. Не смешивать Mos Supplier с P5 и
+не начинать production-реализацию модели контрагента, RM-157 или RM-158 до Collector closeout.
