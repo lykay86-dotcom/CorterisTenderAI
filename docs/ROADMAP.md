@@ -86,12 +86,16 @@
   accepted-page checkpoint/search artifact, raw detail/document/rejected evidence и fail-closed
   public errors приняты. Full suite `2458 passed`; exact-data 10k/resource gate зелёный. EIS и Mos
   остаются `IMPLEMENTED_OFFLINE` до разрешённой live verification; серверная пагинация Mos не
-  подтверждена. После exact success начат отдельный identity/catalog P5 audit-first package.
-  P5 локально реализован commit `62e6962`: exact 13 identities, settings schema 7, Collector DB
-  schema 16 и read-compatible aliases без новых adapters/endpoints/live calls. Full suite
-  `2467 passed`; локальные Ruff/format, mypy, secret и обязательные smoke gates успешны. P5 остаётся
-  непринятым до PR-head и exact merge-SHA Quality Gate на Python 3.12/3.13 с dependency audit;
-  P6 до этого не начинается.
+  подтверждена. P5 identity/catalog package слит PR #127: head
+  `70ce28001b0be0bfcd19937ba042ac1555919386`, PR-head run `29951810601`, merge
+  `e9a522fc750e0893b46b0c6028c4a61cdbb9b26f`, exact merge-SHA run `29952451892`; Windows
+  Python 3.12/3.13 и dependency audit успешны. Exact 13 identities, settings schema 7, Collector
+  DB schema 16 и read-compatible aliases приняты без новых adapters/endpoints/live calls.
+  Первый P6 `zakaz_rf` access audit не нашёл подтверждённого official API/feed/data-use contract,
+  pagination/rate/schema/retention rules или approved fixture; public HTML registry не считается
+  таким contract, а `robots.txt` закрывает service/query contours. `zakaz_rf` остаётся
+  `BLOCKED_EXTERNAL`, disabled/not configured; guessed implementation запрещена. Следующий шаг —
+  внешний unblock либо отдельное docs-only решение о переходе к `roseltorg` по правилу P6.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

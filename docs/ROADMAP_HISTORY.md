@@ -1,5 +1,22 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-22 — Collector P5 provider identity/catalog принят и слит
+
+- P5 создан от exact P4 Mos Supplier merge `b4704480010a363e02ad80fe579d5c836cd04509`:
+  audit `69e83f1`, strict expected-red tests `83d048d`, implementation `62e6962`, acceptance docs
+  `70ce280`.
+- Приняты exact 13 canonical provider IDs, три audited `_commercial` legacy aliases, settings
+  schema 7 и Collector DB schema 16 alias registry. Historical rows не переписаны; новые
+  `zakaz_rf`, `rad`, `ets_nep` и прочие non-reference identities остались disabled/not configured
+  без guessed endpoints, fixtures или live calls.
+- Full suite `2467 passed, 2 warnings in 251.10s`; Ruff/format (`804 files`), mypy, secret,
+  offline/migration/composition/build/frozen/RM-155 gates успешны. Dependencies не менялись.
+- PR #127 head `70ce28001b0be0bfcd19937ba042ac1555919386`; PR-head run `29951810601` успешен
+  на Python 3.12/3.13 (jobs `89031089368`/`89031089332`). Merge commit
+  `e9a522fc750e0893b46b0c6028c4a61cdbb9b26f`; exact merge-SHA run `29952451892` успешен
+  (jobs `89033211301`/`89033211251`), включая dependency audit. Только после этого начат
+  отдельный P6 `zakaz_rf` access audit.
+
 ## 2026-07-22 — Collector P4 Mos Supplier reference adapter принят и слит
 
 - Второй P4 package создан от exact EIS merge `300385108082746ac8818dad19104f57618366a9`:
