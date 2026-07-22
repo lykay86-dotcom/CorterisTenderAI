@@ -87,10 +87,16 @@ RM-158 не начинаются до
 
 ## Текущее действие
 
-P5 identity/catalog package реализован и полностью проверен локально: exact 13 canonical IDs,
-settings schema 7, Collector DB schema 16, audited alias/read-model compatibility и inert catalog
-projections. Full suite: `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret,
-offline/migration/composition/build/RM-155 gates успешны. Следующее действие — опубликовать
-выделенную P5 ветку и получить успешные PR-head и exact merge-SHA Quality Gate на Python
-3.12/3.13, включая dependency audit. До этого P5 не принят; P6, production RM-156, RM-157 и RM-158
-не начинать.
+P5 identity/catalog package принят: PR #127 head
+`70ce28001b0be0bfcd19937ba042ac1555919386`, PR-head run `29951810601`, merge commit
+`e9a522fc750e0893b46b0c6028c4a61cdbb9b26f`, exact merge-SHA run `29952451892`. Обе Windows
+matrix jobs успешны на Python 3.12/3.13, включая dependency audit. Exact 13 canonical IDs,
+settings schema 7, Collector DB schema 16 и audited alias/read-model compatibility приняты без
+новых adapters/endpoints.
+
+Первый P6 source — `zakaz_rf` — прошёл read-only access audit. Официальный public HTML registry
+обнаружен, но опубликованный API/feed contract, разрешение automation/data reuse, pagination,
+rate limits, schema и raw retention не подтверждены; `robots.txt` закрывает `/Services/` и
+`/QueryForms/`. Readiness честно `BLOCKED_EXTERNAL`; adapter/fixture/live verification не
+создаются. Текущее действие — внешний unblock `zakaz_rf` либо отдельное docs-only решение о
+переходе к следующему P6 source `roseltorg`. Production RM-156, RM-157 и RM-158 не начинать.

@@ -2,7 +2,7 @@
 
 Дата: 22 июля 2026 года.
 
-Статус: `IMPLEMENTED LOCALLY`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`; PR #127 и exact merge-SHA Quality Gate успешны.
 
 ## 1. Entry gate и scope
 
@@ -120,6 +120,9 @@ profile/schedule, keyring, artifacts, accepted pages и historical rows rollback
 - release/frozen smoke: `9 passed in 14.17s`;
 - public API import smoke: `DashboardController`.
 
-Dependency inventory не менялся. Dependency audit, Python 3.13 matrix и exact merge-SHA gate
-остаются обязательными серверными проверками. До их успеха P5 не считается принятым и P6 не
-начинается.
+Dependency inventory не менялся. PR #127 head
+`70ce28001b0be0bfcd19937ba042ac1555919386`; PR-head run `29951810601` успешен на Python
+3.12/3.13 (jobs `89031089368`/`89031089332`). Merge commit
+`e9a522fc750e0893b46b0c6028c4a61cdbb9b26f`; exact merge-SHA run `29952451892` успешен на
+Python 3.12/3.13 (jobs `89033211301`/`89033211251`), включая dependency audit. P5 принят; только
+после этого начат отдельный P6 access audit `zakaz_rf`.
