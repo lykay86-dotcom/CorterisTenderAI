@@ -80,12 +80,18 @@
   `29939811499` успешны на Python 3.12/3.13. Первый P4 package — EIS reference adapter — слит PR
   #125 merge commit `300385108082746ac8818dad19104f57618366a9`; PR-head run `29943116366` и exact
   merge-SHA run `29943599187` успешны на Python 3.12/3.13. Второй P4 package — `mos_supplier`
-  reference adapter — локально принят test-first commits `31bc13c`/`e3fedb6`: authenticated
-  documented single-response contract, atomic accepted-page checkpoint/search artifact, raw
-  detail/document/rejected evidence и fail-closed public errors. Full suite `2458 passed`;
-  exact-data 10k/resource gate зелёный. EIS и Mos остаются `IMPLEMENTED_OFFLINE` до разрешённой
-  live verification; серверная пагинация Mos не подтверждена. Identity P5 не начинается до
-  PR-head, merge и exact merge-SHA gate отдельного Mos package.
+  reference adapter — слит PR #126 merge commit `b4704480010a363e02ad80fe579d5c836cd04509`;
+  PR-head run `29946701032` и exact merge-SHA run `29947263908` успешны на Python 3.12/3.13,
+  включая dependency audit. Authenticated documented single-response contract, atomic
+  accepted-page checkpoint/search artifact, raw detail/document/rejected evidence и fail-closed
+  public errors приняты. Full suite `2458 passed`; exact-data 10k/resource gate зелёный. EIS и Mos
+  остаются `IMPLEMENTED_OFFLINE` до разрешённой live verification; серверная пагинация Mos не
+  подтверждена. После exact success начат отдельный identity/catalog P5 audit-first package.
+  P5 локально реализован commit `62e6962`: exact 13 identities, settings schema 7, Collector DB
+  schema 16 и read-compatible aliases без новых adapters/endpoints/live calls. Full suite
+  `2467 passed`; локальные Ruff/format, mypy, secret и обязательные smoke gates успешны. P5 остаётся
+  непринятым до PR-head и exact merge-SHA Quality Gate на Python 3.12/3.13 с dependency audit;
+  P6 до этого не начинается.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

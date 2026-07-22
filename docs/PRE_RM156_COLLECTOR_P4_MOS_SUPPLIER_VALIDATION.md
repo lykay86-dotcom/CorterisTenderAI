@@ -2,7 +2,7 @@
 
 Дата: 22 июля 2026 года.
 
-Статус: `LOCALLY ACCEPTED`; ожидаются PR-head и exact merge-SHA Windows gates.
+Статус: `ACCEPTED`; PR-head и exact merge-SHA Windows gates успешны.
 
 ## 1. Scope и baseline
 
@@ -73,12 +73,14 @@ fixture) byte-identical exact EIS baseline. Нормативы P1/P3 и controll
   `16.407 ms`. Неуспешные diagnostics сохранены как host-load variance evidence, а не удалены и не
   превращены в проход ослаблением benchmark/thresholds.
 
-## 5. Следующее действие и rollback
+## 5. Merge evidence и rollback
 
-1. Опубликовать отдельный P4 Mos Supplier PR и дождаться PR-head Quality Gate на Python 3.12/3.13,
-   включая dependency audit.
-2. После merge подтвердить exact merge-SHA push-run и записать PR/run/job IDs.
-3. Только после exact success начать отдельный provider identity/catalog P5 package.
+- PR #126 head `1943d57dc944490d1fd30051be289624b22d7f4b`; PR-head run `29946701032`
+  успешен, jobs `89013783563` (Python 3.12) и `89013783542` (Python 3.13).
+- Merge commit `b4704480010a363e02ad80fe579d5c836cd04509`; exact merge-SHA push-run
+  `29947263908` успешен, jobs `89015703288` (Python 3.12) и `89015703371` (Python 3.13).
+  Dependency audit успешен в обоих PR-head и exact matrix jobs.
+- Только после exact success создан отдельный `codex/pre-rm156-collector-provider-identity`.
 
 Rollback — отключить provider existing manager policy и revert Mos feature merge. Schema downgrade,
 удаление accepted pages/artifacts/checkpoints или user data не выполняются. Token/keyring data не

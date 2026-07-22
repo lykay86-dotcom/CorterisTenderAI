@@ -10,8 +10,9 @@ from pathlib import Path
 import sqlite3
 from uuid import uuid4
 
+from app.tenders.collector.provider_identity import provider_aliases
 
-COLLECTOR_SCHEMA_VERSION = 15
+COLLECTOR_SCHEMA_VERSION = 16
 
 
 @dataclass(frozen=True, slots=True)
@@ -754,7 +755,27 @@ class CollectorSchemaMigrator:
                     registry_key,
                     decided_at DESC
                 );
+
+            CREATE TABLE IF NOT EXISTS collector_provider_identity_aliases (
+                alias_id TEXT PRIMARY KEY,
+                canonical_id TEXT NOT NULL,
+                introduced_version INTEGER NOT NULL
+            );
             """
+        )
+        connection.executemany(
+            """
+            INSERT INTO collector_provider_identity_aliases(
+                alias_id, canonical_id, introduced_version
+            ) VALUES(?, ?, ?)
+            ON CONFLICT(alias_id) DO UPDATE SET
+                canonical_id=excluded.canonical_id,
+                introduced_version=excluded.introduced_version
+            """,
+            (
+                (alias, canonical, COLLECTOR_SCHEMA_VERSION)
+                for alias, canonical in sorted(provider_aliases().items())
+            ),
         )
         self._ensure_checkpoint_columns(connection)
         self._ensure_run_provider_columns(connection)

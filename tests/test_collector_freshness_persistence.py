@@ -64,7 +64,7 @@ def test_current_schema_contains_freshness_state(tmp_path) -> None:
             for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
 
-    assert version == COLLECTOR_SCHEMA_VERSION == 15
+    assert version == COLLECTOR_SCHEMA_VERSION == 16
     assert "collector_tender_freshness_state" in tables
     assert "collector_participation_decisions" in tables
     assert "collector_tender_summaries" in tables

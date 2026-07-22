@@ -43,7 +43,7 @@ def test_manager_exposes_all_sources_without_network(tmp_path) -> None:
     assert states["mos_supplier"].ui_state == (ProviderUiState.NOT_CONFIGURED)
     assert not states["b2b_center"].enabled
     assert states["b2b_center"].ui_state == (ProviderUiState.DISABLED)
-    assert len(states) == 10
+    assert len(states) == 13
 
 
 def test_manager_persists_commercial_switch_only_in_canonical_settings(

@@ -42,6 +42,7 @@ from app.tenders.provider_base import ProviderDescriptor
 class ProviderSettingsLoadStatus(StrEnum):
     MISSING = "missing"
     CURRENT = "current"
+    MIGRATED_V6 = "migrated_v6"
     MIGRATED_V5 = "migrated_v5"
     MIGRATED_V4 = "migrated_v4"
     MIGRATED_V3 = "migrated_v3"
@@ -363,9 +364,9 @@ def create_provider_settings_snapshot(
 
 
 class ProviderEnablementRepository:
-    """Own schema-v6 source settings and read v1-v5 state compatibly."""
+    """Own schema-v7 source settings and read v1-v6 state compatibly."""
 
-    SCHEMA_VERSION = 6
+    SCHEMA_VERSION = 7
 
     def __init__(
         self,
@@ -583,6 +584,23 @@ class ProviderEnablementRepository:
                 source_schema_version=version,
                 manual_registrations=registrations,
             )
+        if version == 6:
+            try:
+                records, registrations = _decode_current(payload)
+            except (ValueError, TypeError) as exc:
+                return ProviderSettingsLoadResult(
+                    records=(),
+                    status=ProviderSettingsLoadStatus.CORRUPT,
+                    source_schema_version=version,
+                    warnings=(f"Canonical provider settings are corrupt: {type(exc).__name__}",),
+                )
+            return ProviderSettingsLoadResult(
+                records=records,
+                status=ProviderSettingsLoadStatus.MIGRATED_V6,
+                source_schema_version=version,
+                warnings=_provider_alias_warnings(payload),
+                manual_registrations=registrations,
+            )
         if version == 5:
             try:
                 records, registrations = _decode_v5(payload)
@@ -760,6 +778,8 @@ class ProviderEnablementRepository:
             callback(records, registrations)
             if result.status is ProviderSettingsLoadStatus.MIGRATED_SPLIT_V1:
                 self._backup_v1_sources()
+            elif result.status is ProviderSettingsLoadStatus.MIGRATED_V6:
+                self._backup_previous_source(6)
             elif result.status is ProviderSettingsLoadStatus.MIGRATED_V2:
                 self._backup_previous_source(2)
             elif result.status is ProviderSettingsLoadStatus.MIGRATED_V3:
@@ -1165,6 +1185,20 @@ def _canonical_items(
             continue
         seen.add(canonical)
         yield canonical, value
+
+
+def _provider_alias_warnings(payload: Mapping[str, object]) -> tuple[str, ...]:
+    aliases = provider_aliases()
+    warnings: list[str] = []
+    for section in ("providers", "configuration"):
+        values = payload.get(section, {})
+        if not isinstance(values, dict):
+            continue
+        for raw_id in values:
+            normalized = str(raw_id).strip().casefold()
+            if normalized in aliases:
+                warnings.append(f"Provider alias {normalized} resolved to {aliases[normalized]}.")
+    return tuple(dict.fromkeys(warnings))
 
 
 def _canonical_or_normalized(provider_id: str) -> str:

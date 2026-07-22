@@ -456,10 +456,10 @@ def test_run_lease_is_released_only_by_terminal_completion(tmp_path: Path) -> No
     assert second != first
 
 
-def test_schema_14_to_15_backup_is_verified_and_current_is_idempotent(tmp_path: Path) -> None:
+def test_historical_schema_backup_is_verified_and_current_is_idempotent(tmp_path: Path) -> None:
     database = tmp_path / "registry.sqlite3"
     initialize_collector_database(database)
-    assert COLLECTOR_SCHEMA_VERSION == 15
+    assert COLLECTOR_SCHEMA_VERSION == 16
     with sqlite3.connect(database) as connection:
         connection.execute(
             "UPDATE tender_registry_meta SET value='14' WHERE key='collector_schema_version'"
@@ -468,7 +468,7 @@ def test_schema_14_to_15_backup_is_verified_and_current_is_idempotent(tmp_path: 
     with sqlite3.connect(database) as connection:
         inventory = CollectorSchemaMigrator().inspect(connection)
         assert inventory.current_version == 14
-        assert inventory.target_version == 15
+        assert inventory.target_version == 16
         assert inventory.requires_migration
         assert inventory.requires_backup
         CollectorSchemaMigrator().migrate(connection)

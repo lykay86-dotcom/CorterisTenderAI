@@ -1,6 +1,6 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-22 — Collector P4 Mos Supplier reference adapter локально принят
+## 2026-07-22 — Collector P4 Mos Supplier reference adapter принят и слит
 
 - Второй P4 package создан от exact EIS merge `300385108082746ac8818dad19104f57618366a9`:
   test-first `31bc13c`, implementation `e3fedb6`. Existing provider/engine/repository/config/keyring
@@ -17,6 +17,10 @@
 - Два stop-line performance diagnostics сохранены как host-load variance evidence. Immutable EIS
   control прошёл, затем Mos reproduction прошёл: p50 `6 962.190 ms`, p95 `7 117.944 ms`, delta
   `-12.0848%`, RSS `62 406 656`; 25 cycles без resource growth, cancellation `16.407 ms`.
+- PR #126 head `1943d57dc944490d1fd30051be289624b22d7f4b`; PR-head run `29946701032` успешен.
+  Merge commit `b4704480010a363e02ad80fe579d5c836cd04509`; exact merge-SHA run `29947263908`
+  успешен на Python 3.12/3.13; dependency audit прошёл в обоих matrix jobs. Только после этого
+  создан отдельный provider identity/catalog P5 worktree.
 
 ## 2026-07-22 — Collector P4 EIS reference adapter принят и слит
 

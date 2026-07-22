@@ -185,7 +185,7 @@ def test_async_factory_never_constructs_adapter_for_manual_registration(tmp_path
 
     ids = {item.descriptor.id for item in providers}
     assert created.provider_id not in ids
-    assert len(ids) == 10
+    assert len(ids) == 13
 
 
 def test_conflicting_update_is_atomic_and_keeps_stable_rows(tmp_path) -> None:

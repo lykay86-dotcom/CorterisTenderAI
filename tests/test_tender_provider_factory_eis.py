@@ -25,6 +25,6 @@ def test_default_registry_uses_real_eis_and_keeps_other_placeholders() -> None:
     assert isinstance(registry.get("sber_a"), PlaceholderTenderProvider)
     assert [item.id for item in registry.list_registered()][:3] == [
         "eis",
-        "sber_a",
-        "rts_tender",
+        "mos_supplier",
+        "zakaz_rf",
     ]

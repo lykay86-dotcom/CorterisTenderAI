@@ -67,7 +67,7 @@ def test_schema_v4_roundtrip_preserves_selection_but_public_payload_hides_endpoi
     loaded = repository.load_result()
     selection = loaded.manual_registrations[0].protocol_selection
 
-    assert raw["schema_version"] == 6
+    assert raw["schema_version"] == 7
     assert selection is not None
     assert selection.family is ManualProviderProtocolFamily.API
     assert selection.endpoint_url == "https://api.example.test/v1"
@@ -100,7 +100,7 @@ def test_v3_loads_without_mutation_then_first_write_creates_one_backup(tmp_path)
     repository.update_manual_provider(changed)
     backups = tuple(tmp_path.glob("collector_provider_settings.json.v3-*.bak"))
 
-    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 6
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 7
     assert len(backups) == 1
     assert backups[0].read_bytes() == original
 

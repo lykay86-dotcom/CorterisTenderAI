@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping
 from urllib.parse import urlsplit, urlunsplit
 
+from app.tenders.collector.provider_identity import canonicalize_known_provider_id
 from app.tenders.models import TenderSource
 from app.tenders.provider_base import ProviderCapabilities, ProviderDescriptor
 
@@ -227,10 +228,20 @@ class CommercialProviderSettingsRepository:
             return {}
 
         result: dict[str, CommercialProviderUserSettings] = {}
-        for provider_id, raw in providers.items():
+        ordered_providers = sorted(
+            providers.items(),
+            key=lambda item: (
+                canonicalize_known_provider_id(item[0]) != str(item[0]).strip().casefold(),
+                str(item[0]).strip().casefold(),
+            ),
+        )
+        for provider_id, raw in ordered_providers:
             if not isinstance(raw, dict):
                 continue
-            result[str(provider_id).strip().casefold()] = CommercialProviderUserSettings(
+            canonical = canonicalize_known_provider_id(provider_id)
+            if canonical in result:
+                continue
+            result[canonical] = CommercialProviderUserSettings(
                 enabled=bool(raw.get("enabled", False)),
                 access_confirmed=bool(raw.get("access_confirmed", False)),
                 api_base_url=_normalize_api_base_url(str(raw.get("api_base_url", ""))),
@@ -250,7 +261,7 @@ class CommercialProviderSettingsRepository:
                     "access_confirmed": value.access_confirmed,
                     "api_base_url": _normalize_api_base_url(value.api_base_url),
                 }
-                for provider_id, value in sorted(settings.items())
+                for provider_id, value in sorted(_canonical_settings(settings).items())
             },
         }
         temporary = self.path.with_suffix(self.path.suffix + ".tmp")
@@ -266,7 +277,7 @@ class CommercialProviderSettingsRepository:
         value: CommercialProviderUserSettings,
     ) -> None:
         settings = self.load()
-        settings[provider_id.strip().casefold()] = value
+        settings[canonicalize_known_provider_id(provider_id)] = value
         self.save(settings)
 
 
@@ -290,7 +301,7 @@ class CommercialProviderCatalog:
         self.repository = repository
         if repository is not None and user_settings is not None:
             raise ValueError("repository and user_settings are mutually exclusive")
-        self.user_settings = dict(user_settings or {})
+        self.user_settings = _canonical_settings(user_settings or {})
         self.environment = environment if environment is not None else os.environ
         self.secret_resolver = secret_resolver or CommercialSecretResolver(
             environment=self.environment
@@ -304,7 +315,7 @@ class CommercialProviderCatalog:
         )
 
     def get(self, provider_id: str) -> CommercialProviderResolvedSettings:
-        normalized = provider_id.strip().casefold()
+        normalized = canonicalize_known_provider_id(provider_id)
         for item in self.resolve_all():
             if item.definition.provider_id.casefold() == normalized:
                 return item
@@ -355,68 +366,95 @@ def default_commercial_provider_definitions() -> tuple[CommercialProviderDefinit
 
     return (
         _definition(
-            "b2b_center",
-            "B2B-Center",
-            TenderSource.B2B_CENTER,
-            "https://www.b2b-center.ru/",
+            "zakaz_rf",
+            "ЗаказРФ",
+            TenderSource.ZAKAZ_RF,
+            "https://zakazrf.ru/",
+            30,
+            "ZAKAZ_RF",
+        ),
+        _definition(
+            "roseltorg",
+            "Росэлторг",
+            TenderSource.ROSELTORG,
+            "https://www.roseltorg.ru/",
+            40,
+            "ROSELTORG_COMMERCIAL",
+            credential_provider_id="roseltorg_commercial",
+        ),
+        _definition(
+            "rad",
+            "Росэлторг РАД",
+            TenderSource.RAD,
+            "https://lot-online.ru/",
             50,
-            "B2B",
-        ),
-        _definition(
-            "gazprombank",
-            "ЭТП ГПБ",
-            TenderSource.GAZPROMBANK,
-            "https://etpgpb.ru/",
-            60,
-            "GPB",
-        ),
-        _definition(
-            "fabrikant",
-            "Фабрикант",
-            TenderSource.FABRIKANT,
-            "https://www.fabrikant.ru/",
-            70,
-            "FABRIKANT",
+            "RAD",
         ),
         _definition(
             "tek_torg",
             "ТЭК-Торг",
             TenderSource.TEK_TORG,
             "https://www.tektorg.ru/",
-            80,
+            60,
             "TEK_TORG",
+        ),
+        _definition(
+            "ets_nep",
+            "Национальная электронная площадка",
+            TenderSource.ETS_NEP,
+            "https://www.etp-ets.ru/",
+            70,
+            "ETS_NEP",
+        ),
+        _definition(
+            "sber_a",
+            "Сбер А",
+            TenderSource.SBER_A,
+            "https://www.sberbank-ast.ru/",
+            80,
+            "SBER_COMMERCIAL",
+            credential_provider_id="sber_commercial",
+        ),
+        _definition(
+            "rts_tender",
+            "РТС-тендер",
+            TenderSource.RTS_TENDER,
+            "https://www.rts-tender.ru/",
+            90,
+            "RTS_COMMERCIAL",
+            credential_provider_id="rts_commercial",
+        ),
+        _definition(
+            "gazprombank",
+            "ЭТП ГПБ",
+            TenderSource.GAZPROMBANK,
+            "https://etpgpb.ru/",
+            100,
+            "GPB",
+        ),
+        _definition(
+            "b2b_center",
+            "B2B-Center",
+            TenderSource.B2B_CENTER,
+            "https://www.b2b-center.ru/",
+            110,
+            "B2B",
+        ),
+        _definition(
+            "fabrikant",
+            "Фабрикант",
+            TenderSource.FABRIKANT,
+            "https://www.fabrikant.ru/",
+            120,
+            "FABRIKANT",
         ),
         _definition(
             "otc",
             "OTC",
             TenderSource.OTC,
             "https://otc.ru/",
-            90,
+            130,
             "OTC",
-        ),
-        _definition(
-            "sber_commercial",
-            "Сбер А — коммерческие закупки",
-            TenderSource.SBER_A,
-            "https://www.sberbank-ast.ru/",
-            100,
-            "SBER_COMMERCIAL",
-        ),
-        _definition(
-            "rts_commercial",
-            "РТС-тендер — коммерческие закупки",
-            TenderSource.RTS_TENDER,
-            "https://www.rts-tender.ru/",
-            110,
-            "RTS_COMMERCIAL",
-        ),
-        _definition(
-            "roseltorg_commercial",
-            "Росэлторг — коммерческие закупки",
-            TenderSource.ROSELTORG,
-            "https://www.roseltorg.ru/",
-            120,
-            "ROSELTORG_COMMERCIAL",
         ),
     )
 
@@ -451,6 +489,8 @@ def _definition(
     homepage_url: str,
     priority: int,
     prefix: str,
+    *,
+    credential_provider_id: str | None = None,
 ) -> CommercialProviderDefinition:
     return CommercialProviderDefinition(
         provider_id=provider_id,
@@ -463,8 +503,23 @@ def _definition(
         access_confirmed_environment_variable=(f"CORTERIS_{prefix}_ACCESS_CONFIRMED"),
         api_key_environment_variable=f"CORTERIS_{prefix}_API_KEY",
         api_base_url_environment_variable=(f"CORTERIS_{prefix}_API_BASE_URL"),
-        keyring_secret_name=f"collector.{provider_id}.api_key",
+        keyring_secret_name=f"collector.{credential_provider_id or provider_id}.api_key",
     )
+
+
+def _canonical_settings(
+    settings: Mapping[str, CommercialProviderUserSettings],
+) -> dict[str, CommercialProviderUserSettings]:
+    result: dict[str, CommercialProviderUserSettings] = {}
+    for provider_id, value in sorted(
+        settings.items(),
+        key=lambda item: (
+            canonicalize_known_provider_id(item[0]) != str(item[0]).strip().casefold(),
+            str(item[0]).strip().casefold(),
+        ),
+    ):
+        result.setdefault(canonicalize_known_provider_id(provider_id), value)
+    return result
 
 
 def _environment_bool(
