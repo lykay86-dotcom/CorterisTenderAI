@@ -133,9 +133,7 @@ def test_bounded_pipeline_pauses_cyclic_gc_and_restores_enabled_state() -> None:
 
     assert gc.isenabled()
     with pytest.raises(RuntimeError, match="fixture failure"):
-        TenderDeduplicator(FailingNormalizer()).normalize_and_deduplicate(
-            (make_tender(),)
-        )
+        TenderDeduplicator(FailingNormalizer()).normalize_and_deduplicate((make_tender(),))
 
     assert observed == [False]
     assert gc.isenabled()
@@ -152,9 +150,7 @@ def test_bounded_pipeline_preserves_preexisting_disabled_gc_state() -> None:
 
     gc.disable()
     try:
-        result = TenderDeduplicator(EmptyNormalizer()).normalize_and_deduplicate(
-            (make_tender(),)
-        )
+        result = TenderDeduplicator(EmptyNormalizer()).normalize_and_deduplicate((make_tender(),))
         assert result.raw_count == 0
         assert observed == [False]
         assert not gc.isenabled()
