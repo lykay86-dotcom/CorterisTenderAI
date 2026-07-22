@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `DECIDED LOCALLY`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`; PR #129 и exact merge-SHA Quality Gate успешны.
 
 ## 1. Основание
 
@@ -69,3 +69,8 @@ package реализует именно такое решение.
 Warnings — неизменные `openpyxl` extension/conditional-formatting notices в
 `test_rm132_legacy_credentials_handoff`; новых warnings нет. Dependency inventory не менялся.
 PR-head и exact merge-SHA Windows Quality Gate остаются обязательными до принятия решения.
+
+Publication acceptance: PR #129 head `6df486b31d0953ae140be2c03939bab848b757b3`, PR-head run
+`29959486498`; merge `862dac27b38968f235f831402139980e17cc90f3`, exact run `29959911671`.
+Обе Python 3.12/3.13 jobs и dependency audit успешны. Только после этого создан отдельный
+Roseltorg access-audit worktree.

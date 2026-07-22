@@ -1,5 +1,14 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P6 docs-only переход к Roseltorg принят
+
+- ZakazRF сохранён первым P6 source и `BLOCKED_EXTERNAL`; Roseltorg назначен только следующим
+  последовательным access-audit target без access/readiness claim и без code/network changes.
+- PR #129 head `6df486b31d0953ae140be2c03939bab848b757b3`; PR-head run `29959486498` успешен
+  (jobs `89056801850`/`89056801718`). Merge `862dac27b38968f235f831402139980e17cc90f3`;
+  exact run `29959911671` успешен (jobs `89058199578`/`89058199554`), включая dependency audit.
+- Только после exact success создан отдельный Roseltorg access-audit worktree.
+
 ## 2026-07-23 — Collector P6 ZakazRF access audit принят и слит
 
 - Первый P6 provider package выполнен от exact P5 merge

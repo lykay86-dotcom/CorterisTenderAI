@@ -105,5 +105,13 @@ rate limits, schema и raw retention не подтверждены; `robots.txt`
 Docs-only решением `zakaz_rf` сохраняется первым P6 source и ожидает external unblock, а
 `roseltorg` назначается следующим последовательным access-audit target по фактической доступности
 официального контракта. Это не working/access claim Roseltorg: его сеть, endpoints, fixtures и код
-не исследуются этим package. Следующее действие после merge/exact этого решения — отдельный
-read-only Roseltorg audit. Production RM-156, RM-157 и RM-158 не начинать.
+не исследуются этим package. Решение принято PR #129: head `6df486b31d0953ae140be2c03939bab848b757b3`,
+PR-head run `29959486498`, merge `862dac27b38968f235f831402139980e17cc90f3`, exact run
+`29959911671`; обе matrix jobs и dependency audit успешны.
+
+Отдельный Roseltorg read-only audit обнаружил public HTML search/detail и разрешённую robots
+pagination indexability, но не procurement API/feed, data-use/raw-retention permission,
+schema/version/rate contract или approved fixtures. API отдельного ЭДО не является tender API.
+`roseltorg` честно `BLOCKED_EXTERNAL`; adapter/fixture/live verification не создаются. Текущее
+действие — внешний unblock либо отдельное docs-only решение о следующем P6 source `rad`.
+Production RM-156, RM-157 и RM-158 не начинать.
