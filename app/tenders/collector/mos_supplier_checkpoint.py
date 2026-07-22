@@ -54,19 +54,23 @@ class MosSupplierCheckpointCoordinator:
     def prepare(
         self,
         query: TenderSearchQuery,
+        *,
+        checkpoint: CollectorCheckpoint | None = None,
+        read_repository: bool = True,
     ) -> MosSupplierPreparedQuery:
         scope_key = self.scope_key(query)
-        if self.repository is None or not self.policy.enabled:
+        if not self.policy.enabled:
             return MosSupplierPreparedQuery(
                 query=query,
                 scope_key=scope_key,
                 checkpoint=None,
                 incremental_applied=False,
             )
-        checkpoint = self.repository.get_checkpoint(
-            self.provider_id,
-            scope_key=scope_key,
-        )
+        if checkpoint is None and read_repository and self.repository is not None:
+            checkpoint = self.repository.get_checkpoint(
+                self.provider_id,
+                scope_key=scope_key,
+            )
         if checkpoint is None or not self._incremental_requested(query):
             return MosSupplierPreparedQuery(
                 query=query,
@@ -74,7 +78,9 @@ class MosSupplierCheckpointCoordinator:
                 checkpoint=checkpoint,
                 incremental_applied=False,
             )
-        watermark = _parse_watermark(checkpoint.watermark)
+        watermark = _parse_watermark(
+            checkpoint.watermark or checkpoint.committed_at or checkpoint.updated_at
+        )
         if watermark is None:
             return MosSupplierPreparedQuery(
                 query=query,

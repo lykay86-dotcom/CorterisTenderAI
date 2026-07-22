@@ -141,9 +141,10 @@ def test_mos_reference_commits_one_terminal_documented_scope_page(
         assert result.outcomes[0].page_count == 1
         assert result.outcomes[0].artifact_count == 1
         assert calls == 1
-        assert result.outcomes[0].result is not None
-        assert result.outcomes[0].result.next_page_token == ""
-        assert any("серверная пагинация" in item for item in result.outcomes[0].warnings)
+        assert result.results[0].next_page_token == ""
+        assert any(
+            "серверная пагинация" in item.casefold() for item in result.outcomes[0].warnings
+        ), result.outcomes[0].warnings
         fingerprint = build_query_fingerprint(provider, query)
         checkpoint = repository.get_checkpoint("mos_supplier", scope_key=fingerprint)
         assert checkpoint is not None

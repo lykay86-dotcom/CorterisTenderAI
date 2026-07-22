@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
 import re
 from time import perf_counter
-from typing import Mapping, Sequence
+from typing import AsyncIterator, Mapping, Sequence
 from urllib.parse import quote
 
+from app.tenders.collector.artifacts import RawArtifactReference, RawArtifactStore
 from app.tenders.collector.async_http import AsyncHttpClient, AsyncHttpError
-from app.tenders.collector.async_provider import AsyncTenderProvider
+from app.tenders.collector.async_provider import (
+    AsyncTenderProvider,
+    ProviderCollectionPage,
+    build_query_fingerprint,
+)
 from app.tenders.collector.cancellation import CollectorCancellationToken
+from app.tenders.collector.checkpoint import CollectorCheckpoint
+from app.tenders.collector.codec import stable_hash
 from app.tenders.collector.mos_supplier_checkpoint import (
     MosSupplierCheckpointCoordinator,
     MosSupplierCheckpointPolicy,
@@ -22,6 +30,7 @@ from app.tenders.collector.network_settings import (
     default_collector_network_settings,
 )
 from app.tenders.collector.store import CollectorStateRepository
+from app.tenders.http_client import HttpResponse
 from app.tenders.models import TenderDocument, TenderSource, UnifiedTender
 from app.tenders.provider_base import (
     ProviderCapabilities,
@@ -34,12 +43,22 @@ from app.tenders.provider_base import (
     TenderSearchResult,
 )
 from app.tenders.providers.mos_supplier_config import MosSupplierApiConfig
+from app.tenders.providers.mos_supplier_contract import (
+    MOS_SUPPLIER_API_CONTRACT_VERSION,
+    MosSupplierApiContract,
+)
 from app.tenders.providers.mos_supplier_parser import (
     MosSupplierApiParseError,
     MosSupplierApiParser,
     MosSupplierParsedSearch,
     mos_supplier_api_error_message,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _MosSupplierJsonResponse:
+    payload: object
+    response: HttpResponse
 
 
 class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
@@ -64,6 +83,7 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         implementation_status="official_api_token_required",
     )
     connection_mode = "official_api_bearer"
+    contract_version = MOS_SUPPLIER_API_CONTRACT_VERSION
     parser_version = "mos-supplier-api-1"
 
     def __init__(
@@ -74,6 +94,8 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         network_settings: ProviderNetworkSettings | None = None,
         checkpoint_repository: CollectorStateRepository | None = None,
         checkpoint_policy: MosSupplierCheckpointPolicy | None = None,
+        artifact_store: RawArtifactStore | None = None,
+        contract: MosSupplierApiContract | None = None,
     ) -> None:
         self.http_client = http_client
         self.config = config or MosSupplierApiConfig.from_environment()
@@ -85,6 +107,76 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
             checkpoint_repository,
             policy=checkpoint_policy,
         )
+        self.artifact_store = artifact_store
+        self.contract = contract or MosSupplierApiContract()
+        if self.contract.version != self.contract_version:
+            raise ValueError("Mos Supplier contract version does not match the adapter version")
+        self._last_artifacts: list[RawArtifactReference] = []
+
+    @property
+    def last_artifacts(self) -> tuple[RawArtifactReference, ...]:
+        """Return bounded references captured by the latest explicit operation."""
+
+        return tuple(self._last_artifacts)
+
+    async def iter_search_pages(
+        self,
+        query: TenderSearchQuery,
+        *,
+        resume: CollectorCheckpoint | None = None,
+        cancellation_token: CollectorCancellationToken | None = None,
+    ) -> AsyncIterator[ProviderCollectionPage]:
+        """Yield the one response supported by the documented API contract."""
+
+        self._last_artifacts = []
+        self._require_token()
+        if cancellation_token is not None:
+            cancellation_token.throw_if_cancelled()
+        fingerprint = build_query_fingerprint(self, query)
+        resume_warning = ""
+        if resume is not None and not self._resume_is_compatible(resume, fingerprint):
+            resume = None
+            resume_warning = (
+                "Несовместимый checkpoint Портала поставщиков не использован; "
+                "выполнен безопасный single-response запрос."
+            )
+        elif resume is not None and resume.cursor:
+            resume_warning = (
+                "Legacy cursor Портала поставщиков не использован: серверная "
+                "пагинация не подтверждена контрактом."
+            )
+        prepared = self.checkpoints.prepare(
+            query,
+            checkpoint=resume,
+            read_repository=False,
+        )
+        result, page_identity, artifacts = await self._search_single_response(
+            prepared.query,
+            query_fingerprint=fingerprint,
+            cancellation_token=cancellation_token,
+        )
+        warnings = tuple(
+            dict.fromkeys(
+                (
+                    *result.warnings,
+                    *prepared.warnings,
+                    *(item for item in (resume_warning,) if item),
+                )
+            )
+        )
+        yield ProviderCollectionPage(
+            provider_id=self.descriptor.id,
+            contract_version=self.contract_version,
+            parser_version=self.parser_version,
+            query_fingerprint=fingerprint,
+            page_identity=page_identity,
+            page_number=result.page,
+            items=tuple(result.items),
+            next_cursor="",
+            terminal=True,
+            artifacts=artifacts,
+            warnings=warnings,
+        )
 
     async def search(
         self,
@@ -92,38 +184,85 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         *,
         cancellation_token: CollectorCancellationToken | None = None,
     ) -> TenderSearchResult:
+        self._last_artifacts = []
         self._require_token()
         prepared = self.checkpoints.prepare(query)
-        payload = build_mos_supplier_search_payload(prepared.query)
-        response = await self._request_json(
-            build_mos_supplier_api_url(self.config.search_url, payload),
+        fingerprint = build_query_fingerprint(self, query)
+        result, _, _ = await self._search_single_response(
+            prepared.query,
+            query_fingerprint=fingerprint,
             cancellation_token=cancellation_token,
         )
-        parsed = self.parser.parse_search(response)
-        filtered = tuple(
-            item for item in parsed.items if matches_mos_supplier_query(item, prepared.query)
+        return TenderSearchResult(
+            provider_id=result.provider_id,
+            items=tuple(result.items),
+            total=result.total,
+            page=result.page,
+            page_size=result.page_size,
+            next_page_token="",
+            warnings=tuple(dict.fromkeys((*result.warnings, *prepared.warnings))),
         )
-        start = (prepared.query.page - 1) * prepared.query.page_size
-        end = start + prepared.query.page_size
+
+    async def _search_single_response(
+        self,
+        query: TenderSearchQuery,
+        *,
+        query_fingerprint: str,
+        cancellation_token: CollectorCancellationToken | None,
+    ) -> tuple[TenderSearchResult, str, tuple[RawArtifactReference, ...]]:
+        payload = build_mos_supplier_search_payload(query)
+        url = build_mos_supplier_api_url(self.config.search_url, payload)
+        page_identity = self._operation_page_identity(
+            operation="search",
+            query_fingerprint=query_fingerprint,
+        )
+        response = await self._request_json(
+            url,
+            query_fingerprint=query_fingerprint,
+            page_identity=page_identity,
+            cancellation_token=cancellation_token,
+        )
+        try:
+            parsed = self.parser.parse_search(response.payload)
+        except MosSupplierApiParseError:
+            self._capture_response(
+                response.response,
+                query_fingerprint=query_fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_structure",
+            )
+            raise
+        filtered = tuple(item for item in parsed.items if matches_mos_supplier_query(item, query))
+        start = (query.page - 1) * query.page_size
+        end = start + query.page_size
         page_items = filtered[start:end]
         warnings = list(parsed.warnings)
-        warnings.extend(prepared.warnings)
         warnings.append(
-            "Использован официальный API Портала поставщиков с "
-            "bearer-токеном. Параметры серверной пагинации не "
-            "зафиксированы в текущем контракте и применяются локально."
+            "Использован документированный API Портала поставщиков с "
+            "настроенной аутентификацией. Серверная пагинация не подтверждена; "
+            "адаптер ограничен одним документированным ответом с локальной "
+            "ограниченной выборкой."
         )
-        result = TenderSearchResult(
-            provider_id=self.descriptor.id,
-            items=page_items,
-            total=(parsed.total if parsed.total is not None else len(filtered)),
-            page=prepared.query.page,
-            page_size=prepared.query.page_size,
-            next_page_token=(str(prepared.query.page + 1) if end < len(filtered) else ""),
-            warnings=tuple(dict.fromkeys(warnings)),
+        artifact = self._capture_response(
+            response.response,
+            query_fingerprint=query_fingerprint,
+            page_identity=page_identity,
+            parse_outcome="search_accepted",
         )
-        self.checkpoints.mark_success(prepared, result)
-        return result
+        artifacts = (artifact,) if artifact is not None else ()
+        return (
+            TenderSearchResult(
+                provider_id=self.descriptor.id,
+                items=page_items,
+                total=(parsed.total if parsed.total is not None else len(filtered)),
+                page=query.page,
+                page_size=query.page_size,
+                next_page_token="",
+                warnings=tuple(dict.fromkeys(warnings)),
+            ),
+            page_identity,
+            artifacts,
+        )
 
     async def get_tender(
         self,
@@ -131,16 +270,48 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         *,
         cancellation_token: CollectorCancellationToken | None = None,
     ) -> UnifiedTender:
+        self._last_artifacts = []
         self._require_token()
         normalized = external_id.strip()
         if not normalized:
             raise ValueError("external_id must not be empty")
         payload = {"id": normalized}
+        fingerprint = stable_hash(
+            {
+                "provider_id": self.descriptor.id,
+                "contract_version": self.contract_version,
+                "parser_version": self.parser_version,
+                "operation": "card",
+                "external_id": normalized,
+            }
+        )
+        page_identity = self._operation_page_identity(
+            operation="card",
+            query_fingerprint=fingerprint,
+        )
         response = await self._request_json(
             build_mos_supplier_api_url(self.config.get_url, payload),
+            query_fingerprint=fingerprint,
+            page_identity=page_identity,
             cancellation_token=cancellation_token,
         )
-        return self.parser.parse_card(response)
+        try:
+            tender = self.parser.parse_card(response.payload)
+        except MosSupplierApiParseError:
+            self._capture_response(
+                response.response,
+                query_fingerprint=fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_structure",
+            )
+            raise
+        self._capture_response(
+            response.response,
+            query_fingerprint=fingerprint,
+            page_identity=page_identity,
+            parse_outcome="card_documents_accepted",
+        )
+        return tender
 
     async def list_documents(
         self,
@@ -159,6 +330,7 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         *,
         cancellation_token: CollectorCancellationToken | None = None,
     ) -> ProviderHealth:
+        self._last_artifacts = []
         started = perf_counter()
         checked_at = _utc_now()
         if not self.config.configured:
@@ -173,14 +345,43 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
                 latency_ms=0,
             )
         try:
+            fingerprint = stable_hash(
+                {
+                    "provider_id": self.descriptor.id,
+                    "contract_version": self.contract_version,
+                    "parser_version": self.parser_version,
+                    "operation": "health",
+                }
+            )
+            page_identity = self._operation_page_identity(
+                operation="health",
+                query_fingerprint=fingerprint,
+            )
             response = await self._request_json(
                 build_mos_supplier_api_url(
                     self.config.search_url,
                     {"filter": {"name": "видеонаблюдение"}},
                 ),
+                query_fingerprint=fingerprint,
+                page_identity=page_identity,
                 cancellation_token=cancellation_token,
             )
-            self.parser.parse_search(response)
+            try:
+                self.parser.parse_search(response.payload)
+            except MosSupplierApiParseError:
+                self._capture_response(
+                    response.response,
+                    query_fingerprint=fingerprint,
+                    page_identity=page_identity,
+                    parse_outcome="rejected_structure",
+                )
+                raise
+            self._capture_response(
+                response.response,
+                query_fingerprint=fingerprint,
+                page_identity=page_identity,
+                parse_outcome="health_accepted",
+            )
             status = ProviderHealthStatus.AVAILABLE
             message = "Официальный API Портала поставщиков доступен; bearer-токен принят."
         except ProviderNotConfiguredError as exc:
@@ -210,6 +411,8 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         return (
             "Настроен официальный API Портала поставщиков.",
             "Credential настроен: да.",
+            f"Контракт {self.contract_version}: один documented response; "
+            "серверная пагинация не заявлена.",
             "Работоспособность следует подтвердить кнопкой проверки "
             "подключения или scripts/check_mos_supplier_api.py.",
         )
@@ -225,8 +428,10 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         self,
         url: str,
         *,
+        query_fingerprint: str,
+        page_identity: str,
         cancellation_token: CollectorCancellationToken | None,
-    ) -> object:
+    ) -> _MosSupplierJsonResponse:
         try:
             response = await self.http_client.get(
                 url,
@@ -264,11 +469,74 @@ class AsyncMosSupplierTenderProvider(AsyncTenderProvider):
         try:
             payload = json.loads(response.text())
         except json.JSONDecodeError as exc:
+            self._capture_response(
+                response,
+                query_fingerprint=query_fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_json",
+            )
             raise MosSupplierApiParseError("Официальный API вернул повреждённый JSON") from exc
         error_message = mos_supplier_api_error_message(payload)
         if error_message:
-            raise TenderProviderError(f"Портал поставщиков вернул ошибку API: {error_message}")
-        return payload
+            self._capture_response(
+                response,
+                query_fingerprint=query_fingerprint,
+                page_identity=page_identity,
+                parse_outcome="rejected_api",
+            )
+            raise TenderProviderError("Портал поставщиков вернул ошибку API.")
+        return _MosSupplierJsonResponse(payload=payload, response=response)
+
+    def _capture_response(
+        self,
+        response: HttpResponse,
+        *,
+        query_fingerprint: str,
+        page_identity: str,
+        parse_outcome: str,
+    ) -> RawArtifactReference | None:
+        if self.artifact_store is None:
+            return None
+        media_type, encoding = _content_type(response)
+        artifact = self.artifact_store.put(
+            response.body,
+            provider_id=self.descriptor.id,
+            request_method="GET",
+            request_url=response.url,
+            status_code=response.status_code,
+            media_type=media_type,
+            encoding=encoding,
+            query_fingerprint=query_fingerprint,
+            page_identity=page_identity,
+            contract_version=self.contract_version,
+            parser_version=self.parser_version,
+            parse_outcome=parse_outcome,
+            retention_class=self.contract.retention_class,
+        )
+        self._last_artifacts.append(artifact)
+        return artifact
+
+    def _resume_is_compatible(
+        self,
+        resume: CollectorCheckpoint,
+        query_fingerprint: str,
+    ) -> bool:
+        return (
+            resume.provider_id.strip().casefold() == self.descriptor.id
+            and resume.query_fingerprint == query_fingerprint
+            and resume.contract_version == self.contract_version
+            and resume.parser_version == self.parser_version
+        )
+
+    @staticmethod
+    def _operation_page_identity(*, operation: str, query_fingerprint: str) -> str:
+        return stable_hash(
+            {
+                "provider_id": "mos_supplier",
+                "operation": operation,
+                "query_fingerprint": query_fingerprint,
+            }
+        )
 
 
 def build_mos_supplier_search_payload(
@@ -457,7 +725,7 @@ def _russian_stem(token: str) -> str:
     return token
 
 
-def _transport_number(value: float | int | Decimal) -> int | float:
+def _transport_number(value: Decimal | int | float | str) -> int | float:
     decimal_value = Decimal(str(value))
     if decimal_value == decimal_value.to_integral_value():
         return int(decimal_value)
@@ -482,6 +750,19 @@ def _deep_merge(
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _content_type(response: HttpResponse) -> tuple[str, str]:
+    rendered = response.headers.get("content-type", "").strip()
+    parts = tuple(part.strip() for part in rendered.split(";") if part.strip())
+    media_type = parts[0].casefold() if parts else "application/octet-stream"
+    encoding = "utf-8"
+    for part in parts[1:]:
+        name, separator, value = part.partition("=")
+        if separator and name.strip().casefold() == "charset" and value.strip():
+            encoding = value.strip().strip('"').casefold()
+            break
+    return media_type, encoding
 
 
 __all__ = [

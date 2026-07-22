@@ -92,6 +92,7 @@ def create_default_async_providers(
             config=(mos_supplier_config or MosSupplierApiConfig.from_environment(environment)),
             network_settings=network_runtime.settings.get("mos_supplier"),
             checkpoint_repository=repository,
+            artifact_store=artifact_store,
         ),
     ]
     if include_commercial_catalog:
