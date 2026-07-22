@@ -100,7 +100,12 @@
   matrix jobs и dependency audit успешны. Docs-only решением `zakaz_rf` сохраняется первым source
   и ожидает external unblock, а `roseltorg` назначается следующим последовательным access-audit
   target. Это не меняет нумерацию P6 и не подтверждает contract/readiness Roseltorg; отдельный
-  Roseltorg audit начинается только после merge/exact этого решения.
+  Roseltorg audit начинается только после merge/exact этого решения. Решение принято PR #129:
+  head `6df486b31d0953ae140be2c03939bab848b757b3`, PR-head run `29959486498`, merge
+  `862dac27b38968f235f831402139980e17cc90f3`, exact run `29959911671`; обе matrix jobs и
+  dependency audit успешны. Последующий Roseltorg audit нашёл public HTML search/detail и robots
+  indexing allowance, но не procurement API/feed/data-use/retention/schema/rate contract или
+  approved fixtures. `roseltorg` остаётся `BLOCKED_EXTERNAL`; guessed implementation запрещена.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
