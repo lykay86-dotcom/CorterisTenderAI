@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from app.tenders.business_profile import BusinessCapabilityProjection
+from app.tenders.collector.artifacts import RawArtifactStore
 from app.tenders.collector.async_engine import AsyncProviderSearchEngine
 from app.tenders.collector.async_provider import AsyncTenderProvider
 from app.tenders.collector.collector_service import CollectorService
@@ -55,6 +56,7 @@ def create_default_async_providers(
     network_runtime: CollectorNetworkRuntime,
     *,
     repository: CollectorStateRepository | None = None,
+    artifact_store: RawArtifactStore | None = None,
     mos_supplier_config: MosSupplierApiConfig | None = None,
     include_commercial_catalog: bool = False,
     commercial_catalog: CommercialProviderCatalog | None = None,
@@ -83,6 +85,7 @@ def create_default_async_providers(
             network_runtime.http_client,
             network_settings=network_runtime.settings.get("eis"),
             checkpoint_repository=repository,
+            artifact_store=artifact_store,
         ),
         AsyncMosSupplierTenderProvider(
             network_runtime.http_client,
@@ -180,6 +183,7 @@ def create_default_collector_service(
     providers = create_default_async_providers(
         network_runtime,
         repository=repository,
+        artifact_store=RawArtifactStore(data_path / "collector" / "artifacts"),
         mos_supplier_config=mos_supplier_config,
         include_commercial_catalog=include_commercial_catalog,
         commercial_catalog=commercial_catalog,

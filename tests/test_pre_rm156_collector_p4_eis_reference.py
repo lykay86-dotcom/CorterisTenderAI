@@ -15,6 +15,10 @@ from app.tenders.collector.async_engine import (
     AsyncProviderSearchStatus,
 )
 from app.tenders.collector.async_provider import build_query_fingerprint
+from app.tenders.collector.cancellation import (
+    CollectorCancellationToken,
+    CollectorCancelledError,
+)
 from app.tenders.collector.checkpoint import CollectorCheckpoint
 from app.tenders.collector.store import CollectorStateRepository
 from app.tenders.provider_base import TenderSearchQuery
@@ -136,12 +140,43 @@ def test_eis_reference_resumes_from_committed_cursor(tmp_path: Path) -> None:
             accepted_page_count=1,
         )
 
-        pages = tuple(page async for page in provider.iter_search_pages(query, resume=resume))
+        pages = tuple([page async for page in provider.iter_search_pages(query, resume=resume)])
 
         assert requested_pages == [2]
         assert len(pages) == 1
         assert pages[0].page_number == 2
         assert pages[0].terminal
+        await raw.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_eis_reference_honors_cancellation_between_pages(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        requested_pages: list[int] = []
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            requested_pages.append(int(parse_qs(request.url.query.decode())["pageNumber"][0]))
+            return httpx.Response(200, content=FIRST_SEARCH_HTML, request=request)
+
+        client, raw = _client(handler)
+        provider = AsyncEisTenderProvider(
+            client,
+            artifact_store=RawArtifactStore(tmp_path / "artifacts"),
+        )
+        token = CollectorCancellationToken()
+        pages = provider.iter_search_pages(
+            TenderSearchQuery(page_size=50, extra={"incremental": False}),
+            cancellation_token=token,
+        )
+
+        first = await anext(pages)
+        token.cancel("stop after accepted page")
+        with pytest.raises(CollectorCancelledError):
+            await anext(pages)
+
+        assert first.next_cursor == "2"
+        assert requested_pages == [1]
         await raw.aclose()
 
     asyncio.run(scenario())
