@@ -14,6 +14,7 @@ from app.tenders.collector import async_provider as page_contract
 from app.tenders.collector.async_engine import (
     AsyncProviderSearchEngine,
     AsyncProviderSearchStatus,
+    CollectorRunBudget,
 )
 from app.tenders.collector.async_provider import AsyncTenderProvider
 from app.tenders.collector.cancellation import CollectorCancellationToken
@@ -96,9 +97,7 @@ def test_default_page_adapter_preserves_legacy_provider() -> None:
         assert pages[0].provider_id == "fixture"
         assert pages[0].terminal
         assert pages[0].next_cursor == ""
-        assert pages[0].query_fingerprint == page_contract.build_query_fingerprint(
-            provider, query
-        )
+        assert pages[0].query_fingerprint == page_contract.build_query_fingerprint(provider, query)
         assert tuple(item.external_id for item in pages[0].items) == ("one",)
 
     asyncio.run(scenario())
@@ -124,22 +123,23 @@ def test_query_fingerprint_excludes_navigation_and_secret_values() -> None:
 
     assert page_contract.build_query_fingerprint(
         provider, first
-    ) == page_contract.build_query_fingerprint(
-        provider, navigated
-    )
+    ) == page_contract.build_query_fingerprint(provider, navigated)
     assert page_contract.build_query_fingerprint(
         provider, changed
-    ) != page_contract.build_query_fingerprint(
-        provider, navigated
-    )
+    ) != page_contract.build_query_fingerprint(provider, navigated)
     assert "secret" not in page_contract.build_query_fingerprint(provider, first)
 
 
 def test_engine_enforces_page_budget_without_requesting_unbounded_pages() -> None:
     class ManyPagesProvider(_LegacyOnePageProvider):
+        def __init__(self) -> None:
+            super().__init__()
+            self.requested_pages = 0
+
         async def iter_search_pages(self, query, *, resume=None, cancellation_token=None):
             del query, resume
             for page_number in range(1, 6):
+                self.requested_pages += 1
                 if cancellation_token is not None:
                     cancellation_token.throw_if_cancelled()
                 yield page_contract.ProviderCollectionPage(
@@ -161,16 +161,173 @@ def test_engine_enforces_page_budget_without_requesting_unbounded_pages() -> Non
                 )
 
     async def scenario() -> None:
+        provider = ManyPagesProvider()
         result = await AsyncProviderSearchEngine(
-            (ManyPagesProvider(),),
+            (provider,),
             max_pages_per_provider=2,
         ).search(TenderSearchQuery())
 
         assert result.outcomes[0].status is AsyncProviderSearchStatus.FAILED
         assert result.outcomes[0].error_code == "provider_page_budget_exceeded"
         assert tuple(item.external_id for item in result.raw_items) == ("item-1", "item-2")
+        assert provider.requested_pages == 2
 
     asyncio.run(scenario())
+
+
+def test_interactive_and_scheduled_run_budgets_are_separate_and_hard_bounded() -> None:
+    assert CollectorRunBudget.interactive() == CollectorRunBudget(20, 10_000, 180.0)
+    assert CollectorRunBudget.scheduled() == CollectorRunBudget(200, 100_000, 900.0)
+    with pytest.raises(ValueError, match="between 1 and 200"):
+        CollectorRunBudget(201, 100_000, 900.0)
+    with pytest.raises(ValueError, match="between 1 and 100000"):
+        CollectorRunBudget(200, 100_001, 900.0)
+    with pytest.raises(ValueError, match="between 0 and 900"):
+        CollectorRunBudget(200, 100_000, 901.0)
+
+    class TwentyOnePageProvider(_LegacyOnePageProvider):
+        async def iter_search_pages(self, query, *, resume=None, cancellation_token=None):
+            del query, resume
+            for page_number in range(1, 22):
+                yield page_contract.ProviderCollectionPage(
+                    provider_id=self.descriptor.id,
+                    contract_version=self.contract_version,
+                    parser_version=self.parser_version,
+                    query_fingerprint="f" * 64,
+                    page_identity=f"page-{page_number}",
+                    page_number=page_number,
+                    items=(),
+                    next_cursor="" if page_number == 21 else f"cursor-{page_number + 1}",
+                    terminal=page_number == 21,
+                    artifacts=(),
+                )
+
+    async def scenario() -> None:
+        interactive = await AsyncProviderSearchEngine((TwentyOnePageProvider(),)).search(
+            TenderSearchQuery(),
+            run_budget=CollectorRunBudget.interactive(),
+        )
+        scheduled = await AsyncProviderSearchEngine((TwentyOnePageProvider(),)).search(
+            TenderSearchQuery(),
+            run_budget=CollectorRunBudget.scheduled(),
+        )
+        assert interactive.outcomes[0].error_code == "provider_page_budget_exceeded"
+        assert interactive.outcomes[0].page_count == 20
+        assert scheduled.outcomes[0].status is AsyncProviderSearchStatus.EMPTY
+        assert scheduled.outcomes[0].page_count == 21
+
+    asyncio.run(scenario())
+
+
+def test_engine_commits_each_page_before_requesting_the_next(tmp_path: Path) -> None:
+    repository = CollectorStateRepository(tmp_path / "registry.sqlite3")
+    run_id = repository.start_run(TenderSearchQuery(), provider_ids=("fixture",))
+
+    class DurablePagesProvider(_LegacyOnePageProvider):
+        async def iter_search_pages(self, query, *, resume=None, cancellation_token=None):
+            del query, resume
+            for page_number in (1, 2):
+                if page_number == 2:
+                    checkpoint = repository.get_checkpoint("fixture", scope_key="f" * 64)
+                    assert checkpoint is not None
+                    assert checkpoint.accepted_page_count == 1
+                yield page_contract.ProviderCollectionPage(
+                    provider_id="fixture",
+                    contract_version=self.contract_version,
+                    parser_version=self.parser_version,
+                    query_fingerprint="f" * 64,
+                    page_identity=f"page-{page_number}",
+                    page_number=page_number,
+                    items=(
+                        make_tender(
+                            source=TenderSource.CUSTOM,
+                            external_id=f"durable-{page_number}",
+                        ),
+                    ),
+                    next_cursor="page-2" if page_number == 1 else "",
+                    terminal=page_number == 2,
+                    artifacts=(),
+                )
+
+    async def scenario() -> None:
+        result = await AsyncProviderSearchEngine(
+            (DurablePagesProvider(),),
+            accepted_page_repository=repository,
+        ).search(TenderSearchQuery(), run_id=run_id)
+        assert result.outcomes[0].status is AsyncProviderSearchStatus.SUCCESS
+        assert result.outcomes[0].page_count == 2
+        assert result.outcomes[0].artifact_count == 0
+
+    asyncio.run(scenario())
+    checkpoint = repository.get_checkpoint("fixture", scope_key="f" * 64)
+    assert checkpoint is not None
+    assert checkpoint.accepted_page_count == 2
+    assert checkpoint.accepted_item_count == 2
+    with repository._connect() as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM collector_accepted_pages WHERE run_id=?",
+                (run_id,),
+            ).fetchone()[0]
+            == 2
+        )
+
+
+def test_engine_resume_preserves_cumulative_checkpoint_counters(tmp_path: Path) -> None:
+    repository = CollectorStateRepository(tmp_path / "registry.sqlite3")
+    query = TenderSearchQuery(keywords=("resume",))
+
+    class ResumableProvider(_LegacyOnePageProvider):
+        async def iter_search_pages(self, query, *, resume=None, cancellation_token=None):
+            fingerprint = page_contract.build_query_fingerprint(self, query)
+            page_number = 1 if resume is None else 2
+            assert resume is None or resume.cursor == "page-2"
+            yield page_contract.ProviderCollectionPage(
+                provider_id="fixture",
+                contract_version=self.contract_version,
+                parser_version=self.parser_version,
+                query_fingerprint=fingerprint,
+                page_identity=f"page-{page_number}",
+                page_number=page_number,
+                items=(
+                    make_tender(
+                        source=TenderSource.CUSTOM,
+                        external_id=f"resume-{page_number}",
+                    ),
+                ),
+                next_cursor="page-2" if page_number == 1 else "",
+                terminal=page_number == 2,
+                artifacts=(),
+            )
+            if page_number == 1 and cancellation_token is not None:
+                cancellation_token.cancel("resume fixture pause")
+                cancellation_token.throw_if_cancelled()
+
+    async def scenario() -> None:
+        provider = ResumableProvider()
+        first_run = repository.start_run(query, provider_ids=("fixture",))
+        first = await AsyncProviderSearchEngine(
+            (provider,), accepted_page_repository=repository
+        ).search(query, run_id=first_run)
+        assert first.cancelled or first.outcomes[0].status is AsyncProviderSearchStatus.CANCELLED
+
+        second_run = repository.start_run(
+            query,
+            provider_ids=("fixture",),
+            acquire_lease=False,
+        )
+        second = await AsyncProviderSearchEngine(
+            (provider,), accepted_page_repository=repository
+        ).search(query, run_id=second_run)
+        assert second.outcomes[0].status is AsyncProviderSearchStatus.SUCCESS
+
+    asyncio.run(scenario())
+    fingerprint = page_contract.build_query_fingerprint(ResumableProvider(), query)
+    checkpoint = repository.get_checkpoint("fixture", scope_key=fingerprint)
+    assert checkpoint is not None
+    assert checkpoint.accepted_page_count == 2
+    assert checkpoint.accepted_item_count == 2
+    assert checkpoint.last_accepted_page_id == "page-2"
 
 
 def test_raw_artifact_store_deduplicates_content_and_sanitizes_url(tmp_path: Path) -> None:
@@ -309,6 +466,11 @@ def test_schema_14_to_15_backup_is_verified_and_current_is_idempotent(tmp_path: 
         )
 
     with sqlite3.connect(database) as connection:
+        inventory = CollectorSchemaMigrator().inspect(connection)
+        assert inventory.current_version == 14
+        assert inventory.target_version == 15
+        assert inventory.requires_migration
+        assert inventory.requires_backup
         CollectorSchemaMigrator().migrate(connection)
 
     backups = tuple((tmp_path / "backups").glob("*.sqlite3"))
@@ -319,6 +481,17 @@ def test_schema_14_to_15_backup_is_verified_and_current_is_idempotent(tmp_path: 
             "SELECT value FROM tender_registry_meta WHERE key='collector_schema_version'"
         ).fetchone()[0]
     assert version == "14"
+
+    restored = CollectorSchemaMigrator.restore_verified_backup(
+        backups[0],
+        tmp_path / "restored.sqlite3",
+    )
+    with sqlite3.connect(restored) as connection:
+        restored_version = connection.execute(
+            "SELECT value FROM tender_registry_meta WHERE key='collector_schema_version'"
+        ).fetchone()[0]
+        assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    assert restored_version == "14"
 
     with sqlite3.connect(database) as connection:
         CollectorSchemaMigrator().migrate(connection)

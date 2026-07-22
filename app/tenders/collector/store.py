@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import json
 import sqlite3
@@ -17,9 +17,10 @@ from app.tenders.collector.change_tracker import (
     TenderChange,
     TenderChangeTracker,
 )
-from app.tenders.collector.checkpoint import CollectorCheckpoint
+from app.tenders.collector.checkpoint import AcceptedPageReceipt, CollectorCheckpoint
 from app.tenders.collector.codec import (
     query_to_payload,
+    stable_hash,
     stable_json,
     tender_from_payload,
     tender_to_payload,
@@ -108,29 +109,57 @@ class CollectorStateRepository:
         provider_ids: Sequence[str] = (),
         run_id: str | None = None,
         started_at: str | None = None,
+        acquire_lease: bool | None = None,
     ) -> str:
         self.initialize()
         effective_id = run_id or uuid4().hex
+        lease_required = run_id is None if acquire_lease is None else bool(acquire_lease)
         moment = _aware_utc_timestamp(started_at or _utc_now())
         with self._lock, self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO collector_runs(
-                    run_id,
-                    status,
-                    started_at,
-                    query_json,
-                    requested_provider_ids_json
-                ) VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    effective_id,
-                    CollectionRunStatus.RUNNING.value,
-                    moment,
-                    stable_json(query_to_payload(query)),
-                    stable_json(list(provider_ids)),
-                ),
-            )
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                if lease_required:
+                    lease = connection.execute(
+                        "SELECT run_id, expires_at FROM collector_run_leases "
+                        "WHERE lease_name='production'"
+                    ).fetchone()
+                    if lease is not None and str(lease["expires_at"]) > moment:
+                        raise RuntimeError("collector run already active")
+                    if lease is not None:
+                        connection.execute(
+                            "DELETE FROM collector_run_leases WHERE lease_name='production'"
+                        )
+                connection.execute(
+                    """
+                    INSERT INTO collector_runs(
+                        run_id,
+                        status,
+                        started_at,
+                        query_json,
+                        requested_provider_ids_json
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        effective_id,
+                        CollectionRunStatus.RUNNING.value,
+                        moment,
+                        stable_json(query_to_payload(query)),
+                        stable_json(list(provider_ids)),
+                    ),
+                )
+                if lease_required:
+                    connection.execute(
+                        """
+                        INSERT INTO collector_run_leases(
+                            lease_name, run_id, acquired_at, expires_at
+                        ) VALUES ('production', ?, ?, ?)
+                        """,
+                        (effective_id, moment, _lease_expiration(moment)),
+                    )
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
         return effective_id
 
     def save_batch(
@@ -438,15 +467,19 @@ class CollectorStateRepository:
                             display_name,
                             status,
                             item_count,
+                            page_count,
+                            artifact_count,
                             elapsed_ms,
                             warnings_json,
                             error_type,
                             error_message
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(run_id, provider_id) DO UPDATE SET
                             display_name=excluded.display_name,
                             status=excluded.status,
                             item_count=excluded.item_count,
+                            page_count=excluded.page_count,
+                            artifact_count=excluded.artifact_count,
                             elapsed_ms=excluded.elapsed_ms,
                             warnings_json=excluded.warnings_json,
                             error_type=excluded.error_type,
@@ -458,6 +491,8 @@ class CollectorStateRepository:
                             str(getattr(outcome, "display_name", "")),
                             _enum_value(getattr(outcome, "status", "")),
                             int(getattr(outcome, "item_count", 0)),
+                            int(getattr(outcome, "page_count", 0)),
+                            int(getattr(outcome, "artifact_count", 0)),
                             int(getattr(outcome, "elapsed_ms", 0)),
                             stable_json(list(getattr(outcome, "warnings", ()))),
                             _safe_outcome_error(outcome)[0],
@@ -489,6 +524,10 @@ class CollectorStateRepository:
                         safe_run_message,
                         run_id,
                     ),
+                )
+                connection.execute(
+                    "DELETE FROM collector_run_leases WHERE run_id = ?",
+                    (run_id,),
                 )
                 connection.execute("COMMIT")
             except Exception:
@@ -524,7 +563,8 @@ class CollectorStateRepository:
                 rows = connection.execute(
                     f"""
                     SELECT p.run_id, p.provider_id, p.status, p.item_count,
-                           p.elapsed_ms, p.error_type, p.error_message,
+                           p.page_count, p.artifact_count, p.elapsed_ms,
+                           p.error_type, p.error_message,
                            r.completed_at
                     FROM collector_run_providers AS p
                     JOIN collector_runs AS r ON r.run_id = p.run_id
@@ -554,6 +594,8 @@ class CollectorStateRepository:
                     error_message=safe_message,
                     item_count=max(0, int(row["item_count"])),
                     elapsed_ms=max(0, int(row["elapsed_ms"])),
+                    page_count=max(0, int(row["page_count"])),
+                    artifact_count=max(0, int(row["artifact_count"])),
                 )
             )
         return tuple(result)
@@ -2187,36 +2229,239 @@ class CollectorStateRepository:
             scope_key=checkpoint.scope_key.strip().casefold(),
             cursor=checkpoint.cursor,
             watermark=checkpoint.watermark,
+            contract_version=checkpoint.contract_version,
+            parser_version=checkpoint.parser_version,
+            query_fingerprint=checkpoint.query_fingerprint,
+            last_accepted_page_id=checkpoint.last_accepted_page_id,
+            accepted_page_count=checkpoint.accepted_page_count,
+            accepted_item_count=checkpoint.accepted_item_count,
+            replay_generation=checkpoint.replay_generation,
+            committed_at=checkpoint.committed_at or moment,
             state=dict(checkpoint.state),
             updated_at=moment,
         )
         with self._lock, self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO collector_checkpoints(
-                    provider_id,
-                    scope_key,
-                    cursor,
-                    watermark,
-                    state_json,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(provider_id, scope_key) DO UPDATE SET
-                    cursor=excluded.cursor,
-                    watermark=excluded.watermark,
-                    state_json=excluded.state_json,
-                    updated_at=excluded.updated_at
-                """,
-                (
-                    stored.provider_id,
-                    stored.scope_key,
-                    stored.cursor,
-                    stored.watermark,
-                    stable_json(stored.state),
-                    stored.updated_at,
-                ),
-            )
+            self._save_checkpoint_on_connection(connection, stored)
         return stored
+
+    def save_accepted_page(
+        self,
+        run_id: str,
+        page: object,
+        *,
+        checkpoint: CollectorCheckpoint,
+        accepted_at: str | None = None,
+    ) -> AcceptedPageReceipt:
+        """Commit one durable page receipt, artifact metadata and checkpoint atomically."""
+
+        self.initialize()
+        provider_id = str(getattr(page, "provider_id", "")).strip().casefold()
+        page_identity = str(getattr(page, "page_identity", "")).strip()
+        query_fingerprint = str(getattr(page, "query_fingerprint", "")).strip()
+        if provider_id != checkpoint.provider_id.strip().casefold():
+            raise ValueError("accepted page provider identity does not match checkpoint")
+        if query_fingerprint != checkpoint.query_fingerprint:
+            raise ValueError("accepted page fingerprint does not match checkpoint")
+        if page_identity != checkpoint.last_accepted_page_id:
+            raise ValueError("accepted page identity does not match checkpoint")
+        items = tuple(getattr(page, "items", ()))
+        artifacts = tuple(getattr(page, "artifacts", ()))
+        items_payload = tuple(tender_to_payload(item) for item in items)
+        artifact_ids = tuple(str(getattr(item, "reference_id", "")) for item in artifacts)
+        digest = stable_hash(
+            {
+                "provider_id": provider_id,
+                "query_fingerprint": query_fingerprint,
+                "page_identity": page_identity,
+                "items": items_payload,
+                "artifact_refs": artifact_ids,
+            }
+        )
+        moment = _aware_utc_timestamp(accepted_at or _utc_now())
+        stored_checkpoint = replace(
+            checkpoint,
+            provider_id=provider_id,
+            scope_key=checkpoint.scope_key.strip().casefold(),
+            committed_at=checkpoint.committed_at or moment,
+            updated_at=moment,
+        )
+        with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                run = connection.execute(
+                    "SELECT status FROM collector_runs WHERE run_id = ?",
+                    (run_id,),
+                ).fetchone()
+                if run is None:
+                    raise ValueError("accepted page run does not exist")
+                existing = connection.execute(
+                    """
+                    SELECT content_digest, item_count, artifact_refs_json, accepted_at
+                    FROM collector_accepted_pages
+                    WHERE run_id = ? AND provider_id = ? AND page_identity = ?
+                    """,
+                    (run_id, provider_id, page_identity),
+                ).fetchone()
+                if existing is not None:
+                    if str(existing["content_digest"]) != digest:
+                        raise RuntimeError("accepted page replay digest mismatch")
+                    checkpoint_row = connection.execute(
+                        "SELECT * FROM collector_checkpoints "
+                        "WHERE provider_id = ? AND scope_key = ?",
+                        (provider_id, stored_checkpoint.scope_key),
+                    ).fetchone()
+                    connection.execute("COMMIT")
+                    replay_checkpoint = (
+                        _row_to_checkpoint(checkpoint_row)
+                        if checkpoint_row is not None
+                        else stored_checkpoint
+                    )
+                    return AcceptedPageReceipt(
+                        run_id=run_id,
+                        provider_id=provider_id,
+                        page_identity=page_identity,
+                        content_digest=digest,
+                        item_count=int(existing["item_count"]),
+                        artifact_count=len(json.loads(str(existing["artifact_refs_json"]))),
+                        accepted_at=str(existing["accepted_at"]),
+                        checkpoint=replay_checkpoint,
+                    )
+                for artifact in artifacts:
+                    if (
+                        str(getattr(artifact, "provider_id", "")).strip().casefold() != provider_id
+                        or str(getattr(artifact, "page_identity", "")) != page_identity
+                    ):
+                        raise ValueError("artifact identity does not match accepted page")
+                    connection.execute(
+                        """
+                        INSERT INTO collector_artifact_contents(
+                            content_sha256, byte_length, storage_path, created_at
+                        ) VALUES (?, ?, ?, ?)
+                        ON CONFLICT(content_sha256) DO NOTHING
+                        """,
+                        (
+                            str(getattr(artifact, "content_sha256")),
+                            int(getattr(artifact, "byte_length")),
+                            str(getattr(artifact, "storage_path")),
+                            moment,
+                        ),
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO collector_raw_artifact_refs(
+                            reference_id, content_sha256, run_id, provider_id,
+                            page_identity, media_type, encoding, request_method,
+                            request_url, status_code, retrieved_at, query_fingerprint,
+                            contract_version, parser_version, parse_outcome,
+                            retention_class
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(getattr(artifact, "reference_id")),
+                            str(getattr(artifact, "content_sha256")),
+                            run_id,
+                            provider_id,
+                            page_identity,
+                            str(getattr(artifact, "media_type")),
+                            str(getattr(artifact, "encoding")),
+                            str(getattr(artifact, "request_method")),
+                            str(getattr(artifact, "request_url")),
+                            getattr(artifact, "status_code"),
+                            str(getattr(artifact, "retrieved_at")),
+                            query_fingerprint,
+                            str(getattr(artifact, "contract_version")),
+                            str(getattr(artifact, "parser_version")),
+                            str(getattr(artifact, "parse_outcome")),
+                            str(getattr(artifact, "retention_class")),
+                        ),
+                    )
+                connection.execute(
+                    """
+                    INSERT INTO collector_accepted_pages(
+                        run_id, provider_id, query_fingerprint, page_identity,
+                        page_number, contract_version, parser_version, next_cursor,
+                        terminal, item_count, items_json, artifact_refs_json,
+                        content_digest, accepted_at, replay_generation
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        run_id,
+                        provider_id,
+                        query_fingerprint,
+                        page_identity,
+                        int(getattr(page, "page_number")),
+                        str(getattr(page, "contract_version")),
+                        str(getattr(page, "parser_version")),
+                        str(getattr(page, "next_cursor")),
+                        int(bool(getattr(page, "terminal"))),
+                        len(items),
+                        stable_json(items_payload),
+                        stable_json(artifact_ids),
+                        digest,
+                        moment,
+                        stored_checkpoint.replay_generation,
+                    ),
+                )
+                self._save_checkpoint_on_connection(connection, stored_checkpoint)
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
+        return AcceptedPageReceipt(
+            run_id=run_id,
+            provider_id=provider_id,
+            page_identity=page_identity,
+            content_digest=digest,
+            item_count=len(items),
+            artifact_count=len(artifacts),
+            accepted_at=moment,
+            checkpoint=stored_checkpoint,
+        )
+
+    @staticmethod
+    def _save_checkpoint_on_connection(
+        connection: sqlite3.Connection,
+        checkpoint: CollectorCheckpoint,
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO collector_checkpoints(
+                provider_id, scope_key, cursor, watermark,
+                contract_version, parser_version, query_fingerprint,
+                last_accepted_page_id, accepted_page_count, accepted_item_count,
+                replay_generation, committed_at, state_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(provider_id, scope_key) DO UPDATE SET
+                cursor=excluded.cursor,
+                watermark=excluded.watermark,
+                contract_version=excluded.contract_version,
+                parser_version=excluded.parser_version,
+                query_fingerprint=excluded.query_fingerprint,
+                last_accepted_page_id=excluded.last_accepted_page_id,
+                accepted_page_count=excluded.accepted_page_count,
+                accepted_item_count=excluded.accepted_item_count,
+                replay_generation=excluded.replay_generation,
+                committed_at=excluded.committed_at,
+                state_json=excluded.state_json,
+                updated_at=excluded.updated_at
+            """,
+            (
+                checkpoint.provider_id,
+                checkpoint.scope_key,
+                checkpoint.cursor,
+                checkpoint.watermark,
+                checkpoint.contract_version,
+                checkpoint.parser_version,
+                checkpoint.query_fingerprint,
+                checkpoint.last_accepted_page_id,
+                checkpoint.accepted_page_count,
+                checkpoint.accepted_item_count,
+                checkpoint.replay_generation,
+                checkpoint.committed_at,
+                stable_json(checkpoint.state),
+                checkpoint.updated_at,
+            ),
+        )
 
     def get_checkpoint(
         self,
@@ -2247,6 +2492,14 @@ class CollectorStateRepository:
             scope_key=str(row["scope_key"]),
             cursor=str(row["cursor"]),
             watermark=str(row["watermark"]),
+            contract_version=str(row["contract_version"]),
+            parser_version=str(row["parser_version"]),
+            query_fingerprint=str(row["query_fingerprint"]),
+            last_accepted_page_id=str(row["last_accepted_page_id"]),
+            accepted_page_count=int(row["accepted_page_count"]),
+            accepted_item_count=int(row["accepted_item_count"]),
+            replay_generation=int(row["replay_generation"]),
+            committed_at=str(row["committed_at"]),
             state=dict(state),
             updated_at=str(row["updated_at"]),
         )
@@ -2266,7 +2519,7 @@ class CollectorStateRepository:
             with self._lock, self._connect_readonly() as connection:
                 rows = connection.execute(
                     f"""
-                    SELECT provider_id, scope_key, cursor, watermark, state_json, updated_at
+                    SELECT *
                     FROM collector_checkpoints
                     {where}
                     ORDER BY provider_id ASC, scope_key ASC
@@ -2289,6 +2542,14 @@ class CollectorStateRepository:
                     scope_key=str(row["scope_key"]),
                     cursor=str(row["cursor"]),
                     watermark=str(row["watermark"]),
+                    contract_version=str(row["contract_version"]),
+                    parser_version=str(row["parser_version"]),
+                    query_fingerprint=str(row["query_fingerprint"]),
+                    last_accepted_page_id=str(row["last_accepted_page_id"]),
+                    accepted_page_count=int(row["accepted_page_count"]),
+                    accepted_item_count=int(row["accepted_item_count"]),
+                    replay_generation=int(row["replay_generation"]),
+                    committed_at=str(row["committed_at"]),
                     state=dict(state),
                     updated_at=str(row["updated_at"]),
                 )
@@ -2872,6 +3133,31 @@ def _row_to_run(row: sqlite3.Row) -> CollectionRunRecord:
     )
 
 
+def _row_to_checkpoint(row: sqlite3.Row) -> CollectorCheckpoint:
+    try:
+        state = json.loads(str(row["state_json"] or "{}"))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        state = {}
+    if not isinstance(state, Mapping):
+        state = {}
+    return CollectorCheckpoint(
+        provider_id=str(row["provider_id"]),
+        scope_key=str(row["scope_key"]),
+        cursor=str(row["cursor"]),
+        watermark=str(row["watermark"]),
+        contract_version=str(row["contract_version"]),
+        parser_version=str(row["parser_version"]),
+        query_fingerprint=str(row["query_fingerprint"]),
+        last_accepted_page_id=str(row["last_accepted_page_id"]),
+        accepted_page_count=int(row["accepted_page_count"]),
+        accepted_item_count=int(row["accepted_item_count"]),
+        replay_generation=int(row["replay_generation"]),
+        committed_at=str(row["committed_at"]),
+        state=dict(state),
+        updated_at=str(row["updated_at"]),
+    )
+
+
 def _safe_outcome_error(outcome: object) -> tuple[str, str]:
     if bool(getattr(outcome, "successful", False)):
         return "", ""
@@ -2898,6 +3184,15 @@ def _verification_storage_id(
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _lease_expiration(acquired_at: str, *, seconds: int = 900) -> str:
+    moment = datetime.fromisoformat(acquired_at.replace("Z", "+00:00"))
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise ValueError("collector lease timestamp must be timezone-aware")
+    return (moment.astimezone(timezone.utc) + timedelta(seconds=seconds)).isoformat(
+        timespec="seconds"
+    )
 
 
 def _aware_utc_timestamp(value: str) -> str:

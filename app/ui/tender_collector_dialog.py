@@ -411,6 +411,16 @@ class TenderCollectorDialog(QDialog):
             message = (
                 f"Сбор остановлен. Уже полученные результаты сохранены: {persistence.merged_count}."
             )
+        elif result.status == CollectionRunStatus.TIMED_OUT:
+            message = (
+                "Сбор остановлен по тайм-ауту. "
+                f"Уже полученные результаты сохранены: {persistence.merged_count}."
+            )
+        elif result.status == CollectionRunStatus.FAILED:
+            message = (
+                "Сбор завершён без успешных источников. "
+                f"Ранее принятых результатов сохранено: {persistence.merged_count}."
+            )
         elif result.status == CollectionRunStatus.PARTIAL:
             message = (
                 "Сбор завершён с ошибками отдельных источников. "
@@ -428,7 +438,10 @@ class TenderCollectorDialog(QDialog):
                 f"{persistence.duplicate_count}, рекомендовано: "
                 f"{persistence.recommended_count}."
             )
-        self.set_status(message)
+        self.set_status(
+            message,
+            error=result.status in {CollectionRunStatus.FAILED, CollectionRunStatus.TIMED_OUT},
+        )
         self.set_running(False)
 
     def set_error(self, message: str) -> None:

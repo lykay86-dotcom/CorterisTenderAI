@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -166,6 +167,20 @@ def test_dialog_updates_progress_and_summary() -> None:
     assert dialog.saved_value.text() == "3"
     assert dialog.progress_bar.value() == 100
     assert not dialog.running
+    app.processEvents()
+
+
+def test_dialog_renders_timeout_and_failed_as_errors() -> None:
+    app = _app()
+    dialog = TenderCollectorDialog()
+
+    dialog.set_result(replace(_result(), status=CollectionRunStatus.TIMED_OUT))
+    assert "тайм-ауту" in dialog.status_label.text()
+    assert dialog.status_label.property("error") is True
+
+    dialog.set_result(replace(_result(), status=CollectionRunStatus.FAILED))
+    assert "без успешных источников" in dialog.status_label.text()
+    assert dialog.status_label.property("error") is True
     app.processEvents()
 
 

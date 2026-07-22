@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from app.tenders.collector.async_engine import AsyncProviderSearchEngine
+from app.tenders.collector.async_engine import AsyncProviderSearchEngine, CollectorRunBudget
 from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.deduplicator import TenderDeduplicator
 from app.tenders.collector.freshness import TenderFreshnessService
@@ -57,6 +57,11 @@ class CollectorService:
     ) -> None:
         self.engine = engine
         self.repository = repository
+        if (
+            isinstance(engine, AsyncProviderSearchEngine)
+            and engine.accepted_page_repository is None
+        ):
+            engine.accepted_page_repository = repository
         engine_normalizer = getattr(engine, "normalizer", None)
         self.normalizer = normalizer or engine_normalizer or TenderNormalizer()
         engine_deduplicator = getattr(engine, "deduplicator", None)
@@ -81,6 +86,7 @@ class CollectorService:
         provider_ids: Sequence[str] | None = None,
         cancellation_token: CollectorCancellationToken | None = None,
         progress_callback: CollectorProgressCallback | None = None,
+        run_budget: CollectorRunBudget | None = None,
     ) -> CollectorRunResult:
         requested = tuple(provider_ids or ())
         await emit_collector_progress(
@@ -103,6 +109,7 @@ class CollectorService:
             }
             if isinstance(self.engine, AsyncProviderSearchEngine):
                 engine_kwargs["run_id"] = run_id
+                engine_kwargs["run_budget"] = run_budget
             if progress_callback is None:
                 batch = await self.engine.search(
                     query,
@@ -304,6 +311,8 @@ class CollectorService:
             final_phase = (
                 CollectorProgressPhase.CANCELLED
                 if status == CollectionRunStatus.CANCELLED
+                else CollectorProgressPhase.FAILED
+                if status in {CollectionRunStatus.FAILED, CollectionRunStatus.TIMED_OUT}
                 else CollectorProgressPhase.COMPLETED
             )
             await emit_collector_progress(
@@ -351,7 +360,13 @@ class CollectorService:
 def _status_for_batch(batch: object) -> CollectionRunStatus:
     if bool(getattr(batch, "cancelled", False)):
         return CollectionRunStatus.CANCELLED
-    if bool(getattr(batch, "has_partial_failures", False)):
+    if bool(getattr(batch, "timed_out", False)):
+        return CollectionRunStatus.TIMED_OUT
+    outcomes = tuple(getattr(batch, "outcomes", ()))
+    successful = sum(bool(getattr(outcome, "successful", False)) for outcome in outcomes)
+    if successful == 0:
+        return CollectionRunStatus.FAILED
+    if any(not bool(getattr(outcome, "successful", False)) for outcome in outcomes):
         return CollectionRunStatus.PARTIAL
     return CollectionRunStatus.COMPLETED
 

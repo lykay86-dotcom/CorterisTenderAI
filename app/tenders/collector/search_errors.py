@@ -14,6 +14,7 @@ from app.tenders.collector.async_http import (
     AsyncHttpTransportError,
 )
 from app.tenders.collector.cancellation import CollectorCancelledError
+from app.tenders.collector.async_provider import ProviderPageContractError
 from app.tenders.provider_base import ProviderCapabilityError, ProviderNotConfiguredError
 
 
@@ -46,6 +47,9 @@ SAFE_SEARCH_ERROR_MESSAGES = {
     "provider_remote_error": "Источник завершил операцию с ошибкой.",
     "provider_internal_error": "Источник завершил поиск с безопасно скрытой ошибкой.",
     "provider_circuit_open": "Источник временно отключён после повторных ошибок.",
+    "provider_cursor_cycle": "Источник вернул повторяющийся курсор страницы.",
+    "provider_page_budget_exceeded": "Источник превысил допустимый объём страниц.",
+    "provider_page_contract_error": "Источник нарушил контракт страницы.",
     "collector_internal_error": "Сбор завершился с безопасно скрытой ошибкой.",
 }
 
@@ -112,6 +116,15 @@ def classify_search_error(error: BaseException) -> SearchFailure:
             SearchErrorCategory.PROTOCOL,
             "provider_search_unsupported",
             "Источник не поддерживает поиск.",
+        )
+    if isinstance(error, ProviderPageContractError):
+        return SearchFailure(
+            SearchErrorCategory.PROTOCOL,
+            error.code,
+            SAFE_SEARCH_ERROR_MESSAGES.get(
+                error.code,
+                SAFE_SEARCH_ERROR_MESSAGES["provider_page_contract_error"],
+            ),
         )
     if isinstance(error, (TimeoutError, asyncio.TimeoutError)):
         return SearchFailure(

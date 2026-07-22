@@ -143,7 +143,6 @@ def _page(provider_id: str, number: int, *, next_cursor: str | None, is_last: bo
     )
 
 
-@expected_red("C-PAGE-001")
 def test_engine_consumes_every_typed_provider_page() -> None:
     async def scenario() -> None:
         provider = PagedProvider(
@@ -167,7 +166,6 @@ def test_engine_consumes_every_typed_provider_page() -> None:
     asyncio.run(scenario())
 
 
-@expected_red("C-PAGE-002")
 def test_engine_rejects_repeated_cursor_without_unbounded_loop() -> None:
     async def scenario() -> None:
         provider = PagedProvider(
@@ -189,7 +187,6 @@ def test_engine_rejects_repeated_cursor_without_unbounded_loop() -> None:
     asyncio.run(scenario())
 
 
-@expected_red("C-CANCEL-001")
 def test_cancellation_between_pages_drops_the_unaccepted_page() -> None:
     async def scenario() -> None:
         token = CollectorCancellationToken()
@@ -242,7 +239,6 @@ def test_eis_search_does_not_advance_checkpoint_before_page_acceptance(tmp_path:
     asyncio.run(scenario())
 
 
-@expected_red("C-CP-002")
 def test_checkpoint_carries_typed_replay_and_commit_identity() -> None:
     names = {item.name for item in fields(CollectorCheckpoint)}
 
@@ -257,7 +253,6 @@ def test_checkpoint_carries_typed_replay_and_commit_identity() -> None:
     assert hasattr(CollectorStateRepository, "save_accepted_page")
 
 
-@expected_red("C-STATUS-001")
 def test_zero_success_batch_is_failed_not_partial() -> None:
     batch = SimpleNamespace(
         cancelled=False,
@@ -269,7 +264,6 @@ def test_zero_success_batch_is_failed_not_partial() -> None:
     assert _status_for_batch(batch) is CollectionRunStatus.FAILED
 
 
-@expected_red("C-STATUS-002")
 def test_overall_timeout_keeps_its_own_terminal_status() -> None:
     batch = SimpleNamespace(
         cancelled=False,
@@ -341,7 +335,6 @@ def test_completion_order_does_not_change_canonical_batch_order() -> None:
     assert first == second == tuple(sorted(first))
 
 
-@expected_red("C-IDENT-001")
 def test_engine_rejects_duplicate_provider_identity_at_composition() -> None:
     first = PagedProvider("duplicate", (_page("duplicate", 1, next_cursor=None, is_last=True),))
     second = PagedProvider("duplicate", (_page("duplicate", 2, next_cursor=None, is_last=True),))
@@ -350,7 +343,6 @@ def test_engine_rejects_duplicate_provider_identity_at_composition() -> None:
         AsyncProviderSearchEngine((first, second))
 
 
-@expected_red("C-ART-001")
 def test_raw_artifact_owner_and_page_commit_contract_exist() -> None:
     artifact_module = importlib.util.find_spec("app.tenders.collector.artifacts")
 
@@ -377,7 +369,6 @@ def test_public_search_error_never_contains_secret_url_or_body() -> None:
     assert "://" not in public
 
 
-@expected_red("C-MIG-001")
 def test_old_collector_schema_migration_creates_verified_backup(tmp_path: Path) -> None:
     database = tmp_path / "registry.sqlite3"
     initialize_collector_database(database)
@@ -401,7 +392,6 @@ def test_old_collector_schema_migration_creates_verified_backup(tmp_path: Path) 
     assert new_backup_files
 
 
-@expected_red("C-LEASE-001")
 def test_repository_rejects_overlapping_active_collector_runs(tmp_path: Path) -> None:
     repository = CollectorStateRepository(tmp_path / "registry.sqlite3")
     repository.initialize()
