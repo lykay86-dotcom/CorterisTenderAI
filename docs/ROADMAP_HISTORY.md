@@ -1,5 +1,15 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P6 docs-only переход к Rad принят
+
+- ZakazRF и Roseltorg сохранены в позициях 1–2 P6 со статусом `BLOCKED_EXTERNAL`; Rad назначен
+  только следующим последовательным access-audit target без access/readiness claim и без
+  code/network changes.
+- PR #131 head `c4df48df5bfbc4fc1d2dc55a8fedd5fd6ff66803`; PR-head run `29963756719` успешен
+  (jobs `89070568520`/`89070568448`). Merge `4e5adfec20d7ad95ac2fe4decd005b0041e60909`;
+  exact run `29964235838` успешен (jobs `89072056995`/`89072057051`), включая dependency audit.
+- Только после exact success создан отдельный Rad access-audit worktree.
+
 ## 2026-07-23 — Collector P6 Roseltorg access audit принят и слит
 
 - Второй P6 provider package выполнен от exact order-decision merge
