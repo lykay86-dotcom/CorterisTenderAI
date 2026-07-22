@@ -2,7 +2,7 @@
 
 Дата: 22 июля 2026 года.
 
-Статус: `LOCALLY ACCEPTED`; ожидаются PR-head и exact merge-SHA Windows gates.
+Статус: `ACCEPTED`; PR-head и exact merge-SHA Windows gates успешны.
 
 ## 1. Scope и baseline
 
@@ -61,12 +61,13 @@ controlled command и нормативы P3 не изменялись.
   `16.427 ms`. Root cause первого near-threshold результата классифицирован как host measurement
   variance; production thresholds, fixture и code не ослаблялись.
 
-## 5. Следующее действие и rollback
+## 5. Merge evidence и rollback
 
-1. Опубликовать P4 EIS PR и дождаться PR-head Quality Gate на Python 3.12/3.13, включая
-   dependency audit.
-2. После merge подтвердить exact merge-SHA push-run и записать PR/run/job IDs.
-3. Только после exact success создать отдельный `codex/pre-rm156-collector-mos-reference`.
+- PR #125 head `db69f47891e2ea71187d26ad84e084c7de45d440`; PR-head run `29943116366` успешен,
+  jobs `89001709249` (Python 3.12) и `89001709307` (Python 3.13).
+- Merge commit `300385108082746ac8818dad19104f57618366a9`; exact merge-SHA push-run
+  `29943599187` успешен, jobs `89003335120` (Python 3.12) и `89003335026` (Python 3.13).
+- Только после exact success создан отдельный `codex/pre-rm156-collector-mos-reference`.
 
 Rollback — отключить provider existing manager policy и revert EIS feature merge. Schema downgrade,
 удаление accepted pages/artifacts/checkpoints или user data не выполняются. Старый parser owner и

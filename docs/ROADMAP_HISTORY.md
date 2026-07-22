@@ -1,6 +1,24 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-22 — Collector P4 EIS reference adapter локально принят
+## 2026-07-22 — Collector P4 Mos Supplier reference adapter локально принят
+
+- Второй P4 package создан от exact EIS merge `300385108082746ac8818dad19104f57618366a9`:
+  test-first `31bc13c`, implementation `e3fedb6`. Existing provider/engine/repository/config/keyring
+  paths переиспользованы без нового runtime, DB owner, migration или dependency.
+- `mos-supplier-api-v1` честно ограничен одним документированным authenticated response: серверная
+  пагинация не подтверждена и не угадана. Без token сеть не выполняется; readiness остаётся
+  `IMPLEMENTED_OFFLINE` до отдельно разрешённой live verification.
+- Accepted page, raw search artifact и checkpoint commit-coupled existing Collector transaction;
+  card/document/rejected bodies сохраняются content-addressed с sanitized public errors.
+- Target `9 passed`, regression contour `37 passed`, full suite `2458 passed, 2 warnings in
+  259.43s`; secret, Ruff/format (`802 files`), mypy, offline/migration/bootstrap/build/frozen/RM-155
+  gates успешны. Локальный dependency audit заблокирован политикой экспорта inventory и остаётся
+  обязательным PR-head/exact gate; dependencies не менялись.
+- Два stop-line performance diagnostics сохранены как host-load variance evidence. Immutable EIS
+  control прошёл, затем Mos reproduction прошёл: p50 `6 962.190 ms`, p95 `7 117.944 ms`, delta
+  `-12.0848%`, RSS `62 406 656`; 25 cycles без resource growth, cancellation `16.407 ms`.
+
+## 2026-07-22 — Collector P4 EIS reference adapter принят и слит
 
 - P4 EIS создан от exact P3 merge `cfc473e8a11c6c2c7bc201bbac45aa38404d7cc2`: test-first
   `a0842a2`, implementation `c4a4c7a`. Новый engine/parser/repository не создан; существующий
@@ -16,8 +34,10 @@
 - Controlled exact-data reproduction: p50 `8 939.589 ms`, p95 `9 040.632 ms`, regression
   `11.6627%`, RSS `53 055 488`; 25 cycles без resource growth, cancellation `16.427 ms`. Первый
   near-threshold time diagnostic и immutable P3 RSS control сохранены как host variance evidence;
-  thresholds/fixture/code не ослаблялись. Следующий gate — P4 EIS PR-head/exact merge-SHA run;
-  Mos Supplier до него не начинается.
+  thresholds/fixture/code не ослаблялись.
+- PR #125 head `db69f47891e2ea71187d26ad84e084c7de45d440`; PR-head run `29943116366` успешен.
+  Merge commit `300385108082746ac8818dad19104f57618366a9`; exact merge-SHA run `29943599187`
+  успешен на Python 3.12/3.13. Только после него начат отдельный Mos Supplier package.
 
 ## 2026-07-22 — Collector P3 shared foundation принят и слит
 
