@@ -1,5 +1,23 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — Collector P6 Roseltorg access audit принят и слит
+
+- Второй P6 provider package выполнен от exact order-decision merge
+  `862dac27b38968f235f831402139980e17cc90f3` и ограничен official read-only
+  access/legal/contract audit. Application/test code, schema, dependencies, settings,
+  credentials, fixtures и live calls не менялись.
+- Public HTML search/detail и robots indexability подтверждены, но procurement API/feed либо
+  явно разрешённый stable HTML contract, data-use/raw-retention permission, schema/version/rate
+  rules и approved fixtures не найдены. API отдельного ЭДО не является tender API; `roseltorg`
+  честно принят как `BLOCKED_EXTERNAL`, disabled/not configured.
+- Локально: focused `18 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
+  mypy, secret scan и `git diff --check` успешны.
+- PR #130 head `ebbdcf640fa87162db136147d9fc3be4420eaa29`; PR-head run `29961223536` успешен
+  (jobs `89062439998`/`89062440086`). Merge commit
+  `aa9825b5b4d515958c3b02c00d63a215a5af8b27`; exact merge-SHA run `29961900274` успешен
+  (jobs `89064615441`/`89064615340`), включая dependency audit. Только после этого подготовлено
+  отдельное docs-only решение о следующем P6 access-audit target `rad`.
+
 ## 2026-07-23 — P6 docs-only переход к Roseltorg принят
 
 - ZakazRF сохранён первым P6 source и `BLOCKED_EXTERNAL`; Roseltorg назначен только следующим

@@ -112,6 +112,13 @@ PR-head run `29959486498`, merge `862dac27b38968f235f831402139980e17cc90f3`, exa
 Отдельный Roseltorg read-only audit обнаружил public HTML search/detail и разрешённую robots
 pagination indexability, но не procurement API/feed, data-use/raw-retention permission,
 schema/version/rate contract или approved fixtures. API отдельного ЭДО не является tender API.
-`roseltorg` честно `BLOCKED_EXTERNAL`; adapter/fixture/live verification не создаются. Текущее
-действие — внешний unblock либо отдельное docs-only решение о следующем P6 source `rad`.
+`roseltorg` честно `BLOCKED_EXTERNAL`; adapter/fixture/live verification не создаются. Audit принят
+PR #130: head `ebbdcf640fa87162db136147d9fc3be4420eaa29`, PR-head run `29961223536`, merge
+`aa9825b5b4d515958c3b02c00d63a215a5af8b27`, exact run `29961900274`; обе matrix jobs и
+dependency audit успешны.
+
+Docs-only решением `zakaz_rf` и `roseltorg` сохраняются в позициях 1–2 P6 со статусом
+`BLOCKED_EXTERNAL`, а `rad` назначается только следующим последовательным access-audit target.
+Это не working/access claim Rad: его сеть, endpoints, fixtures и код этим package не исследуются.
+Следующее действие после merge/exact этого решения — отдельный official read-only Rad audit.
 Production RM-156, RM-157 и RM-158 не начинать.
