@@ -1,5 +1,27 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-22 — Collector P2 expected-red contracts зафиксированы до implementation
+
+- P1 PR #122 на head `a24fdb7bc5ad823711f3b41b542403c1bc96d7d4` слит merge commit
+  `6593fb2518d724c9bdde3ea46c9de84ff63b1b03`. PR-head Quality Gate `29925849223` успешен:
+  Python 3.12 job `88942668666`, Python 3.13 job `88942668628`.
+- Exact P1 merge-SHA push-run `29926327653` успешен на exact `6593fb2`: Python 3.12 job
+  `88944312496`, Python 3.13 job `88944312478`; full suite, dependency audit и required Windows
+  gates прошли.
+- P2 создан отдельной веткой `codex/pre-rm156-collector-correctness-contracts` от exact P1 merge.
+  Tests-only contract commit `c7c11ae` не меняет `app/`, schema, dependencies, settings или
+  production fixtures.
+- Strict expected-red matrix содержит 14 contracts: 11 отсутствующих boundaries и 3 уже
+  существующих passing guards. Direct `--runxfail` дал `11 failed, 3 passed in 9.12s`; все failures
+  относятся к целевым assertions, setup/import/network failures отсутствуют.
+- Regular P2 file: `3 passed, 11 xfailed`; focused neighbors: `27 passed, 11 xfailed`; full suite:
+  `2414 passed, 11 xfailed, 2 warnings in 290.81s`. Mandatory pair `2 passed`, migrations `5`,
+  bootstrap `1`, build/frozen `9`; secret scan, Ruff/format (`795 files`), mypy, RM-155 guard и
+  dependency audit успешны.
+- P2 остаётся tests/docs-only. После merge и exact merge-SHA success разрешён отдельный P3 shared
+  page/artifact/checkpoint foundation; provider identity/adapters и production RM-156 не
+  начинаются параллельно.
+
 ## 2026-07-22 — Collector P1 audit/contract/plan подготовлен до application changes
 
 - Governance P0 PR #121 слит merge commit

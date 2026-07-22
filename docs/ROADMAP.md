@@ -71,9 +71,11 @@
   параллельно с RM-156–RM-158.
 - Docs-only P0 слит PR #121 merge commit
   `c20bed32492dc80b48748c79a87da73107533ddd`; exact merge-SHA Quality Gate `29922814088` успешен.
-  P1 audit/contract/implementation/rollback package готовится отдельным docs-only PR. После его
-  merge работа идёт последовательными пакетами: P2 expected-red tests-only и только затем P3
-  implementation в границах утверждённого контракта.
+  Docs-only P1 слит PR #122 merge commit
+  `6593fb2518d724c9bdde3ea46c9de84ff63b1b03`; exact merge-SHA Quality Gate `29926327653` успешен.
+  P2 strict expected-red tests-only package фиксирует отсутствующие boundaries до application
+  changes. После его merge начинается отдельный P3 implementation в границах утверждённого
+  контракта; identity и provider packages остаются последующими отдельными этапами.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
