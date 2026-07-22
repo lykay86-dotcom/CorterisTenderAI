@@ -106,6 +106,12 @@
   dependency audit успешны. Последующий Roseltorg audit нашёл public HTML search/detail и robots
   indexing allowance, но не procurement API/feed/data-use/retention/schema/rate contract или
   approved fixtures. `roseltorg` остаётся `BLOCKED_EXTERNAL`; guessed implementation запрещена.
+  Audit принят PR #130: head `ebbdcf640fa87162db136147d9fc3be4420eaa29`, PR-head run
+  `29961223536`, merge `aa9825b5b4d515958c3b02c00d63a215a5af8b27`, exact run
+  `29961900274`; обе matrix jobs и dependency audit успешны. Docs-only решением первые два P6
+  sources сохраняются blocked, а `rad` назначается следующим последовательным access-audit target
+  без contract/readiness claim. Отдельный Rad audit начинается только после merge/exact этого
+  решения.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
