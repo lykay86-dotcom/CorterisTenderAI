@@ -2,29 +2,35 @@
 
 from __future__ import annotations
 
+from contextlib import closing
+from dataclasses import dataclass
+from datetime import datetime, timezone
+import os
+from pathlib import Path
 import sqlite3
+from uuid import uuid4
 
 
-COLLECTOR_SCHEMA_VERSION = 14
+COLLECTOR_SCHEMA_VERSION = 15
+
+
+@dataclass(frozen=True, slots=True)
+class CollectorMigrationInventory:
+    database_path: str
+    current_version: int
+    target_version: int
+    requires_migration: bool
+    requires_backup: bool
 
 
 class CollectorSchemaMigrator:
     """Create collector tables inside the existing tender registry DB."""
 
     def migrate(self, connection: sqlite3.Connection) -> int:
-        current_row = connection.execute(
-            "SELECT value FROM tender_registry_meta WHERE key='collector_schema_version'"
-        ).fetchone()
-        if current_row is not None:
-            try:
-                current_version = int(current_row[0])
-            except (TypeError, ValueError) as exc:
-                raise RuntimeError("Invalid collector schema version") from exc
-            if current_version > COLLECTOR_SCHEMA_VERSION:
-                raise RuntimeError(
-                    "Collector database schema is newer than this application "
-                    f"({current_version} > {COLLECTOR_SCHEMA_VERSION})"
-                )
+        inventory = self.inspect(connection)
+        current_version = inventory.current_version
+        if 0 < current_version < COLLECTOR_SCHEMA_VERSION:
+            self._create_verified_backup(connection, current_version)
         connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS collector_runs (
@@ -59,6 +65,8 @@ class CollectorSchemaMigrator:
                 display_name TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL,
                 item_count INTEGER NOT NULL DEFAULT 0,
+                page_count INTEGER NOT NULL DEFAULT 0,
+                artifact_count INTEGER NOT NULL DEFAULT 0,
                 elapsed_ms INTEGER NOT NULL DEFAULT 0,
                 warnings_json TEXT NOT NULL DEFAULT '[]',
                 error_type TEXT NOT NULL DEFAULT '',
@@ -635,10 +643,85 @@ class CollectorSchemaMigrator:
                 scope_key TEXT NOT NULL,
                 cursor TEXT NOT NULL DEFAULT '',
                 watermark TEXT NOT NULL DEFAULT '',
+                contract_version TEXT NOT NULL DEFAULT '',
+                parser_version TEXT NOT NULL DEFAULT '',
+                query_fingerprint TEXT NOT NULL DEFAULT '',
+                last_accepted_page_id TEXT NOT NULL DEFAULT '',
+                accepted_page_count INTEGER NOT NULL DEFAULT 0,
+                accepted_item_count INTEGER NOT NULL DEFAULT 0,
+                replay_generation INTEGER NOT NULL DEFAULT 0,
+                committed_at TEXT NOT NULL DEFAULT '',
                 state_json TEXT NOT NULL DEFAULT '{}',
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (provider_id, scope_key)
             );
+
+            CREATE TABLE IF NOT EXISTS collector_run_leases (
+                lease_name TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL UNIQUE,
+                acquired_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                FOREIGN KEY (run_id) REFERENCES collector_runs(run_id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS collector_artifact_contents (
+                content_sha256 TEXT PRIMARY KEY,
+                byte_length INTEGER NOT NULL,
+                storage_path TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS collector_raw_artifact_refs (
+                reference_id TEXT PRIMARY KEY,
+                content_sha256 TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                page_identity TEXT NOT NULL,
+                media_type TEXT NOT NULL,
+                encoding TEXT NOT NULL,
+                request_method TEXT NOT NULL,
+                request_url TEXT NOT NULL,
+                status_code INTEGER,
+                retrieved_at TEXT NOT NULL,
+                query_fingerprint TEXT NOT NULL,
+                contract_version TEXT NOT NULL,
+                parser_version TEXT NOT NULL,
+                parse_outcome TEXT NOT NULL,
+                retention_class TEXT NOT NULL,
+                FOREIGN KEY (content_sha256)
+                    REFERENCES collector_artifact_contents(content_sha256),
+                FOREIGN KEY (run_id) REFERENCES collector_runs(run_id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_collector_artifact_page
+                ON collector_raw_artifact_refs(run_id, provider_id, page_identity);
+
+            CREATE TABLE IF NOT EXISTS collector_accepted_pages (
+                run_id TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                query_fingerprint TEXT NOT NULL,
+                page_identity TEXT NOT NULL,
+                page_number INTEGER NOT NULL,
+                contract_version TEXT NOT NULL,
+                parser_version TEXT NOT NULL,
+                next_cursor TEXT NOT NULL,
+                terminal INTEGER NOT NULL,
+                item_count INTEGER NOT NULL,
+                items_json TEXT NOT NULL,
+                artifact_refs_json TEXT NOT NULL,
+                content_digest TEXT NOT NULL,
+                accepted_at TEXT NOT NULL,
+                replay_generation INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (run_id, provider_id, page_identity),
+                FOREIGN KEY (run_id) REFERENCES collector_runs(run_id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_collector_accepted_page_replay
+                ON collector_accepted_pages(
+                    provider_id,
+                    query_fingerprint,
+                    page_identity
+                );
 
             CREATE TABLE IF NOT EXISTS collector_participation_decisions (
                 decision_id TEXT PRIMARY KEY,
@@ -673,6 +756,8 @@ class CollectorSchemaMigrator:
                 );
             """
         )
+        self._ensure_checkpoint_columns(connection)
+        self._ensure_run_provider_columns(connection)
         connection.execute(
             """
             INSERT INTO tender_registry_meta(key, value)
@@ -683,5 +768,146 @@ class CollectorSchemaMigrator:
         )
         return COLLECTOR_SCHEMA_VERSION
 
+    def inspect(self, connection: sqlite3.Connection) -> CollectorMigrationInventory:
+        """Return a read-only migration inventory before any schema mutation."""
 
-__all__ = ["COLLECTOR_SCHEMA_VERSION", "CollectorSchemaMigrator"]
+        current_row = connection.execute(
+            "SELECT value FROM tender_registry_meta WHERE key='collector_schema_version'"
+        ).fetchone()
+        current_version = 0
+        if current_row is not None:
+            try:
+                current_version = int(current_row[0])
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("Invalid collector schema version") from exc
+        if current_version < 0:
+            raise RuntimeError("Invalid collector schema version")
+        if current_version > COLLECTOR_SCHEMA_VERSION:
+            raise RuntimeError(
+                "Collector database schema is newer than this application "
+                f"({current_version} > {COLLECTOR_SCHEMA_VERSION})"
+            )
+        database_path = self._database_path(connection)
+        return CollectorMigrationInventory(
+            database_path=str(database_path) if database_path is not None else "",
+            current_version=current_version,
+            target_version=COLLECTOR_SCHEMA_VERSION,
+            requires_migration=current_version != COLLECTOR_SCHEMA_VERSION,
+            requires_backup=0 < current_version < COLLECTOR_SCHEMA_VERSION,
+        )
+
+    @classmethod
+    def restore_verified_backup(
+        cls,
+        backup_path: str | Path,
+        target_path: str | Path,
+    ) -> Path:
+        """Explicitly restore a verified SQLite backup via same-directory atomic replace."""
+
+        source = Path(backup_path).expanduser().resolve()
+        target = Path(target_path).expanduser().resolve()
+        if not source.is_file():
+            raise FileNotFoundError(source)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if (
+            target.with_name(f"{target.name}-wal").exists()
+            or target.with_name(f"{target.name}-shm").exists()
+        ):
+            raise RuntimeError("Collector restore target has active SQLite sidecars")
+        temporary = target.with_name(f".{target.name}.{uuid4().hex}.restore")
+        try:
+            with closing(sqlite3.connect(source)) as backup:
+                integrity = backup.execute("PRAGMA integrity_check").fetchone()
+                if integrity is None or str(integrity[0]).casefold() != "ok":
+                    raise RuntimeError("Collector schema backup integrity check failed")
+                with closing(sqlite3.connect(temporary)) as restored:
+                    backup.backup(restored)
+            with closing(sqlite3.connect(temporary)) as verified:
+                restored_integrity = verified.execute("PRAGMA integrity_check").fetchone()
+            if restored_integrity is None or str(restored_integrity[0]).casefold() != "ok":
+                raise RuntimeError("Collector restored database integrity check failed")
+            os.replace(temporary, target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return target
+
+    @staticmethod
+    def _ensure_checkpoint_columns(connection: sqlite3.Connection) -> None:
+        existing = {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(collector_checkpoints)").fetchall()
+        }
+        definitions = {
+            "contract_version": "TEXT NOT NULL DEFAULT ''",
+            "parser_version": "TEXT NOT NULL DEFAULT ''",
+            "query_fingerprint": "TEXT NOT NULL DEFAULT ''",
+            "last_accepted_page_id": "TEXT NOT NULL DEFAULT ''",
+            "accepted_page_count": "INTEGER NOT NULL DEFAULT 0",
+            "accepted_item_count": "INTEGER NOT NULL DEFAULT 0",
+            "replay_generation": "INTEGER NOT NULL DEFAULT 0",
+            "committed_at": "TEXT NOT NULL DEFAULT ''",
+        }
+        for name, definition in definitions.items():
+            if name not in existing:
+                connection.execute(
+                    f"ALTER TABLE collector_checkpoints ADD COLUMN {name} {definition}"
+                )
+
+    @staticmethod
+    def _ensure_run_provider_columns(connection: sqlite3.Connection) -> None:
+        existing = {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(collector_run_providers)").fetchall()
+        }
+        for name in ("page_count", "artifact_count"):
+            if name not in existing:
+                connection.execute(
+                    f"ALTER TABLE collector_run_providers "
+                    f"ADD COLUMN {name} INTEGER NOT NULL DEFAULT 0"
+                )
+
+    @staticmethod
+    def _create_verified_backup(connection: sqlite3.Connection, version: int) -> Path:
+        database_path = CollectorSchemaMigrator._database_path(connection)
+        if database_path is None:
+            raise RuntimeError("Collector schema migration requires a file-backed database")
+        backup_directory = database_path.parent / "backups"
+        backup_directory.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        backup_path = backup_directory / (
+            f"collector-v{version}-to-v{COLLECTOR_SCHEMA_VERSION}-{stamp}-{uuid4().hex}.sqlite3"
+        )
+        try:
+            with closing(sqlite3.connect(backup_path)) as backup:
+                connection.backup(backup)
+            with closing(sqlite3.connect(backup_path)) as verified:
+                integrity = verified.execute("PRAGMA integrity_check").fetchone()
+                stored = verified.execute(
+                    "SELECT value FROM tender_registry_meta WHERE key='collector_schema_version'"
+                ).fetchone()
+            if integrity is None or str(integrity[0]).casefold() != "ok":
+                raise RuntimeError("Collector schema backup integrity check failed")
+            if stored is None or int(stored[0]) != version:
+                raise RuntimeError("Collector schema backup readback failed")
+        except Exception:
+            backup_path.unlink(missing_ok=True)
+            raise
+        return backup_path
+
+    @staticmethod
+    def _database_path(connection: sqlite3.Connection) -> Path | None:
+        database_rows = connection.execute("PRAGMA database_list").fetchall()
+        database_name = next(
+            (str(row[2]) for row in database_rows if str(row[1]) == "main"),
+            "",
+        )
+        if not database_name or database_name == ":memory:":
+            return None
+        return Path(database_name).resolve()
+
+
+__all__ = [
+    "COLLECTOR_SCHEMA_VERSION",
+    "CollectorMigrationInventory",
+    "CollectorSchemaMigrator",
+]

@@ -177,6 +177,7 @@ class CollectionRunStatus(StrEnum):
     COMPLETED = "completed"
     PARTIAL = "partial"
     CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
     FAILED = "failed"
 
 
@@ -245,11 +246,18 @@ class ProviderRunOutcomeRecord:
     error_message: str
     item_count: int
     elapsed_ms: int
+    page_count: int = 0
+    artifact_count: int = 0
 
     def __post_init__(self) -> None:
         if not self.run_id.strip() or not self.provider_id.strip():
             raise ValueError("provider run outcome identity is required")
-        if self.item_count < 0 or self.elapsed_ms < 0:
+        if (
+            self.item_count < 0
+            or self.elapsed_ms < 0
+            or self.page_count < 0
+            or self.artifact_count < 0
+        ):
             raise ValueError("provider run outcome counters must be non-negative")
 
 

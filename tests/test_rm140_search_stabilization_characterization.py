@@ -148,7 +148,7 @@ def test_current_history_schemas_keep_distinct_run_families_and_links(tmp_path) 
         }
 
     assert registry_version == "1"
-    assert collector_version == "14"
+    assert collector_version == "15"
     assert {"tender_search_runs", "collector_runs"} <= tables
     assert ("tender_search_runs", "run_id", "run_id") in legacy_fks
     assert ("tender_records", "registry_key", "registry_key") in legacy_fks

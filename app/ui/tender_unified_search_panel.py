@@ -299,6 +299,16 @@ class TenderUnifiedSearchPanel(QFrame):
         summary = result.persistence
         if result.status == CollectionRunStatus.CANCELLED:
             message = f"Поиск остановлен. Сохранено результатов: {summary.merged_count}."
+        elif result.status == CollectionRunStatus.TIMED_OUT:
+            message = (
+                "Поиск остановлен по тайм-ауту. "
+                f"Сохранено ранее принятых результатов: {summary.merged_count}."
+            )
+        elif result.status == CollectionRunStatus.FAILED:
+            message = (
+                "Поиск завершён без успешных источников. "
+                f"Сохранено ранее принятых результатов: {summary.merged_count}."
+            )
         elif result.status == CollectionRunStatus.PARTIAL:
             message = (
                 "Поиск завершён частично. "
@@ -311,7 +321,10 @@ class TenderUnifiedSearchPanel(QFrame):
         else:
             message = "Поиск завершён с неподдерживаемым состоянием."
         self.progress_bar.setValue(100)
-        self.set_status(message, error=result.status == CollectionRunStatus.FAILED)
+        self.set_status(
+            message,
+            error=result.status in {CollectionRunStatus.FAILED, CollectionRunStatus.TIMED_OUT},
+        )
         self.set_running(False)
 
     def set_error(self, message: str) -> None:

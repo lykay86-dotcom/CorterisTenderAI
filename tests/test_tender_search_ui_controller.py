@@ -10,6 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QMainWindow
 
+from app.tenders.collector.async_engine import CollectorRunBudget
 from app.tenders.search_profile_repository import (
     TenderSearchProfileRepository,
 )
@@ -58,6 +59,7 @@ class FakeCollectorSession:
     def __init__(self, *, error: Exception | None = None) -> None:
         self.error = error
         self.calls: list[tuple[object, tuple[str, ...]]] = []
+        self.run_budgets: list[CollectorRunBudget | None] = []
 
     async def run(
         self,
@@ -66,7 +68,9 @@ class FakeCollectorSession:
         provider_ids,
         cancellation_token,
         progress_callback,
+        run_budget=None,
     ):
+        self.run_budgets.append(run_budget)
         self.calls.append((query, tuple(provider_ids)))
         if self.error is not None:
             raise self.error
@@ -143,10 +147,28 @@ def test_controller_runs_profile_and_opens_results(tmp_path) -> None:
 
     assert runner.calls == []
     assert len(collector_session.calls) == 1
+    assert collector_session.run_budgets == [CollectorRunBudget.interactive()]
     assert controller.result_dialogs == ()
     assert controller.profiles_dialog is not None
     assert not controller.profiles_dialog.isVisible()
     assert "реестр" in controller.profiles_dialog.panel.status_label.text().casefold()
+
+
+def test_scheduled_run_uses_bulk_budget_through_the_same_admission(tmp_path) -> None:
+    app = _app()
+    collector_session = FakeCollectorSession()
+    controller = TenderSearchUiController(
+        tmp_path,
+        runtime=_runtime(tmp_path, FakeRunner()),
+        collector_session=collector_session,
+        thread_pool=ImmediateThreadPool(),
+    )
+    controller.scheduler_ui_controller._scheduled_active = True
+
+    assert controller.try_start_collector("all-corteris", ("eis",))
+    app.processEvents()
+
+    assert collector_session.run_budgets == [CollectorRunBudget.scheduled()]
 
 
 def test_controller_reports_search_error_in_profiles_dialog(

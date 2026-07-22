@@ -1,6 +1,27 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-22 — Collector P3 shared foundation локально принят
+
+- P3 создан от exact P2 merge `83899900fd2913eefd0ad04398e266f4a6b64437`: characterization
+  `f7dd6a2`, shared foundation `b7f5aaf`, GC guards `523ac63`, bounded production optimization
+  `9202290`.
+- Общий page/artifact/checkpoint contract, schema 15 migration/backup/restore, atomic page receipt,
+  process-wide lease, truthful statuses и interactive/scheduled budgets реализованы без второго
+  engine, repository или DB owner. Остаётся ровно один P4-owned EIS xfail `C-CP-001`.
+- Controlled exact-data 10k acceptance: p50 `9 506.289 ms`, p95 `9 588.611 ms`, regression
+  `18.4309%`, RSS delta `64 634 880 bytes`; 25 cycles не оставили tasks/threads/handles/temp,
+  cancellation `16.724 ms`.
+- Exact optimization commit full suite: `2441 passed, 1 xfailed, 2 warnings in 237.18s`; secret,
+  Ruff/format (`798 files`), mypy, offline/migration/import/bootstrap/build/frozen/RM-155 gates
+  зелёные. Следующий gate — P3 PR-head и exact merge-SHA Windows run на Python 3.12/3.13; P4 до
+  него не начинается.
+
 ## 2026-07-22 — Collector P2 expected-red contracts зафиксированы до implementation
+
+- P2 PR #123 на head `ef529fabcd80e8deea61af14bacebe362a8f4109` слит merge commit
+  `83899900fd2913eefd0ad04398e266f4a6b64437`. PR-head Quality Gate `29928510935` и exact
+  merge-SHA run `29929323692` успешны на Python 3.12/3.13; exact jobs: `88954536449`
+  (Python 3.12) и `88954536180` (Python 3.13).
 
 - P1 PR #122 на head `a24fdb7bc5ad823711f3b41b542403c1bc96d7d4` слит merge commit
   `6593fb2518d724c9bdde3ea46c9de84ff63b1b03`. PR-head Quality Gate `29925849223` успешен:
@@ -18,7 +39,7 @@
   `2414 passed, 11 xfailed, 2 warnings in 290.81s`. Mandatory pair `2 passed`, migrations `5`,
   bootstrap `1`, build/frozen `9`; secret scan, Ruff/format (`795 files`), mypy, RM-155 guard и
   dependency audit успешны.
-- P2 остаётся tests/docs-only. После merge и exact merge-SHA success разрешён отдельный P3 shared
+- P2 остался tests/docs-only. После merge и exact merge-SHA success начат отдельный P3 shared
   page/artifact/checkpoint foundation; provider identity/adapters и production RM-156 не
   начинаются параллельно.
 

@@ -46,6 +46,7 @@ from app.operations.diagnostics import DiagnosticRegistry
 from app.operations.safe_feedback import SafeFeedbackProjector
 from app.operations.transitions import transition_episode
 from app.tenders.collector.cancellation import CollectorCancellationToken
+from app.tenders.collector.async_engine import CollectorRunBudget
 from app.tenders.collector.company_capability import (
     CompanyCapabilityProfileRepository,
 )
@@ -406,12 +407,14 @@ class _CollectorRunWorker(QRunnable):
         query: object,
         provider_ids: tuple[str, ...],
         generation: int = 0,
+        run_budget: CollectorRunBudget | None = None,
     ) -> None:
         super().__init__()
         self.session = session
         self.query = query
         self.provider_ids = provider_ids
         self.generation = generation
+        self.run_budget = run_budget
         self.cancellation_token = CollectorCancellationToken()
         self.completion_event = Event()
         self.signals = _CollectorRunWorkerSignals()
@@ -431,6 +434,7 @@ class _CollectorRunWorker(QRunnable):
                     self.generation,
                     event,
                 ),
+                run_budget=self.run_budget,
             )
 
         self.signals.started.emit(self.generation)
@@ -1111,6 +1115,8 @@ class TenderSearchUiController(QObject):
         self,
         profile_id: str,
         provider_ids: object,
+        *,
+        run_budget: CollectorRunBudget | None = None,
     ) -> bool:
         """Start one collector run and report whether it was accepted."""
 
@@ -1170,6 +1176,12 @@ class TenderSearchUiController(QObject):
                 self._collector_dialog.set_error("Нет включённых источников для запуска.")
             return False
 
+        scheduled_active = bool(
+            getattr(getattr(self, "scheduler_ui_controller", None), "_scheduled_active", False)
+        )
+        effective_budget = run_budget or (
+            CollectorRunBudget.scheduled() if scheduled_active else CollectorRunBudget.interactive()
+        )
         query = profile.to_search_query()
         query = replace(
             query,
@@ -1177,7 +1189,11 @@ class TenderSearchUiController(QObject):
                 **dict(query.extra),
                 "corteris_run_context": {
                     "schema_version": 1,
-                    "origin": "saved_profile",
+                    "origin": (
+                        "scheduled"
+                        if effective_budget == CollectorRunBudget.scheduled()
+                        else "saved_profile"
+                    ),
                     "profile_id": normalized[:120],
                     "profile_name": profile.name[:200],
                 },
@@ -1188,6 +1204,7 @@ class TenderSearchUiController(QObject):
             profile_name=profile.name,
             query=query,
             provider_ids=selected,
+            run_budget=effective_budget,
         )
 
     @Slot(object)
@@ -1224,6 +1241,7 @@ class TenderSearchUiController(QObject):
         profile_name: str,
         query: TenderSearchQuery,
         provider_ids: tuple[str, ...],
+        run_budget: CollectorRunBudget | None = None,
     ) -> bool:
         """Create and wire the sole Collector worker for every UI entry point."""
         if not self._accepting_runs:
@@ -1260,6 +1278,7 @@ class TenderSearchUiController(QObject):
             query,
             provider_ids,
             generation,
+            run_budget or CollectorRunBudget.interactive(),
         )
         worker.signals.started.connect(self._on_collector_started)
         worker.signals.progress.connect(self._on_collector_progress)

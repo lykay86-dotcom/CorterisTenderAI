@@ -9,6 +9,7 @@ from typing import Protocol
 from app.tenders.collector.async_provider_factory import (
     create_default_collector_service,
 )
+from app.tenders.collector.async_engine import CollectorRunBudget
 from app.tenders.collector.cancellation import CollectorCancellationToken
 from app.tenders.collector.health_monitor import ProviderHealthMonitor
 from app.tenders.collector.models import CollectorRunResult
@@ -37,6 +38,7 @@ class _CollectorServiceLike(Protocol):
         provider_ids: Sequence[str] | None = None,
         cancellation_token: CollectorCancellationToken | None = None,
         progress_callback: CollectorProgressCallback | None = None,
+        run_budget: CollectorRunBudget | None = None,
     ) -> CollectorRunResult: ...
 
 
@@ -78,6 +80,7 @@ class CollectorRunSession:
         provider_ids: Sequence[str] | None = None,
         cancellation_token: CollectorCancellationToken | None = None,
         progress_callback: CollectorProgressCallback | None = None,
+        run_budget: CollectorRunBudget | None = None,
     ) -> CollectorRunResult:
         settings_snapshot = self.provider_settings_snapshot_factory()
         if settings_snapshot.status in {
@@ -108,6 +111,7 @@ class CollectorRunSession:
                 provider_ids=provider_ids,
                 cancellation_token=cancellation_token,
                 progress_callback=progress_callback,
+                run_budget=run_budget,
             )
         finally:
             await runtime.aclose()

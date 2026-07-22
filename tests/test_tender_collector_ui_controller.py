@@ -109,7 +109,9 @@ class FakeCollectorSession:
         provider_ids=None,
         cancellation_token=None,
         progress_callback=None,
+        run_budget=None,
     ):
+        del run_budget
         self.calls.append((query, tuple(provider_ids or ())))
         if progress_callback is not None:
             progress_callback(

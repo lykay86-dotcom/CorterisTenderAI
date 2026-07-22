@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+import gc
+
+import pytest
 
 from app.tenders.collector.deduplicator import TenderDeduplicator
 from app.tenders.collector.models import DeduplicationMatchLevel
@@ -117,3 +120,68 @@ def test_eis_remains_more_authoritative_than_supplier_portal() -> None:
     merged = TenderDeduplicator().deduplicate((portal, eis)).groups[0].item.tender
 
     assert merged.source == TenderSource.EIS
+
+
+def test_bounded_pipeline_pauses_cyclic_gc_and_restores_enabled_state() -> None:
+    observed: list[bool] = []
+
+    class FailingNormalizer:
+        def normalize_many(self, items):
+            del items
+            observed.append(gc.isenabled())
+            raise RuntimeError("fixture failure")
+
+    assert gc.isenabled()
+    with pytest.raises(RuntimeError, match="fixture failure"):
+        TenderDeduplicator(FailingNormalizer()).normalize_and_deduplicate((make_tender(),))
+
+    assert observed == [False]
+    assert gc.isenabled()
+
+
+def test_bounded_pipeline_preserves_preexisting_disabled_gc_state() -> None:
+    observed: list[bool] = []
+
+    class EmptyNormalizer:
+        def normalize_many(self, items):
+            del items
+            observed.append(gc.isenabled())
+            return ()
+
+    gc.disable()
+    try:
+        result = TenderDeduplicator(EmptyNormalizer()).normalize_and_deduplicate((make_tender(),))
+        assert result.raw_count == 0
+        assert observed == [False]
+        assert not gc.isenabled()
+    finally:
+        gc.enable()
+
+
+def test_pipeline_does_not_pause_gc_above_audited_interactive_bound() -> None:
+    observed: list[bool] = []
+
+    class EmptyNormalizer:
+        def normalize_many(self, items):
+            observed.append(gc.isenabled())
+            assert len(items) == 10_001
+            return ()
+
+    result = TenderDeduplicator(EmptyNormalizer()).normalize_and_deduplicate(
+        (make_tender(),) * 10_001
+    )
+
+    assert result.raw_count == 0
+    assert observed == [True]
+    assert gc.isenabled()
+
+
+def test_bounded_pipeline_preserves_deterministic_result() -> None:
+    items = (
+        make_tender(source=TenderSource.EIS, external_id="eis"),
+        make_tender(source=TenderSource.CUSTOM, external_id="copy"),
+    )
+    regular = TenderDeduplicator()
+    normalized = regular.normalizer.normalize_many(items)
+
+    assert regular.normalize_and_deduplicate(items) == regular.deduplicate(normalized)
