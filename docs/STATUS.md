@@ -253,6 +253,9 @@ publication/exact docs-only transition package. Transition принят PR #146:
 Фабрикант публикует documented SOAP/XML API для SRM-систем заказчика, но не source-wide tender
 discovery/search feed. Organizer methods нельзя подменять Collector adapter; discovery permission,
 coverage, pagination/completeness, rate/retry, retention/reuse и fixtures отсутствуют. `fabrikant`
-локально `BLOCKED_EXTERNAL / PUBLISHED_API_SCOPE_MISMATCH`; adapter/fixtures не создаются. `otc` не
-начинать до merge/exact этого audit package.
+`BLOCKED_EXTERNAL / PUBLISHED_API_SCOPE_MISMATCH`; adapter/fixtures не создаются. Audit принят PR
+#147: head `403ec44abee9d0497485ac130b50dc3199351347`, PR-head run `29984554174`, merge
+`bf2a44bea889b34689f63495013becae24d050fb`, exact run `29984821509`; обе jobs и dependency audit
+успешны. `otc` назначается только следующим P7 access-audit target без contract/readiness claim;
+отдельный audit начинается после publication/exact docs-only transition package.
 Production RM-156, RM-157 и RM-158 не начинать.

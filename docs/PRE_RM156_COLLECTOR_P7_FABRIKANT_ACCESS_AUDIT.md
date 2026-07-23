@@ -2,8 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / BLOCKED_EXTERNAL / PUBLISHED_API_SCOPE_MISMATCH`; publication и exact
-merge-SHA Quality Gate ожидаются. Application implementation запрещена Definition of Ready.
+Статус: `ACCEPTED / BLOCKED_EXTERNAL / PUBLISHED_API_SCOPE_MISMATCH`. Application implementation
+запрещена Definition of Ready.
 
 ## 1. Entry gate
 
@@ -111,4 +111,11 @@ commit; identity/settings/credentials/DB/history и RM-107 decision неизме
 
 ## 8. Publication acceptance
 
-Ожидаются PR-head и exact merge-SHA Windows Quality Gate.
+- PR #147 head `403ec44abee9d0497485ac130b50dc3199351347`;
+- PR-head Quality Gate `29984554174`: jobs `89133465443` (Python 3.12) и `89133465378`
+  (Python 3.13) успешны;
+- merge commit `bf2a44bea889b34689f63495013becae24d050fb`;
+- exact merge-SHA Quality Gate `29984821509`: jobs `89134271091` (Python 3.12) и
+  `89134271135` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный docs-only worktree перехода к OTC.
