@@ -291,7 +291,12 @@ credentials и fixtures не создаются. Existing aggregator queue/offic
 `89159721376`/`89159721509` и dependency audit успешны после GitHub Actions incident/eventual
 consistency.
 
-Текущий отдельный P8 hardening package закрывает только локальные queue/attempt retention bounds,
-explicit retry и error/note/payload sanitization в existing owners. TenderGuru producer и
-readiness не открываются. P9 не начинать до merge/exact hardening package.
+P8 hardening принят PR #152: head `df91a4cdcb5923f31b7be4501e85cd25e7329485`,
+PR-head run `29996521546` (jobs `89171378944`/`89171378841`), merge
+`593ea5c7d3657e881fad985933444a44aa12b0f1`, fresh exact run `29996926693`
+(jobs `89172697592`/`89172697637`); обе Windows-матрицы и dependency audit успешны. Existing
+queue теперь имеет atomic capacity, bounded payload/attempt retention, explicit retry и
+error/note/URL sanitization; full protected queue не блокирует authoritative service path.
+TenderGuru producer/readiness не открываются. Текущий docs-only P8 closeout фиксирует честный
+`BLOCKED_EXTERNAL` и открывает только P9 stabilization после собственного merge/exact gate.
 Production RM-156, RM-157 и RM-158 не начинать.

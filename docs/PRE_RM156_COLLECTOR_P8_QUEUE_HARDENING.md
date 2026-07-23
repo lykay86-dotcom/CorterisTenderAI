@@ -2,8 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED`; implementation не является P8/Collector closeout до publication и
-fresh exact merge-SHA Quality Gate.
+Статус: `ACCEPTED`; implementation опубликована и принята fresh exact merge-SHA Quality Gate.
+Это закрывает hardening scope P8, но не Collector prerequisite closeout.
 
 ## 1. Entry gate
 
@@ -128,4 +128,16 @@ records.
 
 ## 7. Publication acceptance
 
-Ожидаются commit, PR-head Windows Quality Gate, merge commit и fresh exact merge-SHA Quality Gate.
+- Commits:
+  - tests `16829e7`;
+  - implementation `864862c`;
+  - documentation `df91a4c`.
+- PR #152 head `df91a4cdcb5923f31b7be4501e85cd25e7329485`.
+- PR-head run `29996521546` успешен:
+  - Python 3.12 job `89171378944`;
+  - Python 3.13 job `89171378841`.
+- Merge commit `593ea5c7d3657e881fad985933444a44aa12b0f1`.
+- Fresh exact merge-SHA run `29996926693` успешен:
+  - Python 3.12 job `89172697592`;
+  - Python 3.13 job `89172697637`.
+- Обе Windows-матрицы включили full suite и dependency audit.

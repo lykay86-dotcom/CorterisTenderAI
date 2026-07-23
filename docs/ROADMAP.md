@@ -233,10 +233,14 @@
   13 built-ins. Access audit принят PR #151: head
   `205d223f67da8ca0fd84732b4b14aeb1c7402662`, PR-head run `29992310890`, merge
   `29aba93a4cdb24ba526dbbe265f51e859ba9754a`, fresh exact run `29992951951`; обе jobs и
-  dependency audit успешны после GitHub Actions incident/eventual consistency. Отдельный current
-  P8 hardening package ограничивает existing queue/attempt retention, explicit retry и
-  error/note/payload sanitization без producer/catalog/settings/schema expansion. P9 не начинается
-  до merge/exact hardening package.
+  dependency audit успешны после GitHub Actions incident/eventual consistency. P8 hardening
+  принят PR #152: head `df91a4cdcb5923f31b7be4501e85cd25e7329485`, PR-head run
+  `29996521546`, merge `593ea5c7d3657e881fad985933444a44aa12b0f1`, fresh exact run
+  `29996926693`; jobs `89172697592`/`89172697637` и dependency audit успешны. Existing queue
+  получает atomic capacity, bounded payload/attempt retention, explicit retry и shared
+  sanitization без producer/catalog/settings/schema expansion. Текущий docs-only P8 closeout
+  может принять P8 с честным external blocker и открыть только P9 stabilization после своего
+  merge/exact gate.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
