@@ -2,8 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY AUDITED / BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`; publication и exact
-merge-SHA Quality Gate ожидаются. Application implementation запрещена Definition of Ready.
+Статус: `ACCEPTED / BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`; application implementation
+запрещена Definition of Ready.
 
 ## 1. Entry gate
 
@@ -105,3 +105,11 @@ Tests used fresh command-scoped `--basetemp`; the previous package's isolated na
 crash did not recur. Repository files/tests/thresholds were not changed. Warnings — неизменные
 `openpyxl` notices; dependencies не менялись. PR-head и exact merge-SHA Windows Quality Gate
 обязательны до принятия audit package.
+
+## 7. Publication acceptance
+
+- PR #136 head `9765e7d6bc3c2ca59ac0647f565bf1aab12849ef`;
+- PR-head run `29970355532`: jobs `89090866063` (3.12), `89090866150` (3.13) successful;
+- merge commit `a3ac0d88759002468aa6a3d5cb5c6ba887ba9e26`;
+- exact run `29970713352`: jobs `89091950572` (3.12), `89091950535` (3.13) successful,
+  including dependency audit.

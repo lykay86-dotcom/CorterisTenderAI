@@ -165,5 +165,13 @@ operator/platform owner АО «ЭТС» для уже существующих c
 procurement API/feed, разрешение automation/data reuse, pagination/rate/schema/version и raw
 retention не подтверждены; robots disallows XML/CSV export actions and file/download paths.
 `ets_nep` локально `BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`; fixtures/code/live verification
-не создаются. Publication/exact audit gate ещё обязательны.
+не создаются. Audit принят PR #136: head `9765e7d6bc3c2ca59ac0647f565bf1aab12849ef`, PR-head
+run `29970355532`, merge `a3ac0d88759002468aa6a3d5cb5c6ba887ba9e26`, exact run
+`29970713352`; обе matrix jobs успешны.
+
+Отдельный identity/section audit сохраняет `ets_nep` и `fabrikant` disabled canonical placeholders
+без guessed alias/migration: один operator подтверждён, но section/protocol boundary не доказана.
+Будущая реализация имеет одного owner АО «ЭТС»; section views допустимы только после contract
+evidence. Persisted settings/credentials/profiles/outcomes/artifacts/exports этим package не
+меняются. Publication/exact решения обязательны до перехода к `sber_a`.
 Production RM-156, RM-157 и RM-158 не начинать.
