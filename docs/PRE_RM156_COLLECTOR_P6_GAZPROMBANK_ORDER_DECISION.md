@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`.
 
 ## 1. Основание
 
@@ -75,5 +75,15 @@ active GitHub Actions workflow:
 
 Pytest использует workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
 Repository files/tests/thresholds не меняются. Warnings — неизменные `openpyxl` notices;
-dependencies не менялись. PR-head и exact merge-SHA Windows Quality Gate обязательны до принятия
-решения.
+dependencies не менялись.
+
+## 6. Publication acceptance
+
+- PR #142 head `8ad58579c5d9a54aec076741f891f95d06579c41`;
+- PR-head Quality Gate `29976999580`: jobs `89110806182` (Python 3.12) и `89110806185`
+  (Python 3.13) успешны;
+- merge commit `cb94e62df7cc7a815693e586b559184868d52e5a`;
+- exact merge-SHA Quality Gate `29977374982`: jobs `89111932002` (Python 3.12) и
+  `89111932016` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный ЭТП ГПБ access-audit worktree.

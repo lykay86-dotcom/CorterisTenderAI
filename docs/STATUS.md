@@ -213,5 +213,16 @@ dependency audit успешны.
 Docs-only решением первые семь P6 sources сохраняются с принятыми blocker/identity verdicts, а
 `gazprombank` назначается только следующим последовательным access-audit target в позиции 8.
 Это не working/access claim ЭТП ГПБ: его сеть, endpoints, fixtures и код этим package не
-исследуются. Publication/exact gate решения ещё обязательны; P7 параллельно не начинается.
+исследуются. Решение принято PR #142: head `8ad58579c5d9a54aec076741f891f95d06579c41`, PR-head
+run `29976999580`, merge `cb94e62df7cc7a815693e586b559184868d52e5a`, exact run
+`29977374982`; обе matrix jobs и dependency audit успешны.
+
+Отдельный ЭТП ГПБ read-only audit нашёл явное official permission intent для RSS use в стороннем
+ПО и точный published endpoint. Однако current/new host redirects заканчиваются final `404`, а
+schema/version, pagination/completeness, rate/retry, timezone/currency/exact-money, retention и
+approved fixtures не опубликованы. Human query/page scraping и отдельный account-oriented Trading
+Portal API не используются как замена. `gazprombank` локально
+`BLOCKED_EXTERNAL / PUBLISHED_FEED_UNAVAILABLE`; adapter/fixture/live verification не создаются.
+Это последний P6 source, но P7 не начинается до publication/exact этого audit и отдельного
+docs-only reconciliation решения по расхождению canonical ТЗ и implementation plan.
 Production RM-156, RM-157 и RM-158 не начинать.
