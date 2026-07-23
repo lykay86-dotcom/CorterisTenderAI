@@ -2,9 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / BLOCKED_EXTERNAL / PUBLIC_HTML_WITHOUT_MACHINE_CONTRACT`;
-publication и exact merge-SHA Quality Gate ожидаются. Application implementation запрещена
-Definition of Ready.
+Статус: `ACCEPTED / BLOCKED_EXTERNAL / PUBLIC_HTML_WITHOUT_MACHINE_CONTRACT`. Application
+implementation запрещена Definition of Ready.
 
 ## 1. Entry gate
 
@@ -120,4 +119,12 @@ auditable section matrix/order внутри existing provider owners. Новая
 
 ## 8. Publication acceptance
 
-Ожидаются PR-head и exact merge-SHA Windows Quality Gate.
+- PR #149 head `f66feda46eb0432ca4bd2391c3caad7e59fc3a95`;
+- PR-head Quality Gate `29987577868`: attempt 1 Python 3.12 завершился transient native Windows
+  `access violation`, тогда как Python 3.13 прошёл; attempt 2 успешен — jobs `89143828971`
+  (Python 3.12) и `89143830089` (Python 3.13);
+- merge commit `023002df23273d01aad2630f92ae293d2dfc10f2`;
+- fresh exact merge-SHA Quality Gate `29988314604`: jobs `89145077281` (Python 3.12) и
+  `89145077332` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный docs-only commercial-section matrix/order worktree.

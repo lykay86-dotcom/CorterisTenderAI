@@ -215,8 +215,13 @@
   успешны. OTC имеет public human search/detail и account CRM/EIS integration, но published
   external discovery API/feed, automation/reuse permission и complete machine contract
   отсутствуют. `otc` локально `BLOCKED_EXTERNAL / PUBLIC_HTML_WITHOUT_MACHINE_CONTRACT`;
-  HTML/XHR adapter/fixtures запрещены. Следующий package после merge/exact audit может только
-  определить docs-only commercial-section matrix/order внутри existing owners.
+  HTML/XHR adapter/fixtures запрещены. Audit принят PR #149: head
+  `f66feda46eb0432ca4bd2391c3caad7e59fc3a95`, PR-head run `29987577868` attempt 2 успешен после
+  transient native Windows failure attempt 1, merge `023002df23273d01aad2630f92ae293d2dfc10f2`,
+  fresh exact run `29988314604`; обе jobs и dependency audit успешны. Следующий docs-only package
+  формирует commercial-section matrix/order внутри восьми existing federal operator owners,
+  переиспользует принятые P6 section/blocker audits и не создаёт identities/repeated network
+  audits. P8 не начинается до merge/exact matrix decision.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

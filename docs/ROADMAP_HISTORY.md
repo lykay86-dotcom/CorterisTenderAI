@@ -1,6 +1,20 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P7 OTC access audit подготовлен
+## 2026-07-23 — P7 commercial-section matrix/order подготовлен
+
+- Восемь federal operator boundaries сопоставлены только с existing canonical owners в принятом P6
+  порядке; compatibility aliases не создают providers, АО «ЭТС» сохраняет один implementation
+  owner при двух disabled persisted placeholders.
+- Принятые P6 audits уже покрывают section evidence и DoR blockers. Повторный network audit,
+  adapters/fixtures/settings/DB/dependencies не создаются; все commercial sections остаются
+  `BLOCKED_EXTERNAL`.
+- После merge/exact P7 access-audit pass может завершиться без implementation claim; P8 открывается
+  только отдельным package.
+- Локально: первый длинный basetemp вызвал Windows path-length SQLite backup error при `33 passed`;
+  focused rerun с коротким basetemp — `34 passed`, full — `2467 passed, 2 warnings`.
+  Ruff/format (`804 files`), mypy (`20 source files`), secret scan и `git diff --check` успешны.
+
+## 2026-07-23 — Collector P7 OTC access audit принят и слит
 
 - Official public human search/detail pages существуют, а Регламент описывает account OTC-CRM и
   customer-side EIS integration. Published external procurement discovery API/feed и permitted
@@ -13,6 +27,12 @@
   `2467 passed, 2 warnings in 254.20s`; Ruff/format (`804 files`), mypy (`20 source files`),
   secret scan и `git diff --check` успешны. Pytest использовал
   `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+- PR #149 head `f66feda46eb0432ca4bd2391c3caad7e59fc3a95`; PR-head run `29987577868`
+  attempt 1 Python 3.12 поймал transient native Windows `access violation`, attempt 2 успешен
+  (jobs `89143828971`/`89143830089`). Merge
+  `023002df23273d01aad2630f92ae293d2dfc10f2`; fresh exact run `29988314604` успешен
+  (jobs `89145077281`/`89145077332`), включая dependency audit.
+- Только после exact success создан отдельный docs-only commercial-section matrix/order worktree.
 
 ## 2026-07-23 — P7 docs-only переход к OTC принят и слит
 
