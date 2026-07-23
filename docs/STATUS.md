@@ -196,5 +196,14 @@ dependency audit успешны.
 Docs-only решением первые шесть P6 sources сохраняются с принятыми blocker/identity verdicts, а
 `rts_tender` назначается только следующим последовательным access-audit target. Это не
 working/access claim РТС-тендер: его сеть, endpoints, fixtures и код этим package не исследуются.
-Publication и exact gate решения обязательны до отдельного РТС-тендер audit.
+Решение принято PR #140: head `ca7a3c53841336d1cfe544ed5326b7d2160eef7f`, PR-head run
+`29974875827`, merge `ffc2f4e8f8b3c0db502a4a26c2f8ea69b0a7931f`, exact run
+`29975119548`; обе matrix jobs и dependency audit успешны.
+
+Отдельный РТС-тендер read-only audit встретил официальный Anti-DDoS browser challenge/503 на
+main и `robots.txt`; bypass не выполнялся. Section-specific public human cards существуют, но
+machine API/feed, automation/data-reuse permission, schema/version, pagination/completeness,
+rate/retry, timezone/currency/exact-money и raw retention rules не опубликованы. Common B2B-РТС
+group ownership не является identity/protocol contract. `rts_tender` локально `BLOCKED_EXTERNAL`;
+adapter/fixture/live verification не создаются. Publication/exact audit gate ещё обязательны.
 Production RM-156, RM-157 и RM-158 не начинать.
