@@ -240,7 +240,11 @@ catalog, documentation и XML examples доступны только после 
 договора/тарифа. Публичный Регламент запрещает automated collection без письменного согласия
 Оператора и устанавливает ceiling 60 HTTP requests/minute. Подтверждённый entitlement/consent,
 endpoint/method/auth, coverage, schema/version, pagination/completeness, API rate/retry,
-timezone/money, retention/reuse и approved fixtures отсутствуют. `b2b_center` локально
+timezone/money, retention/reuse и approved fixtures отсутствуют. `b2b_center`
 `BLOCKED_EXTERNAL / CONTRACT_AND_PERMISSION_GATED`; HTML/login automation, adapter и fixtures не
-создаются. `fabrikant` не начинать до publication и exact merge-SHA success этого audit package.
+создаются. Audit принят PR #145: head `d4c0f2fb41fe77c5df642884d29016af0cd0442c`, PR-head run
+`29980582710`, merge `f7b20a4a5c5d0ee260b04721347c66b8ee2dad2a`, fresh exact run
+`29980836778`; обе matrix jobs и dependency audit успешны. `fabrikant` назначается только следующим
+P7 access-audit target без contract/readiness claim; отдельный audit начинается после
+publication/exact docs-only transition package.
 Production RM-156, RM-157 и RM-158 не начинать.
