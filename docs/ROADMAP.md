@@ -245,7 +245,11 @@
   PR-head run `29997803117`, merge `f4fead191323f50c4b5d7a1359e24006c1a3bcb5`, fresh exact
   run `29998310114`; обе Windows jobs и dependency audit успешны. Текущий P9 audit package
   ограничен inventory и strict expected-red contracts для all-provider no-network diagnostic и
-  unexpected-health error sanitization. Implementation начинается только после merge/exact audit.
+  unexpected-health error sanitization. Audit принят PR #154: head
+  `3f9ae22b86e04f25963f9c179b51b90b02818215`, PR-head run `29999339166`, merge
+  `8aa152f09043b3798040fb41482153a66269a35d`, fresh exact run `29999808833`; обе jobs и
+  dependency audit успешны. Текущий P9 stabilization package реализует только принятые gaps,
+  operations/provider docs и final evidence. Collector closeout ожидает feature merge/exact.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

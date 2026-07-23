@@ -2,8 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / PUBLICATION PENDING`; stabilization implementation и Collector
-closeout не начаты.
+Статус: `ACCEPTED`; audit опубликован и принят fresh exact merge-SHA Quality Gate. Stabilization
+implementation начата отдельным package; Collector closeout не начат.
 
 ## 1. Entry gate
 
@@ -114,3 +114,13 @@ RM-157 и RM-158 не начинаются.
 
 Audit package откатывается одним tests/docs commit. Application, DB/schema, settings, credentials,
 fixtures, provider readiness, RM-107 score/recommendation и critical stop-factor не изменяются.
+
+## 7. Publication acceptance
+
+- Commits: tests `1a588f6`, docs `3f9ae22`.
+- PR #154 head `3f9ae22b86e04f25963f9c179b51b90b02818215`.
+- PR-head run `29999339166` успешен: jobs `89180529149` (3.12),
+  `89180529224` (3.13).
+- Merge `8aa152f09043b3798040fb41482153a66269a35d`.
+- Fresh exact run `29999808833` успешен: jobs `89182019589` (3.12),
+  `89182019632` (3.13), включая dependency audit.

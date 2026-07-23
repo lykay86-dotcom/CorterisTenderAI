@@ -1,5 +1,26 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P9 audit принят; stabilization implementation локально зелёная
+
+- P9 audit commits tests `1a588f6` и docs `3f9ae22`; PR #154 head
+  `3f9ae22b86e04f25963f9c179b51b90b02818215`, PR-head run `29999339166`, merge
+  `8aa152f09043b3798040fb41482153a66269a35d`, fresh exact run `29999808833`; jobs
+  `89182019589`/`89182019632` и dependency audit успешны.
+- All-provider diagnostic проецирует exact 13 existing catalog/factory entries с rejecting
+  transport, парсит approved EIS/Mos samples и выполняет isolated schema-15 backup/restore drill.
+  Matrix не заявляет `WORKING`; credentials/network/user DB не используются.
+- Unexpected provider health exception сохраняет fixed safe message вместо raw exception text,
+  token или private URL.
+- Test-first: audit `6 xfailed`; первый implementation `2 failed, 4 passed`; minimal transaction
+  commit fix дал green. Final target `7 passed`, broad contour `76 passed`, full
+  `2481 passed, 2 warnings`.
+- Benchmark: p50 `7,231.752 ms`, p95 `7,296.169 ms`, P1 delta `-9.8835%`, RSS
+  `52,252,672`; 25 cycles без resource growth, cancellation `17.487 ms`.
+- Ruff/format (`806 files`), mypy (`20 source files`), secret scan, RM-155, offline/migration/
+  bootstrap/build/frozen/import gates успешны. Local pip-audit network/escalation запрещены
+  privacy policy; обход не выполнялся, PR-head/exact audit обязателен.
+- Collector closeout, production RM-156, RM-157 и RM-158 не начинаются до feature merge/exact.
+
 ## 2026-07-23 — P8 closeout принят; P9 stabilization audit начат
 
 - P8 closeout PR #153 head `ead2de338628c5dd8b6ae7de19779ceec9dcc102`; PR-head run

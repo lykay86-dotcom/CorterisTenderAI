@@ -305,5 +305,12 @@ run `29998310114`; jobs `89177176148`/`89177176164` и dependency audit успе
 
 Текущий P9 audit package инвентаризирует stabilization gates и фиксирует expected-red для единого
 all-provider no-network diagnostic и raw unexpected-health error sanitization. Stabilization
-implementation, Collector closeout и production RM-156 до merge/exact audit не начинаются.
+audit принят PR #154: head `3f9ae22b86e04f25963f9c179b51b90b02818215`,
+PR-head run `29999339166`, merge `8aa152f09043b3798040fb41482153a66269a35d`, fresh exact
+run `29999808833`; jobs `89182019589`/`89182019632` и dependency audit успешны.
+
+Текущий P9 stabilization implementation создаёт только no-network diagnostic поверх existing
+owners и fixed safe unexpected-health message. Локально: target `7 passed`, broad `76 passed`,
+full `2481 passed, 2 warnings`; 10k/25-cycle benchmark, Ruff/format/mypy/secret/migration/build
+gates успешны. Collector closeout и production RM-156 не начинаются до feature merge/exact.
 RM-157 и RM-158 не начинать.
