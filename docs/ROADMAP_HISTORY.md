@@ -1,5 +1,24 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P8 closeout принят; P9 stabilization audit начат
+
+- P8 closeout PR #153 head `ead2de338628c5dd8b6ae7de19779ceec9dcc102`; PR-head run
+  `29997803117` успешен (jobs `89175538704`/`89175538779`). Merge
+  `f4fead191323f50c4b5d7a1359e24006c1a3bcb5`; fresh exact run `29998310114` успешен
+  (jobs `89177176148`/`89177176164`), включая full suite и dependency audit.
+- P8 закрыт с TenderGuru `BLOCKED_EXTERNAL`; Collector prerequisite и production RM-156 не
+  закрыты. Exact success открыл только P9 stabilization.
+- P9 audit переиспользует exact 13 catalog, existing factories/settings/credentials, P3 benchmark,
+  P3/P5 migration/backup/restore и accepted provider/access evidence. Второй owner не создаётся.
+- Найдены два gaps: отсутствует consolidated all-provider no-network diagnostic; unexpected
+  health exception сохраняет raw message. Шесть strict expected-red contracts фиксируют exact
+  catalog/matrix/samples/bounded JSON/restore drill/sanitization до implementation.
+- Локально: expected-red `6 xfailed in 8.66s`; focused catalog/provider-control/schema/backup/
+  prerequisite contour `30 passed, 6 xfailed in 14.37s`; Ruff/format нового test file, secret
+  scan и `git diff --check` успешны.
+- Stabilization implementation, Collector closeout, production RM-156, RM-157 и RM-158 не
+  начинаются до merge/exact этого audit package.
+
 ## 2026-07-23 — P8 hardening принят; aggregator discovery closeout подготовлен
 
 - P8 hardening опубликован тремя изолированными commits: tests `16829e7`, implementation

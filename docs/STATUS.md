@@ -299,4 +299,11 @@ queue теперь имеет atomic capacity, bounded payload/attempt retention
 error/note/URL sanitization; full protected queue не блокирует authoritative service path.
 TenderGuru producer/readiness не открываются. Текущий docs-only P8 closeout фиксирует честный
 `BLOCKED_EXTERNAL` и открывает только P9 stabilization после собственного merge/exact gate.
-Production RM-156, RM-157 и RM-158 не начинать.
+P8 closeout принят PR #153: head `ead2de338628c5dd8b6ae7de19779ceec9dcc102`,
+PR-head run `29997803117`, merge `f4fead191323f50c4b5d7a1359e24006c1a3bcb5`, fresh exact
+run `29998310114`; jobs `89177176148`/`89177176164` и dependency audit успешны.
+
+Текущий P9 audit package инвентаризирует stabilization gates и фиксирует expected-red для единого
+all-provider no-network diagnostic и raw unexpected-health error sanitization. Stabilization
+implementation, Collector closeout и production RM-156 до merge/exact audit не начинаются.
+RM-157 и RM-158 не начинать.
