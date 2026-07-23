@@ -154,6 +154,16 @@ dependency audit успешны.
 Docs-only решением `zakaz_rf`, `roseltorg`, `rad` и `tek_torg` сохраняются в позициях 1–4 P6 со
 статусом `BLOCKED_EXTERNAL`, а `ets_nep` назначается только следующим последовательным
 access-audit target. Это не working/access claim ETS/НЭП: его сеть, endpoints, fixtures и код этим
-package не исследуются. Следующее действие после merge/exact решения — отдельный official
-read-only ETS/НЭП audit.
+package не исследуются. Решение принято PR #135: head `26e705f7c72d742dd0b4570cdd90084ae9f95c85`,
+PR-head run `29969146389`, merge `195f4d2e22d12ca36e1c8329e241bef9c8f8832e`, exact run
+`29969484418`; обе matrix jobs и dependency audit успешны.
+
+Отдельный ETS/НЭП audit подтвердил официальный переход `etp-ets.ru` на `44.fabrikant.ru` и общий
+operator/platform owner АО «ЭТС» для уже существующих canonical IDs `ets_nep` и `fabrikant`.
+Второй adapter запрещён duplicate-owner contract; требуется отдельный identity amendment с
+аудитом persisted settings/credentials/history/export. Public HTML cards существуют, но
+procurement API/feed, разрешение automation/data reuse, pagination/rate/schema/version и raw
+retention не подтверждены; robots disallows XML/CSV export actions and file/download paths.
+`ets_nep` локально `BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`; fixtures/code/live verification
+не создаются. Publication/exact audit gate ещё обязательны.
 Production RM-156, RM-157 и RM-158 не начинать.

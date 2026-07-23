@@ -1,6 +1,20 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — P6 docs-only переход к ETS/НЭП подготовлен
+## 2026-07-23 — Collector P6 ETS/НЭП access audit подготовлен
+
+- Пятый P6 audit выполнен от exact order merge
+  `195f4d2e22d12ca36e1c8329e241bef9c8f8832e`; application/test code, identities, aliases,
+  settings, credentials, schema, fixtures and live calls не менялись.
+- Official migration `etp-ets.ru` → `44.fabrikant.ru` and common АО «ЭТС» ownership prove that
+  canonical `ets_nep` and `fabrikant` now describe one operator platform. A second adapter would
+  violate the duplicate-owner contract; separate identity re-audit is required.
+- Public cards exist, but API/feed, automation/reuse permission, stable schema/pagination/rate and
+  raw retention are not published; robots disallows XML/CSV exports and file/download paths.
+  Local verdict: `BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`; no fixtures/code/live claim.
+- Локально: focused `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
+  mypy, secret scan и `git diff --check` успешны. Publication evidence remains required.
+
+## 2026-07-23 — P6 docs-only переход к ETS/НЭП принят
 
 - ZakazRF, Roseltorg, Rad и TekTorg сохранены в позициях 1–4 P6 со статусом
   `BLOCKED_EXTERNAL`; `ets_nep` назначен только следующим последовательным access-audit target
@@ -9,8 +23,10 @@
   (`804 files`), mypy, secret scan и `git diff --check` успешны. Первый full attempt имел один
   невоспроизводимый native Windows/Qt `0xc0000374`; exact test, четыре повтора файла и final full
   suite прошли без изменения кода/tests/thresholds.
-- Publication, PR-head и exact merge-SHA gate остаются обязательными. Отдельный ETS/НЭП audit не
-  начинается до их успеха.
+- PR #135 head `26e705f7c72d742dd0b4570cdd90084ae9f95c85`; PR-head run `29969146389` успешен
+  (jobs `89087096040`/`89087095959`). Merge `195f4d2e22d12ca36e1c8329e241bef9c8f8832e`;
+  exact run `29969484418` успешен (jobs `89088142031`/`89088142008`), включая dependency audit.
+- Только после exact success создан отдельный ETS/НЭП audit worktree.
 
 ## 2026-07-23 — Collector P6 TekTorg access audit принят и слит
 

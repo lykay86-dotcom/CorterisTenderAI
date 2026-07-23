@@ -135,7 +135,14 @@
   `29968220150`; обе matrix jobs и dependency audit успешны. Docs-only решением первые четыре P6
   sources сохраняются blocked, а `ets_nep` назначается следующим последовательным access-audit
   target без contract/readiness claim. Отдельный ETS/НЭП audit начинается только после
-  merge/exact этого решения.
+  merge/exact этого решения. Решение принято PR #135: head
+  `26e705f7c72d742dd0b4570cdd90084ae9f95c85`, PR-head run `29969146389`, merge
+  `195f4d2e22d12ca36e1c8329e241bef9c8f8832e`, exact run `29969484418`; обе matrix jobs и
+  dependency audit успешны. Последующий ETS/НЭП audit доказал официальный migration
+  `etp-ets.ru` → `44.fabrikant.ru` и duplicate current platform ownership с canonical
+  `fabrikant`. Отдельный adapter запрещён до identity amendment; public procurement API/feed,
+  automation/reuse permission, schema/rate/retention contract и approved fixtures также
+  отсутствуют. `ets_nep` локально `BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
