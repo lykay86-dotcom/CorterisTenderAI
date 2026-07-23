@@ -223,6 +223,13 @@ schema/version, pagination/completeness, rate/retry, timezone/currency/exact-mon
 approved fixtures не опубликованы. Human query/page scraping и отдельный account-oriented Trading
 Portal API не используются как замена. `gazprombank` локально
 `BLOCKED_EXTERNAL / PUBLISHED_FEED_UNAVAILABLE`; adapter/fixture/live verification не создаются.
-Это последний P6 source, но P7 не начинается до publication/exact этого audit и отдельного
-docs-only reconciliation решения по расхождению canonical ТЗ и implementation plan.
+Audit принят PR #143: head `8dcfbf6469747fc3e8644761693cc85a076d1b39`, PR-head run
+`29978156861`, merge `102aff662f3cd068c13c095cb6470912cc0bfc60`, exact run
+`29978439856`; обе matrix jobs и dependency audit успешны.
+
+Docs-only boundary решением supporting implementation plan синхронизируется с каноническим ТЗ:
+`gazprombank` остаётся только восьмым P6 source, P7 начинается с `b2b_center`. Последовательный
+P6 access-audit pass завершён, но blocked sources не объявляются implemented/working и Collector
+prerequisite не закрывается. `b2b_center` назначается только следующим access-audit target;
+publication/exact решения обязательны до отдельного network audit.
 Production RM-156, RM-157 и RM-158 не начинать.

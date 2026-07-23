@@ -1,6 +1,19 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P6 ЭТП ГПБ access audit подготовлен
+## 2026-07-23 — docs-only reconciliation границы P6/P7 подготовлен
+
+- Canonical ТЗ имеет приоритет: `gazprombank` остаётся восьмым P6 source, P7 начинается с
+  `b2b_center`. Supporting implementation plan исправлен без повторного source slot и без
+  изменения identity/accepted history.
+- P6 access-audit pass по позициям 1–8 завершён с честными verdicts, но blocked sources не
+  объявляются implemented/working и Collector prerequisite не закрывается. `b2b_center` назначен
+  только следующим P7 access-audit target; network research начинается после merge/exact.
+- Application/tests/settings/credentials/DB/schema/fixtures/dependencies не меняются. Локально:
+  focused `34 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy,
+  secret scan и `git diff --check` успешны. Pytest использовал workflow
+  `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+
+## 2026-07-23 — Collector P6 ЭТП ГПБ access audit принят и слит
 
 - Восьмой и последний по canonical ТЗ P6 audit выполнен от exact order merge
   `cb94e62df7cc7a815693e586b559184868d52e5a`; application/tests/settings/credentials/schema/
@@ -14,8 +27,12 @@
   `BLOCKED_EXTERNAL / PUBLISHED_FEED_UNAVAILABLE`; locally focused `34 passed`, full suite
   `2467 passed, 2 warnings`, Ruff/format (`804 files`), mypy, secret scan и `git diff --check`
   успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped
-  `--basetemp`. P7 не начинается до merge/exact и отдельного reconciliation решения по
-  расхождению canonical ТЗ/implementation plan.
+  `--basetemp`.
+- PR #143 head `8dcfbf6469747fc3e8644761693cc85a076d1b39`; PR-head run `29978156861`
+  успешен (jobs `89114212457`/`89114212487`). Merge
+  `102aff662f3cd068c13c095cb6470912cc0bfc60`; exact run `29978439856` успешен (jobs
+  `89115056696`/`89115056687`), включая dependency audit.
+- Только после exact success создан отдельный P6/P7 boundary reconciliation worktree.
 
 ## 2026-07-23 — P6 docs-only переход к ЭТП ГПБ принят и слит
 
