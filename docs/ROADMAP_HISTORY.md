@@ -1,5 +1,26 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P8 TenderGuru discovery access audit подготовлен
+
+- Official TenderGuru API v2.3 документирует tender list/card, XML/JSON/CSV, `page` pagination,
+  tariff-dependent fields и `api_code`, но endpoint не заменяет entitlement: для CorterisTenderAI
+  отсутствуют product-specific license, approved account/token limits, display/storage/retention/
+  reuse terms, completeness/schema lifecycle/timezone/money contract и approved fixtures.
+- Verdict `BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`. Registration/login/API calls,
+  credential creation, fixture capture и producer implementation не выполнялись.
+- Existing `AggregatorDiscoveryRepository`, official-verification service, discovery-before-
+  normalize/dedup gate, bounded processing reads, manual review/attempt history и UI остаются
+  единственными owners. `tenderguru_discovery` не добавляется в 13 built-ins и не влияет на
+  decision path.
+- Full P8 не объявляется завершённым: queue/attempt retention bounds, retry contract и shared
+  error/note sanitization остаются отдельным local hardening scope.
+- Package начат только после accepted P7 matrix merge
+  `b11b17a6481e933259dd4d52054ed93bc334d051` и successful exact run `29989656986`.
+  P9 не начинается до merge/exact этого audit.
+- Локально: focused discovery/isolation/catalog contour `33 passed in 15.12s`; full baseline
+  `2467 passed, 2 warnings in 284.59s`. Ruff/format (`804 files`), mypy (`20 source files`),
+  secret scan и `git diff --check` успешны. Publication validation ожидается.
+
 ## 2026-07-23 — P7 commercial-section matrix/order подготовлен
 
 - Восемь federal operator boundaries сопоставлены только с existing canonical owners в принятом P6
@@ -13,6 +34,11 @@
 - Локально: первый длинный basetemp вызвал Windows path-length SQLite backup error при `33 passed`;
   focused rerun с коротким basetemp — `34 passed`, full — `2467 passed, 2 warnings`.
   Ruff/format (`804 files`), mypy (`20 source files`), secret scan и `git diff --check` успешны.
+- PR #150 head `fcfed01dbe006c5b80401a976cccbf06a66915a4`; PR-head run `29989342548`
+  успешен (jobs `89148332258`/`89148332175`). Merge
+  `b11b17a6481e933259dd4d52054ed93bc334d051`; fresh exact run `29989656986` успешен
+  (jobs `89149333402`/`89149333355`), включая dependency audit.
+- Только после exact success создан отдельный P8 aggregator-discovery access-audit worktree.
 
 ## 2026-07-23 — Collector P7 OTC access audit принят и слит
 
