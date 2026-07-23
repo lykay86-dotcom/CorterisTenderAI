@@ -1,6 +1,18 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — P7 docs-only переход к Фабриканту подготовлен
+## 2026-07-23 — Collector P7 Фабрикант access audit подготовлен
+
+- Official SOAP/XML API и section specifications опубликованы, но предназначены для SRM-систем
+  заказчика: own notices/protocols/proposals/status/files. Source-wide discovery/search contract
+  отсутствует; verdict `BLOCKED_EXTERNAL / PUBLISHED_API_SCOPE_MISMATCH`.
+- DEMO form/login не использовались, organizer API не подменяет discovery adapter, human registry
+  scraping и fixture capture запрещены. `otc` не начинается до merge/exact audit package.
+- Локально: focused `34 passed in 12.19s`, full suite
+  `2467 passed, 2 warnings in 251.08s`; Ruff/format (`804 files`), mypy (`20 source files`),
+  secret scan и `git diff --check` успешны. Pytest использовал
+  `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+
+## 2026-07-23 — P7 docs-only переход к Фабриканту принят и слит
 
 - Принятый B2B-Center blocker сохраняется в позиции 1 P7; `fabrikant` назначен только следующим
   access-audit target в позиции 2 без access/readiness/fixture/working claim.
@@ -10,6 +22,11 @@
 - Локально: focused `34 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
   mypy, secret scan и `git diff --check` успешны. Pytest использовал workflow
   `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+- PR #146 head `6fa6e3f93a188e39a71c9e9042cf3b41e770364a`; PR-head run `29981527538`
+  успешен (jobs `89124142766`/`89124142791`). Merge
+  `dfe1f95f194f494b9beb33dc5c6127d31f428ce4`; exact run `29981883362` успешен (jobs
+  `89125248024`/`89125248048`), включая dependency audit.
+- Только после exact success создан отдельный Фабрикант access-audit worktree.
 
 ## 2026-07-23 — Collector P7 B2B-Center access audit принят и слит
 
