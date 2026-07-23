@@ -4,7 +4,7 @@
 
 ## Активный этап
 
-**RM-156 — модель контрагента (production-реализация приостановлена)**
+**RM-156 — модель контрагента (production-реализация возобновляется после closeout gate)**
 
 Статус: `IN PROGRESS`
 
@@ -15,9 +15,9 @@ run `29845412052`. Этот отдельный docs-only closeout перевод
 `UI-141-017` и завершает последовательность полного редизайна RM-141–RM-155. RM-156 —
 единственный активный этап; RM-157–RM-200 остаются `PLANNED` и не выполняются параллельно.
 
-Решением владельца от 22 июля 2026 года до production-реализации модели контрагента выполняется
-обязательный Collector prerequisite по многоплощадочному сбору. Это prerequisite RM-156, а не
-новый или параллельный RM: RM-156 остаётся единственным каноническим `IN PROGRESS`, а
+Решением владельца от 22 июля 2026 года до production-реализации модели контрагента выполнялся
+обязательный Collector prerequisite по многоплощадочному сбору. Он завершён P0–P9 и текущим
+canonical closeout без отдельного RM: RM-156 остаётся единственным каноническим `IN PROGRESS`, а
 RM-157–RM-200 остаются `PLANNED`. Полный scope и package gates зафиксированы в
 [`PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md`](PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md).
 
@@ -38,10 +38,9 @@ PR-head run `29946701032` и exact merge-SHA run `29947263908` успешны н
 accepted-page/checkpoint/artifact path, raw search/detail/document/rejected evidence и fail-closed
 redaction приняты. Full suite `2458 passed`, exact-data 10k/resource gate зелёный. EIS и Mos
 Supplier честно остаются `IMPLEMENTED_OFFLINE` до отдельно разрешённой live verification;
-серверная пагинация Mos не заявлена и не угадана. Production-код модели контрагента, RM-157 и
-RM-158 не начинаются до
-отдельного Collector closeout. Closeout должен вернуть RM-156 в production work; только затем
-продолжается модель контрагента и последующие RM в исходной нумерации.
+серверная пагинация Mos не заявлена и не угадана. Текущий closeout принимает documented external
+blockers без `WORKING` claim и возвращает RM-156 в production work после собственного merge/exact
+gate. RM-157 и RM-158 не начинаются.
 
 ## Завершённый этап
 
@@ -309,8 +308,15 @@ audit принят PR #154: head `3f9ae22b86e04f25963f9c179b51b90b02818215`,
 PR-head run `29999339166`, merge `8aa152f09043b3798040fb41482153a66269a35d`, fresh exact
 run `29999808833`; jobs `89182019589`/`89182019632` и dependency audit успешны.
 
-Текущий P9 stabilization implementation создаёт только no-network diagnostic поверх existing
-owners и fixed safe unexpected-health message. Локально: target `7 passed`, broad `76 passed`,
+P9 stabilization implementation создаёт только no-network diagnostic поверх existing owners и
+fixed safe unexpected-health message. Локально: target `7 passed`, broad `76 passed`,
 full `2481 passed, 2 warnings`; 10k/25-cycle benchmark, Ruff/format/mypy/secret/migration/build
-gates успешны. Collector closeout и production RM-156 не начинаются до feature merge/exact.
-RM-157 и RM-158 не начинать.
+gates успешны. Feature принят PR #155: head
+`f9d77857102588750432264186df4b0b268f2788`, PR-head run `30001707776`, merge
+`7101396f24885144807f0f60c72b798e48c7861a`, fresh exact run `30002186102` attempt 2;
+final jobs `89191332161`/`89191333148` и dependency audit успешны. Attempt 1 Python 3.12 native
+Windows `access violation` сохранён как transient evidence; code/tests не менялись.
+
+Текущий canonical closeout принимает все 13 built-ins как honest `BLOCKED_EXTERNAL`, 0
+`WORKING`, завершает Collector prerequisite и возвращает RM-156 в production work после
+closeout merge/exact. RM-157 и RM-158 не начинать.
