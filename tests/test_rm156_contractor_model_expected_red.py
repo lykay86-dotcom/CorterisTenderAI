@@ -235,6 +235,7 @@ def test_future_schema_is_rejected_without_downgrade_or_write(tmp_path: Path) ->
     reset_database_state()
 
     with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE IF EXISTS contractors")
         connection.execute("UPDATE schema_version SET version=99 WHERE id=1")
         connection.commit()
 
