@@ -209,7 +209,14 @@
   `403ec44abee9d0497485ac130b50dc3199351347`, PR-head run `29984554174`, merge
   `bf2a44bea889b34689f63495013becae24d050fb`, exact run `29984821509`; обе jobs и dependency audit
   успешны. `otc` назначается только следующим P7 access-audit target без contract/readiness claim;
-  отдельный audit начинается после merge/exact docs-only transition package.
+  отдельный audit начинается после merge/exact docs-only transition package. Transition принят PR
+  #148: head `3ba012506e147a4a8392e8a1dea75e153307e016`, PR-head run `29986076319`, merge
+  `5c087726e2cb32c88c6b9760d8b43b887da4234f`, exact run `29986457553`; обе jobs и dependency audit
+  успешны. OTC имеет public human search/detail и account CRM/EIS integration, но published
+  external discovery API/feed, automation/reuse permission и complete machine contract
+  отсутствуют. `otc` локально `BLOCKED_EXTERNAL / PUBLIC_HTML_WITHOUT_MACHINE_CONTRACT`;
+  HTML/XHR adapter/fixtures запрещены. Следующий package после merge/exact audit может только
+  определить docs-only commercial-section matrix/order внутри existing owners.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
