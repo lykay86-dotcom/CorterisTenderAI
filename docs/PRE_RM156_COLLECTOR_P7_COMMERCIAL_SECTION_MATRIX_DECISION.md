@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`.
 
 ## 1. Основание
 
@@ -90,5 +90,11 @@ dependencies не менялись; path-length failure не является pr
 
 ## 7. Publication acceptance
 
-Ожидаются PR-head и exact merge-SHA Windows Quality Gate. P8 worktree создаётся только после
-fresh exact success.
+- PR #150 head `fcfed01dbe006c5b80401a976cccbf06a66915a4`;
+- PR-head Quality Gate `29989342548`: jobs `89148332258` (Python 3.12) и `89148332175`
+  (Python 3.13) успешны, включая dependency audit;
+- merge commit `b11b17a6481e933259dd4d52054ed93bc334d051`;
+- fresh exact merge-SHA Quality Gate `29989656986`: jobs `89149333402` (Python 3.12) и
+  `89149333355` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный P8 aggregator-discovery access-audit worktree.

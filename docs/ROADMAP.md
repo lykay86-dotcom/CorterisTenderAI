@@ -218,10 +218,21 @@
   HTML/XHR adapter/fixtures запрещены. Audit принят PR #149: head
   `f66feda46eb0432ca4bd2391c3caad7e59fc3a95`, PR-head run `29987577868` attempt 2 успешен после
   transient native Windows failure attempt 1, merge `023002df23273d01aad2630f92ae293d2dfc10f2`,
-  fresh exact run `29988314604`; обе jobs и dependency audit успешны. Следующий docs-only package
-  формирует commercial-section matrix/order внутри восьми existing federal operator owners,
-  переиспользует принятые P6 section/blocker audits и не создаёт identities/repeated network
-  audits. P8 не начинается до merge/exact matrix decision.
+  fresh exact run `29988314604`; обе jobs и dependency audit успешны. Commercial-section
+  matrix/order сопоставила восемь boundaries только с existing federal operator owners,
+  переиспользовала принятые P6 section/blocker audits и не создала identities/repeated network
+  audits. Решение принято PR #150: head `fcfed01dbe006c5b80401a976cccbf06a66915a4`,
+  PR-head run `29989342548`, merge `b11b17a6481e933259dd4d52054ed93bc334d051`,
+  fresh exact run `29989656986`; обе jobs и dependency audit успешны. P7 access-audit pass
+  завершён без implementation claim. TenderGuru публикует API v2.3, но product-specific
+  entitlement/license, account limits, storage/redistribution terms, exact completeness/schema/
+  timezone/money contract и approved fixtures для CorterisTenderAI отсутствуют.
+  `tenderguru_discovery` локально
+  `BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`; producer/credentials/fixtures не
+  создаются, existing aggregator queue/official-verification gate остаётся отдельным от
+  13 built-ins. Full P8 не закрыт: queue/attempt retention bounds, retry contract и error/note
+  sanitization остаются отдельным local hardening scope. P9 не начинается до merge/exact P8 audit
+  и завершения допустимого P8 hardening.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

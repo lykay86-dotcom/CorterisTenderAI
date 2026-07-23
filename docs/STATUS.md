@@ -271,8 +271,21 @@ PR-head run `29987577868` attempt 2 успешен после transient native W
 merge `023002df23273d01aad2630f92ae293d2dfc10f2`, fresh exact run `29988314604`; обе jobs и
 dependency audit успешны.
 
-Следующий docs-only package формирует commercial-section matrix внутри восьми existing federal
-operator owners. Он переиспользует принятые P6 section/blocker audits, не создаёт новые identities
-или повторные network audits и не открывает implementation. P8 не начинать до merge/exact matrix
-decision.
+Commercial-section matrix сопоставила восемь boundaries только с existing federal operator owners
+в canonical P6 порядке. Принятые P6 section/blocker audits переиспользованы без новых identities,
+повторных network audits или implementation claim; все позиции остаются `BLOCKED_EXTERNAL`.
+Решение принято PR #150: head `fcfed01dbe006c5b80401a976cccbf06a66915a4`, PR-head run
+`29989342548`, merge `b11b17a6481e933259dd4d52054ed93bc334d051`, fresh exact run
+`29989656986`; jobs `89149333402`/`89149333355` и dependency audit успешны. P7 access-audit pass
+завершён, но P7 implementation и Collector prerequisite не считаются `DONE`.
+
+TenderGuru публикует реальный API v2.3 для тендеров с XML/JSON/CSV, pagination и
+tariff-dependent fields, но для CorterisTenderAI не предоставлены product-specific
+entitlement/license, account token/limits, data visibility/retention/reuse terms, completeness/
+schema lifecycle/timezone/money contract или approved fixtures. `tenderguru_discovery` локально
+`BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`; registration/login/API calls, producer,
+credentials и fixtures не создаются. Existing aggregator queue/official-verification gate
+переиспользуется и остаётся отдельно от 13 built-ins. Full P8 ещё не закрыт: queue/attempt
+retention bounds, retry и error/note sanitization требуют отдельного local hardening package.
+P9 не начинать до merge/exact этого P8 audit и завершения допустимого P8 hardening.
 Production RM-156, RM-157 и RM-158 не начинать.
