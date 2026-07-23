@@ -143,6 +143,12 @@ def test_retry_after_and_url_redaction() -> None:
     assert "api_key=%2A%2A%2A" in rendered
     assert "q=camera" in rendered
     assert "fragment" not in rendered
+    tenderguru = sanitize_url(
+        "https://example.org/a?api_code=secret&refresh_code=other-secret&q=camera"
+    )
+    assert "secret" not in tenderguru
+    assert "api_code=%2A%2A%2A" in tenderguru
+    assert "refresh_code=%2A%2A%2A" in tenderguru
 
 
 def test_certificate_verification_error_is_not_retried() -> None:
