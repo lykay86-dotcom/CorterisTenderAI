@@ -174,8 +174,16 @@
   run `29975868619`, merge `3944dbd0ec35bc358d5149a9cf005b27884b6570`, exact run
   `29976202290`; обе matrix jobs и dependency audit успешны. Следующим последовательным P6
   access-audit target назначается `gazprombank` (позиция 8) без contract/readiness claim.
-  Отдельный ЭТП ГПБ audit начинается только после merge/exact этого docs-only решения; P7
-  параллельно не начинается.
+  Отдельный ЭТП ГПБ audit начинается только после merge/exact этого docs-only решения. Решение
+  принято PR #142: head `8ad58579c5d9a54aec076741f891f95d06579c41`, PR-head run
+  `29976999580`, merge `cb94e62df7cc7a815693e586b559184868d52e5a`, exact run
+  `29977374982`; обе matrix jobs и dependency audit успешны. Последующий read-only audit нашёл
+  explicit RSS permission intent для стороннего ПО, но оба official/current RSS address варианта
+  сводятся к final `404`; schema/version/pagination/rate/timezone/retention contract и approved
+  fixtures не опубликованы. `gazprombank` локально
+  `BLOCKED_EXTERNAL / PUBLISHED_FEED_UNAVAILABLE`; HTML/query scraping и unrelated Trading Portal
+  account API запрещены как замена. P7 не начинается до принятия audit и отдельного docs-only
+  reconciliation решения по расхождению canonical ТЗ и implementation plan.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

@@ -1,6 +1,23 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — P6 docs-only переход к ЭТП ГПБ подготовлен
+## 2026-07-23 — Collector P6 ЭТП ГПБ access audit подготовлен
+
+- Восьмой и последний по canonical ТЗ P6 audit выполнен от exact order merge
+  `cb94e62df7cc7a815693e586b559184868d52e5a`; application/tests/settings/credentials/schema/
+  dependencies не меняются, fixtures и procurement payloads не сохраняются.
+- Official page явно предназначает RSS стороннему ПО и публикует exact endpoint. Ordinary GET
+  current/new address chain заканчивается final `404`; generic robots также запрещает query URLs
+  и `/procedures/page`. HTML/query scraping и отдельный account-oriented Trading Portal API не
+  используются как replacement.
+- Schema/version, section coverage, pagination/completeness, rate/retry, timezone/money, retention
+  и approved fixtures не опубликованы. Local verdict
+  `BLOCKED_EXTERNAL / PUBLISHED_FEED_UNAVAILABLE`; locally focused `34 passed`, full suite
+  `2467 passed, 2 warnings`, Ruff/format (`804 files`), mypy, secret scan и `git diff --check`
+  успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped
+  `--basetemp`. P7 не начинается до merge/exact и отдельного reconciliation решения по
+  расхождению canonical ТЗ/implementation plan.
+
+## 2026-07-23 — P6 docs-only переход к ЭТП ГПБ принят и слит
 
 - Первые семь P6 sources сохраняют принятые blocker/identity verdicts; ни один не удаляется и не
   считается реализованным. `gazprombank` назначен только следующим access-audit target в исходной
@@ -10,6 +27,11 @@
   параллельно. Локально: focused `34 passed`, full suite `2467 passed, 2 warnings`;
   Ruff/format (`804 files`), mypy, secret scan и `git diff --check` успешны. Pytest использовал
   workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+- PR #142 head `8ad58579c5d9a54aec076741f891f95d06579c41`; PR-head run `29976999580`
+  успешен (jobs `89110806182`/`89110806185`). Merge
+  `cb94e62df7cc7a815693e586b559184868d52e5a`; exact run `29977374982` успешен (jobs
+  `89111932002`/`89111932016`), включая dependency audit.
+- Только после exact success создан отдельный ЭТП ГПБ access-audit worktree.
 
 ## 2026-07-23 — Collector P6 РТС-тендер access audit принят и слит
 
