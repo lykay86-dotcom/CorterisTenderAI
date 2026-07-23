@@ -1650,12 +1650,12 @@ class CollectorProviderManager:
                     continue
                 try:
                     results[provider_id] = await provider.check_health()
-                except Exception as exc:
+                except Exception:
                     results[provider_id] = ProviderHealth(
                         provider_id=provider_id,
                         status=ProviderHealthStatus.UNAVAILABLE,
                         checked_at=_utc_now(),
-                        message=(f"{type(exc).__name__}: {exc}"),
+                        message="Проверка источника завершилась внутренней ошибкой.",
                     )
             return results
         finally:
