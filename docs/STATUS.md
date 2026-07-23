@@ -4,7 +4,7 @@
 
 ## Активный этап
 
-**RM-156 — модель контрагента (production-реализация возобновляется после closeout gate)**
+**RM-156 — модель контрагента**
 
 Статус: `IN PROGRESS`
 
@@ -16,9 +16,11 @@ run `29845412052`. Этот отдельный docs-only closeout перевод
 единственный активный этап; RM-157–RM-200 остаются `PLANNED` и не выполняются параллельно.
 
 Решением владельца от 22 июля 2026 года до production-реализации модели контрагента выполнялся
-обязательный Collector prerequisite по многоплощадочному сбору. Он завершён P0–P9 и текущим
-canonical closeout без отдельного RM: RM-156 остаётся единственным каноническим `IN PROGRESS`, а
-RM-157–RM-200 остаются `PLANNED`. Полный scope и package gates зафиксированы в
+обязательный Collector prerequisite по многоплощадочному сбору. Он завершён P0–P9 и принят
+canonical closeout PR #156: merge `e2eeac22497ec90b108fc02765089a92c6fdfc55`, exact run
+`30004268816`, jobs `89196436206`/`89196436327`; обе jobs и dependency audit successful.
+RM-156 остаётся единственным каноническим `IN PROGRESS`, RM-157–RM-200 остаются `PLANNED`.
+Полный scope и package gates зафиксированы в
 [`PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md`](PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md).
 
 Docs-only P0 слит PR #121 merge commit
@@ -38,9 +40,8 @@ PR-head run `29946701032` и exact merge-SHA run `29947263908` успешны н
 accepted-page/checkpoint/artifact path, raw search/detail/document/rejected evidence и fail-closed
 redaction приняты. Full suite `2458 passed`, exact-data 10k/resource gate зелёный. EIS и Mos
 Supplier честно остаются `IMPLEMENTED_OFFLINE` до отдельно разрешённой live verification;
-серверная пагинация Mos не заявлена и не угадана. Текущий closeout принимает documented external
-blockers без `WORKING` claim и возвращает RM-156 в production work после собственного merge/exact
-gate. RM-157 и RM-158 не начинаются.
+серверная пагинация Mos не заявлена и не угадана. Closeout принял documented external blockers
+без `WORKING` claim и вернул RM-156 в production work. RM-157 и RM-158 не начинаются.
 
 ## Завершённый этап
 
@@ -317,6 +318,15 @@ gates успешны. Feature принят PR #155: head
 final jobs `89191332161`/`89191333148` и dependency audit успешны. Attempt 1 Python 3.12 native
 Windows `access violation` сохранён как transient evidence; code/tests не менялись.
 
-Текущий canonical closeout принимает все 13 built-ins как honest `BLOCKED_EXTERNAL`, 0
-`WORKING`, завершает Collector prerequisite и возвращает RM-156 в production work после
-closeout merge/exact. RM-157 и RM-158 не начинать.
+Canonical closeout принял все 13 built-ins как honest `BLOCKED_EXTERNAL`, 0 `WORKING`.
+PR #156 head `e105b202b342da975c61fc430d713f385f180be8`, PR-head run `30003448590`,
+merge `e2eeac22497ec90b108fc02765089a92c6fdfc55`, exact run `30004268816`; jobs
+`89196436206`/`89196436327` и dependency audit successful.
+
+Текущий отдельный RM-156 audit-first package зафиксировал, что existing `Company`,
+`CompanyProfile` и `CompanyCapabilityProfile` принадлежат собственной ООО «КОРТЕРИС»;
+`TenderCustomer` является source observation, а не contractor master-record. Новая узкая модель
+контрагента должна переиспользовать existing DB/repository/UoW/migration owners и не начинать
+RM-157–RM-168. Локальный неизменённый database/company/collector/registry baseline:
+`31 passed in 11.19s`. Обнаруженный SQLite timezone round-trip gap включён в expected-red contract.
+Application code не меняется до merge/exact audit package. RM-157 и RM-158 не начинать.

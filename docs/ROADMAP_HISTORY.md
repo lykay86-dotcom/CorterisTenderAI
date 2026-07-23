@@ -1,5 +1,23 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — Collector closeout принят; RM-156 audit-first начат
+
+- Closeout commit `e105b20`, PR #156 head
+  `e105b202b342da975c61fc430d713f385f180be8`; PR-head run `30003448590` successful
+  (jobs `89193776310`/`89193776412`).
+- Merge `e2eeac22497ec90b108fc02765089a92c6fdfc55`; exact merge-SHA run `30004268816`
+  successful (jobs `89196436206`/`89196436327`), включая dependency audit.
+- Collector prerequisite завершён с honest matrix 13 `BLOCKED_EXTERNAL`, 0 `WORKING`.
+  RM-156 остаётся единственным `IN PROGRESS`; RM-157–RM-200 остаются `PLANNED`.
+- Отдельный RM-156 audit-first package классифицировал `Company`, `CompanyProfile` и
+  `CompanyCapabilityProfile` как owners собственной ООО «КОРТЕРИС», а `TenderCustomer`/
+  `customer_*` — как source observations, не contractor master-record.
+- Разрешён узкий `app.contractors` поверх existing Base/repository/UoW/migration owners без
+  search/source/registration/risk/UI scope будущих RM-157–RM-168.
+- Локальный неизменённый database/company/collector/registry baseline:
+  `31 passed in 11.19s`. SQLite audit timestamp round-trip воспроизводимо теряет timezone;
+  gap включён в нормативный contract и будущий expected-red package, application code не менялся.
+
 ## 2026-07-23 — P9 feature принят; canonical Collector closeout подготовлен
 
 - P9 feature commits: tests `c15ab0f`, implementation `cdca6de`, docs `f9d7785`.
