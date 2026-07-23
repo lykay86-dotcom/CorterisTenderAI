@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import inspect, text
 
 from app.database.backup import backup_sqlite_database
+from app.database.migration import CURRENT_SCHEMA_VERSION
 from app.database.models import Company
 from app.database.repositories import CompanyRepository, SettingsRepository
 from app.database.seed import seed_default_data
@@ -106,4 +107,7 @@ def test_uuid_primary_key(database):
 
 def test_schema_version(database):
     with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version FROM schema_version WHERE id = 1")) == 3
+        assert (
+            connection.scalar(text("SELECT version FROM schema_version WHERE id = 1"))
+            == CURRENT_SCHEMA_VERSION
+        )

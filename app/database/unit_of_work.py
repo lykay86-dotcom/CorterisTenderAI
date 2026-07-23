@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from .repositories import AuditRepository, CompanyRepository, SettingsRepository
+from .repositories import (
+    AuditRepository,
+    CompanyRepository,
+    ContractorRepository,
+    SettingsRepository,
+)
 from .session import create_session
 
 
@@ -13,6 +18,7 @@ class UnitOfWork:
         self.session = session or create_session()
         self._owns_session = session is None
         self.companies = CompanyRepository(self.session)
+        self.contractors = ContractorRepository(self.session)
         self.settings = SettingsRepository(self.session)
         self.audit = AuditRepository(self.session)
 

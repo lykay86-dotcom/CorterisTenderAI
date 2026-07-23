@@ -8,6 +8,7 @@ from sqlalchemy import text
 from app.database.backup_manager import BackupManager
 from app.database.diagnostics import DiagnosticsService
 from app.database.maintenance import DatabaseMaintenanceService
+from app.database.migration import CURRENT_SCHEMA_VERSION
 from app.database.seed import seed_default_data
 from app.database.session import get_engine, init_database, reset_database_state
 
@@ -59,7 +60,7 @@ def test_diagnostics_are_healthy_and_include_counts(tmp_path):
     manager.create(reason="diagnostic")
     report = DiagnosticsService(get_engine(), manager).collect()
     assert report.healthy
-    assert report.schema_version == report.expected_schema_version == 3
+    assert report.schema_version == report.expected_schema_version == CURRENT_SCHEMA_VERSION
     assert report.table_count >= 7
     assert report.table_rows["companies"] == 1
     assert report.latest_backup_valid is True
