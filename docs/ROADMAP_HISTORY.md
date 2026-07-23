@@ -1,5 +1,21 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — RM-156 завершён; RM-157 активирован
+
+- Feature PR #159 head `77b7079d84045eada3afbae9a4a64d34de1de498`; PR-head run
+  `30011094847` successful (jobs `89219098426`/`89219098659`), включая dependency audit.
+- Merge `f06b8a98f8684df7cc68ef30f015b6f118baac16`; fresh exact merge-SHA run `30011757427`
+  successful (jobs `89221369306`/`89221369290`), включая dependency audit.
+- Приняты immutable checked INN identity, отдельные contractor ORM/repository/UoW, aware UTC
+  SQLite persistence и application schema 3→4 с verified backup/exact readback/fail-closed
+  future/corrupt/missing guards.
+- 24 expected-red boundaries стали постоянными passing regressions: target `28 passed`,
+  neighboring `59 passed`, full `2509 passed, 2 warnings`; Ruff/format (`811 files`), mypy
+  (`26 source files`), secret/offline/migration/bootstrap/build/frozen/RM-155 gates успешны.
+- Collector schema 16, provider/network/AI/UI scope и RM-107 deterministic decision priority не
+  менялись. RM-156 удовлетворяет Definition of Done и закрыт docs-only closeout; RM-157 становится
+  единственным `IN PROGRESS`, RM-158–RM-200 остаются `PLANNED`.
+
 ## 2026-07-23 — RM-156 expected-red принят; feature локально зелёный
 
 - Expected-red commit `c3a5191`, PR #158 head

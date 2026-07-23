@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / PUBLICATION PENDING`.
+Статус: `ACCEPTED / RM-156 CLOSEOUT`.
 
 Baseline: expected-red merge `11d079b1474fa4a384cc35545f412440cf4a168c`.
 
@@ -79,6 +79,12 @@ Dependency audit выполняется PR-head и exact Windows Quality Gate.
 
 ## 6. Publication gate
 
-Ожидаются feature PR-head Windows Python 3.12/3.13 Quality Gate, merge и successful fresh exact
-merge-SHA gate. После exact success нужен отдельный docs-only RM-156 closeout; только он может
-перевести RM-156 в `DONE` и активировать RM-157.
+- Feature PR #159 head `77b7079d84045eada3afbae9a4a64d34de1de498`.
+- PR-head run `30011094847`: Python 3.12 job `89219098426`, Python 3.13 job `89219098659`;
+  обе jobs и `Audit installed dependencies` successful.
+- Merge commit `f06b8a98f8684df7cc68ef30f015b6f118baac16`.
+- Fresh exact merge-SHA run `30011757427`: Python 3.12 job `89221369306`, Python 3.13 job
+  `89221369290`; обе jobs и dependency audit successful.
+
+Feature acceptance и Definition of Done подтверждены. Отдельный docs-only closeout переводит
+RM-156 в `DONE` и активирует только audit-first RM-157.

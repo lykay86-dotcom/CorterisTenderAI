@@ -4,22 +4,23 @@
 
 ## Активный этап
 
-**RM-156 — модель контрагента**
+**RM-157 — поиск по ИНН**
 
 Статус: `IN PROGRESS`
 
-RM-155 завершён feature PR #118 на head
-`c741ba6a39750436fa34ffc2237bd1c264466745`, merge commit
-`63a85b4cff5e2de5b53e4fad6dcfb091371200bf` и успешным exact merge-SHA Windows Quality Gate
-run `29845412052`. Этот отдельный docs-only closeout переводит RM-155 в `DONE`, закрывает
-`UI-141-017` и завершает последовательность полного редизайна RM-141–RM-155. RM-156 —
-единственный активный этап; RM-157–RM-200 остаются `PLANNED` и не выполняются параллельно.
+RM-156 завершён feature PR #159 на head
+`77b7079d84045eada3afbae9a4a64d34de1de498`, merge commit
+`f06b8a98f8684df7cc68ef30f015b6f118baac16` и successful exact merge-SHA Windows Quality
+Gate run `30011757427`. Этот отдельный docs-only closeout переводит RM-156 в `DONE`.
+RM-157 — единственный активный этап; RM-158–RM-200 остаются `PLANNED` и не выполняются
+параллельно.
 
 Решением владельца от 22 июля 2026 года до production-реализации модели контрагента выполнялся
 обязательный Collector prerequisite по многоплощадочному сбору. Он завершён P0–P9 и принят
 canonical closeout PR #156: merge `e2eeac22497ec90b108fc02765089a92c6fdfc55`, exact run
 `30004268816`, jobs `89196436206`/`89196436327`; обе jobs и dependency audit successful.
-RM-156 остаётся единственным каноническим `IN PROGRESS`, RM-157–RM-200 остаются `PLANNED`.
+До RM-156 closeout RM-156 оставался единственным каноническим `IN PROGRESS`, а
+RM-157–RM-200 — `PLANNED`.
 Полный scope и package gates зафиксированы в
 [`PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md`](PRE_RM156_TENDER_COLLECTOR_ALL_PLATFORMS_TZ.md).
 
@@ -44,6 +45,34 @@ Supplier честно остаются `IMPLEMENTED_OFFLINE` до отдельн
 без `WORKING` claim и вернул RM-156 в production work. RM-157 и RM-158 не начинаются.
 
 ## Завершённый этап
+
+**RM-156 — модель контрагента**
+
+Статус: `DONE`
+
+Подтверждение:
+
+- audit-first package доказал, что собственная `Company` и tender customer observations не
+  являются contractor master-record, и разрешил отдельный bounded context без duplicate owner;
+- immutable `ContractorInn` валидирует ASCII 10/12-digit INN и контрольные суммы; отдельные
+  ORM/repository/UoW обеспечивают unique lifecycle, soft delete/restore и typed duplicate error;
+- общий `UTCDateTime` сохраняет aware UTC после SQLite round-trip; application schema 3→4 имеет
+  verified backup, exact readback и fail-closed future/corrupt/missing version guards;
+- 24 accepted expected-red boundaries переведены в постоянные passing regressions без ослабления
+  assertions: target `28 passed`, neighboring contour `59 passed`, full
+  `2509 passed, 2 warnings`;
+- Ruff/format (`811 files`), mypy (`26 source files`), secret/offline/migration/bootstrap/build/
+  frozen/RM-155 gates прошли;
+- feature PR #159 head `77b7079d84045eada3afbae9a4a64d34de1de498` слит merge commit
+  `f06b8a98f8684df7cc68ef30f015b6f118baac16`;
+- PR-head run `30011094847`, jobs `89219098426`/`89219098659`, и exact merge-SHA run
+  `30011757427`, jobs `89221369306`/`89221369290`, успешны на Python 3.12/3.13, включая
+  dependency audit;
+- Collector schema 16, provider/network/AI/UI scope и RM-107 score/recommendation/critical
+  stop-factor priority не изменены; rollback — feature merge revert и при необходимости restore
+  verified pre-migration backup без automatic downgrade.
+
+## Ранее завершённый этап
 
 **RM-155 — завершение редизайна**
 
@@ -73,7 +102,7 @@ Supplier честно остаются `IMPLEMENTED_OFFLINE` до отдельн
 - DB/schema/migration, dependencies, persisted settings/data и provider/network/AI/keyring/domain
   paths не изменены; rollback — revert feature merge без downgrade данных.
 
-## Ранее завершённый этап
+## Более ранний завершённый этап
 
 **RM-154 — визуальное тестирование**
 
@@ -342,9 +371,15 @@ dependencies не менялись. Package принят PR #158: head
 `11d079b1474fa4a384cc35545f412440cf4a168c`, exact run `30008699060`; jobs
 `89211007130`/`89211007201` и dependency audit successful.
 
-Текущий feature package реализовал только принятый contractor identity/persistence scope:
+Feature package реализовал только принятый contractor identity/persistence scope:
 `ContractorInn`, отдельные ORM/repository/UoW, aware UTC SQLite round-trip и schema 3→4 с
 backup/future/corrupt/missing guards. Target `28 passed`, neighboring `59 passed`, full
 `2509 passed, 2 warnings`; Ruff/format (`811 files`), mypy (`26 source files`), secret/offline/
-migration/bootstrap/build/frozen/RM-155 gates успешны. Feature publication pending; RM-157 и
-RM-158 не начинать до feature merge/exact и отдельного RM-156 closeout.
+migration/bootstrap/build/frozen/RM-155 gates успешны. Feature принят PR #159: head
+`77b7079d84045eada3afbae9a4a64d34de1de498`, PR-head run `30011094847`, merge
+`f06b8a98f8684df7cc68ef30f015b6f118baac16`, exact run `30011757427`; jobs
+`89221369306`/`89221369290` и dependency audit successful.
+
+RM-156 удовлетворяет Definition of Done и закрывается этим docs-only closeout. Следующее действие
+— отдельный audit-first package RM-157; search implementation, network/source adapters и поля
+RM-158–RM-168 до принятого аудита не начинаются.
