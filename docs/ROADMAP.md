@@ -148,6 +148,11 @@
   Последующий identity/section audit сохраняет `ets_nep` и `fabrikant` disabled placeholders без
   guessed alias/migration: один operator доказан, section/protocol boundary не доказана. Future
   implementation must have one АО «ЭТС» owner; section-specific views require contract evidence.
+  Решение принято PR #137: head `e3550871a95f0c103ee7f6e2799ccc120c1d2ba4`, PR-head run
+  `29971869854`, merge `cd39b8e82d2ce208aa4498462c545f0fab894044`, exact run
+  `29972112388`; обе matrix jobs и dependency audit успешны. Следующим последовательным P6
+  access-audit target назначается `sber_a` (позиция 6) без contract/readiness claim. Отдельный
+  Сбербанк-АСТ audit начинается только после merge/exact этого docs-only решения.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

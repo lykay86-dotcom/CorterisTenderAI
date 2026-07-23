@@ -173,5 +173,12 @@ run `29970355532`, merge `a3ac0d88759002468aa6a3d5cb5c6ba887ba9e26`, exact run
 без guessed alias/migration: один operator подтверждён, но section/protocol boundary не доказана.
 Будущая реализация имеет одного owner АО «ЭТС»; section views допустимы только после contract
 evidence. Persisted settings/credentials/profiles/outcomes/artifacts/exports этим package не
-меняются. Publication/exact решения обязательны до перехода к `sber_a`.
+меняются. Решение принято PR #137: head `e3550871a95f0c103ee7f6e2799ccc120c1d2ba4`, PR-head
+run `29971869854`, merge `cd39b8e82d2ce208aa4498462c545f0fab894044`, exact run
+`29972112388`; обе matrix jobs и dependency audit успешны.
+
+Docs-only решением первые пять P6 sources сохраняются с принятыми blocker/identity verdicts, а
+`sber_a` назначается только следующим последовательным access-audit target. Это не working/access
+claim Сбербанк-АСТ: его сеть, endpoints, fixtures и код этим package не исследуются. Publication
+и exact gate решения обязательны до отдельного Сбербанк-АСТ audit.
 Production RM-156, RM-157 и RM-158 не начинать.

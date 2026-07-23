@@ -1,6 +1,17 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — ETS/НЭП ↔ Fabrikant identity ownership решение подготовлено
+## 2026-07-23 — P6 docs-only переход к Сбербанк-АСТ подготовлен
+
+- Первые пять P6 sources сохраняют принятые blocker/identity verdicts; ни один не удаляется и не
+  считается реализованным. `sber_a` назначен только следующим access-audit target в исходной
+  позиции 6 без access/readiness claim и без network/code changes.
+- Application/tests/settings/credentials/DB/schema/fixtures не меняются. Локально: focused
+  `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan
+  и `git diff --check` успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh
+  command-scoped `--basetemp`. Publication evidence pending; `rts_tender` и последующие sources
+  не начинаются до merge/exact.
+
+## 2026-07-23 — ETS/НЭП ↔ Fabrikant identity ownership решение принято и слито
 
 - Common АО «ЭТС» ownership/domain migration подтверждены, но section/protocol boundary между
   `44.fabrikant.ru` и `fabrikant.ru` не доказана machine contract evidence.
@@ -12,7 +23,10 @@
   `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan и `git diff --check`
   успешны. Первый full attempt без workflow `QT_QPA_PLATFORM=offscreen` завершился native Windows
   `0xc0000374`; exact contour и оба workflow-compatible прогона прошли без изменения code/tests.
-  Publication evidence pending; `sber_a` не начинается до merge/exact.
+  PR #137 head `e3550871a95f0c103ee7f6e2799ccc120c1d2ba4`; PR-head run `29971869854` успешен
+  (jobs `89095401781`/`89095401782`). Merge `cd39b8e82d2ce208aa4498462c545f0fab894044`;
+  exact run `29972112388` успешен (jobs `89096127682`/`89096127713`), включая dependency audit.
+  Только после exact success подготовлено отдельное решение о переходе к `sber_a`.
 
 ## 2026-07-23 — Collector P6 ETS/НЭП access audit принят и слит
 

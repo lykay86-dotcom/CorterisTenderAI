@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `DECIDED LOCALLY`; publication/exact gate ожидаются.
+Статус: `ACCEPTED`.
 
 ## 1. Основание и inventory
 
@@ -66,3 +66,14 @@ problematic prefix plus full suite passed after matching the active Quality Gate
 `offscreen` setting. No application/test/threshold change was made to mask the environment-specific
 failure. Warnings are the unchanged `openpyxl` notices; dependencies did not change. PR-head and
 exact merge-SHA Windows Quality Gate remain mandatory before this decision is accepted.
+
+## 5. Publication acceptance
+
+- PR #137 head `e3550871a95f0c103ee7f6e2799ccc120c1d2ba4`;
+- PR-head Quality Gate `29971869854`: jobs `89095401781` (Python 3.12) и `89095401782`
+  (Python 3.13) successful;
+- merge commit `cd39b8e82d2ce208aa4498462c545f0fab894044`;
+- exact merge-SHA Quality Gate `29972112388`: jobs `89096127682` (Python 3.12) и
+  `89096127713` (Python 3.13) successful, including dependency audit.
+
+Только после exact success создан отдельный docs-only worktree решения о переходе к `sber_a`.
