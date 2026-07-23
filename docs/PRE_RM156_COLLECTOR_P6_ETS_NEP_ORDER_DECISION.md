@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `DECIDED LOCALLY`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`.
 
 ## 1. Основание
 
@@ -84,3 +84,14 @@ gate не ослаблялся.
 ACL дефекта старого global pytest temp root. Warnings — неизменные `openpyxl` notices;
 dependencies не менялись. PR-head и exact merge-SHA Windows Quality Gate остаются обязательными
 до принятия решения.
+
+## 6. Publication acceptance
+
+- PR #135 head `26e705f7c72d742dd0b4570cdd90084ae9f95c85`;
+- PR-head Quality Gate `29969146389`: jobs `89087096040` (Python 3.12) и `89087095959`
+  (Python 3.13) успешны;
+- merge commit `195f4d2e22d12ca36e1c8329e241bef9c8f8832e`;
+- exact merge-SHA Quality Gate `29969484418`: jobs `89088142031` (Python 3.12) и
+  `89088142008` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный ETS/НЭП access-audit worktree.
