@@ -1,6 +1,17 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P7 B2B-Center access audit подготовлен
+## 2026-07-23 — P7 docs-only переход к Фабриканту подготовлен
+
+- Принятый B2B-Center blocker сохраняется в позиции 1 P7; `fabrikant` назначен только следующим
+  access-audit target в позиции 2 без access/readiness/fixture/working claim.
+- Application/tests/settings/credentials/DB/schema/fixtures/dependencies не меняются. Отдельный
+  Фабрикант audit не начинается до merge и успешного exact merge-SHA Quality Gate этого решения;
+  `otc`, commercial sections, P8/P9 и production RM-156 не начинаются параллельно.
+- Локально: focused `34 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
+  mypy, secret scan и `git diff --check` успешны. Pytest использовал workflow
+  `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+
+## 2026-07-23 — Collector P7 B2B-Center access audit принят и слит
 
 - Audit выполнен от принятого boundary merge `e54fd46d6525e378cd90795f35ae144f00fffe31` после fresh
   exact run `29979715877`; application/tests/settings/credentials/schema/dependencies не меняются,
@@ -15,6 +26,11 @@
 - Локально: focused `34 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
   mypy, secret scan и `git diff --check` успешны. Pytest использовал workflow
   `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+- PR #145 head `d4c0f2fb41fe77c5df642884d29016af0cd0442c`; PR-head run `29980582710`
+  успешен (jobs `89121318689`/`89121318642`). Merge
+  `f7b20a4a5c5d0ee260b04721347c66b8ee2dad2a`; fresh exact run `29980836778` успешен (jobs
+  `89122049907`/`89122049924`), включая dependency audit.
+- Только после exact success создан отдельный docs-only worktree перехода к Фабриканту.
 
 ## 2026-07-23 — docs-only reconciliation границы P6/P7 принят и слит
 

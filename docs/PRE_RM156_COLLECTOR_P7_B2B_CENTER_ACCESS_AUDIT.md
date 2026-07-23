@@ -2,9 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / BLOCKED_EXTERNAL / CONTRACT_AND_PERMISSION_GATED`;
-publication и exact merge-SHA Quality Gate ожидаются. Application implementation запрещена
-Definition of Ready.
+Статус: `ACCEPTED / BLOCKED_EXTERNAL / CONTRACT_AND_PERMISSION_GATED`. Application implementation
+запрещена Definition of Ready.
 
 ## 1. Entry gate
 
@@ -134,5 +133,11 @@ Warnings — неизменные `openpyxl` notices; dependencies/tests/thresho
 
 ## 8. Publication acceptance
 
-Ожидаются PR-head и exact merge-SHA Windows Quality Gate. После exact success отдельный
-docs-only переход к `fabrikant` создаётся от принятого merge commit.
+- PR #145 head `d4c0f2fb41fe77c5df642884d29016af0cd0442c`;
+- PR-head Quality Gate `29980582710`: jobs `89121318689` (Python 3.12) и `89121318642`
+  (Python 3.13) успешны;
+- merge commit `f7b20a4a5c5d0ee260b04721347c66b8ee2dad2a`;
+- exact merge-SHA Quality Gate `29980836778`: jobs `89122049907` (Python 3.12) и
+  `89122049924` (Python 3.13) успешно прошли fresh run, включая dependency audit.
+
+Только после exact success создан отдельный docs-only worktree перехода к `fabrikant`.
