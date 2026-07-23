@@ -158,7 +158,12 @@
   dependency audit успешны. Последующий read-only audit подтвердил public human 44-ФЗ/223-ФЗ
   registries, но не machine API/feed, automation/reuse permission, schema/pagination/rate/
   timezone/retention contract или approved fixtures. `sber_a` локально `BLOCKED_EXTERNAL`;
-  guessed HTML/API implementation запрещена.
+  guessed HTML/API implementation запрещена. Audit принят PR #139: head
+  `eb9eb59a14709a42a13a0d8b6422a6e3e1c57ac2`, PR-head run `29973982757`, merge
+  `642f53bc812593ce2c1d2b1050d7c7e8d8319e2f`, exact run `29974214317`; обе matrix jobs и
+  dependency audit успешны. Следующим последовательным P6 access-audit target назначается
+  `rts_tender` (позиция 7) без contract/readiness claim. Отдельный РТС-тендер audit начинается
+  только после merge/exact этого docs-only решения.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
