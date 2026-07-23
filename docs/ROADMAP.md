@@ -182,8 +182,14 @@
   сводятся к final `404`; schema/version/pagination/rate/timezone/retention contract и approved
   fixtures не опубликованы. `gazprombank` локально
   `BLOCKED_EXTERNAL / PUBLISHED_FEED_UNAVAILABLE`; HTML/query scraping и unrelated Trading Portal
-  account API запрещены как замена. P7 не начинается до принятия audit и отдельного docs-only
-  reconciliation решения по расхождению canonical ТЗ и implementation plan.
+  account API запрещены как замена. Audit принят PR #143: head
+  `8dcfbf6469747fc3e8644761693cc85a076d1b39`, PR-head run `29978156861`, merge
+  `102aff662f3cd068c13c095cb6470912cc0bfc60`, exact run `29978439856`; обе matrix jobs и
+  dependency audit успешны. Docs-only boundary decision синхронизирует supporting implementation
+  plan с canonical ТЗ: `gazprombank` остаётся только восьмым P6 source, P7 начинается с
+  `b2b_center`. P6 access-audit pass завершён без working claims; blockers сохраняются.
+  `b2b_center` назначается только следующим P7 access-audit target без contract/readiness claim;
+  отдельный audit начинается после merge/exact boundary решения.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
