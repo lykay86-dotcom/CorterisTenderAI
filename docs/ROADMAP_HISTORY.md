@@ -1,6 +1,18 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P7 Фабрикант access audit подготовлен
+## 2026-07-23 — P7 docs-only переход к OTC подготовлен
+
+- Принятые B2B-Center и Фабрикант blockers сохраняются в позициях 1–2 P7; `otc` назначен только
+  следующим access-audit target в позиции 3 без access/readiness/fixture/working claim.
+- Application/tests/settings/credentials/DB/schema/fixtures/dependencies не меняются. Отдельный OTC
+  audit не начинается до merge и успешного exact merge-SHA Quality Gate этого решения; commercial
+  sections, P8/P9 и production RM-156 не начинаются параллельно.
+- Локально: focused `34 passed`; первый full run поймал один shutdown timing-race при
+  `2466 passed`, тот же lifecycle test прошёл `10/10` fresh processes, повторный full run —
+  `2467 passed, 2 warnings`. Ruff/format (`804 files`), mypy (`20 source files`), secret scan и
+  `git diff --check` успешны.
+
+## 2026-07-23 — Collector P7 Фабрикант access audit принят и слит
 
 - Official SOAP/XML API и section specifications опубликованы, но предназначены для SRM-систем
   заказчика: own notices/protocols/proposals/status/files. Source-wide discovery/search contract
@@ -11,6 +23,11 @@
   `2467 passed, 2 warnings in 251.08s`; Ruff/format (`804 files`), mypy (`20 source files`),
   secret scan и `git diff --check` успешны. Pytest использовал
   `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+- PR #147 head `403ec44abee9d0497485ac130b50dc3199351347`; PR-head run `29984554174`
+  успешен (jobs `89133465443`/`89133465378`). Merge
+  `bf2a44bea889b34689f63495013becae24d050fb`; exact run `29984821509` успешен (jobs
+  `89134271091`/`89134271135`), включая dependency audit.
+- Только после exact success создан отдельный docs-only worktree перехода к OTC.
 
 ## 2026-07-23 — P7 docs-only переход к Фабриканту принят и слит
 

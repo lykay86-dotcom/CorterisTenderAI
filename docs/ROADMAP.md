@@ -205,8 +205,11 @@
   `dfe1f95f194f494b9beb33dc5c6127d31f428ce4`, exact run `29981883362`; обе jobs успешны.
   Фабрикант публикует documented SOAP/XML API для SRM-систем заказчика, но source-wide tender
   discovery/search contract отсутствует. Organizer API не подменяет Collector adapter;
-  `fabrikant` локально `BLOCKED_EXTERNAL / PUBLISHED_API_SCOPE_MISMATCH`. `otc` не начинается до
-  merge/exact отдельного audit package.
+  `fabrikant` `BLOCKED_EXTERNAL / PUBLISHED_API_SCOPE_MISMATCH`. Audit принят PR #147: head
+  `403ec44abee9d0497485ac130b50dc3199351347`, PR-head run `29984554174`, merge
+  `bf2a44bea889b34689f63495013becae24d050fb`, exact run `29984821509`; обе jobs и dependency audit
+  успешны. `otc` назначается только следующим P7 access-audit target без contract/readiness claim;
+  отдельный audit начинается после merge/exact docs-only transition package.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
