@@ -1,6 +1,17 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P6 РТС-тендер access audit подготовлен
+## 2026-07-23 — P6 docs-only переход к ЭТП ГПБ подготовлен
+
+- Первые семь P6 sources сохраняют принятые blocker/identity verdicts; ни один не удаляется и не
+  считается реализованным. `gazprombank` назначен только следующим access-audit target в исходной
+  позиции 8 без access/readiness claim и без network/code changes.
+- Application/tests/settings/credentials/DB/schema/fixtures не меняются. Отдельный ЭТП ГПБ audit
+  не начинается до merge и успешного exact merge-SHA Quality Gate этого решения; P7 не начинается
+  параллельно. Локально: focused `34 passed`, full suite `2467 passed, 2 warnings`;
+  Ruff/format (`804 files`), mypy, secret scan и `git diff --check` успешны. Pytest использовал
+  workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+
+## 2026-07-23 — Collector P6 РТС-тендер access audit принят и слит
 
 - Седьмой P6 audit выполнен от exact order merge
   `ffc2f4e8f8b3c0db502a4a26c2f8ea69b0a7931f`; application/tests/settings/credentials/schema/
@@ -11,8 +22,12 @@
 - Common B2B-РТС group ownership не доказывает shared identity/protocol. Local verdict
   `BLOCKED_EXTERNAL`; locally focused `33 passed`, full suite `2467 passed, 2 warnings`,
   Ruff/format (`804 files`), mypy, secret scan и `git diff --check` успешны. Pytest использовал
-  workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`. Publication evidence
-  pending; `gazprombank` не начинается до merge/exact.
+  workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+- PR #141 head `00c0e6900e8d3390f8858d1fbdf9193695684ccf`; PR-head run `29975868619`
+  успешен (jobs `89107358104`/`89107358117`). Merge
+  `3944dbd0ec35bc358d5149a9cf005b27884b6570`; exact run `29976202290` успешен (jobs
+  `89108357449`/`89108357536`), включая dependency audit.
+- Только после exact success подготовлено отдельное решение о переходе к `gazprombank`.
 
 ## 2026-07-23 — P6 docs-only переход к РТС-тендер принят и слит
 

@@ -205,5 +205,13 @@ main и `robots.txt`; bypass не выполнялся. Section-specific public 
 machine API/feed, automation/data-reuse permission, schema/version, pagination/completeness,
 rate/retry, timezone/currency/exact-money и raw retention rules не опубликованы. Common B2B-РТС
 group ownership не является identity/protocol contract. `rts_tender` локально `BLOCKED_EXTERNAL`;
-adapter/fixture/live verification не создаются. Publication/exact audit gate ещё обязательны.
+adapter/fixture/live verification не создаются. Audit принят PR #141: head
+`00c0e6900e8d3390f8858d1fbdf9193695684ccf`, PR-head run `29975868619`, merge
+`3944dbd0ec35bc358d5149a9cf005b27884b6570`, exact run `29976202290`; обе matrix jobs и
+dependency audit успешны.
+
+Docs-only решением первые семь P6 sources сохраняются с принятыми blocker/identity verdicts, а
+`gazprombank` назначается только следующим последовательным access-audit target в позиции 8.
+Это не working/access claim ЭТП ГПБ: его сеть, endpoints, fixtures и код этим package не
+исследуются. Publication/exact gate решения ещё обязательны; P7 параллельно не начинается.
 Production RM-156, RM-157 и RM-158 не начинать.

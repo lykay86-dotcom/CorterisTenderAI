@@ -170,7 +170,12 @@
   даже на `robots.txt`; section-specific public cards индексируются, но machine API/feed,
   automation/reuse, schema/pagination/rate/timezone/retention contract и approved fixtures не
   опубликованы. `rts_tender` локально `BLOCKED_EXTERNAL`; challenge bypass и guessed scraping
-  запрещены.
+  запрещены. Audit принят PR #141: head `00c0e6900e8d3390f8858d1fbdf9193695684ccf`, PR-head
+  run `29975868619`, merge `3944dbd0ec35bc358d5149a9cf005b27884b6570`, exact run
+  `29976202290`; обе matrix jobs и dependency audit успешны. Следующим последовательным P6
+  access-audit target назначается `gazprombank` (позиция 8) без contract/readiness claim.
+  Отдельный ЭТП ГПБ audit начинается только после merge/exact этого docs-only решения; P7
+  параллельно не начинается.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
