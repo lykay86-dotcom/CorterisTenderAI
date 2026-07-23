@@ -266,6 +266,13 @@ OTC публикует human search/detail pages и account CRM/EIS integration,
 procurement discovery API/feed, automation/reuse permission, coverage, pagination/completeness,
 schema/version, rate/retry, retention/reuse и fixtures отсутствуют. `otc` локально
 `BLOCKED_EXTERNAL / PUBLIC_HTML_WITHOUT_MACHINE_CONTRACT`; HTML/XHR parser, adapter и fixtures не
-создаются. Commercial sections федеральных операторов не начинать до merge/exact этого audit
-package и отдельного docs-only section matrix/order решения.
+создаются. Audit принят PR #149: head `f66feda46eb0432ca4bd2391c3caad7e59fc3a95`,
+PR-head run `29987577868` attempt 2 успешен после transient native Windows failure attempt 1,
+merge `023002df23273d01aad2630f92ae293d2dfc10f2`, fresh exact run `29988314604`; обе jobs и
+dependency audit успешны.
+
+Следующий docs-only package формирует commercial-section matrix внутри восьми existing federal
+operator owners. Он переиспользует принятые P6 section/blocker audits, не создаёт новые identities
+или повторные network audits и не открывает implementation. P8 не начинать до merge/exact matrix
+decision.
 Production RM-156, RM-157 и RM-158 не начинать.
