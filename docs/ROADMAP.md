@@ -163,7 +163,14 @@
   `642f53bc812593ce2c1d2b1050d7c7e8d8319e2f`, exact run `29974214317`; обе matrix jobs и
   dependency audit успешны. Следующим последовательным P6 access-audit target назначается
   `rts_tender` (позиция 7) без contract/readiness claim. Отдельный РТС-тендер audit начинается
-  только после merge/exact этого docs-only решения.
+  только после merge/exact этого docs-only решения. Решение принято PR #140: head
+  `ca7a3c53841336d1cfe544ed5326b7d2160eef7f`, PR-head run `29974875827`, merge
+  `ffc2f4e8f8b3c0db502a4a26c2f8ea69b0a7931f`, exact run `29975119548`; обе matrix jobs и
+  dependency audit успешны. Последующий read-only audit встретил официальный Anti-DDoS challenge
+  даже на `robots.txt`; section-specific public cards индексируются, но machine API/feed,
+  automation/reuse, schema/pagination/rate/timezone/retention contract и approved fixtures не
+  опубликованы. `rts_tender` локально `BLOCKED_EXTERNAL`; challenge bypass и guessed scraping
+  запрещены.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

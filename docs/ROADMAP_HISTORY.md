@@ -1,6 +1,20 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — P6 docs-only переход к РТС-тендер подготовлен
+## 2026-07-23 — Collector P6 РТС-тендер access audit подготовлен
+
+- Седьмой P6 audit выполнен от exact order merge
+  `ffc2f4e8f8b3c0db502a4a26c2f8ea69b0a7931f`; application/tests/settings/credentials/schema/
+  dependencies не меняются, fixtures и procurement payloads не сохраняются.
+- Official main и `robots.txt` возвращают Anti-DDoS browser challenge/503; bypass запрещён.
+  Section-specific public human cards существуют, но machine API/feed, automation/reuse,
+  schema/pagination/rate/timezone/retention contract и approved fixtures не опубликованы.
+- Common B2B-РТС group ownership не доказывает shared identity/protocol. Local verdict
+  `BLOCKED_EXTERNAL`; locally focused `33 passed`, full suite `2467 passed, 2 warnings`,
+  Ruff/format (`804 files`), mypy, secret scan и `git diff --check` успешны. Pytest использовал
+  workflow `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`. Publication evidence
+  pending; `gazprombank` не начинается до merge/exact.
+
+## 2026-07-23 — P6 docs-only переход к РТС-тендер принят и слит
 
 - Первые шесть P6 sources сохраняют принятые blocker/identity verdicts; ни один не удаляется и не
   считается реализованным. `rts_tender` назначен только следующим access-audit target в исходной
@@ -8,8 +22,11 @@
 - Application/tests/settings/credentials/DB/schema/fixtures не меняются. Локально: focused
   `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan
   и `git diff --check` успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh
-  command-scoped `--basetemp`. Publication evidence pending; `gazprombank` и P7 sources не
-  начинаются до merge/exact.
+  command-scoped `--basetemp`.
+- PR #140 head `ca7a3c53841336d1cfe544ed5326b7d2160eef7f`; PR-head run `29974875827` успешен
+  (jobs `89104418590`/`89104418532`). Merge `ffc2f4e8f8b3c0db502a4a26c2f8ea69b0a7931f`;
+  exact run `29975119548` успешен (jobs `89105143244`/`89105143234`), включая dependency audit.
+- Только после exact success создан отдельный РТС-тендер access-audit worktree.
 
 ## 2026-07-23 — Collector P6 Сбербанк-АСТ access audit принят и слит
 
