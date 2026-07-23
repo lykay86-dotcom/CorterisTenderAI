@@ -1,6 +1,20 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P6 ETS/НЭП access audit подготовлен
+## 2026-07-23 — ETS/НЭП ↔ Fabrikant identity ownership решение подготовлено
+
+- Common АО «ЭТС» ownership/domain migration подтверждены, но section/protocol boundary между
+  `44.fabrikant.ru` и `fabrikant.ru` не доказана machine contract evidence.
+- Both canonical IDs remain disabled placeholders; no guessed alias, persisted-ID migration or
+  duplicate adapter. Future implementation has one operator owner with section profiles only when
+  audited differences require them.
+- Application/tests/settings/credentials/DB/schema/fixtures не меняются. Focused `33 passed`,
+  neighboring contour `15 passed`, workflow-compatible prefix `965 passed`, final full suite
+  `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan и `git diff --check`
+  успешны. Первый full attempt без workflow `QT_QPA_PLATFORM=offscreen` завершился native Windows
+  `0xc0000374`; exact contour и оба workflow-compatible прогона прошли без изменения code/tests.
+  Publication evidence pending; `sber_a` не начинается до merge/exact.
+
+## 2026-07-23 — Collector P6 ETS/НЭП access audit принят и слит
 
 - Пятый P6 audit выполнен от exact order merge
   `195f4d2e22d12ca36e1c8329e241bef9c8f8832e`; application/test code, identities, aliases,
@@ -12,7 +26,9 @@
   raw retention are not published; robots disallows XML/CSV exports and file/download paths.
   Local verdict: `BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`; no fixtures/code/live claim.
 - Локально: focused `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
-  mypy, secret scan и `git diff --check` успешны. Publication evidence remains required.
+  mypy, secret scan и `git diff --check` успешны.
+- PR #136 head `9765e7d6bc3c2ca59ac0647f565bf1aab12849ef`; PR-head `29970355532`, merge
+  `a3ac0d88759002468aa6a3d5cb5c6ba887ba9e26`, exact `29970713352`; both matrix jobs successful.
 
 ## 2026-07-23 — P6 docs-only переход к ETS/НЭП принят
 

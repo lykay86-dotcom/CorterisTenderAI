@@ -142,7 +142,12 @@
   `etp-ets.ru` → `44.fabrikant.ru` и duplicate current platform ownership с canonical
   `fabrikant`. Отдельный adapter запрещён до identity amendment; public procurement API/feed,
   automation/reuse permission, schema/rate/retention contract и approved fixtures также
-  отсутствуют. `ets_nep` локально `BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`.
+  отсутствуют. `ets_nep` остаётся `BLOCKED_EXTERNAL / IDENTITY_REAUDIT_REQUIRED`. Audit принят PR
+  #136: head `9765e7d6bc3c2ca59ac0647f565bf1aab12849ef`, PR-head `29970355532`, merge
+  `a3ac0d88759002468aa6a3d5cb5c6ba887ba9e26`, exact `29970713352`; обе jobs успешны.
+  Последующий identity/section audit сохраняет `ets_nep` и `fabrikant` disabled placeholders без
+  guessed alias/migration: один operator доказан, section/protocol boundary не доказана. Future
+  implementation must have one АО «ЭТС» owner; section-specific views require contract evidence.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
