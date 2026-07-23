@@ -1,6 +1,17 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P6 Сбербанк-АСТ access audit подготовлен
+## 2026-07-23 — P6 docs-only переход к РТС-тендер подготовлен
+
+- Первые шесть P6 sources сохраняют принятые blocker/identity verdicts; ни один не удаляется и не
+  считается реализованным. `rts_tender` назначен только следующим access-audit target в исходной
+  позиции 7 без access/readiness claim и без network/code changes.
+- Application/tests/settings/credentials/DB/schema/fixtures не меняются. Локально: focused
+  `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan
+  и `git diff --check` успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh
+  command-scoped `--basetemp`. Publication evidence pending; `gazprombank` и P7 sources не
+  начинаются до merge/exact.
+
+## 2026-07-23 — Collector P6 Сбербанк-АСТ access audit принят и слит
 
 - Шестой P6 audit выполнен от exact order merge
   `7d1e728a99c384acd72d3b7b13ab274378fe7d47`; application/tests/settings/credentials/schema/
@@ -11,8 +22,12 @@
 - Local verdict `BLOCKED_EXTERNAL`; parser/adapter/fixture/live claim запрещены. Локально: focused
   `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan
   и `git diff --check` успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh
-  command-scoped `--basetemp`. Publication evidence pending; `rts_tender` не начинается до
-  merge/exact.
+  command-scoped `--basetemp`.
+- PR #139 head `eb9eb59a14709a42a13a0d8b6422a6e3e1c57ac2`; PR-head run `29973982757`
+  успешен (jobs `89101773700`/`89101773723`). Merge
+  `642f53bc812593ce2c1d2b1050d7c7e8d8319e2f`; exact run `29974214317` успешен (jobs
+  `89102457552`/`89102457455`), включая dependency audit.
+- Только после exact success подготовлено отдельное решение о переходе к `rts_tender`.
 
 ## 2026-07-23 — P6 docs-only переход к Сбербанк-АСТ принят и слит
 

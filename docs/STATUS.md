@@ -188,5 +188,13 @@ claim Сбербанк-АСТ: его сеть, endpoints, fixtures и код э
 223-ФЗ. Опубликованный machine API/feed contract, automation/data-reuse permission, schema/version,
 pagination/completeness, rate/retry, timezone/currency/exact-money и raw retention rules не найдены;
 robots закрывает основные document download/view routes. `sber_a` локально `BLOCKED_EXTERNAL`;
-adapter/fixture/live verification не создаются. Publication/exact audit gate ещё обязательны.
+adapter/fixture/live verification не создаются. Audit принят PR #139: head
+`eb9eb59a14709a42a13a0d8b6422a6e3e1c57ac2`, PR-head run `29973982757`, merge
+`642f53bc812593ce2c1d2b1050d7c7e8d8319e2f`, exact run `29974214317`; обе matrix jobs и
+dependency audit успешны.
+
+Docs-only решением первые шесть P6 sources сохраняются с принятыми blocker/identity verdicts, а
+`rts_tender` назначается только следующим последовательным access-audit target. Это не
+working/access claim РТС-тендер: его сеть, endpoints, fixtures и код этим package не исследуются.
+Publication и exact gate решения обязательны до отдельного РТС-тендер audit.
 Production RM-156, RM-157 и RM-158 не начинать.
