@@ -227,9 +227,20 @@ Audit принят PR #143: head `8dcfbf6469747fc3e8644761693cc85a076d1b39`, PR-
 `29978156861`, merge `102aff662f3cd068c13c095cb6470912cc0bfc60`, exact run
 `29978439856`; обе matrix jobs и dependency audit успешны.
 
-Docs-only boundary решением supporting implementation plan синхронизируется с каноническим ТЗ:
+Docs-only boundary решением supporting implementation plan синхронизирован с каноническим ТЗ:
 `gazprombank` остаётся только восьмым P6 source, P7 начинается с `b2b_center`. Последовательный
 P6 access-audit pass завершён, но blocked sources не объявляются implemented/working и Collector
-prerequisite не закрывается. `b2b_center` назначается только следующим access-audit target;
-publication/exact решения обязательны до отдельного network audit.
+prerequisite не закрывается. Решение принято PR #144: head
+`ddd3d37a7f13a10d45b29a1c3c5496f38ff9e1e8`, successful PR-head run `29979195455`, merge
+`e54fd46d6525e378cd90795f35ae144f00fffe31`, fresh exact run `29979715877`; обе matrix jobs и
+dependency audit успешны.
+
+Отдельный B2B-Center read-only audit подтвердил официальный договорный API/web service, но method
+catalog, documentation и XML examples доступны только после login в Личном кабинете и зависят от
+договора/тарифа. Публичный Регламент запрещает automated collection без письменного согласия
+Оператора и устанавливает ceiling 60 HTTP requests/minute. Подтверждённый entitlement/consent,
+endpoint/method/auth, coverage, schema/version, pagination/completeness, API rate/retry,
+timezone/money, retention/reuse и approved fixtures отсутствуют. `b2b_center` локально
+`BLOCKED_EXTERNAL / CONTRACT_AND_PERMISSION_GATED`; HTML/login automation, adapter и fixtures не
+создаются. `fabrikant` не начинать до publication и exact merge-SHA success этого audit package.
 Production RM-156, RM-157 и RM-158 не начинать.

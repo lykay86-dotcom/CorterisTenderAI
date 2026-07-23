@@ -1,6 +1,22 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — docs-only reconciliation границы P6/P7 подготовлен
+## 2026-07-23 — Collector P7 B2B-Center access audit подготовлен
+
+- Audit выполнен от принятого boundary merge `e54fd46d6525e378cd90795f35ae144f00fffe31` после fresh
+  exact run `29979715877`; application/tests/settings/credentials/schema/dependencies не меняются,
+  procurement payloads, documents и fixtures не сохраняются.
+- Official web service/API существует, но method catalog, documentation и XML examples доступны
+  только после login в Личном кабинете и зависят от договора/тарифа. Public Регламент запрещает
+  automated collection без письменного consent Оператора и задаёт ceiling 60 HTTP requests/minute.
+- Entitlement/consent, exact endpoint/method/auth and coverage, schema/version, pagination/
+  completeness, API rate/retry, timezone/money, retention/reuse и approved fixtures отсутствуют.
+  Verdict `BLOCKED_EXTERNAL / CONTRACT_AND_PERMISSION_GATED`; human HTML/login automation, adapter
+  и fixture capture запрещены. `fabrikant` не начинается до merge/exact audit package.
+- Локально: focused `34 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
+  mypy, secret scan и `git diff --check` успешны. Pytest использовал workflow
+  `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+
+## 2026-07-23 — docs-only reconciliation границы P6/P7 принят и слит
 
 - Canonical ТЗ имеет приоритет: `gazprombank` остаётся восьмым P6 source, P7 начинается с
   `b2b_center`. Supporting implementation plan исправлен без повторного source slot и без
@@ -12,6 +28,11 @@
   focused `34 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy,
   secret scan и `git diff --check` успешны. Pytest использовал workflow
   `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+- PR #144 head `ddd3d37a7f13a10d45b29a1c3c5496f38ff9e1e8`; PR-head run `29979195455`
+  успешен после controlled rerun failed Python 3.12 job (jobs `89118148283`/`89118148873`). Merge
+  `e54fd46d6525e378cd90795f35ae144f00fffe31`; fresh exact run `29979715877` успешен (jobs
+  `89118819142`/`89118819085`), включая dependency audit.
+- Только после exact success создан отдельный B2B-Center access-audit worktree.
 
 ## 2026-07-23 — Collector P6 ЭТП ГПБ access audit принят и слит
 

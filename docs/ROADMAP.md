@@ -188,8 +188,15 @@
   dependency audit успешны. Docs-only boundary decision синхронизирует supporting implementation
   plan с canonical ТЗ: `gazprombank` остаётся только восьмым P6 source, P7 начинается с
   `b2b_center`. P6 access-audit pass завершён без working claims; blockers сохраняются.
-  `b2b_center` назначается только следующим P7 access-audit target без contract/readiness claim;
-  отдельный audit начинается после merge/exact boundary решения.
+  Решение принято PR #144: head `ddd3d37a7f13a10d45b29a1c3c5496f38ff9e1e8`, successful
+  PR-head run `29979195455`, merge `e54fd46d6525e378cd90795f35ae144f00fffe31`, fresh exact run
+  `29979715877`; обе matrix jobs и dependency audit успешны. Последующий B2B-Center read-only audit
+  подтверждает официальный договорный API/web service, но methods/documentation/XML examples
+  gated Личным кабинетом и тарифом. Регламент запрещает automated collection без письменного
+  consent и задаёт public ceiling 60 HTTP requests/minute. Entitlement/consent и Collector-ready
+  contract/fixtures отсутствуют; `b2b_center` локально
+  `BLOCKED_EXTERNAL / CONTRACT_AND_PERMISSION_GATED`. Human HTML/login automation не заменяют API.
+  `fabrikant` не начинается до publication/exact этого отдельного audit package.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
