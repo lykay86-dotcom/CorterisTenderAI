@@ -1,5 +1,21 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P8 discovery queue hardening начат
+
+- Package создан только после accepted P8 access-audit merge
+  `29aba93a4cdb24ba526dbbe265f51e859ba9754a` и exact run `29992951951`.
+- Expected-red: `5 failed, 8 passed`; отсутствовали queue/attempt/payload bounds, raw exception и
+  `api_code` попадали в persisted discovery evidence. Дополнительный service guard дал
+  `1 failed, 1 passed`: full protected queue блокировала authoritative processing.
+- Existing repository получает atomic terminal-only eviction, latest-N attempt retention,
+  minimized payload, shared URL/error/note sanitization и explicit one-attempt retry. Capacity
+  rejection считается отдельно и не блокирует authoritative service path. Второй owner,
+  schema/settings/dependency или TenderGuru producer не создаются.
+- Финально локально: focused `51 passed in 16.06s`, full
+  `2474 passed, 2 warnings in 309.67s`; Ruff/format (`804 files`), mypy (`20 source files`),
+  secret scan и `git diff --check` успешны. Publication validation ожидается. P9 не начинается
+  до merge/exact hardening.
+
 ## 2026-07-23 — P8 TenderGuru discovery access audit подготовлен
 
 - Official TenderGuru API v2.3 документирует tender list/card, XML/JSON/CSV, `page` pagination,
@@ -19,7 +35,14 @@
   P9 не начинается до merge/exact этого audit.
 - Локально: focused discovery/isolation/catalog contour `33 passed in 15.12s`; full baseline
   `2467 passed, 2 warnings in 284.59s`. Ruff/format (`804 files`), mypy (`20 source files`),
-  secret scan и `git diff --check` успешны. Publication validation ожидается.
+  secret scan и `git diff --check` успешны.
+- PR #151 head `205d223f67da8ca0fd84732b4b14aeb1c7402662`; PR-head run `29992310890`
+  успешен (jobs `89157719548`/`89157719632`). Merge
+  `29aba93a4cdb24ba526dbbe265f51e859ba9754a`; fresh exact run `29992951951` успешен
+  (jobs `89159721376`/`89159721509`), включая dependency audit.
+- GitHub incident временно деградировал Actions/Webhooks/Pull Requests; неизменный PR head был
+  reopened для dispatch, а exact job projections нормализовались после terminal run success.
+- Только после exact success создан отдельный P8 queue/retry/sanitization hardening worktree.
 
 ## 2026-07-23 — P7 commercial-section matrix/order подготовлен
 

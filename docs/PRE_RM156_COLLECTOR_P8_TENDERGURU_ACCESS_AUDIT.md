@@ -2,9 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`.
-Application implementation запрещена Definition of Ready; publication и exact merge-SHA Quality
-Gate ожидаются.
+Статус: `ACCEPTED / BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`. TenderGuru producer
+запрещён Definition of Ready.
 
 ## 1. Entry gate
 
@@ -150,4 +149,16 @@ official providers и RM-107 deterministic decision не меняются.
 
 ## 8. Publication acceptance
 
-Ожидаются commit, PR-head Windows Quality Gate, merge commit и fresh exact merge-SHA Quality Gate.
+- PR #151 head `205d223f67da8ca0fd84732b4b14aeb1c7402662`;
+- PR-head Quality Gate `29992310890`: jobs `89157719548` (Python 3.12) и `89157719632`
+  (Python 3.13) успешны, включая dependency audit;
+- merge commit `29aba93a4cdb24ba526dbbe265f51e859ba9754a`;
+- fresh exact merge-SHA Quality Gate `29992951951`: jobs `89159721376` (Python 3.12) и
+  `89159721509` (Python 3.13) успешны, включая dependency audit.
+
+GitHub incident `Latency issues across a number of services` временно пометил Actions как
+`partial outage`, а Webhooks/Pull Requests как degraded. PR dispatch потребовал reopen того же
+неизменного head SHA; exact run API кратко отставал от уже завершённых job steps. После
+eventual consistency run и обе job projections подтверждены `completed/success`.
+
+Только после exact success создан отдельный P8 queue/retry/sanitization hardening worktree.
