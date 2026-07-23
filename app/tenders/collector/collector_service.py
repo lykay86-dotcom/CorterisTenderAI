@@ -30,6 +30,7 @@ from app.tenders.collector.stop_factor import (
     StopFactorStatus,
 )
 from app.tenders.collector.aggregator_discovery import (
+    AggregatorDiscoveryCapacityError,
     AggregatorDiscoveryRepository,
     is_aggregator_discovery,
 )
@@ -138,13 +139,18 @@ class CollectorService:
             authoritative_items = tuple(
                 item for item in batch.raw_items if not is_aggregator_discovery(item)
             )
-            discovery_records = tuple(
-                self.aggregator_discovery_repository.enqueue(
-                    item,
-                    discovered_at=batch.completed_at,
-                )
-                for item in discovery_items
-            )
+            discovery_records = []
+            discovery_rejected_count = 0
+            for item in discovery_items:
+                try:
+                    discovery_records.append(
+                        self.aggregator_discovery_repository.enqueue(
+                            item,
+                            discovered_at=batch.completed_at,
+                        )
+                    )
+                except AggregatorDiscoveryCapacityError:
+                    discovery_rejected_count += 1
             normalized = (
                 self.normalizer.normalize_many(authoritative_items)
                 if batch.deduplication is None
@@ -291,6 +297,7 @@ class CollectorService:
                     "not_recommended_count": (persistence.not_recommended_count),
                     "high_score_count": sum(score.total_score >= 80 for score in rankings.values()),
                     "aggregator_discovery_count": len(discovery_records),
+                    "aggregator_discovery_rejected_count": discovery_rejected_count,
                     "official_verification_queue_count": len(
                         self.aggregator_discovery_repository.list_pending(limit=1000)
                     ),

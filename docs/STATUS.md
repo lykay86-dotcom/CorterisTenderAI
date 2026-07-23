@@ -285,7 +285,13 @@ entitlement/license, account token/limits, data visibility/retention/reuse terms
 schema lifecycle/timezone/money contract или approved fixtures. `tenderguru_discovery` локально
 `BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`; registration/login/API calls, producer,
 credentials и fixtures не создаются. Existing aggregator queue/official-verification gate
-переиспользуется и остаётся отдельно от 13 built-ins. Full P8 ещё не закрыт: queue/attempt
-retention bounds, retry и error/note sanitization требуют отдельного local hardening package.
-P9 не начинать до merge/exact этого P8 audit и завершения допустимого P8 hardening.
+переиспользуется и остаётся отдельно от 13 built-ins. Access audit принят PR #151: head
+`205d223f67da8ca0fd84732b4b14aeb1c7402662`, PR-head run `29992310890`, merge
+`29aba93a4cdb24ba526dbbe265f51e859ba9754a`, fresh exact run `29992951951`; jobs
+`89159721376`/`89159721509` и dependency audit успешны после GitHub Actions incident/eventual
+consistency.
+
+Текущий отдельный P8 hardening package закрывает только локальные queue/attempt retention bounds,
+explicit retry и error/note/payload sanitization в existing owners. TenderGuru producer и
+readiness не открываются. P9 не начинать до merge/exact hardening package.
 Production RM-156, RM-157 и RM-158 не начинать.

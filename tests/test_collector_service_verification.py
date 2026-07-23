@@ -9,6 +9,7 @@ from app.tenders.collector.async_engine import (
     AsyncProviderSearchOutcome,
     AsyncProviderSearchStatus,
 )
+from app.tenders.collector.aggregator_discovery import AggregatorDiscoveryRepository
 from app.tenders.collector.collector_service import CollectorService
 from app.tenders.collector.progress import CollectorProgressPhase
 from app.tenders.collector.store import CollectorStateRepository
@@ -102,5 +103,34 @@ def test_service_verifies_before_ranking_and_persistence(tmp_path) -> None:
                 (TenderSource.CUSTOM.value,),
             ).fetchone()["total"]
         assert aggregator_records == 0
+
+    asyncio.run(scenario())
+
+
+def test_full_discovery_queue_cannot_block_authoritative_processing(tmp_path) -> None:
+    async def scenario():
+        path = tmp_path / "tender_registry.sqlite3"
+        repository = CollectorStateRepository(path)
+        discovery_repository = AggregatorDiscoveryRepository(path, max_records=1)
+        discovery_repository.enqueue(
+            make_tender(
+                source=TenderSource.CUSTOM,
+                external_id="already-pending",
+                raw_metadata={"aggregator": True},
+            )
+        )
+
+        result = await CollectorService(
+            Engine(),
+            repository,
+            aggregator_discovery_repository=discovery_repository,
+        ).collect(TenderSearchQuery(keywords=("видеонаблюдение",)))
+
+        assert result.metadata["aggregator_discovery_count"] == 0
+        assert result.metadata["aggregator_discovery_rejected_count"] == 1
+        assert result.metadata["official_verification_queue_count"] == 1
+        assert len(result.deduplication.items) == 1
+        assert result.deduplication.items[0].tender.source == TenderSource.EIS
+        assert result.persistence.verification_run_id
 
     asyncio.run(scenario())

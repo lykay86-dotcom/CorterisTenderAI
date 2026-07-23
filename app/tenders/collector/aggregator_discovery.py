@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from enum import StrEnum
@@ -12,9 +12,12 @@ import re
 import sqlite3
 from threading import RLock
 from typing import Callable
+from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
+from app.tenders.collector.async_http import sanitize_url
 from app.tenders.collector.codec import tender_from_payload, tender_to_payload
+from app.tenders.collector.search_errors import classify_search_error, safe_provider_warnings
 from app.tenders.collector_database import initialize_collector_database
 from app.tenders.corteris_filter import normalize_text
 from app.tenders.models import TenderSource, UnifiedTender, is_timezone_aware
@@ -33,6 +36,13 @@ class OfficialIdentityDecision(StrEnum):
     MATCH = "match"
     REJECT = "reject"
     MANUAL_REVIEW = "manual_review"
+
+
+class AggregatorDiscoveryCapacityError(RuntimeError):
+    """Fail closed when the bounded discovery queue cannot safely accept data."""
+
+    def __init__(self) -> None:
+        super().__init__("Очередь discovery превысила безопасный лимит.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,8 +83,24 @@ class AggregatorDiscoveryRecord:
 
 
 class AggregatorDiscoveryRepository:
-    def __init__(self, path: str | Path) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        max_records: int = 10_000,
+        max_attempts_per_discovery: int = 100,
+        max_payload_bytes: int = 64 * 1024,
+    ) -> None:
+        if max_records < 1:
+            raise ValueError("max_records must be positive")
+        if max_attempts_per_discovery < 1:
+            raise ValueError("max_attempts_per_discovery must be positive")
+        if max_payload_bytes < 1:
+            raise ValueError("max_payload_bytes must be positive")
         self.path = Path(path).expanduser()
+        self.max_records = max_records
+        self.max_attempts_per_discovery = max_attempts_per_discovery
+        self.max_payload_bytes = max_payload_bytes
         self._lock = RLock()
 
     def initialize(self) -> None:
@@ -90,17 +116,28 @@ class AggregatorDiscoveryRepository:
     ) -> AggregatorDiscoveryRecord:
         if not is_aggregator_discovery(tender):
             raise ValueError("only explicit aggregator discovery can enter this queue")
+        candidate = _minimize_discovery_candidate(tender)
+        candidate_json = json.dumps(
+            tender_to_payload(candidate),
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        if len(candidate_json.encode("utf-8")) > self.max_payload_bytes:
+            raise AggregatorDiscoveryCapacityError()
         moment = discovered_at or _now()
-        source = tender.source.value
-        query = tender.procurement_number.strip() or tender.title.strip()
+        source = candidate.source.value
+        query = candidate.procurement_number.strip() or candidate.title.strip()
         self.initialize()
         with self._lock, self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 """SELECT discovery_id, first_discovered_at
                 FROM collector_aggregator_discoveries
                 WHERE aggregator_source=? AND aggregator_external_id=?""",
-                (source, tender.external_id),
+                (source, candidate.external_id),
             ).fetchone()
+            if existing is None:
+                self._ensure_capacity(connection)
             discovery_id = str(existing["discovery_id"]) if existing else uuid4().hex
             first = str(existing["first_discovered_at"]) if existing else moment
             connection.execute(
@@ -123,15 +160,15 @@ class AggregatorDiscoveryRepository:
                 (
                     discovery_id,
                     source,
-                    tender.external_id,
-                    tender.source_url,
-                    tender.title,
-                    tender.procurement_number,
+                    candidate.external_id,
+                    candidate.source_url,
+                    candidate.title,
+                    candidate.procurement_number,
                     query,
                     AggregatorDiscoveryStatus.PENDING_OFFICIAL_VERIFICATION.value,
                     first,
                     moment,
-                    json.dumps(tender_to_payload(tender), ensure_ascii=False, sort_keys=True),
+                    candidate_json,
                 ),
             )
         return self.get(discovery_id)
@@ -160,6 +197,8 @@ class AggregatorDiscoveryRepository:
         return tuple(_row_to_record(row) for row in rows)
 
     def list_all(self, *, limit: int = 500) -> tuple[AggregatorDiscoveryRecord, ...]:
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
         self.initialize()
         with self._lock, self._connect() as connection:
             rows = connection.execute(
@@ -205,7 +244,10 @@ class AggregatorDiscoveryRepository:
             else:
                 status = AggregatorDiscoveryStatus.OFFICIAL_MATCH_NOT_FOUND
                 registry_key = ""
-            rendered_note = " ".join(part for part in (note.strip(), *match.reasons) if part)
+            safe_note = _safe_discovery_note(note)
+            rendered_note = _safe_discovery_note(
+                " ".join(part for part in (safe_note, *match.reasons) if part)
+            )
             cursor = connection.execute(
                 """UPDATE collector_aggregator_discoveries
                 SET status=?, official_registry_key=?, verification_note=?
@@ -225,10 +267,11 @@ class AggregatorDiscoveryRepository:
                     _now(),
                     match.decision.value,
                     official_tender.identity_key if official_tender is not None else "",
-                    note.strip(),
+                    safe_note,
                     json.dumps(match.reasons, ensure_ascii=False),
                 ),
             )
+            self._prune_attempts(connection, discovery_id)
         return self.get(discovery_id)
 
     def list_attempts(self, discovery_id: str) -> tuple[dict[str, object], ...]:
@@ -238,7 +281,7 @@ class AggregatorDiscoveryRepository:
                 """SELECT attempt_id, attempted_at, outcome, official_registry_key,
                           note, evidence_json
                 FROM collector_aggregator_verification_attempts
-                WHERE discovery_id=? ORDER BY attempted_at, attempt_id""",
+                WHERE discovery_id=? ORDER BY attempted_at, rowid""",
                 (discovery_id.strip(),),
             ).fetchall()
         return tuple(
@@ -253,29 +296,99 @@ class AggregatorDiscoveryRepository:
             for row in rows
         )
 
-    def mark_failed(self, discovery_id: str, error: str) -> AggregatorDiscoveryRecord:
+    def mark_failed(
+        self,
+        discovery_id: str,
+        error: BaseException | str,
+    ) -> AggregatorDiscoveryRecord:
+        if isinstance(error, BaseException):
+            failure = classify_search_error(error)
+            safe_error = failure.message
+            evidence = (failure.code,)
+        else:
+            safe_error = "Официальная проверка завершилась с безопасно скрытой ошибкой."
+            evidence = ("provider_internal_error",)
         self.initialize()
         with self._lock, self._connect() as connection:
             cursor = connection.execute(
                 """UPDATE collector_aggregator_discoveries
                 SET status=?, verification_note=? WHERE discovery_id=?""",
-                (AggregatorDiscoveryStatus.FAILED.value, error.strip(), discovery_id.strip()),
+                (AggregatorDiscoveryStatus.FAILED.value, safe_error, discovery_id.strip()),
             )
             if cursor.rowcount != 1:
                 raise KeyError(discovery_id)
             connection.execute(
                 """INSERT INTO collector_aggregator_verification_attempts(
-                    attempt_id, discovery_id, attempted_at, outcome, note
-                ) VALUES (?, ?, ?, ?, ?)""",
+                    attempt_id, discovery_id, attempted_at, outcome, note, evidence_json
+                ) VALUES (?, ?, ?, ?, ?, ?)""",
                 (
                     uuid4().hex,
                     discovery_id.strip(),
                     _now(),
                     AggregatorDiscoveryStatus.FAILED.value,
-                    error.strip(),
+                    safe_error,
+                    json.dumps(evidence, ensure_ascii=False),
                 ),
             )
+            self._prune_attempts(connection, discovery_id)
         return self.get(discovery_id)
+
+    def _ensure_capacity(self, connection: sqlite3.Connection) -> None:
+        total = int(
+            connection.execute("SELECT COUNT(*) FROM collector_aggregator_discoveries").fetchone()[
+                0
+            ]
+        )
+        if total < self.max_records:
+            return
+        required_evictions = total - self.max_records + 1
+        terminal_rows = connection.execute(
+            """SELECT discovery_id
+            FROM collector_aggregator_discoveries
+            WHERE status IN (?, ?, ?)
+            ORDER BY last_discovered_at, discovery_id
+            LIMIT ?""",
+            (
+                AggregatorDiscoveryStatus.OFFICIAL_MATCH_FOUND.value,
+                AggregatorDiscoveryStatus.OFFICIAL_MATCH_NOT_FOUND.value,
+                AggregatorDiscoveryStatus.FAILED.value,
+                required_evictions,
+            ),
+        ).fetchall()
+        if len(terminal_rows) != required_evictions:
+            raise AggregatorDiscoveryCapacityError()
+        for terminal in terminal_rows:
+            discovery_id = str(terminal["discovery_id"])
+            connection.execute(
+                "DELETE FROM collector_aggregator_verification_attempts WHERE discovery_id=?",
+                (discovery_id,),
+            )
+            connection.execute(
+                "DELETE FROM collector_aggregator_discoveries WHERE discovery_id=?",
+                (discovery_id,),
+            )
+
+    def _prune_attempts(
+        self,
+        connection: sqlite3.Connection,
+        discovery_id: str,
+    ) -> None:
+        connection.execute(
+            """DELETE FROM collector_aggregator_verification_attempts
+            WHERE discovery_id=?
+              AND rowid NOT IN (
+                SELECT rowid
+                FROM collector_aggregator_verification_attempts
+                WHERE discovery_id=?
+                ORDER BY rowid DESC
+                LIMIT ?
+              )""",
+            (
+                discovery_id.strip(),
+                discovery_id.strip(),
+                self.max_attempts_per_discovery,
+            ),
+        )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30.0)
@@ -321,7 +434,7 @@ class AggregatorOfficialVerificationService:
                 results.append(
                     self.repository.mark_failed(
                         record.discovery_id,
-                        f"{type(exc).__name__}: {exc}",
+                        exc,
                     )
                 )
         return tuple(results)
@@ -334,6 +447,46 @@ def is_aggregator_discovery(tender: UnifiedTender) -> bool:
         or metadata.get("discovery_only")
         or str(metadata.get("source_kind", "")).casefold() in {"aggregator", "discovery_aggregator"}
     )
+
+
+def _minimize_discovery_candidate(tender: UnifiedTender) -> UnifiedTender:
+    metadata: dict[str, object] = {}
+    if bool(tender.raw_metadata.get("aggregator")):
+        metadata["aggregator"] = True
+    if bool(tender.raw_metadata.get("discovery_only")):
+        metadata["discovery_only"] = True
+    source_kind = str(tender.raw_metadata.get("source_kind", "")).strip().casefold()
+    if source_kind in {"aggregator", "discovery_aggregator"}:
+        metadata["source_kind"] = source_kind
+    return replace(
+        tender,
+        customer=replace(
+            tender.customer,
+            kpp="",
+            region="",
+            address="",
+        ),
+        source_url=_safe_discovery_url(tender.source_url),
+        description="",
+        classification_codes=(),
+        tags=(),
+        documents=(),
+        raw_metadata=metadata,
+    )
+
+
+def _safe_discovery_url(value: str) -> str:
+    parsed = urlsplit(sanitize_url(value))
+    hostname = parsed.hostname or ""
+    if ":" in hostname:
+        hostname = f"[{hostname}]"
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    return urlunsplit((parsed.scheme, f"{hostname}{port}", parsed.path, parsed.query, ""))
+
+
+def _safe_discovery_note(value: object, *, fallback: str = "") -> str:
+    rendered = safe_provider_warnings((str(value),))
+    return rendered[0] if rendered else fallback
 
 
 def match_official_identity(
@@ -425,6 +578,7 @@ def _now() -> str:
 
 
 __all__ = [
+    "AggregatorDiscoveryCapacityError",
     "AggregatorDiscoveryRecord",
     "AggregatorDiscoveryRepository",
     "AggregatorDiscoveryStatus",

@@ -230,9 +230,13 @@
   `tenderguru_discovery` локально
   `BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`; producer/credentials/fixtures не
   создаются, existing aggregator queue/official-verification gate остаётся отдельным от
-  13 built-ins. Full P8 не закрыт: queue/attempt retention bounds, retry contract и error/note
-  sanitization остаются отдельным local hardening scope. P9 не начинается до merge/exact P8 audit
-  и завершения допустимого P8 hardening.
+  13 built-ins. Access audit принят PR #151: head
+  `205d223f67da8ca0fd84732b4b14aeb1c7402662`, PR-head run `29992310890`, merge
+  `29aba93a4cdb24ba526dbbe265f51e859ba9754a`, fresh exact run `29992951951`; обе jobs и
+  dependency audit успешны после GitHub Actions incident/eventual consistency. Отдельный current
+  P8 hardening package ограничивает existing queue/attempt retention, explicit retry и
+  error/note/payload sanitization без producer/catalog/settings/schema expansion. P9 не начинается
+  до merge/exact hardening package.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.

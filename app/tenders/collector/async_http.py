@@ -32,7 +32,7 @@ from app.tenders.http_client import HttpResponse
 
 LOGGER = logging.getLogger("corteris.tenders.collector.http")
 _SENSITIVE_QUERY_NAMES = re.compile(
-    r"(?:api[_-]?key|token|secret|password|passwd|signature|auth)",
+    r"(?:api[_-]?(?:key|code)|refresh[_-]?code|token|secret|password|passwd|signature|auth)",
     re.IGNORECASE,
 )
 
