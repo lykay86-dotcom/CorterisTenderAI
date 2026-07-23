@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `DECIDED LOCALLY`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`.
 
 ## 1. Основание
 
@@ -74,4 +74,16 @@ active GitHub Actions workflow:
 Full suite использовал fresh command-scoped `--basetemp` из-за ранее диагностированного ACL
 дефекта старого global pytest temp root; repository files, tests и thresholds не менялись.
 Warnings — неизменные `openpyxl` notices; dependencies не менялись. PR-head и exact merge-SHA
-Windows Quality Gate остаются обязательными до принятия решения.
+Windows Quality Gate были обязательны и успешно пройдены по evidence ниже.
+
+## 6. Publication acceptance
+
+- PR #133 head `4dbd9b1cdfe3a233c97bab2d9f2c58171b3ee10d`;
+- PR-head Quality Gate `29966420486`: jobs `89078811152` (Python 3.12) и `89078810946`
+  (Python 3.13) успешны;
+- merge commit `22f5a530f6ca32ead5b76f102576fa36b559dac5`;
+- exact merge-SHA Quality Gate `29966853365`: jobs `89080134032` (Python 3.12) и
+  `89080134075` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный TekTorg access-audit worktree. Решение не создало
+working/readiness claim и не ослабило `BLOCKED_EXTERNAL` предыдущих sources.

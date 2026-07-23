@@ -122,7 +122,15 @@
   `38fe2d75f80beb544e9b5a7a2d18462963c4f232`, exact run `29965734080`; обе matrix jobs и
   dependency audit успешны. Docs-only решением первые три P6 sources сохраняются blocked, а
   `tek_torg` назначается следующим последовательным access-audit target без contract/readiness
-  claim. Отдельный TekTorg audit начинается только после merge/exact этого решения.
+  claim. Отдельный TekTorg audit начинается только после merge/exact этого решения. Решение
+  принято PR #133: head `4dbd9b1cdfe3a233c97bab2d9f2c58171b3ee10d`, PR-head run
+  `29966420486`, merge `22f5a530f6ca32ead5b76f102576fa36b559dac5`, exact run
+  `29966853365`; обе matrix jobs и dependency audit успешны. Последующий TekTorg audit подтвердил
+  официальный public SOAP procedure export, filters, page totals and dictionaries, но не нашёл
+  обязательные rate/retry limits, page maximum/snapshot consistency, schema/version policy,
+  exact timezone/currency/money semantics, raw retention/reuse permission или approved fixtures.
+  `tek_torg` локально `BLOCKED_EXTERNAL`; guessed defaults и implementation запрещены до
+  publication/exact audit package и отдельного external unblock.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
