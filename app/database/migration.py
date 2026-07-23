@@ -14,7 +14,7 @@ from .backup_manager import BackupManager
 from .base import Base
 from .schema_inspector import SchemaInspector
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 _UUID_NAMESPACE = uuid.UUID("e370a77b-dbf6-4b66-a86f-3b29172d184e")
 
 
@@ -96,13 +96,45 @@ class MigrationManager:
     def current_version(self) -> int:
         self._ensure_version_table()
         with self.engine.connect() as connection:
-            return int(
-                connection.scalar(text("SELECT version FROM schema_version WHERE id = 1")) or 0
-            )
+            raw_version = connection.scalar(text("SELECT version FROM schema_version WHERE id = 1"))
+        return self._coerce_version(raw_version)
+
+    @staticmethod
+    def _coerce_version(raw_version: object) -> int:
+        if isinstance(raw_version, bool) or not isinstance(raw_version, (int, str)):
+            raise MigrationError("Не удалось прочитать структуру базы данных")
+        try:
+            version = int(raw_version)
+        except (TypeError, ValueError) as exc:
+            raise MigrationError("Не удалось прочитать структуру базы данных") from exc
+        if version < 0 or str(raw_version).strip() != str(version):
+            raise MigrationError("Не удалось прочитать структуру базы данных")
+        return version
+
+    def _existing_version(self) -> int | None:
+        inspector = SchemaInspector(self.engine)
+        if not inspector.table_exists("schema_version"):
+            return None
+        with self.engine.connect() as connection:
+            raw_version = connection.scalar(text("SELECT version FROM schema_version WHERE id = 1"))
+        if raw_version is None:
+            raise MigrationError("Не удалось прочитать структуру базы данных")
+        return self._coerce_version(raw_version)
 
     def upgrade(self) -> MigrationResult:
+        existing_version = self._existing_version()
+        if existing_version is not None and existing_version > CURRENT_SCHEMA_VERSION:
+            raise MigrationError(
+                "Структура базы данных создана более новой версией приложения "
+                f"({existing_version} > {CURRENT_SCHEMA_VERSION})"
+            )
         self._ensure_version_table()
         previous = self.current_version()
+        if previous > CURRENT_SCHEMA_VERSION:
+            raise MigrationError(
+                "Структура базы данных создана более новой версией приложения "
+                f"({previous} > {CURRENT_SCHEMA_VERSION})"
+            )
         inspector = SchemaInspector(self.engine)
         requires_legacy_rebuild = self._requires_legacy_rebuild(inspector)
         requires_audit_columns = self._requires_audit_columns(inspector)
@@ -416,6 +448,7 @@ class MigrationManager:
             "CREATE INDEX IF NOT EXISTS ix_documents_is_deleted ON documents(is_deleted)",
             "CREATE INDEX IF NOT EXISTS ix_analyses_tender_id ON analyses(tender_id)",
             "CREATE INDEX IF NOT EXISTS ix_analyses_is_deleted ON analyses(is_deleted)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_contractors_inn ON contractors(inn)",
         )
         with self.engine.begin() as connection:
             for statement in statements:
@@ -436,3 +469,19 @@ class MigrationManager:
                 raise MigrationError(
                     f"Проверка целостности SQLite завершилась ошибкой: {integrity}"
                 )
+        contractor_columns = set(inspector.columns("contractors"))
+        if contractor_columns != {
+            "id",
+            "inn",
+            "created_at",
+            "updated_at",
+            "is_deleted",
+            "deleted_at",
+            "row_version",
+        }:
+            raise MigrationError("После миграции структура contractors не соответствует RM-156")
+        with self.engine.connect() as connection:
+            indexes = connection.exec_driver_sql("PRAGMA index_list('contractors')").fetchall()
+            unique_indexes = {str(row[1]) for row in indexes if int(row[2]) == 1}
+        if "ix_contractors_inn" not in unique_indexes:
+            raise MigrationError("После миграции отсутствует unique index contractors.inn")

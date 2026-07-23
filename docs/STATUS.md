@@ -337,4 +337,14 @@ schema-4 boundaries и три passing isolation guards. Direct red: `24 failed, 
 regular: `3 passed, 24 xfailed`; focused neighbors: `34 passed, 24 xfailed`; full:
 `2484 passed, 24 xfailed, 2 warnings`. Ruff/format (`807 files`), mypy, secret, offline,
 migration/schema, bootstrap/build/frozen и RM-155 gates успешны. Application code, schema и
-dependencies не меняются до merge/exact package. RM-157 и RM-158 не начинать.
+dependencies не менялись. Package принят PR #158: head
+`c3a51913234c6d1864f70817572f3a3f95f2c926`, PR-head run `30008132034`, merge
+`11d079b1474fa4a384cc35545f412440cf4a168c`, exact run `30008699060`; jobs
+`89211007130`/`89211007201` и dependency audit successful.
+
+Текущий feature package реализовал только принятый contractor identity/persistence scope:
+`ContractorInn`, отдельные ORM/repository/UoW, aware UTC SQLite round-trip и schema 3→4 с
+backup/future/corrupt/missing guards. Target `28 passed`, neighboring `59 passed`, full
+`2509 passed, 2 warnings`; Ruff/format (`811 files`), mypy (`26 source files`), secret/offline/
+migration/bootstrap/build/frozen/RM-155 gates успешны. Feature publication pending; RM-157 и
+RM-158 не начинать до feature merge/exact и отдельного RM-156 closeout.

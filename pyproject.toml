@@ -50,6 +50,12 @@ target-version="py312"
 [tool.mypy]
 python_version = "3.12"
 files = [
+  "app/contractors/identity.py",
+  "app/database/base.py",
+  "app/database/migration.py",
+  "app/database/models/contractor.py",
+  "app/database/repositories/contractor_repository.py",
+  "app/database/unit_of_work.py",
   "app/ai/provider.py",
   "app/core/json_serialization.py",
   "app/core/ai/output_schema.py",

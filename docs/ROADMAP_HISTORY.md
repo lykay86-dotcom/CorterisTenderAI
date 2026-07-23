@@ -1,5 +1,23 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — RM-156 expected-red принят; feature локально зелёный
+
+- Expected-red commit `c3a5191`, PR #158 head
+  `c3a51913234c6d1864f70817572f3a3f95f2c926`; PR-head run `30008132034` successful
+  (jobs `89209082737`/`89209082678`), включая dependency audit.
+- Merge `11d079b1474fa4a384cc35545f412440cf4a168c`; exact run `30008699060` successful
+  (jobs `89211007130`/`89211007201`), включая dependency audit.
+- Fixture commit `dfd25f4` сохранил future-schema expected-red независимо от текущей schema.
+  Feature commit `213b2e2` добавил immutable checked INN, отдельные contractor ORM/repository/UoW,
+  aware UTC SQLite type и application schema 3→4.
+- Migration создаёт verified backup, сохраняет existing rows, проверяет exact table/unique index
+  и fail-closed отклоняет future/corrupt/missing version. Collector schema 16 не меняется.
+- First implementation direct contour `27 passed`; final target `28 passed`; neighboring
+  `59 passed`; full `2509 passed, 2 warnings in 308.01s`.
+- Ruff/format (`811 files`), mypy (`26 source files`), secret/offline/migration/bootstrap/build/
+  frozen/RM-155 gates успешны. Feature PR/merge/exact и отдельный RM-156 closeout ещё не выполнены;
+  RM-157–RM-200 остаются `PLANNED`.
+
 ## 2026-07-23 — RM-156 audit принят; expected-red зафиксирован
 
 - Audit commit `3b32431`, PR #157 head

@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import inspect, text
 
 from app.database.database_health import DatabaseHealthService
+from app.database.migration import CURRENT_SCHEMA_VERSION
 from app.database.session import get_engine, init_database, reset_database_state
 from app.repositories.tenders import TenderRepository
 
@@ -63,7 +64,10 @@ def test_migrates_integer_ids_and_audit_columns(tmp_path):
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT COUNT(*) FROM documents")) == 1
         assert connection.scalar(text("SELECT COUNT(*) FROM analyses")) == 1
-        assert connection.scalar(text("SELECT version FROM schema_version WHERE id=1")) == 3
+        assert (
+            connection.scalar(text("SELECT version FROM schema_version WHERE id=1"))
+            == CURRENT_SCHEMA_VERSION
+        )
     backups = list((tmp_path / "backups").glob("*.db"))
     assert backups
     reset_database_state()

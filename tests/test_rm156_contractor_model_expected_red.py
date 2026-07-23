@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import inspect, text
 
+from app.database.backup_manager import BackupManager
 from app.database.exceptions import DuplicateEntityError
 from app.database.migration import MigrationError
 from app.database.models import Company
@@ -25,11 +26,6 @@ from app.database.unit_of_work import UnitOfWork
 from app.tenders.collector.schema import COLLECTOR_SCHEMA_VERSION
 from app.tenders.models import TenderCustomer
 
-
-EXPECTED_RED = pytest.mark.xfail(
-    reason="RM-156 contractor model boundary is not implemented",
-    strict=True,
-)
 
 ORGANIZATION_INN = "9701327346"
 INDIVIDUAL_INN = "500100732259"
@@ -65,7 +61,6 @@ def _database_symbol(module_name: str, name: str):
     return value
 
 
-@EXPECTED_RED
 def test_contractor_inn_accepts_canonical_organization_and_individual_vectors() -> None:
     contractor_inn = _public_symbol("ContractorInn")
     contractor_kind = _public_symbol("ContractorInnKind")
@@ -81,7 +76,6 @@ def test_contractor_inn_accepts_canonical_organization_and_individual_vectors() 
         organization.value = INDIVIDUAL_INN
 
 
-@EXPECTED_RED
 @pytest.mark.parametrize(
     "value",
     [
@@ -109,7 +103,6 @@ def test_contractor_inn_rejects_invalid_type_shape_and_checksum(value: object) -
         contractor_inn.parse(value)
 
 
-@EXPECTED_RED
 def test_contractor_orm_has_minimal_schema_and_direct_validation() -> None:
     contractor = _database_symbol("app.database.models", "Contractor")
 
@@ -128,7 +121,6 @@ def test_contractor_orm_has_minimal_schema_and_direct_validation() -> None:
         contractor(inn="9701327347")
 
 
-@EXPECTED_RED
 def test_contractor_repository_owns_unique_lifecycle_and_uow_access(tmp_path: Path) -> None:
     database = tmp_path / "contractors.db"
     init_database(database)
@@ -158,7 +150,6 @@ def test_contractor_repository_owns_unique_lifecycle_and_uow_access(tmp_path: Pa
         assert active.row_version == 3
 
 
-@EXPECTED_RED
 def test_sqlite_audit_timestamps_remain_aware_utc_after_round_trip(tmp_path: Path) -> None:
     database = tmp_path / "timestamps.db"
     init_database(database)
@@ -182,7 +173,6 @@ def test_sqlite_audit_timestamps_remain_aware_utc_after_round_trip(tmp_path: Pat
         assert deleted.updated_at.tzinfo is not None
 
 
-@EXPECTED_RED
 def test_fresh_database_is_schema_four_with_unique_contractor_identity(tmp_path: Path) -> None:
     database = tmp_path / "fresh.db"
     init_database(database)
@@ -199,7 +189,6 @@ def test_fresh_database_is_schema_four_with_unique_contractor_identity(tmp_path:
     ) or any(item.get("column_names") == ["inn"] for item in constraints)
 
 
-@EXPECTED_RED
 def test_schema_three_migration_preserves_rows_and_creates_verified_backup(tmp_path: Path) -> None:
     database = tmp_path / "schema3.db"
     backups = tmp_path / "backups"
@@ -213,6 +202,7 @@ def test_schema_three_migration_preserves_rows_and_creates_verified_backup(tmp_p
         connection.execute("UPDATE schema_version SET version=3 WHERE id=1")
         connection.commit()
 
+    backups_before = set(backups.glob("*.db"))
     init_database(database, backup_dir=backups)
     engine = get_engine()
     with engine.connect() as connection:
@@ -224,17 +214,21 @@ def test_schema_three_migration_preserves_rows_and_creates_verified_backup(tmp_p
             == 1
         )
     assert "contractors" in inspect(engine).get_table_names()
-    assert list(backups.glob("*.db"))
-    assert list(backups.glob("*.json"))
+    backups_after = set(backups.glob("*.db"))
+    created_backups = backups_after - backups_before
+    assert len(created_backups) == 1
+    backup = created_backups.pop()
+    assert backup.with_suffix(".json").is_file()
+    assert BackupManager(database, backups).verify(backup)
 
 
-@EXPECTED_RED
 def test_future_schema_is_rejected_without_downgrade_or_write(tmp_path: Path) -> None:
     database = tmp_path / "future.db"
     init_database(database)
     reset_database_state()
 
     with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE IF EXISTS contractors")
         connection.execute("UPDATE schema_version SET version=99 WHERE id=1")
         connection.commit()
 
@@ -254,7 +248,6 @@ def test_future_schema_is_rejected_without_downgrade_or_write(tmp_path: Path) ->
         )
 
 
-@EXPECTED_RED
 def test_corrupt_schema_version_is_sanitized_and_not_rewritten(tmp_path: Path) -> None:
     database = tmp_path / "corrupt.db"
     init_database(database)
@@ -275,7 +268,23 @@ def test_corrupt_schema_version_is_sanitized_and_not_rewritten(tmp_path: Path) -
         )
 
 
-@EXPECTED_RED
+def test_missing_existing_schema_version_row_is_not_recreated(tmp_path: Path) -> None:
+    database = tmp_path / "missing-version.db"
+    init_database(database)
+    reset_database_state()
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DELETE FROM schema_version")
+        connection.commit()
+
+    with pytest.raises(MigrationError, match="структур"):
+        init_database(database)
+    reset_database_state()
+
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 0
+
+
 def test_contractor_public_context_has_no_future_stage_or_ui_imports() -> None:
     module = _public_api()
     root = Path(module.__file__).resolve().parent
