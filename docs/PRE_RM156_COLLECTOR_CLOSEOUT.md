@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / PUBLICATION PENDING`.
+Статус: `ACCEPTED`.
 
 ## 1. Decision
 
@@ -88,7 +88,17 @@ accepted Collector features, downgrade schema, delete backups/artifacts/checkpoi
 change credentials/settings or alter RM-107 decisions. Feature packages retain their independent
 rollback boundaries.
 
-## 6. Publication gate
+## 6. Publication evidence
 
-Ожидаются closeout commit, PR-head Windows 3.12/3.13 Quality Gate, merge и fresh exact merge-SHA
-Quality Gate. RM-156 application changes не начинаются до terminal exact success.
+- Closeout commit `e105b20`.
+- PR #156 head `e105b202b342da975c61fc430d713f385f180be8`.
+- PR-head run `30003448590` successful:
+  - Python 3.12 job `89193776310`;
+  - Python 3.13 job `89193776412`.
+- Merge `e2eeac22497ec90b108fc02765089a92c6fdfc55`.
+- Fresh exact merge-SHA run `30004268816` successful:
+  - Python 3.12 job `89196436206`;
+  - Python 3.13 job `89196436327`;
+  - dependency audit successful в обеих jobs.
+
+Collector prerequisite завершён. Следующий отдельный package — RM-156 audit-first.
