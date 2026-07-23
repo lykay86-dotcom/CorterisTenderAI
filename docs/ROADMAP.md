@@ -241,6 +241,11 @@
   sanitization без producer/catalog/settings/schema expansion. Текущий docs-only P8 closeout
   может принять P8 с честным external blocker и открыть только P9 stabilization после своего
   merge/exact gate.
+  P8 closeout принят PR #153: head `ead2de338628c5dd8b6ae7de19779ceec9dcc102`,
+  PR-head run `29997803117`, merge `f4fead191323f50c4b5d7a1359e24006c1a3bcb5`, fresh exact
+  run `29998310114`; обе Windows jobs и dependency audit успешны. Текущий P9 audit package
+  ограничен inventory и strict expected-red contracts для all-provider no-network diagnostic и
+  unexpected-health error sanitization. Implementation начинается только после merge/exact audit.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
