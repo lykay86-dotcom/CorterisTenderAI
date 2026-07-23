@@ -1,5 +1,21 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — RM-156 closeout принят; RM-157 audit-first выполнен локально
+
+- RM-156 closeout PR #160 head `be2d8a57550cbfb7681c7d04ae37cfe0f884ae8b`; PR-head run
+  `30012713595` successful (jobs `89224670514`/`89224670722`), включая dependency audit.
+- Merge `d4f05be338f28dc79a0b80aba88b7ddc8115fd4c`; fresh exact run `30013255344` successful
+  (jobs `89226533422`/`89226533373`), включая dependency audit.
+- RM-157 audit отделил exact local contractor lookup от собственной `Company`, tender customer
+  observations и multi-provider tender search. Existing `ContractorInn`, repository/UoW,
+  route registry/router и composition owners переиспользуются.
+- Valid `NOT_FOUND` принят как read-only result без implicit create/restore/network. External
+  sources/provenance остаются RM-158, регистрационные сведения — RM-159.
+- Retained `future.clients`/`clients` compatibility identity должен мигрировать in place в
+  единственную страницу «Контрагенты»; Figma node `41:35` inspection обязателен до UI edit.
+- Неизменённый owner/navigation/bootstrap baseline `48 passed in 9.40s`. Audit package docs-only;
+  publication и expected-red ещё не выполнены, RM-158–RM-200 остаются `PLANNED`.
+
 ## 2026-07-23 — RM-156 завершён; RM-157 активирован
 
 - Feature PR #159 head `77b7079d84045eada3afbae9a4a64d34de1de498`; PR-head run

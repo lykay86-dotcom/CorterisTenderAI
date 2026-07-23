@@ -383,3 +383,16 @@ migration/bootstrap/build/frozen/RM-155 gates успешны. Feature приня
 RM-156 удовлетворяет Definition of Done и закрывается этим docs-only closeout. Следующее действие
 — отдельный audit-first package RM-157; search implementation, network/source adapters и поля
 RM-158–RM-168 до принятого аудита не начинаются.
+
+RM-156 closeout принят PR #160: head `be2d8a57550cbfb7681c7d04ae37cfe0f884ae8b`,
+PR-head run `30012713595`, merge `d4f05be338f28dc79a0b80aba88b7ddc8115fd4c`, exact run
+`30013255344`; jobs `89226533422`/`89226533373` и dependency audit successful.
+
+Текущий RM-157 audit-first package фиксирует exact offline lookup поверх existing
+`ContractorInn`/`ContractorRepository`/UoW owners. Valid `NOT_FOUND` остаётся read-only: без
+implicit create/restore, сети или fallback к собственной `Company`/`TenderCustomer`.
+Compatibility route `future.clients` и alias `clients` должны сохраниться при будущей in-place
+активации страницы «Контрагенты»; UI code начнётся только после Figma node `41:35` inspection и
+принятого expected-red package. Неизменённый local owner/navigation/bootstrap baseline:
+`48 passed in 9.40s`. Application/UI/schema/dependencies этим audit package не меняются;
+RM-158–RM-200 не начинать.
