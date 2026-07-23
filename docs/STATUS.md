@@ -323,10 +323,18 @@ PR #156 head `e105b202b342da975c61fc430d713f385f180be8`, PR-head run `3000344859
 merge `e2eeac22497ec90b108fc02765089a92c6fdfc55`, exact run `30004268816`; jobs
 `89196436206`/`89196436327` и dependency audit successful.
 
-Текущий отдельный RM-156 audit-first package зафиксировал, что existing `Company`,
+RM-156 audit-first package зафиксировал, что existing `Company`,
 `CompanyProfile` и `CompanyCapabilityProfile` принадлежат собственной ООО «КОРТЕРИС»;
 `TenderCustomer` является source observation, а не contractor master-record. Новая узкая модель
 контрагента должна переиспользовать existing DB/repository/UoW/migration owners и не начинать
-RM-157–RM-168. Локальный неизменённый database/company/collector/registry baseline:
-`31 passed in 11.19s`. Обнаруженный SQLite timezone round-trip gap включён в expected-red contract.
-Application code не меняется до merge/exact audit package. RM-157 и RM-158 не начинать.
+RM-157–RM-168. Audit принят PR #157: head
+`3b32431afe58d25f6b9eddb989505e80a0278d31`, PR-head run `30005475267`, merge
+`cf7f6681a1555bd38ea0ae68990518a3acf38455`, exact run `30006037737`; jobs
+`89202141374`/`89202141383` и dependency audit successful.
+
+Текущий tests-only expected-red package фиксирует 24 отсутствующие INN/domain/repository/UTC/
+schema-4 boundaries и три passing isolation guards. Direct red: `24 failed, 3 passed`;
+regular: `3 passed, 24 xfailed`; focused neighbors: `34 passed, 24 xfailed`; full:
+`2484 passed, 24 xfailed, 2 warnings`. Ruff/format (`807 files`), mypy, secret, offline,
+migration/schema, bootstrap/build/frozen и RM-155 gates успешны. Application code, schema и
+dependencies не меняются до merge/exact package. RM-157 и RM-158 не начинать.

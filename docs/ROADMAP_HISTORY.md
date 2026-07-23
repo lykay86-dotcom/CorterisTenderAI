@@ -1,5 +1,25 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — RM-156 audit принят; expected-red зафиксирован
+
+- Audit commit `3b32431`, PR #157 head
+  `3b32431afe58d25f6b9eddb989505e80a0278d31`; PR-head run `30005475267` successful
+  (jobs `89200323932`/`89200324018`), включая dependency audit.
+- Merge `cf7f6681a1555bd38ea0ae68990518a3acf38455`; exact merge-SHA run `30006037737`
+  successful (jobs `89202141374`/`89202141383`), включая dependency audit.
+- Tests-only expected-red package добавляет 24 strict cases: INN identity/negative matrix,
+  ORM/repository/UoW lifecycle, aware UTC SQLite round-trip, schema 4, migration/backup,
+  future/corrupt fail-closed и import isolation. Три existing owner/observation/Collector guards
+  остаются passing.
+- Direct `--runxfail`: `24 failed, 3 passed in 11.88s`, без collection/setup/network errors.
+  Regular: `3 passed, 24 xfailed in 13.24s`; focused neighbors:
+  `34 passed, 24 xfailed in 18.20s`; full:
+  `2484 passed, 24 xfailed, 2 warnings in 292.43s`.
+- Ruff/format (`807 files`), mypy (`20 source files`), secret scan, offline credential isolation,
+  migration/Collector schema, bootstrap/build/frozen и RM-155 compatibility gates успешны.
+- Application, schema, dependencies, UI, Collector и RM-107 decisions не меняются. Feature,
+  RM-157 и RM-158 не начинаются до merge и successful exact gate этого package.
+
 ## 2026-07-23 — Collector closeout принят; RM-156 audit-first начат
 
 - Closeout commit `e105b20`, PR #156 head

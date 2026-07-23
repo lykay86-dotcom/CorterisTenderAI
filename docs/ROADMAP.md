@@ -260,9 +260,12 @@
 - Canonical closeout завершил prerequisite и вернул RM-156 в production work. Отдельный
   audit-first package фиксирует owner boundary: собственная `Company` сохраняется, contractor
   получает отдельный bounded context поверх existing DB/repository/UoW/migration owners;
-  `TenderCustomer` не становится master-record автоматически. До merge/exact аудита application
-  code не меняется. RM-157 и RM-158 сохраняют исходное место и остаются `PLANNED` до завершения
-  RM-156 по Definition of Done.
+  `TenderCustomer` не становится master-record автоматически. Audit принят PR #157: head
+  `3b32431afe58d25f6b9eddb989505e80a0278d31`, PR-head run `30005475267`, merge
+  `cf7f6681a1555bd38ea0ae68990518a3acf38455`, exact run `30006037737`; обе jobs и dependency
+  audit successful. Текущий tests-only expected-red package фиксирует 24 missing boundaries и
+  три passing guards без application/schema изменений. RM-157 и RM-158 сохраняют исходное место
+  и остаются `PLANNED` до завершения RM-156 по Definition of Done.
 - Нельзя создавать второй Collector/search engine/catalog/factory/settings/credential/health/
   checkpoint owner, менять RM-107 score/recommendation/critical stop-factor priority или выдавать
   неподтверждённый endpoint/fixture за работающий provider.
