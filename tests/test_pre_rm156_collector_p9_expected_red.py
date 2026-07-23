@@ -6,9 +6,9 @@ import asyncio
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
-
-import pytest
 
 from app.tenders.collector import provider_control
 from app.tenders.collector.provider_control import CollectorProviderManager
@@ -31,10 +31,6 @@ EXPECTED_PROVIDER_IDS = (
     "fabrikant",
     "otc",
 )
-EXPECTED_RED = pytest.mark.xfail(
-    strict=True,
-    reason="PRE-RM156 P9 expected-red: offline stabilization diagnostic is not implemented",
-)
 
 
 def _diagnostic_module():
@@ -45,7 +41,6 @@ def _diagnostic_module():
     return module
 
 
-@EXPECTED_RED
 def test_p9_offline_report_covers_exact_canonical_catalog_without_network() -> None:
     module = _diagnostic_module()
 
@@ -58,7 +53,6 @@ def test_p9_offline_report_covers_exact_canonical_catalog_without_network() -> N
     assert report["passed"] is True
 
 
-@EXPECTED_RED
 def test_p9_honest_matrix_never_claims_working_without_live_evidence() -> None:
     module = _diagnostic_module()
 
@@ -71,7 +65,6 @@ def test_p9_honest_matrix_never_claims_working_without_live_evidence() -> None:
     assert not any(item["working"] for item in providers)
 
 
-@EXPECTED_RED
 def test_p9_reference_samples_are_parsed_from_approved_offline_fixtures() -> None:
     module = _diagnostic_module()
 
@@ -85,7 +78,6 @@ def test_p9_reference_samples_are_parsed_from_approved_offline_fixtures() -> Non
     assert all(item["parser_version"] for item in samples)
 
 
-@EXPECTED_RED
 def test_p9_report_is_bounded_deterministic_and_secret_free() -> None:
     module = _diagnostic_module()
 
@@ -101,7 +93,6 @@ def test_p9_report_is_bounded_deterministic_and_secret_free() -> None:
     assert "cookie" not in rendered.casefold()
 
 
-@EXPECTED_RED
 def test_p9_migration_backup_restore_drill_is_included() -> None:
     module = _diagnostic_module()
 
@@ -120,10 +111,6 @@ def test_p9_migration_backup_restore_drill_is_included() -> None:
     }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PRE-RM156 P9 expected-red: unexpected health exception text is persisted raw",
-)
 def test_p9_unexpected_health_exception_is_sanitized(monkeypatch, tmp_path) -> None:
     sentinel = "P9_BEARER_SECRET_SENTINEL"
 
@@ -165,3 +152,28 @@ def test_p9_unexpected_health_exception_is_sanitized(monkeypatch, tmp_path) -> N
     assert "api_key" not in rendered.casefold()
     assert "private" not in rendered.casefold()
     assert result.message == "Проверка источника завершилась внутренней ошибкой."
+
+
+def test_p9_diagnostic_runs_from_outside_project_and_writes_atomic_json(tmp_path) -> None:
+    output = tmp_path / "result" / "p9.json"
+
+    completed = subprocess.run(
+        (
+            sys.executable,
+            str(SCRIPT),
+            "--project-root",
+            str(ROOT),
+            "--output",
+            str(output),
+        ),
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["passed"] is True
+    assert json.loads(output.read_text(encoding="utf-8"))["network_calls"] == 0
+    assert not output.with_suffix(".json.tmp").exists()
