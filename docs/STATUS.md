@@ -136,6 +136,16 @@ Public procurement API/feed, schema/version/rate/raw-retention contract и appro
 Docs-only решением `zakaz_rf`, `roseltorg` и `rad` сохраняются в позициях 1–3 P6 со статусом
 `BLOCKED_EXTERNAL`, а `tek_torg` назначается только следующим последовательным access-audit
 target. Это не working/access claim TekTorg: его сеть, endpoints, fixtures и код этим package не
-исследуются. Следующее действие после merge/exact решения — отдельный official read-only TekTorg
-audit.
+исследуются. Решение принято PR #133: head `4dbd9b1cdfe3a233c97bab2d9f2c58171b3ee10d`, PR-head
+run `29966420486`, merge `22f5a530f6ca32ead5b76f102576fa36b559dac5`, exact run
+`29966853365`; обе matrix jobs и dependency audit успешны.
+
+Отдельный TekTorg read-only audit обнаружил официальный unauthenticated public procedure export:
+discovery, SOAP WSDL, date/section/identity filters, page totals и section/type dictionaries. Это
+не guessed endpoint. Однако public contract не публикует rate/retry limits, maximum page and
+snapshot/completeness rules, schema/version lifecycle, exact timezone/currency/money semantics или
+raw response/document retention and reuse permission. Approved fixtures не сохранялись, procedure
+SOAP request и live verification не выполнялись. `tek_torg` локально классифицирован как
+`BLOCKED_EXTERNAL`; adapter/tests/settings/schema/dependencies не создаются. Publication и exact
+merge-SHA gate этого audit package ещё обязательны.
 Production RM-156, RM-157 и RM-158 не начинать.

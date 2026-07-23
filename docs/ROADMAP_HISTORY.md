@@ -1,5 +1,30 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — Collector P6 TekTorg access audit подготовлен
+
+- Четвёртый P6 provider package выполнен от exact order-decision merge
+  `22f5a530f6ca32ead5b76f102576fa36b559dac5` и ограничен official read-only
+  access/legal/contract audit. Application/test code, schema, dependencies, settings,
+  credentials, fixtures и procedure live calls не менялись.
+- Official `api.tektorg.ru` публикует unauthenticated discovery, public SOAP procedure export,
+  WSDL, filters, page totals and section/type dictionaries. Endpoint не угадан. Но rate/retry,
+  page maximum/snapshot consistency, schema/version lifecycle, exact timezone/currency/money
+  semantics and raw retention/reuse permission не опубликованы; approved fixtures отсутствуют.
+  `tek_torg` локально классифицирован как `BLOCKED_EXTERNAL`, disabled/not configured.
+- Локально: focused `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
+  mypy, secret scan и `git diff --check` успешны. Publication evidence остаётся обязательным до
+  принятия; следующий P6 source не начинается до merge и exact merge-SHA success.
+
+## 2026-07-23 — P6 docs-only переход к TekTorg принят
+
+- ZakazRF, Roseltorg и Rad сохранены в позициях 1–3 P6 со статусом `BLOCKED_EXTERNAL`; TekTorg
+  назначен только следующим последовательным access-audit target без access/readiness claim и
+  без network/code changes.
+- PR #133 head `4dbd9b1cdfe3a233c97bab2d9f2c58171b3ee10d`; PR-head run `29966420486` успешен
+  (jobs `89078811152`/`89078810946`). Merge `22f5a530f6ca32ead5b76f102576fa36b559dac5`;
+  exact run `29966853365` успешен (jobs `89080134032`/`89080134075`), включая dependency audit.
+- Только после exact success создан отдельный TekTorg access-audit worktree.
+
 ## 2026-07-23 — Collector P6 Rad access audit принят и слит
 
 - Третий P6 provider package выполнен от exact order-decision merge
