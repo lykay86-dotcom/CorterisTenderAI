@@ -1,6 +1,20 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — P6 docs-only переход к Сбербанк-АСТ подготовлен
+## 2026-07-23 — Collector P6 Сбербанк-АСТ access audit подготовлен
+
+- Шестой P6 audit выполнен от exact order merge
+  `7d1e728a99c384acd72d3b7b13ab274378fe7d47`; application/tests/settings/credentials/schema/
+  dependencies не меняются, fixtures и procurement payloads не сохраняются.
+- Official public human 44-ФЗ/223-ФЗ registries существуют. Machine API/feed, permitted
+  automation/reuse, stable schema/version, pagination/completeness, rate/retry, timezone/currency/
+  exact-money and raw retention contract не опубликованы; robots закрывает document view/download.
+- Local verdict `BLOCKED_EXTERNAL`; parser/adapter/fixture/live claim запрещены. Локально: focused
+  `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan
+  и `git diff --check` успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh
+  command-scoped `--basetemp`. Publication evidence pending; `rts_tender` не начинается до
+  merge/exact.
+
+## 2026-07-23 — P6 docs-only переход к Сбербанк-АСТ принят и слит
 
 - Первые пять P6 sources сохраняют принятые blocker/identity verdicts; ни один не удаляется и не
   считается реализованным. `sber_a` назначен только следующим access-audit target в исходной
@@ -8,8 +22,11 @@
 - Application/tests/settings/credentials/DB/schema/fixtures не меняются. Локально: focused
   `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`), mypy, secret scan
   и `git diff --check` успешны. Pytest использовал workflow `QT_QPA_PLATFORM=offscreen` и fresh
-  command-scoped `--basetemp`. Publication evidence pending; `rts_tender` и последующие sources
-  не начинаются до merge/exact.
+  command-scoped `--basetemp`.
+- PR #138 head `1ddc2d726a6279ffb94023c89d6d90fc82e2347d`; PR-head run `29972908601` успешен
+  (jobs `89098549848`/`89098549930`). Merge `7d1e728a99c384acd72d3b7b13ab274378fe7d47`;
+  exact run `29973164497` успешен (jobs `89099325527`/`89099325555`), включая dependency audit.
+- Только после exact success создан отдельный Сбербанк-АСТ access-audit worktree.
 
 ## 2026-07-23 — ETS/НЭП ↔ Fabrikant identity ownership решение принято и слито
 

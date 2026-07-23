@@ -152,7 +152,13 @@
   `29971869854`, merge `cd39b8e82d2ce208aa4498462c545f0fab894044`, exact run
   `29972112388`; обе matrix jobs и dependency audit успешны. Следующим последовательным P6
   access-audit target назначается `sber_a` (позиция 6) без contract/readiness claim. Отдельный
-  Сбербанк-АСТ audit начинается только после merge/exact этого docs-only решения.
+  Сбербанк-АСТ audit начинается только после merge/exact этого docs-only решения. Решение принято
+  PR #138: head `1ddc2d726a6279ffb94023c89d6d90fc82e2347d`, PR-head run `29972908601`, merge
+  `7d1e728a99c384acd72d3b7b13ab274378fe7d47`, exact run `29973164497`; обе matrix jobs и
+  dependency audit успешны. Последующий read-only audit подтвердил public human 44-ФЗ/223-ФЗ
+  registries, но не machine API/feed, automation/reuse permission, schema/pagination/rate/
+  timezone/retention contract или approved fixtures. `sber_a` локально `BLOCKED_EXTERNAL`;
+  guessed HTML/API implementation запрещена.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
