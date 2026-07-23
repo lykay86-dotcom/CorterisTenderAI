@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -39,6 +39,29 @@ def test_activity_feed_orders_newest_first() -> None:
     )
 
     assert [entry.key for entry in feed.entries] == ["new", "old"]
+
+
+def test_activity_feed_orders_mixed_repository_and_aware_timestamps() -> None:
+    _app()
+    feed = ActivityFeed(
+        [
+            ActivityEntry(
+                key="repository-local",
+                title="Локальная дата из SQLite",
+                timestamp=datetime(2026, 7, 21, 18, 0),
+            ),
+            ActivityEntry(
+                key="dashboard-aware",
+                title="Дата обновления Dashboard",
+                timestamp=datetime(2026, 7, 21, 16, 0, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+
+    assert [entry.key for entry in feed.entries] == [
+        "dashboard-aware",
+        "repository-local",
+    ]
 
 
 def test_activity_feed_respects_history_limit() -> None:

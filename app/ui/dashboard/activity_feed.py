@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from app.ui.theme.colors import ThemeName, get_palette
 from app.ui.theme.typography import Typography
 from app.ui.accessibility.focus import restore_focus
+from app.ui.viewmodels.dashboard_viewmodel import aware_dashboard_time
 
 
 class ActivityTone(StrEnum):
@@ -386,7 +387,7 @@ class ActivityFeed(QWidget):
         """Replace entries and render newest events first."""
         normalized = sorted(
             list(entries),
-            key=lambda entry: entry.timestamp or datetime.min,
+            key=lambda entry: aware_dashboard_time(entry.timestamp or datetime.min),
             reverse=True,
         )
         self._entries = normalized[: self._max_entries]
