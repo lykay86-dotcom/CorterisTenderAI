@@ -90,3 +90,16 @@ Dependency audit подтверждён в обеих audit exact jobs; новы
 Этот package не исправляет expected-red boundaries. После его merge и successful exact merge-SHA
 gate создаётся отдельный feature worktree от точного merge SHA. Каждый strict xfail снимается
 только implementation, делающей соответствующий test pass; RM-157–RM-168 не начинаются.
+
+## 7. Green transition
+
+- PR #158 head `c3a51913234c6d1864f70817572f3a3f95f2c926`, PR-head run `30008132034`,
+  jobs `89209082737`/`89209082678`, successful, включая dependency audit.
+- Merge `11d079b1474fa4a384cc35545f412440cf4a168c`; exact run `30008699060`, jobs
+  `89211007130`/`89211007201`, successful, включая dependency audit.
+- Fixture-only commit `dfd25f4` сделал future-schema source version-independent без изменения
+  assertion.
+- Feature commit `213b2e2` перевёл direct contract в `27 passed`; после missing-version guard
+  final target — `28 passed`.
+
+Expected-red assertions сохранены; сняты только strict xfail markers после их фактического green.
