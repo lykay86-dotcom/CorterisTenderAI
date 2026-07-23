@@ -1,5 +1,22 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P8 hardening принят; aggregator discovery closeout подготовлен
+
+- P8 hardening опубликован тремя изолированными commits: tests `16829e7`, implementation
+  `864862c`, documentation `df91a4c`.
+- PR #152 head `df91a4cdcb5923f31b7be4501e85cd25e7329485`; PR-head run `29996521546`
+  успешен (jobs `89171378944`/`89171378841`). Merge
+  `593ea5c7d3657e881fad985933444a44aa12b0f1`; fresh exact run `29996926693` успешен
+  (jobs `89172697592`/`89172697637`), включая full suite и dependency audit.
+- P8 может закрыться без optional producer: TenderGuru остаётся
+  `BLOCKED_EXTERNAL / ENTITLEMENT_AND_LICENSE_REQUIRED`, а existing discovery queue доказуемо
+  bounded, sanitized и изолирована от authoritative decision path.
+- Текущий docs-only closeout не закрывает Collector prerequisite и не возобновляет production
+  RM-156. После собственного merge/exact он открывает только P9 stabilization; до этого P9,
+  RM-156 production, RM-157 и RM-158 не начинаются.
+- Локальный canonical prerequisite contour: `23 passed in 5.80s`; repository secret scan и
+  `git diff --check` успешны.
+
 ## 2026-07-23 — P8 discovery queue hardening начат
 
 - Package создан только после accepted P8 access-audit merge
@@ -13,8 +30,10 @@
   schema/settings/dependency или TenderGuru producer не создаются.
 - Финально локально: focused `51 passed in 16.06s`, full
   `2474 passed, 2 warnings in 309.67s`; Ruff/format (`804 files`), mypy (`20 source files`),
-  secret scan и `git diff --check` успешны. Publication validation ожидается. P9 не начинается
-  до merge/exact hardening.
+  secret scan и `git diff --check` успешны.
+- Publication принята PR #152: head `df91a4cdcb5923f31b7be4501e85cd25e7329485`,
+  PR-head run `29996521546`, merge `593ea5c7d3657e881fad985933444a44aa12b0f1`,
+  fresh exact run `29996926693`; обе Windows jobs и dependency audit успешны.
 
 ## 2026-07-23 — P8 TenderGuru discovery access audit подготовлен
 
