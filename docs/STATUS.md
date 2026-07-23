@@ -146,6 +146,14 @@ discovery, SOAP WSDL, date/section/identity filters, page totals и section/type
 snapshot/completeness rules, schema/version lifecycle, exact timezone/currency/money semantics или
 raw response/document retention and reuse permission. Approved fixtures не сохранялись, procedure
 SOAP request и live verification не выполнялись. `tek_torg` локально классифицирован как
-`BLOCKED_EXTERNAL`; adapter/tests/settings/schema/dependencies не создаются. Publication и exact
-merge-SHA gate этого audit package ещё обязательны.
+`BLOCKED_EXTERNAL`; adapter/tests/settings/schema/dependencies не создаются. Audit принят PR #134:
+head `44e2975237899b6672681323f8a36d457fd55825`, PR-head run `29967886571`, merge
+`30f6fb1c318d4c0ddc9b10d1dace6cb429c93e8f`, exact run `29968220150`; обе matrix jobs и
+dependency audit успешны.
+
+Docs-only решением `zakaz_rf`, `roseltorg`, `rad` и `tek_torg` сохраняются в позициях 1–4 P6 со
+статусом `BLOCKED_EXTERNAL`, а `ets_nep` назначается только следующим последовательным
+access-audit target. Это не working/access claim ETS/НЭП: его сеть, endpoints, fixtures и код этим
+package не исследуются. Следующее действие после merge/exact решения — отдельный official
+read-only ETS/НЭП audit.
 Production RM-156, RM-157 и RM-158 не начинать.

@@ -1,6 +1,18 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — Collector P6 TekTorg access audit подготовлен
+## 2026-07-23 — P6 docs-only переход к ETS/НЭП подготовлен
+
+- ZakazRF, Roseltorg, Rad и TekTorg сохранены в позициях 1–4 P6 со статусом
+  `BLOCKED_EXTERNAL`; `ets_nep` назначен только следующим последовательным access-audit target
+  без access/readiness claim и без network/code changes.
+- Локально: focused `33 passed`; final full suite `2467 passed, 2 warnings`; Ruff/format
+  (`804 files`), mypy, secret scan и `git diff --check` успешны. Первый full attempt имел один
+  невоспроизводимый native Windows/Qt `0xc0000374`; exact test, четыре повтора файла и final full
+  suite прошли без изменения кода/tests/thresholds.
+- Publication, PR-head и exact merge-SHA gate остаются обязательными. Отдельный ETS/НЭП audit не
+  начинается до их успеха.
+
+## 2026-07-23 — Collector P6 TekTorg access audit принят и слит
 
 - Четвёртый P6 provider package выполнен от exact order-decision merge
   `22f5a530f6ca32ead5b76f102576fa36b559dac5` и ограничен official read-only
@@ -12,8 +24,12 @@
   semantics and raw retention/reuse permission не опубликованы; approved fixtures отсутствуют.
   `tek_torg` локально классифицирован как `BLOCKED_EXTERNAL`, disabled/not configured.
 - Локально: focused `33 passed`, full suite `2467 passed, 2 warnings`; Ruff/format (`804 files`),
-  mypy, secret scan и `git diff --check` успешны. Publication evidence остаётся обязательным до
-  принятия; следующий P6 source не начинается до merge и exact merge-SHA success.
+  mypy, secret scan и `git diff --check` успешны.
+- PR #134 head `44e2975237899b6672681323f8a36d457fd55825`; PR-head run `29967886571` успешен
+  (jobs `89083246018`/`89083245976`). Merge commit
+  `30f6fb1c318d4c0ddc9b10d1dace6cb429c93e8f`; exact merge-SHA run `29968220150` успешен
+  (jobs `89084249165`/`89084249132`), включая dependency audit. Только после этого подготовлено
+  отдельное docs-only решение о следующем P6 access-audit target `ets_nep`.
 
 ## 2026-07-23 — P6 docs-only переход к TekTorg принят
 
