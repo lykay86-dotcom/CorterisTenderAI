@@ -2,8 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY AUDITED / BLOCKED_EXTERNAL`; publication и exact merge-SHA Quality Gate
-ожидаются. Application implementation запрещена Definition of Ready.
+Статус: `ACCEPTED / BLOCKED_EXTERNAL`; application implementation запрещена Definition of Ready.
 
 ## 1. Entry gate
 
@@ -106,4 +105,16 @@ historical data не меняются. `tek_torg` остаётся disabled/not 
 Tests used fresh command-scoped `--basetemp` paths because the host's old global pytest temp root
 has a previously diagnosed ACL defect; repository files and test thresholds were not changed.
 Warnings — неизменные `openpyxl` notices; dependencies не менялись. PR-head и exact merge-SHA
-Windows Quality Gate обязательны до принятия audit package.
+Windows Quality Gate были обязательны и успешно пройдены по evidence ниже.
+
+## 7. Publication acceptance
+
+- PR #134 head `44e2975237899b6672681323f8a36d457fd55825`;
+- PR-head Quality Gate `29967886571`: jobs `89083246018` (Python 3.12) и `89083245976`
+  (Python 3.13) успешны;
+- merge commit `30f6fb1c318d4c0ddc9b10d1dace6cb429c93e8f`;
+- exact merge-SHA Quality Gate `29968220150`: jobs `89084249165` (Python 3.12) и
+  `89084249132` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный docs-only worktree решения о следующем P6
+access-audit target. `BLOCKED_EXTERNAL` и все перечисленные stop-lines сохраняются.

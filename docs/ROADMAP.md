@@ -129,8 +129,13 @@
   официальный public SOAP procedure export, filters, page totals and dictionaries, но не нашёл
   обязательные rate/retry limits, page maximum/snapshot consistency, schema/version policy,
   exact timezone/currency/money semantics, raw retention/reuse permission или approved fixtures.
-  `tek_torg` локально `BLOCKED_EXTERNAL`; guessed defaults и implementation запрещены до
-  publication/exact audit package и отдельного external unblock.
+  `tek_torg` остаётся `BLOCKED_EXTERNAL`; guessed defaults и implementation запрещены. Audit
+  принят PR #134: head `44e2975237899b6672681323f8a36d457fd55825`, PR-head run
+  `29967886571`, merge `30f6fb1c318d4c0ddc9b10d1dace6cb429c93e8f`, exact run
+  `29968220150`; обе matrix jobs и dependency audit успешны. Docs-only решением первые четыре P6
+  sources сохраняются blocked, а `ets_nep` назначается следующим последовательным access-audit
+  target без contract/readiness claim. Отдельный ETS/НЭП audit начинается только после
+  merge/exact этого решения.
 - После завершения prerequisite обязателен отдельный canonical closeout. Он возвращает RM-156 в
   production work; затем продолжается модель контрагента, а RM-157 и RM-158 сохраняют исходное
   место и остаются `PLANNED` до завершения RM-156 по Definition of Done.
