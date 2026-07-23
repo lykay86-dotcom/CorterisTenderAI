@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED`; publication и exact merge-SHA Quality Gate ожидаются.
+Статус: `ACCEPTED`.
 
 ## 1. Основание
 
@@ -77,5 +77,11 @@ Warnings — неизменные `openpyxl` notices; repository files/tests/thr
 
 ## 6. Publication acceptance
 
-Ожидаются PR-head и exact merge-SHA Windows Quality Gate. После exact success отдельный OTC
-access-audit worktree создаётся от принятого merge commit.
+- PR #148 head `3ba012506e147a4a8392e8a1dea75e153307e016`;
+- PR-head Quality Gate `29986076319`: jobs `89138089157` (Python 3.12) и `89138089106`
+  (Python 3.13) успешны;
+- merge commit `5c087726e2cb32c88c6b9760d8b43b887da4234f`;
+- exact merge-SHA Quality Gate `29986457553`: jobs `89139297913` (Python 3.12) и
+  `89139297894` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный OTC access-audit worktree.

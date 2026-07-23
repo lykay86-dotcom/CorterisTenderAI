@@ -1,6 +1,20 @@
 # История дорожной карты CorterisTenderAI
 
-## 2026-07-23 — P7 docs-only переход к OTC подготовлен
+## 2026-07-23 — Collector P7 OTC access audit подготовлен
+
+- Official public human search/detail pages существуют, а Регламент описывает account OTC-CRM и
+  customer-side EIS integration. Published external procurement discovery API/feed и permitted
+  automation/reuse contract отсутствуют; verdict
+  `BLOCKED_EXTERNAL / PUBLIC_HTML_WITHOUT_MACHINE_CONTRACT`.
+- HTML/XHR reverse engineering, login, forms, bulk access и fixture capture не выполнялись.
+  Commercial sections не начинаются до merge/exact audit и отдельного docs-only section matrix/order
+  решения внутри existing owners.
+- Локально: focused `34 passed in 14.76s`, full suite
+  `2467 passed, 2 warnings in 254.20s`; Ruff/format (`804 files`), mypy (`20 source files`),
+  secret scan и `git diff --check` успешны. Pytest использовал
+  `QT_QPA_PLATFORM=offscreen` и fresh command-scoped `--basetemp`.
+
+## 2026-07-23 — P7 docs-only переход к OTC принят и слит
 
 - Принятые B2B-Center и Фабрикант blockers сохраняются в позициях 1–2 P7; `otc` назначен только
   следующим access-audit target в позиции 3 без access/readiness/fixture/working claim.
@@ -11,6 +25,11 @@
   `2466 passed`, тот же lifecycle test прошёл `10/10` fresh processes, повторный full run —
   `2467 passed, 2 warnings`. Ruff/format (`804 files`), mypy (`20 source files`), secret scan и
   `git diff --check` успешны.
+- PR #148 head `3ba012506e147a4a8392e8a1dea75e153307e016`; PR-head run `29986076319`
+  успешен (jobs `89138089157`/`89138089106`). Merge
+  `5c087726e2cb32c88c6b9760d8b43b887da4234f`; exact run `29986457553` успешен (jobs
+  `89139297913`/`89139297894`), включая dependency audit.
+- Только после exact success создан отдельный OTC access-audit worktree.
 
 ## 2026-07-23 — Collector P7 Фабрикант access audit принят и слит
 
