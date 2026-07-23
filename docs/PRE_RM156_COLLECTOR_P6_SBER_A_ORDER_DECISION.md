@@ -2,7 +2,7 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `DECIDED LOCALLY`; publication/exact gate ожидаются.
+Статус: `ACCEPTED`.
 
 ## 1. Основание
 
@@ -80,3 +80,14 @@ Pytest использовал `QT_QPA_PLATFORM=offscreen`, как active Quality
 `--basetemp` из-за ранее диагностированного ACL дефекта старого global pytest temp root. Repository
 files/tests/thresholds не менялись. Warnings — неизменные `openpyxl` notices; dependencies не
 менялись. PR-head и exact merge-SHA Windows Quality Gate обязательны до принятия решения.
+
+## 6. Publication acceptance
+
+- PR #138 head `1ddc2d726a6279ffb94023c89d6d90fc82e2347d`;
+- PR-head Quality Gate `29972908601`: jobs `89098549848` (Python 3.12) и `89098549930`
+  (Python 3.13) успешны;
+- merge commit `7d1e728a99c384acd72d3b7b13ab274378fe7d47`;
+- exact merge-SHA Quality Gate `29973164497`: jobs `89099325527` (Python 3.12) и
+  `89099325555` (Python 3.13) успешны, включая dependency audit.
+
+Только после exact success создан отдельный Сбербанк-АСТ access-audit worktree.

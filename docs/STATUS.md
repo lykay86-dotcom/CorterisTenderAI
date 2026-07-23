@@ -179,6 +179,14 @@ run `29971869854`, merge `cd39b8e82d2ce208aa4498462c545f0fab894044`, exact run
 
 Docs-only решением первые пять P6 sources сохраняются с принятыми blocker/identity verdicts, а
 `sber_a` назначается только следующим последовательным access-audit target. Это не working/access
-claim Сбербанк-АСТ: его сеть, endpoints, fixtures и код этим package не исследуются. Publication
-и exact gate решения обязательны до отдельного Сбербанк-АСТ audit.
+claim Сбербанк-АСТ: его сеть, endpoints, fixtures и код этим package не исследуются. Решение
+принято PR #138: head `1ddc2d726a6279ffb94023c89d6d90fc82e2347d`, PR-head run
+`29972908601`, merge `7d1e728a99c384acd72d3b7b13ab274378fe7d47`, exact run
+`29973164497`; обе matrix jobs и dependency audit успешны.
+
+Отдельный Сбербанк-АСТ read-only audit подтвердил official public human registries для 44-ФЗ и
+223-ФЗ. Опубликованный machine API/feed contract, automation/data-reuse permission, schema/version,
+pagination/completeness, rate/retry, timezone/currency/exact-money и raw retention rules не найдены;
+robots закрывает основные document download/view routes. `sber_a` локально `BLOCKED_EXTERNAL`;
+adapter/fixture/live verification не создаются. Publication/exact audit gate ещё обязательны.
 Production RM-156, RM-157 и RM-158 не начинать.
