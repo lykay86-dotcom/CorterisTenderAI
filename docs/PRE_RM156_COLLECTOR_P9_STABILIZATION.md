@@ -2,7 +2,8 @@
 
 Дата: 23 июля 2026 года.
 
-Статус: `LOCALLY VALIDATED / PUBLICATION PENDING`; Collector prerequisite closeout не выполнен.
+Статус: `ACCEPTED`; feature опубликован и принят exact merge-SHA Quality Gate. Collector
+prerequisite закрывается отдельным canonical docs-only package.
 
 ## 1. Entry gate
 
@@ -100,7 +101,14 @@ Rollback feature package:
 
 ## 7. Remaining publication and closeout gate
 
-Ожидаются isolated commits, PR-head Windows 3.12/3.13 Quality Gate, merge и fresh exact
-merge-SHA Quality Gate. Только после их успеха отдельный docs-only closeout может оценить общий
-Definition of Done и принятие documented external blockers. До этого production RM-156, RM-157 и
-RM-158 не начинаются.
+- Commits: tests `c15ab0f`, implementation `cdca6de`, docs `f9d7785`.
+- PR #155 head `f9d77857102588750432264186df4b0b268f2788`.
+- PR-head run `30001707776` успешен: jobs `89188165195` (3.12),
+  `89188165230` (3.13), dependency audit successful.
+- Merge `7101396f24885144807f0f60c72b798e48c7861a`.
+- Fresh exact run `30002186102`: attempt 1 Python 3.12 получил native Windows
+  `access violation`; unchanged-SHA attempt 2 успешен.
+- Final jobs `89191332161` (3.12) и `89191333148` (3.13) успешны, включая dependency audit.
+
+После exact success создан отдельный canonical Collector closeout. Production RM-156 не
+начинается до merge/exact closeout.

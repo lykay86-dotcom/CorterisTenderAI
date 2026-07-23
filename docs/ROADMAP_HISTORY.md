@@ -1,5 +1,25 @@
 # История дорожной карты CorterisTenderAI
 
+## 2026-07-23 — P9 feature принят; canonical Collector closeout подготовлен
+
+- P9 feature commits: tests `c15ab0f`, implementation `cdca6de`, docs `f9d7785`.
+  PR #155 head `f9d77857102588750432264186df4b0b268f2788`; PR-head run `30001707776`
+  успешен (jobs `89188165195`/`89188165230`), включая dependency audit.
+- Merge `7101396f24885144807f0f60c72b798e48c7861a`. Exact run `30002186102` attempt 1
+  Python 3.12 job `89189715981` получил native Windows `access violation` на 37% full suite без
+  Python test assertion; Python 3.13 прошёл.
+- Debugging stop-line сохранил evidence и не менял code/tests/thresholds. Failed-job rerun на том
+  же SHA завершился exact attempt 2 `success`: final jobs `89191332161`/`89191333148`, оба
+  dependency audits successful.
+- Closeout DoD audit принимает техническую foundation при honest matrix: 13
+  `BLOCKED_EXTERNAL`, 0 `WORKING`; TenderGuru остаётся separate discovery blocker. Указание
+  владельца продолжать без подтверждений трактуется как принятие documented blockers, не working/
+  access claim.
+- Closeout-local canonical P9/prerequisite/identity contour `30 passed in 13.07s`; repository
+  secret scan и `git diff --check` успешны.
+- После merge/exact closeout Collector prerequisite становится `DONE`, а RM-156 остаётся
+  единственным `IN PROGRESS` и возвращается в production work. RM-157–RM-200 остаются `PLANNED`.
+
 ## 2026-07-23 — P9 audit принят; stabilization implementation локально зелёная
 
 - P9 audit commits tests `1a588f6` и docs `3f9ae22`; PR #154 head
